@@ -1,26 +1,89 @@
-@import "tailwindcss";
+/* src/styles/globals.css */
 
+/* =========
+   TOKENS
+========= */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0067ac;        /* fondo general */
+  --header: #0a5a94;    /* topbar */
+  --panel: #064a79;     /* contenedores */
+  --panel2: #053e67;    /* panel más profundo */
+  --accent: #bfe7ff;    /* celeste claro (texto/lineas) */
+  --accent2: #66c7ff;   /* hover / énfasis */
+  --text: #f7f9fb;      /* texto principal */
+  --muted: rgba(191,231,255,.75);
+  --border: rgba(191,231,255,.22);
+  --shadow: 0 10px 30px rgba(0,0,0,.18);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* =========
+   BASE
+========= */
+html, body { height: 100%; }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
+
+* { box-sizing: border-box; }
+
+/* =========
+   UTILS (clases simples reutilizables)
+========= */
+.container-max {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.panel-inner {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.muted { color: var(--muted); }
+
+/* =========
+   INPUT LOOK (similar a tu UI)
+========= */
+.input {
+  width: 100%;
+  background: rgba(0,0,0,.10);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.input:focus {
+  border-color: rgba(102,199,255,.85);
+  box-shadow: 0 0 0 3px rgba(102,199,255,.18);
+}
+
+.select {
+  width: 100%;
+  background: rgba(0,0,0,.10);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+/* =========
+   SCROLLBAR (web tipo blending)
+========= */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: rgba(0,0,0,.12); border-radius: 999px; }
+*::-webkit-scrollbar-thumb { background: rgba(191,231,255,.30); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(191,231,255,.45); }
