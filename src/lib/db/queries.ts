@@ -16,8 +16,109 @@ export type PeriodRow = {
   period_end: string;     // ISO
 };
 
+// ==================
+// Lookups (dropdowns)
+// ==================
+export type LookupRow = {
+  id: number;
+  name: string;
+};
+
+export type PriorityRow = {
+  id: number;
+  name: string;
+  order: number | null;
+};
+
+export async function getInvClasses(): Promise<LookupRow[]> {
+  const res = await q<LookupRow>(`
+    SELECT
+      inv_class_id AS id,
+      inv_class_name AS name
+    FROM dim.inv_class
+    ORDER BY inv_class_name;
+  `);
+  return res.recordset;
+}
+
+export async function getPriorities(): Promise<PriorityRow[]> {
+  const res = await q<PriorityRow>(`
+    SELECT
+      priority_id AS id,
+      priority_name AS name,
+      priority_order AS [order]
+    FROM dim.priority
+    ORDER BY
+      CASE WHEN priority_order IS NULL THEN 1 ELSE 0 END,
+      priority_order,
+      priority_name;
+  `);
+  return res.recordset;
+}
+
+export async function getProjAreas(): Promise<LookupRow[]> {
+  const res = await q<LookupRow>(`
+    SELECT
+      proj_area_id AS id,
+      proj_area_name AS name
+    FROM dim.proj_area
+    ORDER BY proj_area_name;
+  `);
+  return res.recordset;
+}
+
+export async function getProjConditions(): Promise<LookupRow[]> {
+  const res = await q<LookupRow>(`
+    SELECT
+      proj_condition_id AS id,
+      proj_condition_name AS name
+    FROM dim.proj_condition
+    ORDER BY proj_condition_name;
+  `);
+  return res.recordset;
+}
+
+export async function getProjGroups(): Promise<LookupRow[]> {
+  const res = await q<LookupRow>(`
+    SELECT
+      proj_group_id AS id,
+      proj_group_name AS name
+    FROM dim.proj_group
+    ORDER BY proj_group_name;
+  `);
+  return res.recordset;
+}
+
+// ==============
+// Projects & WBS
+// ==============
+export type ProjectRow = {
+  project_code: string;
+  project_name: string;
+  proj_group_id: number | null;
+  inv_class_id: number | null;
+  proj_condition_id: number | null;
+  proj_area_id: number | null;
+  priority_id: number | null;
+};
+
+export async function getProjects(): Promise<ProjectRow[]> {
+  const res = await q<ProjectRow>(`
+    SELECT
+      project_code,
+      project_name,
+      proj_group_id,
+      inv_class_id,
+      proj_condition_id,
+      proj_area_id,
+      priority_id
+    FROM dim.project
+    ORDER BY project_code;
+  `);
+  return res.recordset;
+}
+
 export async function getProjectTree(): Promise<ProjectWbsRow[]> {
-  // OJO: asume que tus tablas se llaman dim.project y dim.wbs (sin "dim_")
   const res = await q<ProjectWbsRow>(`
     SELECT
       p.project_code,
@@ -55,7 +156,6 @@ export async function getPeriods(fromPeriodId: number, n: number): Promise<Perio
 // ==============
 // Latest helpers
 // ==============
-
 export type LatestCell = {
   wbs_code: string;
   period_id: number;
@@ -83,7 +183,7 @@ export async function getLatestBudget(
         CAST(b.amount AS nvarchar(80)) AS value,
         ROW_NUMBER() OVER (
           PARTITION BY b.wbs_code, b.period_id, b.budget_class
-          ORDER BY b.updated_at DESC, b.stg_budget_month_id DESC
+          ORDER BY b.updated_at DESC, b.budget_month_id DESC
         ) AS rn
       FROM stg.budget_month b
       WHERE b.budget_class = @cls
@@ -126,7 +226,7 @@ export async function getLatestForecast(
         CAST(f.amount AS nvarchar(80)) AS value,
         ROW_NUMBER() OVER (
           PARTITION BY f.wbs_code, f.period_id
-          ORDER BY f.updated_at DESC, f.stg_forecast_month_id DESC
+          ORDER BY f.updated_at DESC, f.forecast_month_id DESC
         ) AS rn
       FROM stg.forecast_month f
       WHERE f.period_id IN (SELECT period_id FROM p)
@@ -152,8 +252,6 @@ export async function getLatestProgress(
   fromPeriodId: number,
   n: number
 ): Promise<LatestCell[]> {
-  // EV y AC se guardan por as_of_date (diario/semanal)
-  // Los mapeamos a period_id con dim.period (rango de fechas)
   const res = await q<LatestCell>(
     `
     ;WITH p AS (
@@ -169,7 +267,7 @@ export async function getLatestProgress(
         CAST(e.ev_pct_cum AS nvarchar(80)) AS value,
         ROW_NUMBER() OVER (
           PARTITION BY e.wbs_code, p.period_id
-          ORDER BY e.updated_at DESC, e.stg_ev_entry_id DESC
+          ORDER BY e.updated_at DESC, e.ev_entry_id DESC
         ) AS rn
       FROM stg.ev_entry e
       JOIN p
@@ -183,7 +281,7 @@ export async function getLatestProgress(
         CAST(a.amount AS nvarchar(80)) AS value,
         ROW_NUMBER() OVER (
           PARTITION BY a.wbs_code, p.period_id
-          ORDER BY a.updated_at DESC, a.stg_actual_entry_id DESC
+          ORDER BY a.updated_at DESC, a.actual_entry_id DESC
         ) AS rn
       FROM stg.actual_entry a
       JOIN p

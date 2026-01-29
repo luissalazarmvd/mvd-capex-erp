@@ -1,77 +1,105 @@
 // src/app/(capex)/budget/page.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { WbsMatrix, Period, Row } from "../../../components/capex/WbsMatrix";
 import { Button } from "../../../components/ui/Button";
 
-function makePeriods(startYYYYMM: number, n: number): Period[] {
-  const y0 = Math.floor(startYYYYMM / 100);
-  const m0 = startYYYYMM % 100;
-
-  const months = [
-    "Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic",
-  ];
-
-  const out: Period[] = [];
-  for (let i = 0; i < n; i++) {
-    const mIndex = (m0 - 1 + i) % 12;
-    const y = y0 + Math.floor((m0 - 1 + i) / 12);
-    const m = mIndex + 1;
-    const period_id = y * 100 + m;
-    const label = `${months[mIndex]}_${String(y).slice(2)}`;
-    out.push({ period_id, label });
-  }
-  return out;
-}
-
-function keyOf(wbs: string, period_id: number, col: string) {
-  return `${wbs}|${period_id}|${col}`;
-}
-
 type BudgetClass = "ORIG" | "SOC";
 
-export default function BudgetPage() {
-  // demo data (luego lo jalas de dim.project + dim.wbs)
-  const [projects] = useState<ProjectNode[]>([
-    {
-      project_code: "01",
-      project_name: "Proyecto Demo",
-      wbs: [
-        { wbs_code: "01.01", wbs_name: "Obra Civil" },
-        { wbs_code: "01.02", wbs_name: "Equipos" },
-      ],
-    },
-    {
-      project_code: "02",
-      project_name: "Proyecto 2",
-      wbs: [{ wbs_code: "02.01", wbs_name: "Ingeniería" }],
-    },
-  ]);
+type ProjectsMeta = {
+  ok: boolean;
+  tree: ProjectNode[];
+};
 
-  const periods = useMemo(() => makePeriods(202601, 12), []);
+type PeriodsResp = {
+  ok: boolean;
+  periods: Period[];
+};
+
+type LatestResp = {
+  ok: boolean;
+  latest: Record<string, string | null>;
+};
+
+export default function BudgetPage() {
+  const [projects, setProjects] = useState<ProjectNode[]>([]);
+  const [periods, setPeriods] = useState<Period[]>([]);
 
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedWbs, setSelectedWbs] = useState<string | null>(null);
+
   const [budgetClass, setBudgetClass] = useState<BudgetClass>("ORIG");
 
-  // latest (hint)
-  const [latest] = useState<Record<string, string | null>>(() => {
-    const l: Record<string, string | null> = {};
-    l[keyOf("01.01", 202601, "ORIG")] = "120000";
-    l[keyOf("01.01", 202602, "ORIG")] = "90000";
-    l[keyOf("01.02", 202601, "ORIG")] = "50000";
-    return l;
-  });
-
-  // draft (editable)
+  const [latest, setLatest] = useState<Record<string, string | null>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
 
+  const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Ajusta esto si quieres otro inicio
+  const FROM_PERIOD = 202601;
+  const N_PERIODS = 12;
+
+  async function loadMetaAndPeriods() {
+    const [m, p] = await Promise.all([
+      fetch("/api/projects/meta", { cache: "no-store" }),
+      fetch(`/api/periods?from=${FROM_PERIOD}&n=${N_PERIODS}`, { cache: "no-store" }),
+    ]);
+
+    if (!m.ok) throw new Error(`GET /api/projects/meta -> ${m.status}`);
+    if (!p.ok) throw new Error(`GET /api/periods -> ${p.status}`);
+
+    const meta = (await m.json()) as ProjectsMeta;
+    const per = (await p.json()) as PeriodsResp;
+
+    setProjects(meta.tree ?? []);
+    setPeriods(per.periods ?? []);
+
+    if (!selectedProject && meta.tree?.length) {
+      setSelectedProject(meta.tree[0].project_code);
+      setSelectedWbs(null);
+    }
+  }
+
+  async function loadLatest(cls: BudgetClass) {
+    const r = await fetch(
+      `/api/budget/latest?from=${FROM_PERIOD}&n=${N_PERIODS}&class=${cls}`,
+      { cache: "no-store" }
+    );
+    if (!r.ok) throw new Error(`GET /api/budget/latest -> ${r.status}`);
+    const out = (await r.json()) as LatestResp;
+    setLatest(out.latest ?? {});
+  }
+
+  async function loadAll(cls: BudgetClass) {
+    setLoading(true);
+    setMsg(null);
+    try {
+      await loadMetaAndPeriods();
+      await loadLatest(cls);
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando data");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAll(budgetClass);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // al cambiar ORIG/SOC, recargar hints y limpiar draft
+    setDraft({});
+    loadAll(budgetClass);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budgetClass]);
+
   const rows: Row[] = useMemo(() => {
-    const p = selectedProject
-      ? projects.filter((x) => x.project_code === selectedProject)
-      : projects;
+    const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
 
     const out: Row[] = [];
     for (const proj of p) {
@@ -93,13 +121,22 @@ export default function BudgetPage() {
   }
 
   async function onSave(payload: { key: string; value: string }[]) {
-    // demo: aquí llamas POST /api/budget/upsert
-    // y luego recargas latest desde DB
-    console.log("SAVE budget", payload);
+    setMsg(null);
 
-    // simular que se guardó y latest “cambia”
-    // (por ahora solo limpias draft)
+    const r = await fetch("/api/budget/upsert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: payload }),
+    });
+
+    const out = await r.json().catch(() => ({} as any));
+    if (!r.ok || out?.ok === false) {
+      throw new Error(out?.error ?? `HTTP ${r.status}`);
+    }
+
     setDraft({});
+    await loadAll(budgetClass);
+    setMsg("OK: budget guardado");
   }
 
   function onResetDraft() {
@@ -138,11 +175,29 @@ export default function BudgetPage() {
           >
             SOC
           </Button>
+
+          <div className="muted" style={{ marginLeft: "auto", fontWeight: 800 }}>
+            {loading ? "Cargando…" : ""}
+          </div>
         </div>
+
+        {msg ? (
+          <div
+            className="panel-inner"
+            style={{
+              padding: 12,
+              border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
+              background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+              fontWeight: 800,
+            }}
+          >
+            {msg}
+          </div>
+        ) : null}
 
         <WbsMatrix
           mode="budget"
-          title={`Budget mensual (${budgetClass})`}
+          title={loading ? `Budget mensual (${budgetClass}) (cargando…)` : `Budget mensual (${budgetClass})`}
           periods={periods}
           rows={rows}
           latest={latest}

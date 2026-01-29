@@ -1,7 +1,7 @@
 // src/app/(capex)/projects/page.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { Input } from "../../../components/ui/Input";
 import { Select, SelectOption } from "../../../components/ui/Select";
@@ -27,10 +27,9 @@ const emptyProject: ProjectForm = {
   priority_id: "",
 };
 
-// placeholders (luego los jalas de dim.*)
 const OPT_EMPTY: SelectOption[] = [{ value: "", label: "—" }];
 
-// ✅ Nombres WBS (luego lo jalas de dim_wbs_name)
+// ✅ Nombres WBS (placeholder por ahora)
 const OPT_WBS_NAME: SelectOption[] = [
   { value: "", label: "— Selecciona —" },
   { value: "Ingeniería", label: "Ingeniería" },
@@ -39,6 +38,45 @@ const OPT_WBS_NAME: SelectOption[] = [
   { value: "Supervisión", label: "Supervisión" },
   { value: "Puesta en marcha", label: "Puesta en marcha" },
 ];
+
+type LookupOption = { id: number; name: string };
+type PriorityOption = { id: number; name: string; order: number | null };
+
+type ProjectRow = {
+  project_code: string;
+  project_name: string;
+  proj_group_id: number | null;
+  inv_class_id: number | null;
+  proj_condition_id: number | null;
+  proj_area_id: number | null;
+  priority_id: number | null;
+};
+
+type ProjectsMeta = {
+  tree: ProjectNode[];
+  projects: ProjectRow[];
+  lookups: {
+    inv_classes: LookupOption[];
+    priorities: PriorityOption[];
+    proj_areas: LookupOption[];
+    proj_conditions: LookupOption[];
+    proj_groups: LookupOption[];
+  };
+};
+
+function toSelectOptions(xs: LookupOption[], emptyLabel = "—"): SelectOption[] {
+  return [{ value: "", label: emptyLabel }, ...xs.map((x) => ({ value: String(x.id), label: x.name }))];
+}
+
+function toPriorityOptions(xs: PriorityOption[]): SelectOption[] {
+  const sorted = [...xs].sort((a, b) => {
+    const ao = a.order ?? 999999;
+    const bo = b.order ?? 999999;
+    if (ao !== bo) return ao - bo;
+    return a.name.localeCompare(b.name);
+  });
+  return [{ value: "", label: "—" }, ...sorted.map((x) => ({ value: String(x.id), label: x.name }))];
+}
 
 function nextWbsCode(project_code: string, existing: { wbs_code: string }[]) {
   const pc = project_code.trim();
@@ -58,25 +96,70 @@ function nextWbsCode(project_code: string, existing: { wbs_code: string }[]) {
   return `${pc}.${nn}`;
 }
 
-export default function ProjectsPage() {
-  const [data, setData] = useState<ProjectNode[]>([
-    {
-      project_code: "01",
-      project_name: "Proyecto Demo",
-      wbs: [
-        { wbs_code: "01.01", wbs_name: "Ingeniería" },
-        { wbs_code: "01.02", wbs_name: "Construcción" },
-      ],
-    },
-  ]);
+function asNullableInt(s: string): number | null {
+  const t = (s ?? "").trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
 
-  const [selectedProject, setSelectedProject] = useState<string | null>("01");
+export default function ProjectsPage() {
+  // data del tree (izquierda)
+  const [data, setData] = useState<ProjectNode[]>([]);
+
+  // lista plana con FKs (para cargar a form cuando seleccionas)
+  const [projectsFlat, setProjectsFlat] = useState<ProjectRow[]>([]);
+
+  // lookups
+  const [optGroups, setOptGroups] = useState<SelectOption[]>(OPT_EMPTY);
+  const [optInvClass, setOptInvClass] = useState<SelectOption[]>(OPT_EMPTY);
+  const [optCond, setOptCond] = useState<SelectOption[]>(OPT_EMPTY);
+  const [optArea, setOptArea] = useState<SelectOption[]>(OPT_EMPTY);
+  const [optPrio, setOptPrio] = useState<SelectOption[]>(OPT_EMPTY);
+
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedWbs, setSelectedWbs] = useState<string | null>(null);
 
   const [proj, setProj] = useState<ProjectForm>(emptyProject);
   const [wbsName, setWbsName] = useState<string>("");
 
   const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  async function fetchMeta() {
+    setLoading(true);
+    setMsg(null);
+    try {
+      const r = await fetch("/api/projects/meta", { cache: "no-store" });
+      if (!r.ok) throw new Error(`GET /api/projects/meta -> ${r.status}`);
+      const meta = (await r.json()) as ProjectsMeta;
+
+      setData(meta.tree ?? []);
+      setProjectsFlat(meta.projects ?? []);
+
+      setOptGroups(toSelectOptions(meta.lookups?.proj_groups ?? []));
+      setOptInvClass(toSelectOptions(meta.lookups?.inv_classes ?? []));
+      setOptCond(toSelectOptions(meta.lookups?.proj_conditions ?? []));
+      setOptArea(toSelectOptions(meta.lookups?.proj_areas ?? []));
+      setOptPrio(toPriorityOptions(meta.lookups?.priorities ?? []));
+
+      // seleccionar primero si no hay selection
+      if (!selectedProject && meta.tree?.length) {
+        const first = meta.tree[0].project_code;
+        setSelectedProject(first);
+        setSelectedWbs(null);
+      }
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando metadata");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchMeta();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectedProjectNode = useMemo(() => {
     if (!selectedProject) return null;
@@ -84,16 +167,31 @@ export default function ProjectsPage() {
   }, [data, selectedProject]);
 
   function loadProjectToForm(project_code: string) {
-    const p = data.find((x) => x.project_code === project_code);
-    if (!p) return;
+    const p = projectsFlat.find((x) => x.project_code === project_code);
+    if (!p) {
+      // fallback a lo que haya en tree
+      const t = data.find((x) => x.project_code === project_code);
+      if (!t) return;
+      setProj({
+        project_code: t.project_code,
+        project_name: t.project_name,
+        proj_group_id: "",
+        inv_class_id: "",
+        proj_condition_id: "",
+        proj_area_id: "",
+        priority_id: "",
+      });
+      return;
+    }
+
     setProj({
       project_code: p.project_code,
       project_name: p.project_name,
-      proj_group_id: "",
-      inv_class_id: "",
-      proj_condition_id: "",
-      proj_area_id: "",
-      priority_id: "",
+      proj_group_id: p.proj_group_id ? String(p.proj_group_id) : "",
+      inv_class_id: p.inv_class_id ? String(p.inv_class_id) : "",
+      proj_condition_id: p.proj_condition_id ? String(p.proj_condition_id) : "",
+      proj_area_id: p.proj_area_id ? String(p.proj_area_id) : "",
+      priority_id: p.priority_id ? String(p.priority_id) : "",
     });
   }
 
@@ -103,78 +201,81 @@ export default function ProjectsPage() {
     return null;
   }
 
-  function upsertProjectLocal() {
+  async function upsertProject() {
     setMsg(null);
     const err = validateProject(proj);
     if (err) return setMsg(err);
 
-    const code = proj.project_code.trim();
-    const name = proj.project_name.trim();
+    const payload = {
+      project_code: proj.project_code.trim(),
+      project_name: proj.project_name.trim(),
+      proj_group_id: asNullableInt(proj.proj_group_id),
+      inv_class_id: asNullableInt(proj.inv_class_id),
+      proj_condition_id: asNullableInt(proj.proj_condition_id),
+      proj_area_id: asNullableInt(proj.proj_area_id),
+      priority_id: asNullableInt(proj.priority_id),
+    };
 
-    setData((prev) => {
-      const i = prev.findIndex((x) => x.project_code === code);
-
-      const nextNode: ProjectNode = {
-        project_code: code,
-        project_name: name,
-        wbs: i >= 0 ? prev[i].wbs : [],
-      };
-
-      if (i >= 0) {
-        const copy = [...prev];
-        copy[i] = nextNode;
-        return copy;
+    try {
+      const r = await fetch("/api/projects/upsert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const out = await r.json().catch(() => ({} as any));
+      if (!r.ok) {
+        const m = out?.error ?? `HTTP ${r.status}`;
+        return setMsg(`ERROR: ${m}`);
       }
 
-      return [...prev, nextNode].sort((a, b) => a.project_code.localeCompare(b.project_code));
-    });
-
-    setSelectedProject(code);
-    setSelectedWbs(null);
-    setWbsName("");
-    setMsg("OK: proyecto guardado (local)");
+      setMsg("OK: proyecto guardado");
+      setSelectedProject(payload.project_code);
+      setSelectedWbs(null);
+      setWbsName("");
+      await fetchMeta();
+      loadProjectToForm(payload.project_code);
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando proyecto");
+    }
   }
 
-  function addWbsLocal() {
+  async function addWbs() {
     setMsg(null);
 
     const pc = (selectedProject ?? proj.project_code).trim();
     if (!/^\d{2}$/.test(pc)) return setMsg("Primero guarda/selecciona un proyecto válido (NN).");
 
-    const p = data.find((x) => x.project_code === pc);
-    if (!p) return setMsg("Primero guarda el proyecto.");
+    const pnode = data.find((x) => x.project_code === pc);
+    if (!pnode) return setMsg("Primero guarda el proyecto.");
 
     const name = (wbsName ?? "").trim();
     if (!name) return setMsg("Selecciona un nombre de WBS.");
 
-    const dupByName = p.wbs.some((x) => x.wbs_name.toLowerCase() === name.toLowerCase());
+    const dupByName = pnode.wbs.some((x) => x.wbs_name.toLowerCase() === name.toLowerCase());
     if (dupByName) return setMsg("No se puede duplicar WBS con el mismo nombre en el mismo proyecto.");
 
-    const wc = nextWbsCode(pc, p.wbs);
+    const wc = nextWbsCode(pc, pnode.wbs);
 
-    setData((prev) => {
-      const pi = prev.findIndex((x) => x.project_code === pc);
-      if (pi < 0) return prev;
+    try {
+      const r = await fetch("/api/wbs/upsert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_code: pc, wbs_code: wc, wbs_name: name }),
+      });
+      const out = await r.json().catch(() => ({} as any));
+      if (!r.ok) {
+        const m = out?.error ?? `HTTP ${r.status}`;
+        return setMsg(`ERROR: ${m}`);
+      }
 
-      const projPrev = prev[pi];
-
-      // seguridad extra (no duplicar por código)
-      if (projPrev.wbs.some((x) => x.wbs_code === wc)) return prev;
-
-      const nextWbs = [...projPrev.wbs, { wbs_code: wc, wbs_name: name }].sort((a, b) =>
-        a.wbs_code.localeCompare(b.wbs_code)
-      );
-
-      const nextP: ProjectNode = { ...projPrev, wbs: nextWbs };
-      const copy = [...prev];
-      copy[pi] = nextP;
-      return copy;
-    });
-
-    setSelectedProject(pc);
-    setSelectedWbs(wc);
-    setWbsName("");
-    setMsg("OK: WBS agregado (local)");
+      setMsg("OK: WBS agregado");
+      setSelectedProject(pc);
+      setSelectedWbs(wc);
+      setWbsName("");
+      await fetchMeta();
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando WBS");
+    }
   }
 
   const existingWbs = selectedProjectNode?.wbs ?? [];
@@ -219,6 +320,16 @@ export default function ProjectsPage() {
             >
               Nuevo
             </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => fetchMeta()}
+              disabled={loading}
+            >
+              {loading ? "Cargando..." : "Refrescar"}
+            </Button>
           </div>
         </div>
 
@@ -250,7 +361,7 @@ export default function ProjectsPage() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                   setProj((s) => ({ ...s, proj_group_id: e.target.value }))
                 }
-                options={OPT_EMPTY}
+                options={optGroups}
               />
               <Select
                 label="Inv. Class"
@@ -258,7 +369,7 @@ export default function ProjectsPage() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                   setProj((s) => ({ ...s, inv_class_id: e.target.value }))
                 }
-                options={OPT_EMPTY}
+                options={optInvClass}
               />
               <Select
                 label="Condición"
@@ -266,7 +377,7 @@ export default function ProjectsPage() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                   setProj((s) => ({ ...s, proj_condition_id: e.target.value }))
                 }
-                options={OPT_EMPTY}
+                options={optCond}
               />
             </div>
 
@@ -277,7 +388,7 @@ export default function ProjectsPage() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                   setProj((s) => ({ ...s, proj_area_id: e.target.value }))
                 }
-                options={OPT_EMPTY}
+                options={optArea}
               />
               <Select
                 label="Prioridad"
@@ -285,12 +396,12 @@ export default function ProjectsPage() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                   setProj((s) => ({ ...s, priority_id: e.target.value }))
                 }
-                options={OPT_EMPTY}
+                options={optPrio}
               />
             </div>
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <Button type="button" variant="primary" onClick={upsertProjectLocal}>
+              <Button type="button" variant="primary" onClick={upsertProject} disabled={loading}>
                 Guardar Proyecto
               </Button>
             </div>
@@ -315,7 +426,7 @@ export default function ProjectsPage() {
             />
 
             <div style={{ display: "flex", alignItems: "flex-end" }}>
-              <Button type="button" variant="primary" onClick={addWbsLocal} style={{ width: "100%" } as any}>
+              <Button type="button" variant="primary" onClick={addWbs} style={{ width: "100%" } as any} disabled={loading}>
                 Añadir WBS
               </Button>
             </div>

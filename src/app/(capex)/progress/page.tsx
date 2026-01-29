@@ -1,67 +1,82 @@
 // src/app/(capex)/progress/page.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { WbsMatrix, Period, Row } from "../../../components/capex/WbsMatrix";
 
-function makePeriods(startYYYYMM: number, n: number): Period[] {
-  const y0 = Math.floor(startYYYYMM / 100);
-  const m0 = startYYYYMM % 100;
+type ProjectsMeta = {
+  ok: boolean;
+  tree: ProjectNode[];
+};
 
-  const months = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic"];
+type PeriodsResp = {
+  ok: boolean;
+  periods: Period[];
+};
 
-  const out: Period[] = [];
-  for (let i = 0; i < n; i++) {
-    const mIndex = (m0 - 1 + i) % 12;
-    const y = y0 + Math.floor((m0 - 1 + i) / 12);
-    const m = mIndex + 1;
-    const period_id = y * 100 + m;
-    const label = `${months[mIndex]}_${String(y).slice(2)}`;
-    out.push({ period_id, label });
-  }
-  return out;
-}
-
-function keyOf(wbs: string, period_id: number, col: string) {
-  return `${wbs}|${period_id}|${col}`;
-}
+type LatestResp = {
+  ok: boolean;
+  latest: Record<string, string | null>;
+};
 
 export default function ProgressPage() {
-  const [projects] = useState<ProjectNode[]>([
-    {
-      project_code: "01",
-      project_name: "Proyecto Demo",
-      wbs: [
-        { wbs_code: "01.01", wbs_name: "Obra Civil" },
-        { wbs_code: "01.02", wbs_name: "Equipos" },
-      ],
-    },
-  ]);
-
-  const periods = useMemo(() => makePeriods(202601, 12), []);
+  const [projects, setProjects] = useState<ProjectNode[]>([]);
+  const [periods, setPeriods] = useState<Period[]>([]);
 
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedWbs, setSelectedWbs] = useState<string | null>(null);
 
-  // latest (hint): EV% y AC por mes
-  const [latest] = useState<Record<string, string | null>>(() => {
-    const l: Record<string, string | null> = {};
-    l[keyOf("01.01", 202601, "EV_PCT")] = "5";
-    l[keyOf("01.01", 202601, "AC")] = "12000";
-    l[keyOf("01.01", 202602, "EV_PCT")] = "12";
-    l[keyOf("01.01", 202602, "AC")] = "32000";
-    l[keyOf("01.02", 202601, "EV_PCT")] = "0";
-    l[keyOf("01.02", 202601, "AC")] = "5000";
-    return l;
-  });
-
+  const [latest, setLatest] = useState<Record<string, string | null>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
 
+  const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Ajusta esto si quieres otro inicio
+  const FROM_PERIOD = 202601;
+  const N_PERIODS = 12;
+
+  async function loadAll() {
+    setLoading(true);
+    setMsg(null);
+    try {
+      const [m, p, l] = await Promise.all([
+        fetch("/api/projects/meta", { cache: "no-store" }),
+        fetch(`/api/periods?from=${FROM_PERIOD}&n=${N_PERIODS}`, { cache: "no-store" }),
+        fetch(`/api/progress/latest?from=${FROM_PERIOD}&n=${N_PERIODS}`, { cache: "no-store" }),
+      ]);
+
+      if (!m.ok) throw new Error(`GET /api/projects/meta -> ${m.status}`);
+      if (!p.ok) throw new Error(`GET /api/periods -> ${p.status}`);
+      if (!l.ok) throw new Error(`GET /api/progress/latest -> ${l.status}`);
+
+      const meta = (await m.json()) as ProjectsMeta;
+      const per = (await p.json()) as PeriodsResp;
+      const lat = (await l.json()) as LatestResp;
+
+      setProjects(meta.tree ?? []);
+      setPeriods(per.periods ?? []);
+      setLatest(lat.latest ?? {});
+
+      if (!selectedProject && meta.tree?.length) {
+        setSelectedProject(meta.tree[0].project_code);
+        setSelectedWbs(null);
+      }
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando data");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const rows: Row[] = useMemo(() => {
-    const p = selectedProject
-      ? projects.filter((x) => x.project_code === selectedProject)
-      : projects;
+    const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
 
     const out: Row[] = [];
     for (const proj of p) {
@@ -83,11 +98,48 @@ export default function ProgressPage() {
   }
 
   async function onSave(payload: { key: string; value: string }[]) {
-    // demo:
-    // - EV% => POST /api/ev/upsert (as_of_date = period_end)
-    // - AC  => POST /api/actual/upsert (as_of_date = period_end)
-    console.log("SAVE progress", payload);
+    setMsg(null);
+
+    const evRows = payload.filter((r) => r.key.endsWith("|EV_PCT"));
+    const acRows = payload.filter((r) => r.key.endsWith("|AC"));
+
+    if (!evRows.length && !acRows.length) {
+      setDraft({});
+      return;
+    }
+
+    const tasks: Promise<Response>[] = [];
+    if (evRows.length) {
+      tasks.push(
+        fetch("/api/ev/upsert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: evRows }),
+        })
+      );
+    }
+    if (acRows.length) {
+      tasks.push(
+        fetch("/api/actual/upsert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: acRows }),
+        })
+      );
+    }
+
+    const resps = await Promise.all(tasks);
+
+    for (const r of resps) {
+      const out = await r.json().catch(() => ({} as any));
+      if (!r.ok || out?.ok === false) {
+        throw new Error(out?.error ?? `HTTP ${r.status}`);
+      }
+    }
+
     setDraft({});
+    await loadAll(); // recarga latest desde SQL
+    setMsg("OK: progreso guardado");
   }
 
   return (
@@ -104,17 +156,33 @@ export default function ProgressPage() {
         height={640}
       />
 
-      <WbsMatrix
-        mode="progress"
-        title="Avance y Costos (EV% y AC)"
-        periods={periods}
-        rows={rows}
-        latest={latest}
-        draft={draft}
-        progressDouble
-        onChangeDraft={onChangeDraft}
-        onSave={onSave}
-      />
+      <div style={{ display: "grid", gap: 12 }}>
+        {msg ? (
+          <div
+            className="panel-inner"
+            style={{
+              padding: 12,
+              border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
+              background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+              fontWeight: 800,
+            }}
+          >
+            {msg}
+          </div>
+        ) : null}
+
+        <WbsMatrix
+          mode="progress"
+          title={loading ? "Avance y Costos (cargando…)" : "Avance y Costos (EV% y AC)"}
+          periods={periods}
+          rows={rows}
+          latest={latest}
+          draft={draft}
+          progressDouble
+          onChangeDraft={onChangeDraft}
+          onSave={onSave}
+        />
+      </div>
     </div>
   );
 }
