@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { apiGet, apiPost } from "../../../lib/apiClient";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { WbsMatrix, Period, Row } from "../../../components/capex/WbsMatrix";
 
@@ -41,26 +42,22 @@ export default function ProgressPage() {
     setLoading(true);
     setMsg(null);
     try {
-      const [m, p, l] = await Promise.all([
-        fetch("/api/projects/meta", { cache: "no-store" }),
-        fetch(`/api/periods?from=${FROM_PERIOD}&n=${N_PERIODS}`, { cache: "no-store" }),
-        fetch(`/api/progress/latest?from=${FROM_PERIOD}&n=${N_PERIODS}`, { cache: "no-store" }),
+      const [meta, per, lat] = await Promise.all([
+        apiGet("/api/projects/meta"),
+        apiGet(`/api/periods?from=${FROM_PERIOD}&n=${N_PERIODS}`),
+        apiGet(`/api/progress/latest?from=${FROM_PERIOD}&n=${N_PERIODS}`),
       ]);
 
-      if (!m.ok) throw new Error(`GET /api/projects/meta -> ${m.status}`);
-      if (!p.ok) throw new Error(`GET /api/periods -> ${p.status}`);
-      if (!l.ok) throw new Error(`GET /api/progress/latest -> ${l.status}`);
+      const m = meta as ProjectsMeta;
+      const p = per as PeriodsResp;
+      const l = lat as LatestResp;
 
-      const meta = (await m.json()) as ProjectsMeta;
-      const per = (await p.json()) as PeriodsResp;
-      const lat = (await l.json()) as LatestResp;
+      setProjects(m.tree ?? []);
+      setPeriods(p.periods ?? []);
+      setLatest(l.latest ?? {});
 
-      setProjects(meta.tree ?? []);
-      setPeriods(per.periods ?? []);
-      setLatest(lat.latest ?? {});
-
-      if (!selectedProject && meta.tree?.length) {
-        setSelectedProject(meta.tree[0].project_code);
+      if (!selectedProject && m.tree?.length) {
+        setSelectedProject(m.tree[0].project_code);
         setSelectedWbs(null);
       }
     } catch (e: any) {
@@ -108,38 +105,19 @@ export default function ProgressPage() {
       return;
     }
 
-    const tasks: Promise<Response>[] = [];
-    if (evRows.length) {
-      tasks.push(
-        fetch("/api/ev/upsert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rows: evRows }),
-        })
-      );
-    }
-    if (acRows.length) {
-      tasks.push(
-        fetch("/api/actual/upsert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rows: acRows }),
-        })
-      );
-    }
+    try {
+      const tasks: Promise<any>[] = [];
+      if (evRows.length) tasks.push(apiPost("/api/ev/upsert", { rows: evRows }));
+      if (acRows.length) tasks.push(apiPost("/api/actual/upsert", { rows: acRows }));
 
-    const resps = await Promise.all(tasks);
+      await Promise.all(tasks);
 
-    for (const r of resps) {
-      const out = await r.json().catch(() => ({} as any));
-      if (!r.ok || out?.ok === false) {
-        throw new Error(out?.error ?? `HTTP ${r.status}`);
-      }
+      setDraft({});
+      await loadAll(); // recarga latest desde SQL
+      setMsg("OK: progreso guardado");
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando progreso");
     }
-
-    setDraft({});
-    await loadAll(); // recarga latest desde SQL
-    setMsg("OK: progreso guardado");
   }
 
   return (
@@ -162,7 +140,9 @@ export default function ProgressPage() {
             className="panel-inner"
             style={{
               padding: 12,
-              border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
+              border: msg.startsWith("OK")
+                ? "1px solid rgba(102,199,255,.45)"
+                : "1px solid rgba(255,80,80,.45)",
               background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
               fontWeight: 800,
             }}

@@ -1,6 +1,7 @@
 // src/app/(capex)/projects/page.tsx
 "use client";
 
+import { apiGet, apiPost } from "../../../lib/apiClient";
 import React, { useEffect, useMemo, useState } from "react";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { Input } from "../../../components/ui/Input";
@@ -130,9 +131,7 @@ export default function ProjectsPage() {
     setLoading(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/projects/meta", { cache: "no-store" });
-      if (!r.ok) throw new Error(`GET /api/projects/meta -> ${r.status}`);
-      const meta = (await r.json()) as ProjectsMeta;
+      const meta = (await apiGet("/api/projects/meta")) as ProjectsMeta;
 
       setData(meta.tree ?? []);
       setProjectsFlat(meta.projects ?? []);
@@ -217,16 +216,7 @@ export default function ProjectsPage() {
     };
 
     try {
-      const r = await fetch("/api/projects/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const out = await r.json().catch(() => ({} as any));
-      if (!r.ok) {
-        const m = out?.error ?? `HTTP ${r.status}`;
-        return setMsg(`ERROR: ${m}`);
-      }
+      await apiPost("/api/projects/upsert", payload);
 
       setMsg("OK: proyecto guardado");
       setSelectedProject(payload.project_code);
@@ -257,16 +247,7 @@ export default function ProjectsPage() {
     const wc = nextWbsCode(pc, pnode.wbs);
 
     try {
-      const r = await fetch("/api/wbs/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_code: pc, wbs_code: wc, wbs_name: name }),
-      });
-      const out = await r.json().catch(() => ({} as any));
-      if (!r.ok) {
-        const m = out?.error ?? `HTTP ${r.status}`;
-        return setMsg(`ERROR: ${m}`);
-      }
+      await apiPost("/api/wbs/upsert", { project_code: pc, wbs_code: wc, wbs_name: name });
 
       setMsg("OK: WBS agregado");
       setSelectedProject(pc);

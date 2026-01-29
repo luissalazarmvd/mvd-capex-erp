@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { apiGet, apiPost } from "../../../lib/apiClient";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { WbsMatrix, Period, Row } from "../../../components/capex/WbsMatrix";
 import { Button } from "../../../components/ui/Button";
@@ -43,33 +44,28 @@ export default function BudgetPage() {
   const N_PERIODS = 12;
 
   async function loadMetaAndPeriods() {
-    const [m, p] = await Promise.all([
-      fetch("/api/projects/meta", { cache: "no-store" }),
-      fetch(`/api/periods?from=${FROM_PERIOD}&n=${N_PERIODS}`, { cache: "no-store" }),
+    const [meta, per] = await Promise.all([
+      apiGet("/api/projects/meta"),
+      apiGet(`/api/periods?from=${FROM_PERIOD}&n=${N_PERIODS}`),
     ]);
 
-    if (!m.ok) throw new Error(`GET /api/projects/meta -> ${m.status}`);
-    if (!p.ok) throw new Error(`GET /api/periods -> ${p.status}`);
+    const m = meta as ProjectsMeta;
+    const p = per as PeriodsResp;
 
-    const meta = (await m.json()) as ProjectsMeta;
-    const per = (await p.json()) as PeriodsResp;
+    setProjects(m.tree ?? []);
+    setPeriods(p.periods ?? []);
 
-    setProjects(meta.tree ?? []);
-    setPeriods(per.periods ?? []);
-
-    if (!selectedProject && meta.tree?.length) {
-      setSelectedProject(meta.tree[0].project_code);
+    if (!selectedProject && m.tree?.length) {
+      setSelectedProject(m.tree[0].project_code);
       setSelectedWbs(null);
     }
   }
 
   async function loadLatest(cls: BudgetClass) {
-    const r = await fetch(
-      `/api/budget/latest?from=${FROM_PERIOD}&n=${N_PERIODS}&class=${cls}`,
-      { cache: "no-store" }
-    );
-    if (!r.ok) throw new Error(`GET /api/budget/latest -> ${r.status}`);
-    const out = (await r.json()) as LatestResp;
+    const out = (await apiGet(
+      `/api/budget/latest?from=${FROM_PERIOD}&n=${N_PERIODS}&class=${cls}`
+    )) as LatestResp;
+
     setLatest(out.latest ?? {});
   }
 
@@ -123,20 +119,15 @@ export default function BudgetPage() {
   async function onSave(payload: { key: string; value: string }[]) {
     setMsg(null);
 
-    const r = await fetch("/api/budget/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows: payload }),
-    });
+    try {
+      await apiPost("/api/budget/upsert", { rows: payload });
 
-    const out = await r.json().catch(() => ({} as any));
-    if (!r.ok || out?.ok === false) {
-      throw new Error(out?.error ?? `HTTP ${r.status}`);
+      setDraft({});
+      await loadAll(budgetClass);
+      setMsg("OK: budget guardado");
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando budget");
     }
-
-    setDraft({});
-    await loadAll(budgetClass);
-    setMsg("OK: budget guardado");
   }
 
   function onResetDraft() {
@@ -186,7 +177,9 @@ export default function BudgetPage() {
             className="panel-inner"
             style={{
               padding: 12,
-              border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
+              border: msg.startsWith("OK")
+                ? "1px solid rgba(102,199,255,.45)"
+                : "1px solid rgba(255,80,80,.45)",
               background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
               fontWeight: 800,
             }}
