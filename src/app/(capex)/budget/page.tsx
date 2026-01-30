@@ -33,6 +33,7 @@ export default function BudgetPage() {
 
   const [budgetClass, setBudgetClass] = useState<BudgetClass>("ORIG");
 
+
   const [latest, setLatest] = useState<Record<string, string | null>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
 
@@ -60,20 +61,25 @@ export default function BudgetPage() {
     }
   }
 
-  async function loadLatest(cls: BudgetClass) {
-    const out = (await apiGet(
-      `/api/budget/latest?from=${FROM_PERIOD}&n=${N_PERIODS}&class=${cls}`
-    )) as LatestResp;
 
-    setLatest(out.latest ?? {});
+  async function loadLatestBoth() {
+    const [orig, soc] = (await Promise.all([
+      apiGet(`/api/budget/latest?from=${FROM_PERIOD}&n=${N_PERIODS}&class=ORIG`),
+      apiGet(`/api/budget/latest?from=${FROM_PERIOD}&n=${N_PERIODS}&class=SOC`),
+    ])) as [LatestResp, LatestResp];
+
+    setLatest({
+      ...(orig.latest ?? {}),
+      ...(soc.latest ?? {}),
+    });
   }
 
-  async function loadAll(cls: BudgetClass) {
+  async function loadAll() {
     setLoading(true);
     setMsg(null);
     try {
       await loadMetaAndPeriods();
-      await loadLatest(cls);
+      await loadLatestBoth();
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando data");
     } finally {
@@ -82,12 +88,16 @@ export default function BudgetPage() {
   }
 
   useEffect(() => {
-    loadAll(budgetClass);
+    loadAll();
+
   }, []);
 
   useEffect(() => {
+
     setDraft({});
-    loadAll(budgetClass);
+
+    loadAll();
+
   }, [budgetClass]);
 
   const projectLabel = useMemo(() => {
@@ -117,6 +127,18 @@ export default function BudgetPage() {
     return out;
   }, [projects, selectedProject, selectedWbs]);
 
+  const rowsForTotals: Row[] = useMemo(() => {
+    if (!selectedProject) return [];
+    const proj = projects.find((x) => x.project_code === selectedProject);
+    if (!proj) return [];
+    return (proj.wbs ?? []).map((w) => ({
+      project_code: proj.project_code,
+      project_name: proj.project_name,
+      wbs_code: w.wbs_code,
+      wbs_name: w.wbs_name,
+    }));
+  }, [projects, selectedProject]);
+
   function onChangeDraft(k: string, v: string) {
     setDraft((prev) => ({ ...prev, [k]: v }));
   }
@@ -128,7 +150,7 @@ export default function BudgetPage() {
       await apiPost("/api/budget/upsert", { rows: payload });
 
       setDraft({});
-      await loadAll(budgetClass);
+      await loadAll();
       setMsg("OK: budget guardado");
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando budget");
@@ -222,6 +244,7 @@ export default function BudgetPage() {
             projectLabel={projectLabel}
             periods={periods}
             rows={rows}
+            rowsForTotals={rowsForTotals}
             latest={latest}
             draft={draft}
             budgetClass={budgetClass}

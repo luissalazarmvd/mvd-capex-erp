@@ -18,12 +18,19 @@ type Props = {
   mode: "budget" | "forecast" | "progress";
   title: string;
   projectLabel?: string;
+
   periods: Period[];
   rows: Row[];
+
+
+  rowsForTotals?: Row[];
+
   latest: Record<string, string | null>;
   draft: Record<string, string>;
+
   budgetClass?: "ORIG" | "SOC";
   progressDouble?: boolean;
+
   onChangeDraft: (key: string, value: string) => void;
   onSave: (rows: { key: string; value: string }[]) => Promise<void>;
   onResetDraft?: () => void;
@@ -33,12 +40,30 @@ function keyOf(wbs: string, period_id: number, col: string) {
   return `${wbs}|${period_id}|${col}`;
 }
 
+function parseNum(x: string | null | undefined): number {
+  const s = String(x ?? "").trim();
+  if (!s) return 0;
+
+  // soporta "1,234.56" o "1234.56"
+  const cleaned = s.replace(/[^0-9.,-]/g, "").replace(/,/g, "");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function fmtMoney(n: number) {
+  return n.toLocaleString("es-PE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function WbsMatrix({
   mode,
   title,
   projectLabel,
   periods,
   rows,
+  rowsForTotals,
   latest,
   draft,
   budgetClass,
@@ -93,6 +118,7 @@ export function WbsMatrix({
   }
 
   const CELL_W = 110;
+  const TOTAL_W = 140;
 
   const LEFT_W = useMemo(() => {
     const maxLen = rows.reduce((m, r) => {
@@ -101,9 +127,47 @@ export function WbsMatrix({
     }, 0);
 
     const px = 110 + maxLen * 6;
-
     return Math.max(180, Math.min(px, 280));
   }, [rows]);
+
+
+  function effectiveValue(wbs: string, period_id: number, col: string): number {
+    const k = keyOf(wbs, period_id, col);
+    if (Object.prototype.hasOwnProperty.call(draft, k)) return parseNum(draft[k]);
+    return parseNum(latest[k]);
+  }
+
+
+  const showRowTotal = mode === "budget" || mode === "forecast";
+
+
+  const showProjectTotals = mode === "budget";
+
+  const baseRowsForTotals = rowsForTotals ?? rows;
+
+  const totalsTop = useMemo(() => {
+    if (!showProjectTotals) return { orig: 0, soc: 0, both: 0 };
+
+    let orig = 0;
+    let soc = 0;
+
+    for (const r of baseRowsForTotals) {
+      for (const p of periods) {
+        orig += effectiveValue(r.wbs_code, p.period_id, "ORIG");
+        soc += effectiveValue(r.wbs_code, p.period_id, "SOC");
+      }
+    }
+    return { orig, soc, both: orig + soc };
+
+  }, [showProjectTotals, baseRowsForTotals, periods, latest, draft]);
+
+  function rowTotal(r: Row): number {
+
+    const c = mode === "forecast" ? "AMOUNT" : (budgetClass || "ORIG");
+    let s = 0;
+    for (const p of periods) s += effectiveValue(r.wbs_code, p.period_id, c);
+    return s;
+  }
 
   return (
     <div
@@ -127,6 +191,40 @@ export function WbsMatrix({
           }}
         >
           {projectLabel}
+        </div>
+      ) : null}
+
+      {/* Totales arriba (solo Budget) */}
+      {showProjectTotals ? (
+        <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <div className="panel-inner" style={{ padding: "8px 10px" }}>
+            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+              Total ORIG:
+            </span>
+            <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.orig)}</span>
+          </div>
+
+          <div className="panel-inner" style={{ padding: "8px 10px" }}>
+            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+              Total SOC:
+            </span>
+            <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.soc)}</span>
+          </div>
+
+          <div className="panel-inner" style={{ padding: "8px 10px" }}>
+            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+              Total Proyecto:
+            </span>
+            <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.both)}</span>
+          </div>
         </div>
       ) : null}
 
@@ -185,6 +283,26 @@ export function WbsMatrix({
                   {p.label}
                 </th>
               ))}
+
+              {/* TOTAL al final (solo Budget/Forecast) */}
+              {showRowTotal ? (
+                <th
+                  style={{
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 1,
+                    background: "rgba(0,0,0,.22)",
+                    borderBottom: "1px solid var(--border)",
+                    padding: "10px 10px",
+                    textAlign: "center",
+                    fontWeight: 900,
+                    width: TOTAL_W,
+                    minWidth: TOTAL_W,
+                  }}
+                >
+                  TOTAL
+                </th>
+              ) : null}
             </tr>
 
             {cols.length > 1 ? (
@@ -195,7 +313,6 @@ export function WbsMatrix({
                     left: 0,
                     zIndex: 3,
                     background: "var(--panel2)",
-
                     borderBottom: "1px solid rgba(191,231,255,.12)",
                     padding: "8px 10px",
                     textAlign: "left",
@@ -225,6 +342,22 @@ export function WbsMatrix({
                     </th>
                   ))
                 )}
+
+                {showRowTotal ? (
+                  <th
+                    style={{
+                      background: "rgba(0,0,0,.18)",
+                      borderBottom: "1px solid rgba(191,231,255,.12)",
+                      padding: "8px 10px",
+                      textAlign: "center",
+                      fontWeight: 900,
+                      width: TOTAL_W,
+                      minWidth: TOTAL_W,
+                    }}
+                  >
+                    &nbsp;
+                  </th>
+                ) : null}
               </tr>
             ) : null}
           </thead>
@@ -235,71 +368,92 @@ export function WbsMatrix({
                 <td
                   className="muted"
                   style={{ padding: 12 }}
-                  colSpan={1 + periods.length * cols.length}
+                  colSpan={1 + periods.length * cols.length + (showRowTotal ? 1 : 0)}
                 >
                   Selecciona un proyecto o WBS.
                 </td>
               </tr>
             ) : (
-              rows.map((r) => (
-                <tr key={r.wbs_code}>
-                  <td
-                    style={{
-                      position: "sticky",
-                      left: 0,
-                      zIndex: 2,
-                      background: "var(--panel2)",
+              rows.map((r) => {
+                const rt = showRowTotal ? rowTotal(r) : 0;
 
-                      borderBottom: "1px solid rgba(191,231,255,.10)",
-                      padding: "10px 10px",
-                      width: LEFT_W,
-                      minWidth: LEFT_W,
-                    }}
-                  >
-                    <div
+                return (
+                  <tr key={r.wbs_code}>
+                    <td
                       style={{
-                        fontWeight: 900,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        position: "sticky",
+                        left: 0,
+                        zIndex: 2,
+                        background: "var(--panel2)",
+                        borderBottom: "1px solid rgba(191,231,255,.10)",
+                        padding: "10px 10px",
+                        width: LEFT_W,
+                        minWidth: LEFT_W,
                       }}
-                      title={`${r.wbs_code} — ${r.wbs_name}`}
                     >
-                      {r.wbs_code} — {r.wbs_name}
-                    </div>
-                  </td>
+                      <div
+                        style={{
+                          fontWeight: 900,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                        title={`${r.wbs_code} — ${r.wbs_name}`}
+                      >
+                        {r.wbs_code} — {r.wbs_name}
+                      </div>
+                    </td>
 
-                  {periods.map((p) =>
-                    cols.map((c) => {
-                      const k = keyOf(r.wbs_code, p.period_id, c);
-                      const hint = latest[k] ?? null;
-                      const val = Object.prototype.hasOwnProperty.call(draft, k)
-                        ? draft[k]
-                        : "";
-                      const cellMode = c === "EV_PCT" ? "pct" : "money";
+                    {periods.map((p) =>
+                      cols.map((c) => {
+                        const k = keyOf(r.wbs_code, p.period_id, c);
+                        const hint = latest[k] ?? null;
+                        const val = Object.prototype.hasOwnProperty.call(draft, k)
+                          ? draft[k]
+                          : "";
+                        const cellMode = c === "EV_PCT" ? "pct" : "money";
 
-                      return (
-                        <td
-                          key={k}
-                          style={{
-                            borderBottom: "1px solid rgba(191,231,255,.10)",
-                            padding: 6,
-                            width: CELL_W,
-                            minWidth: CELL_W,
-                          }}
-                        >
-                          <CellInput
-                            mode={cellMode}
-                            value={val}
-                            hint={hint}
-                            onChange={(v) => onChangeDraft(k, v)}
-                          />
-                        </td>
-                      );
-                    })
-                  )}
-                </tr>
-              ))
+                        return (
+                          <td
+                            key={k}
+                            style={{
+                              borderBottom: "1px solid rgba(191,231,255,.10)",
+                              padding: 6,
+                              width: CELL_W,
+                              minWidth: CELL_W,
+                            }}
+                          >
+                            <CellInput
+                              mode={cellMode}
+                              value={val}
+                              hint={hint}
+                              onChange={(v) => onChangeDraft(k, v)}
+                            />
+                          </td>
+                        );
+                      })
+                    )}
+
+                    {/* TOTAL por fila */}
+                    {showRowTotal ? (
+                      <td
+                        style={{
+                          borderBottom: "1px solid rgba(191,231,255,.10)",
+                          padding: "6px 10px",
+                          width: TOTAL_W,
+                          minWidth: TOTAL_W,
+                          textAlign: "right",
+                          fontWeight: 900,
+                          whiteSpace: "nowrap",
+                        }}
+                        title={String(rt)}
+                      >
+                        {fmtMoney(rt)}
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
