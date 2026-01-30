@@ -123,3 +123,24 @@ header a,
 header a:visited{
   color: #fff !important;
 }
+html, body {
+  overflow-x: hidden; /* evita scrollbar horizontal de toda la página */
+}
+
+/* contenedor scroll SOLO para la tabla */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 12px;            /* opcional: look */
+}
+
+/* asegura que la tabla pueda “crecer” horizontalmente */
+.table-wide {
+  width: max-content;
+  min-width: 100%;
+}
+html, body { overflow-x: hidden; }
+
+.table-scroll { width: 100%; overflow-x: auto; overflow-y: hidden; }
+.table-wide { width: max-content; min-width: 100%; }
