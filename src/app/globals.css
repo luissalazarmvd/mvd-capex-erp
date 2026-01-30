@@ -100,3 +100,26 @@ body {
   margin: 0 !important;
   padding: 0 18px;
 }
+/* =========
+   NAV LINKS (Topbar)
+========= */
+.nav-pill{
+  color: #fff !important;
+  font-weight: 800 !important;
+  font-size: 18px;
+  text-decoration: none !important;
+}
+
+.nav-pill:visited{
+  color: #fff !important;
+}
+
+.nav-pill:hover{
+  opacity: .85;
+}
+
+/* (opcional) blindaje extra solo en el header */
+header a,
+header a:visited{
+  color: #fff !important;
+}
