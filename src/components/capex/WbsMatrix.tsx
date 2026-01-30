@@ -32,6 +32,8 @@ type Props = {
 
   budgetLatest?: Record<string, string | null>;
 
+  headerActions?: React.ReactNode;
+
   onChangeDraft: (key: string, value: string) => void;
   onSave: (rows: { key: string; value: string }[]) => Promise<void>;
   onResetDraft?: () => void;
@@ -77,6 +79,7 @@ export function WbsMatrix({
   budgetClass,
   progressDouble,
   budgetLatest,
+  headerActions,
   onChangeDraft,
   onSave,
   onResetDraft,
@@ -255,8 +258,13 @@ export function WbsMatrix({
     <div className="panel-inner" style={{ padding: 12, overflow: "hidden", minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ fontWeight: 900 }}>{title}</div>
-        <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
-          {rows.length} filas
+
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+          {headerActions ? <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{headerActions}</div> : null}
+
+          <div className="muted" style={{ fontWeight: 800 }}>
+            {rows.length} filas
+          </div>
         </div>
       </div>
 

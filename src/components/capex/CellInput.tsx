@@ -14,29 +14,67 @@ type Props = {
   onChange: (next: string) => void;
 };
 
+function toNumberLoose(raw: string | null | undefined): number | null {
+  if (raw == null) return null;
+  let s = String(raw).trim();
+  if (!s) return null;
+
+  s = s.replace(/\s+/g, "").replace(/[^0-9.,-]/g, "");
+
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = s.lastIndexOf(",");
+    const lastDot = s.lastIndexOf(".");
+    const decSep = lastComma > lastDot ? "," : ".";
+    const thouSep = decSep === "," ? "." : ",";
+    s = s.split(thouSep).join("");
+    if (decSep === ",") s = s.replace(",", ".");
+  } else if (hasComma && !hasDot) {
+    s = s.replace(",", ".");
+  } else {
+    const parts = s.split(".");
+    if (parts.length > 2) s = parts.join("");
+  }
+
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function roundTo(n: number, dec: number) {
+  const f = Math.pow(10, dec);
+  return Math.round(n * f) / f;
+}
+
 function normalizeNumberInput(raw: string) {
-  return raw.replace(/[^\d\.\,\-]/g, "");
+  let s = String(raw ?? "").replace(/\s+/g, "").replace(/[^0-9.,-]/g, "");
+
+  const neg = s.includes("-");
+  s = s.replace(/-/g, "");
+  if (neg) s = "-" + s;
+
+  const firstSepIdx = s.slice(neg ? 1 : 0).search(/[.,]/);
+  if (firstSepIdx >= 0) {
+    const i = (neg ? 1 : 0) + firstSepIdx;
+    const head = s.slice(0, i + 1);
+    const tail = s.slice(i + 1).replace(/[.,]/g, "");
+    s = head + tail;
+  }
+
+  return s;
 }
 
 function clampPct(raw: string) {
-  const s = raw.trim();
-  if (!s) return s;
-
-  const n = Number(s.replace(",", "."));
-  if (Number.isNaN(n)) return s;
+  const n = toNumberLoose(raw);
+  if (n == null) return raw.trim();
 
   const clamped = Math.max(0, Math.min(100, n));
-  return String(clamped);
-}
+  const v = roundTo(clamped, 2);
 
-function parseNum(raw: string | null | undefined): number | null {
-  if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
-
-  const cleaned = s.replace(/[^0-9.,-]/g, "").replace(/,/g, "");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
+  const s = String(raw ?? "").trim();
+  const hasSep = s.includes(".") || s.includes(",");
+  return hasSep ? v.toFixed(2) : String(Math.trunc(v));
 }
 
 function fmtMoney(n: number) {
@@ -56,10 +94,28 @@ function fmtPct(n: number) {
 }
 
 function formatHint(mode: Mode, hint: string | null | undefined) {
-  const n = parseNum(hint);
+  const n = toNumberLoose(hint);
   if (n == null) return "";
   if (mode === "pct") return fmtPct(n);
   return fmtMoney(n);
+}
+
+function isDirtyValue(mode: Mode, value: string, hint: string | null | undefined) {
+  const a = String(value ?? "").trim();
+  const b = String(hint ?? "").trim();
+
+  if (!a && !b) return false;
+  if (!b) return a.length > 0;
+
+  const na = toNumberLoose(a);
+  const nb = toNumberLoose(b);
+
+  if (na != null && nb != null) {
+    const dec = mode === "pct" ? 2 : 2;
+    return roundTo(na, dec) !== roundTo(nb, dec);
+  }
+
+  return a !== b;
 }
 
 export function CellInput({ mode, value, hint, placeholder, disabled = false, onChange }: Props) {
@@ -69,18 +125,11 @@ export function CellInput({ mode, value, hint, placeholder, disabled = false, on
     setLocal(value ?? "");
   }, [value]);
 
-  const isDirty = useMemo(() => {
-    const a = (value ?? "").trim();
-    const b = (hint ?? "").trim();
-    if (!b) return a.length > 0;
-    return a !== b;
-  }, [value, hint]);
+  const isDirty = useMemo(() => isDirtyValue(mode, value ?? "", hint), [mode, value, hint]);
 
   const hintText = useMemo(() => {
-    if (!hint) return "";
     const f = formatHint(mode, hint);
-    if (!f) return "";
-    return `Prev: ${f}`;
+    return f ? `Prev: ${f}` : "";
   }, [mode, hint]);
 
   return (

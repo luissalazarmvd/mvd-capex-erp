@@ -13,14 +13,7 @@ type Props = {
   onReset?: () => void;
 };
 
-export function SaveBar({
-  dirtyCount,
-  isSaving = false,
-  lastSavedAt,
-  error,
-  onSave,
-  onReset,
-}: Props) {
+export function SaveBar({ dirtyCount, isSaving = false, lastSavedAt, error, onSave, onReset }: Props) {
   return (
     <div
       className="panel-inner"
@@ -42,24 +35,12 @@ export function SaveBar({
 
       <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
         {onReset ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={isSaving || dirtyCount === 0}
-            onClick={onReset}
-          >
+          <Button type="button" variant="ghost" size="sm" disabled={isSaving || dirtyCount === 0} onClick={onReset}>
             Deshacer
           </Button>
         ) : null}
 
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          disabled={isSaving || dirtyCount === 0}
-          onClick={onSave}
-        >
+        <Button type="button" variant="primary" size="sm" disabled={isSaving || dirtyCount === 0} onClick={onSave}>
           {isSaving ? "Guardando…" : "Guardar"}
         </Button>
       </div>

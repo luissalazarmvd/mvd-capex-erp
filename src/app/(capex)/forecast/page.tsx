@@ -69,6 +69,7 @@ export default function ForecastPage() {
 
   useEffect(() => {
     loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const projectLabel = useMemo(() => {
@@ -131,21 +132,44 @@ export default function ForecastPage() {
     }
   }
 
-  async function onResetSelectedWbs() {
+  async function onResetSelectedProject() {
     setMsg(null);
 
-    const wc = (selectedWbs ?? "").trim();
-    if (!wc) return setMsg("ERROR: selecciona un WBS para resetear");
+    const pc = (selectedProject ?? "").trim();
+    if (!pc) return setMsg("ERROR: selecciona un proyecto para resetear");
 
     try {
-      await apiPost("/api/forecast/reset", { wbs_code: wc, from: FROM_PERIOD, n: N_PERIODS });
+      await apiPost("/api/forecast/reset", { project_code: pc, from: FROM_PERIOD, n: N_PERIODS });
       setDraft({});
       await loadAll();
-      setMsg(`OK: forecast reseteado para ${wc}`);
+      setMsg(`OK: forecast reseteado para proyecto ${pc}`);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR reseteando forecast");
     }
   }
+
+  const headerActions = (
+    <>
+      <Button
+        type="button"
+        variant="danger"
+        size="sm"
+        disabled={loading || !selectedProject}
+        onClick={onResetSelectedProject}
+        title={
+          !selectedProject
+            ? "Selecciona un proyecto"
+            : "Resetea el forecast del proyecto (todos sus WBS) en el rango de periodos"
+        }
+      >
+        Resetear forecast (Proyecto)
+      </Button>
+
+      <div className="muted" style={{ fontWeight: 800, fontSize: 12 }}>
+        {selectedProject ? `Proyecto: ${selectedProject}${selectedWbs ? ` | WBS: ${selectedWbs}` : ""}` : "Selecciona un proyecto"}
+      </div>
+    </>
+  );
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 14 }}>
@@ -176,27 +200,11 @@ export default function ForecastPage() {
           </div>
         ) : null}
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            disabled={loading || !selectedWbs}
-            onClick={onResetSelectedWbs}
-            title={!selectedWbs ? "Selecciona un WBS" : "Borra el forecast del WBS en el rango de periodos"}
-          >
-            Resetear forecast (WBS)
-          </Button>
-
-          <div className="muted" style={{ fontWeight: 800, fontSize: 12 }}>
-            {selectedWbs ? `WBS: ${selectedWbs}` : "Selecciona un WBS para habilitar el reset"}
-          </div>
-        </div>
-
         <WbsMatrix
           mode="forecast"
           title={loading ? "Forecast mensual (cargando…)" : "Forecast mensual"}
           projectLabel={projectLabel}
+          headerActions={headerActions}
           periods={periods}
           rows={rows}
           rowsForTotals={projectAllRows}
