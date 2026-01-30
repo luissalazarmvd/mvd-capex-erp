@@ -66,7 +66,10 @@ type ProjectsMeta = {
 };
 
 function toSelectOptions(xs: LookupOption[], emptyLabel = "—"): SelectOption[] {
-  return [{ value: "", label: emptyLabel }, ...xs.map((x) => ({ value: String(x.id), label: x.name }))];
+  return [
+    { value: "", label: emptyLabel },
+    ...xs.map((x) => ({ value: String(x.id), label: x.name })),
+  ];
 }
 
 function toPriorityOptions(xs: PriorityOption[]): SelectOption[] {
@@ -256,36 +259,6 @@ export default function ProjectsPage() {
   const isCodeLocked = useMemo(() => {
     return !!lockedProjectCode;
   }, [lockedProjectCode]);
-
-  function buildFormFromMeta(meta: ProjectsMeta, project_code: string): ProjectForm | null {
-    const p = (meta.projects ?? []).find((x) => x.project_code === project_code);
-    if (p) {
-      return {
-        project_code: p.project_code,
-        project_name: p.project_name,
-        proj_group_id: p.proj_group_id ? String(p.proj_group_id) : "",
-        inv_class_id: p.inv_class_id ? String(p.inv_class_id) : "",
-        proj_condition_id: p.proj_condition_id ? String(p.proj_condition_id) : "",
-        proj_area_id: p.proj_area_id ? String(p.proj_area_id) : "",
-        priority_id: p.priority_id ? String(p.priority_id) : "",
-      };
-    }
-
-    const t = (meta.tree ?? []).find((x) => x.project_code === project_code);
-    if (t) {
-      return {
-        project_code: t.project_code,
-        project_name: t.project_name,
-        proj_group_id: "",
-        inv_class_id: "",
-        proj_condition_id: "",
-        proj_area_id: "",
-        priority_id: "",
-      };
-    }
-
-    return null;
-  }
 
   async function fetchMeta() {
     setLoading(true);
@@ -480,7 +453,16 @@ export default function ProjectsPage() {
       />
 
       <div style={{ display: "grid", gap: 12 }}>
-        <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10 }}>
+        <div
+          className="panel-inner"
+          style={{
+            padding: "10px 12px",
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+            minHeight: 52,
+          }}
+        >
           <div style={{ fontWeight: 900 }}>Proyecto + WBS</div>
 
           <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
