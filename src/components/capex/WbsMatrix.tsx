@@ -30,6 +30,8 @@ type Props = {
   budgetClass?: "ORIG" | "SOC";
   progressDouble?: boolean;
 
+  budgetLatest?: Record<string, string | null>;
+
   onChangeDraft: (key: string, value: string) => void;
   onSave: (rows: { key: string; value: string }[]) => Promise<void>;
   onResetDraft?: () => void;
@@ -54,6 +56,11 @@ function fmtMoney(n: number) {
   });
 }
 
+function fmtPct(n: number) {
+  const v = Number.isFinite(n) ? n : 0;
+  return v.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function WbsMatrix({
   mode,
   title,
@@ -65,6 +72,7 @@ export function WbsMatrix({
   draft,
   budgetClass,
   progressDouble,
+  budgetLatest,
   onChangeDraft,
   onSave,
   onResetDraft,
@@ -116,6 +124,8 @@ export function WbsMatrix({
 
   const CELL_W = 110;
   const TOTAL_W = 140;
+  const EVLAST_W = 120;
+  const ACTOTAL_W = 150;
 
   const LEFT_W = useMemo(() => {
     const maxLen = rows.reduce((m, r) => {
@@ -133,8 +143,39 @@ export function WbsMatrix({
     return parseNum(latest[k]);
   }
 
+  function effectiveRaw(wbs: string, period_id: number, col: string): string | null {
+    const k = keyOf(wbs, period_id, col);
+    if (Object.prototype.hasOwnProperty.call(draft, k)) return String(draft[k] ?? "");
+    const v = latest[k];
+    return v == null ? null : String(v);
+  }
+
+  function budgetValue(wbs: string, period_id: number, col: "ORIG" | "SOC"): number {
+    if (!budgetLatest) return 0;
+    const k = keyOf(wbs, period_id, col);
+    return parseNum(budgetLatest[k]);
+  }
+
+  function lastNonEmptyPct(wbs: string): number {
+    for (let i = periods.length - 1; i >= 0; i--) {
+      const p = periods[i];
+      const raw = effectiveRaw(wbs, p.period_id, "EV_PCT");
+      const s = String(raw ?? "").trim();
+      if (s !== "") return parseNum(s);
+    }
+    return 0;
+  }
+
+  function sumAc(wbs: string): number {
+    let s = 0;
+    for (const p of periods) s += effectiveValue(wbs, p.period_id, "AC");
+    return s;
+  }
+
   const showRowTotal = mode === "budget" || mode === "forecast";
   const showProjectTotals = mode === "budget" || mode === "forecast";
+  const showProgressTotals = mode === "progress" && !!progressDouble;
+
   const baseRowsForTotals = rowsForTotals ?? rows;
 
   const totalsTop = useMemo(() => {
@@ -161,6 +202,43 @@ export function WbsMatrix({
     }
     return { orig, soc, both: orig + soc };
   }, [showProjectTotals, mode, baseRowsForTotals, periods, latest, draft]);
+
+  const progressTop = useMemo(() => {
+    if (!showProgressTotals) return { evPct: 0, ac: 0 };
+
+    let ac = 0;
+
+    let totalBudget = 0;
+    let weightedEv = 0;
+
+    let sumEv = 0;
+    let cntEv = 0;
+
+    for (const r of baseRowsForTotals) {
+      const wbs = r.wbs_code;
+
+      const ev = lastNonEmptyPct(wbs);
+      const acW = sumAc(wbs);
+      ac += acW;
+
+      let b = 0;
+      for (const p of periods) {
+        b += budgetValue(wbs, p.period_id, "ORIG") + budgetValue(wbs, p.period_id, "SOC");
+      }
+
+      if (b > 0) {
+        totalBudget += b;
+        weightedEv += ev * b;
+      } else {
+        sumEv += ev;
+        cntEv += 1;
+      }
+    }
+
+    const evPct = totalBudget > 0 ? weightedEv / totalBudget : cntEv > 0 ? sumEv / cntEv : 0;
+
+    return { evPct, ac };
+  }, [showProgressTotals, baseRowsForTotals, periods, latest, draft, budgetLatest]);
 
   function rowTotal(r: Row): number {
     const c = mode === "forecast" ? "AMOUNT" : budgetClass || "ORIG";
@@ -217,6 +295,24 @@ export function WbsMatrix({
               <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.both)}</span>
             </div>
           )}
+        </div>
+      ) : null}
+
+      {showProgressTotals ? (
+        <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="panel-inner" style={{ padding: "8px 10px" }}>
+            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+              EV% Proyecto:
+            </span>
+            <span style={{ fontWeight: 900 }}>{fmtPct(progressTop.evPct)}%</span>
+          </div>
+
+          <div className="panel-inner" style={{ padding: "8px 10px" }}>
+            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+              AC Proyecto:
+            </span>
+            <span style={{ fontWeight: 900 }}>{fmtMoney(progressTop.ac)}</span>
+          </div>
         </div>
       ) : null}
 
@@ -280,6 +376,43 @@ export function WbsMatrix({
                   TOTAL
                 </th>
               ) : null}
+
+              {showProgressTotals ? (
+                <>
+                  <th
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 1,
+                      background: "rgba(0,0,0,.22)",
+                      borderBottom: "1px solid var(--border)",
+                      padding: "10px 10px",
+                      textAlign: "center",
+                      fontWeight: 900,
+                      width: EVLAST_W,
+                      minWidth: EVLAST_W,
+                    }}
+                  >
+                    EV% (último)
+                  </th>
+                  <th
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 1,
+                      background: "rgba(0,0,0,.22)",
+                      borderBottom: "1px solid var(--border)",
+                      padding: "10px 10px",
+                      textAlign: "center",
+                      fontWeight: 900,
+                      width: ACTOTAL_W,
+                      minWidth: ACTOTAL_W,
+                    }}
+                  >
+                    AC (total)
+                  </th>
+                </>
+              ) : null}
             </tr>
 
             {cols.length > 1 ? (
@@ -335,6 +468,37 @@ export function WbsMatrix({
                     &nbsp;
                   </th>
                 ) : null}
+
+                {showProgressTotals ? (
+                  <>
+                    <th
+                      style={{
+                        background: "rgba(0,0,0,.18)",
+                        borderBottom: "1px solid rgba(191,231,255,.12)",
+                        padding: "8px 10px",
+                        textAlign: "center",
+                        fontWeight: 900,
+                        width: EVLAST_W,
+                        minWidth: EVLAST_W,
+                      }}
+                    >
+                      &nbsp;
+                    </th>
+                    <th
+                      style={{
+                        background: "rgba(0,0,0,.18)",
+                        borderBottom: "1px solid rgba(191,231,255,.12)",
+                        padding: "8px 10px",
+                        textAlign: "center",
+                        fontWeight: 900,
+                        width: ACTOTAL_W,
+                        minWidth: ACTOTAL_W,
+                      }}
+                    >
+                      &nbsp;
+                    </th>
+                  </>
+                ) : null}
               </tr>
             ) : null}
           </thead>
@@ -345,7 +509,12 @@ export function WbsMatrix({
                 <td
                   className="muted"
                   style={{ padding: 12 }}
-                  colSpan={1 + periods.length * cols.length + (showRowTotal ? 1 : 0)}
+                  colSpan={
+                    1 +
+                    periods.length * cols.length +
+                    (showRowTotal ? 1 : 0) +
+                    (showProgressTotals ? 2 : 0)
+                  }
                 >
                   Selecciona un proyecto o WBS.
                 </td>
@@ -353,6 +522,8 @@ export function WbsMatrix({
             ) : (
               rows.map((r) => {
                 const rt = showRowTotal ? rowTotal(r) : 0;
+                const evLast = showProgressTotals ? lastNonEmptyPct(r.wbs_code) : 0;
+                const acTot = showProgressTotals ? sumAc(r.wbs_code) : 0;
 
                 return (
                   <tr key={r.wbs_code}>
@@ -419,6 +590,39 @@ export function WbsMatrix({
                       >
                         {fmtMoney(rt)}
                       </td>
+                    ) : null}
+
+                    {showProgressTotals ? (
+                      <>
+                        <td
+                          style={{
+                            borderBottom: "1px solid rgba(191,231,255,.10)",
+                            padding: "6px 10px",
+                            width: EVLAST_W,
+                            minWidth: EVLAST_W,
+                            textAlign: "right",
+                            fontWeight: 900,
+                            whiteSpace: "nowrap",
+                          }}
+                          title={String(evLast)}
+                        >
+                          {fmtPct(evLast)}%
+                        </td>
+                        <td
+                          style={{
+                            borderBottom: "1px solid rgba(191,231,255,.10)",
+                            padding: "6px 10px",
+                            width: ACTOTAL_W,
+                            minWidth: ACTOTAL_W,
+                            textAlign: "right",
+                            fontWeight: 900,
+                            whiteSpace: "nowrap",
+                          }}
+                          title={String(acTot)}
+                        >
+                          {fmtMoney(acTot)}
+                        </td>
+                      </>
                     ) : null}
                   </tr>
                 );

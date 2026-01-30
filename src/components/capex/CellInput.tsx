@@ -77,9 +77,7 @@ export function CellInput({
         style={{
           width: "100%",
           background: disabled ? "rgba(0,0,0,.08)" : "rgba(0,0,0,.14)",
-          border: `1px solid ${
-            isDirty ? "rgba(102,199,255,.85)" : "rgba(191,231,255,.22)"
-          }`,
+          border: `1px solid ${isDirty ? "rgba(102,199,255,.85)" : "rgba(191,231,255,.22)"}`,
           color: "var(--text)",
           borderRadius: 10,
           padding: "8px 10px",

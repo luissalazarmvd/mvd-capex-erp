@@ -29,6 +29,7 @@ export default function ProgressPage() {
   const [selectedWbs, setSelectedWbs] = useState<string | null>(null);
 
   const [latest, setLatest] = useState<Record<string, string | null>>({});
+  const [budgetLatest, setBudgetLatest] = useState<Record<string, string | null>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
 
   const [msg, setMsg] = useState<string | null>(null);
@@ -41,19 +42,24 @@ export default function ProgressPage() {
     setLoading(true);
     setMsg(null);
     try {
-      const [meta, per, lat] = await Promise.all([
+      const [meta, per, lat, bOrig, bSoc] = await Promise.all([
         apiGet("/api/projects/meta"),
         apiGet(`/api/periods?from=${FROM_PERIOD}&n=${N_PERIODS}`),
         apiGet(`/api/progress/latest?from=${FROM_PERIOD}&n=${N_PERIODS}`),
+        apiGet(`/api/budget/latest?from=${FROM_PERIOD}&n=${N_PERIODS}&class=ORIG`),
+        apiGet(`/api/budget/latest?from=${FROM_PERIOD}&n=${N_PERIODS}&class=SOC`),
       ]);
 
       const m = meta as ProjectsMeta;
       const p = per as PeriodsResp;
       const l = lat as LatestResp;
+      const bo = bOrig as LatestResp;
+      const bs = bSoc as LatestResp;
 
       setProjects(m.tree ?? []);
       setPeriods(p.periods ?? []);
       setLatest(l.latest ?? {});
+      setBudgetLatest({ ...(bo.latest ?? {}), ...(bs.latest ?? {}) });
 
       if (!selectedProject && m.tree?.length) {
         setSelectedProject(m.tree[0].project_code);
@@ -96,6 +102,18 @@ export default function ProgressPage() {
     }
     return out;
   }, [projects, selectedProject, selectedWbs]);
+
+  const projectAllRows: Row[] = useMemo(() => {
+    if (!selectedProject) return [];
+    const proj = projects.find((x) => x.project_code === selectedProject);
+    if (!proj) return [];
+    return (proj.wbs ?? []).map((w) => ({
+      project_code: proj.project_code,
+      project_name: proj.project_name,
+      wbs_code: w.wbs_code,
+      wbs_name: w.wbs_name,
+    }));
+  }, [projects, selectedProject]);
 
   function onChangeDraft(k: string, v: string) {
     setDraft((prev) => ({ ...prev, [k]: v }));
@@ -166,6 +184,7 @@ export default function ProgressPage() {
           rows={rows}
           latest={latest}
           draft={draft}
+          budgetLatest={budgetLatest}
           progressDouble
           onChangeDraft={onChangeDraft}
           onSave={onSave}
