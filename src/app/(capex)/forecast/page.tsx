@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { WbsMatrix, Period, Row } from "../../../components/capex/WbsMatrix";
+import { Button } from "../../../components/ui/Button";
 
 type ProjectsMeta = {
   ok: boolean;
@@ -20,10 +21,6 @@ type LatestResp = {
   ok: boolean;
   latest: Record<string, string | null>;
 };
-
-function keyOf(wbs: string, period_id: number, col: string) {
-  return `${wbs}|${period_id}|${col}`;
-}
 
 export default function ForecastPage() {
   const [projects, setProjects] = useState<ProjectNode[]>([]);
@@ -115,45 +112,38 @@ export default function ForecastPage() {
     setDraft((prev) => ({ ...prev, [k]: v }));
   }
 
-  async function onSave(_pending: { key: string; value: string }[]) {
+  async function onSave(payload: { key: string; value: string }[]) {
     setMsg(null);
 
-    if (!selectedProject) {
-      setMsg("ERROR: selecciona un proyecto");
+    const fRows = payload.filter((r) => r.key.endsWith("|AMOUNT"));
+    if (!fRows.length) {
+      setDraft({});
       return;
-    }
-    if (!periods.length) {
-      setMsg("ERROR: no hay periodos cargados");
-      return;
-    }
-    if (!projectAllRows.length) {
-      setMsg("ERROR: el proyecto no tiene WBS");
-      return;
-    }
-
-    const payloadAll: { key: string; value: string }[] = [];
-    for (const r of projectAllRows) {
-      for (const p of periods) {
-        const k = keyOf(r.wbs_code, p.period_id, "AMOUNT");
-        const raw = Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : "";
-        const v = String(raw ?? "").trim();
-        payloadAll.push({ key: k, value: v === "" ? "0" : v });
-      }
     }
 
     try {
-      await apiPost("/api/forecast/upsert", {
-        project_code: selectedProject,
-        from: FROM_PERIOD,
-        n: N_PERIODS,
-        rows: payloadAll,
-      });
-
+      await apiPost("/api/forecast/upsert", { rows: fRows });
       setDraft({});
       await loadAll();
-      setMsg("OK: forecast guardado (snapshot por proyecto)");
+      setMsg("OK: forecast guardado");
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando forecast");
+    }
+  }
+
+  async function onResetSelectedWbs() {
+    setMsg(null);
+
+    const wc = (selectedWbs ?? "").trim();
+    if (!wc) return setMsg("ERROR: selecciona un WBS para resetear");
+
+    try {
+      await apiPost("/api/forecast/reset", { wbs_code: wc, from: FROM_PERIOD, n: N_PERIODS });
+      setDraft({});
+      await loadAll();
+      setMsg(`OK: forecast reseteado para ${wc}`);
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR reseteando forecast");
     }
   }
 
@@ -185,6 +175,23 @@ export default function ForecastPage() {
             {msg}
           </div>
         ) : null}
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            disabled={loading || !selectedWbs}
+            onClick={onResetSelectedWbs}
+            title={!selectedWbs ? "Selecciona un WBS" : "Borra el forecast del WBS en el rango de periodos"}
+          >
+            Resetear forecast (WBS)
+          </Button>
+
+          <div className="muted" style={{ fontWeight: 800, fontSize: 12 }}>
+            {selectedWbs ? `WBS: ${selectedWbs}` : "Selecciona un WBS para habilitar el reset"}
+          </div>
+        </div>
 
         <WbsMatrix
           mode="forecast"
