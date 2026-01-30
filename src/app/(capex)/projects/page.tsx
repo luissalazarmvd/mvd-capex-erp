@@ -107,9 +107,6 @@ function asNullableInt(s: string): number | null {
 
 /**
  * ✅ Custom dropdown (no native <select>)
- * - Fondo azul oscuro (panel2)
- * - Letras blancas
- * - Hover celeste
  */
 function DarkSelect({
   label,
@@ -240,13 +237,9 @@ function DarkSelect({
 }
 
 export default function ProjectsPage() {
-  // data del tree (izquierda)
   const [data, setData] = useState<ProjectNode[]>([]);
-
-  // lista plana con FKs (para cargar a form cuando seleccionas)
   const [projectsFlat, setProjectsFlat] = useState<ProjectRow[]>([]);
 
-  // lookups
   const [optGroups, setOptGroups] = useState<SelectOption[]>(OPT_EMPTY);
   const [optInvClass, setOptInvClass] = useState<SelectOption[]>(OPT_EMPTY);
   const [optCond, setOptCond] = useState<SelectOption[]>(OPT_EMPTY);
@@ -327,11 +320,33 @@ export default function ProjectsPage() {
     });
   }
 
+  // ✅ AHORA valida también los 5 combos
   function validateProject(f: ProjectForm) {
     if (!/^\d{2}$/.test(f.project_code.trim())) return "project_code debe ser NN (ej: 01)";
     if (!f.project_name.trim()) return "project_name es obligatorio";
+
+    if (!f.proj_group_id) return "Selecciona Grupo";
+    if (!f.inv_class_id) return "Selecciona Inv. Class";
+    if (!f.proj_condition_id) return "Selecciona Condición";
+    if (!f.proj_area_id) return "Selecciona Área";
+    if (!f.priority_id) return "Selecciona Prioridad";
+
     return null;
   }
+
+  // ✅ Para deshabilitar el botón
+  const canSaveProject = useMemo(() => {
+    return (
+      /^\d{2}$/.test(proj.project_code.trim()) &&
+      !!proj.project_name.trim() &&
+      !!proj.proj_group_id &&
+      !!proj.inv_class_id &&
+      !!proj.proj_condition_id &&
+      !!proj.proj_area_id &&
+      !!proj.priority_id &&
+      !loading
+    );
+  }, [proj, loading]);
 
   async function upsertProject() {
     setMsg(null);
@@ -448,13 +463,17 @@ export default function ProjectsPage() {
               <Input
                 placeholder="01"
                 value={proj.project_code}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProj((s) => ({ ...s, project_code: e.target.value }))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setProj((s) => ({ ...s, project_code: e.target.value }))
+                }
                 hint="Código NN"
               />
               <Input
                 placeholder="Nombre del proyecto"
                 value={proj.project_name}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProj((s) => ({ ...s, project_name: e.target.value }))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setProj((s) => ({ ...s, project_name: e.target.value }))
+                }
               />
             </div>
 
@@ -500,7 +519,13 @@ export default function ProjectsPage() {
             </div>
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <Button type="button" variant="primary" onClick={upsertProject} disabled={loading}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={upsertProject}
+                disabled={!canSaveProject}
+                title={!canSaveProject ? "Completa Grupo, Inv. Class, Condición, Área y Prioridad" : ""}
+              >
                 Guardar Proyecto
               </Button>
             </div>
