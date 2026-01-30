@@ -29,25 +29,40 @@ function clampPct(raw: string) {
   return String(clamped);
 }
 
-function fmt2(raw: string | null | undefined) {
-  if (raw == null) return "";
+function parseNum(raw: string | null | undefined): number | null {
+  if (raw == null) return null;
   const s = String(raw).trim();
-  if (!s) return "";
+  if (!s) return null;
 
-  const n = Number(s.replace(",", "."));
-  if (!Number.isFinite(n)) return s;
-
-  return n.toFixed(2);
+  const cleaned = s.replace(/[^0-9.,-]/g, "").replace(/,/g, "");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
 }
 
-export function CellInput({
-  mode,
-  value,
-  hint,
-  placeholder,
-  disabled = false,
-  onChange,
-}: Props) {
+function fmtMoney(n: number) {
+  const v = Number.isFinite(n) ? n : 0;
+  return (
+    "$" +
+    v.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
+}
+
+function fmtPct(n: number) {
+  const v = Number.isFinite(n) ? n : 0;
+  return v.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatHint(mode: Mode, hint: string | null | undefined) {
+  const n = parseNum(hint);
+  if (n == null) return "";
+  if (mode === "pct") return fmtPct(n);
+  return fmtMoney(n);
+}
+
+export function CellInput({ mode, value, hint, placeholder, disabled = false, onChange }: Props) {
   const [local, setLocal] = useState<string>(value ?? "");
 
   useEffect(() => {
@@ -60,6 +75,13 @@ export function CellInput({
     if (!b) return a.length > 0;
     return a !== b;
   }, [value, hint]);
+
+  const hintText = useMemo(() => {
+    if (!hint) return "";
+    const f = formatHint(mode, hint);
+    if (!f) return "";
+    return `Prev: ${f}`;
+  }, [mode, hint]);
 
   return (
     <div style={{ display: "grid", gap: 4, minWidth: 110 }}>
@@ -96,16 +118,17 @@ export function CellInput({
       <div
         className="muted"
         style={{
-          fontSize: 11,
-          lineHeight: 1.1,
-          minHeight: 12,
+          fontSize: 12,
+          lineHeight: 1.15,
+          minHeight: 14,
           display: "flex",
           justifyContent: "space-between",
           gap: 8,
+          color: "rgba(255,255,255,.86)",
         }}
       >
-        <span>{hint ? `Prev: ${fmt2(hint)}` : ""}</span>
-        <span style={{ fontWeight: 900 }}>{mode === "pct" ? "%" : ""}</span>
+        <span style={{ fontWeight: 800 }}>{hintText}</span>
+        <span style={{ fontWeight: 900, color: "rgba(255,255,255,.92)" }}>{mode === "pct" ? "%" : ""}</span>
       </div>
     </div>
   );

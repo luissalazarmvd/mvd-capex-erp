@@ -50,10 +50,14 @@ function parseNum(x: string | null | undefined): number {
 }
 
 function fmtMoney(n: number) {
-  return n.toLocaleString("es-PE", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
+  const v = Number.isFinite(n) ? n : 0;
+  return (
+    "$" +
+    v.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
 }
 
 function fmtPct(n: number) {
@@ -509,12 +513,7 @@ export function WbsMatrix({
                 <td
                   className="muted"
                   style={{ padding: 12 }}
-                  colSpan={
-                    1 +
-                    periods.length * cols.length +
-                    (showRowTotal ? 1 : 0) +
-                    (showProgressTotals ? 2 : 0)
-                  }
+                  colSpan={1 + periods.length * cols.length + (showRowTotal ? 1 : 0) + (showProgressTotals ? 2 : 0)}
                 >
                   Selecciona un proyecto o WBS.
                 </td>
