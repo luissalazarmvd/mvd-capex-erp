@@ -85,7 +85,8 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
               <Link
                 key={n.href}
                 href={n.href}
-                className="nav-pill"
+                // ✅ blanco, grande y “gordito”; además evita morado de visited
+                className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
                 prefetch={false}
               >
                 {n.label}
@@ -101,7 +102,6 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
           {children}
         </section>
       </main>
-
     </div>
   );
 }
