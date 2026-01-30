@@ -255,6 +255,43 @@ export default function ProjectsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // ✅ si esto NO es null => estás editando un proyecto existente y el code va bloqueado
+  const [lockedProjectCode, setLockedProjectCode] = useState<string | null>(null);
+
+  const isCodeLocked = useMemo(() => {
+    return !!lockedProjectCode; // lock por modo, no por igualdad
+  }, [lockedProjectCode]);
+
+  function buildFormFromMeta(meta: ProjectsMeta, project_code: string): ProjectForm | null {
+    const p = (meta.projects ?? []).find((x) => x.project_code === project_code);
+    if (p) {
+      return {
+        project_code: p.project_code,
+        project_name: p.project_name,
+        proj_group_id: p.proj_group_id ? String(p.proj_group_id) : "",
+        inv_class_id: p.inv_class_id ? String(p.inv_class_id) : "",
+        proj_condition_id: p.proj_condition_id ? String(p.proj_condition_id) : "",
+        proj_area_id: p.proj_area_id ? String(p.proj_area_id) : "",
+        priority_id: p.priority_id ? String(p.priority_id) : "",
+      };
+    }
+
+    const t = (meta.tree ?? []).find((x) => x.project_code === project_code);
+    if (t) {
+      return {
+        project_code: t.project_code,
+        project_name: t.project_name,
+        proj_group_id: "",
+        inv_class_id: "",
+        proj_condition_id: "",
+        proj_area_id: "",
+        priority_id: "",
+      };
+    }
+
+    return null;
+  }
+
   async function fetchMeta() {
     setLoading(true);
     setMsg(null);
@@ -270,10 +307,16 @@ export default function ProjectsPage() {
       setOptArea(toSelectOptions(meta.lookups?.proj_areas ?? []));
       setOptPrio(toPriorityOptions(meta.lookups?.priorities ?? []));
 
+      // ✅ si no hay selección, agarra el primero y carga form + bloquea code
       if (!selectedProject && meta.tree?.length) {
         const first = meta.tree[0].project_code;
         setSelectedProject(first);
         setSelectedWbs(null);
+
+        const f = buildFormFromMeta(meta, first);
+        if (f) setProj(f);
+
+        setLockedProjectCode(first); // ✅ edit mode => lock
       }
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando metadata");
@@ -320,7 +363,7 @@ export default function ProjectsPage() {
     });
   }
 
-  // ✅ AHORA valida también los 5 combos
+  // ✅ valida también los 5 combos
   function validateProject(f: ProjectForm) {
     if (!/^\d{2}$/.test(f.project_code.trim())) return "project_code debe ser NN (ej: 01)";
     if (!f.project_name.trim()) return "project_name es obligatorio";
@@ -350,11 +393,25 @@ export default function ProjectsPage() {
 
   async function upsertProject() {
     setMsg(null);
+
+    const code = proj.project_code.trim();
+
+    // ✅ si estás editando (lock activo), NO permitas cambiar code (por seguridad)
+    if (lockedProjectCode && code !== lockedProjectCode) {
+      return setMsg(`No puedes cambiar el código del proyecto (${lockedProjectCode}). Usa "Nuevo" para crear otro.`);
+    }
+
+    // ✅ si estás en "Nuevo" (no lock), NO permitas usar un code ya existente
+    if (!lockedProjectCode) {
+      const exists = projectsFlat.some((p) => p.project_code === code);
+      if (exists) return setMsg(`Ya existe el proyecto ${code}. Selecciónalo en la lista para editarlo.`);
+    }
+
     const err = validateProject(proj);
     if (err) return setMsg(err);
 
     const payload = {
-      project_code: proj.project_code.trim(),
+      project_code: code,
       project_name: proj.project_name.trim(),
       proj_group_id: asNullableInt(proj.proj_group_id),
       inv_class_id: asNullableInt(proj.inv_class_id),
@@ -370,6 +427,10 @@ export default function ProjectsPage() {
       setSelectedProject(payload.project_code);
       setSelectedWbs(null);
       setWbsName("");
+
+      // ✅ luego de guardar, si existe en DB ya es modo edición => lock
+      setLockedProjectCode(payload.project_code);
+
       await fetchMeta();
       loadProjectToForm(payload.project_code);
     } catch (e: any) {
@@ -420,7 +481,11 @@ export default function ProjectsPage() {
           setSelectedProject(pc);
           setSelectedWbs(null);
           setWbsName("");
-          if (pc) loadProjectToForm(pc);
+
+          if (pc) {
+            loadProjectToForm(pc);
+            setLockedProjectCode(pc); // ✅ seleccionaste existente => lock
+          }
         }}
         onSelectWbs={(wc) => {
           setMsg(null);
@@ -445,6 +510,7 @@ export default function ProjectsPage() {
                 setSelectedProject(null);
                 setSelectedWbs(null);
                 setWbsName("");
+                setLockedProjectCode(null); // ✅ Nuevo => unlock
               }}
             >
               Nuevo
@@ -463,10 +529,11 @@ export default function ProjectsPage() {
               <Input
                 placeholder="01"
                 value={proj.project_code}
+                disabled={loading || isCodeLocked} // ✅ lock
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   setProj((s) => ({ ...s, project_code: e.target.value }))
                 }
-                hint="Código NN"
+                hint={isCodeLocked ? "Código bloqueado (proyecto existente)" : "Código NN"}
               />
               <Input
                 placeholder="Nombre del proyecto"
