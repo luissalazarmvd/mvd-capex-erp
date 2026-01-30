@@ -94,3 +94,9 @@ body {
 *::-webkit-scrollbar-track { background: rgba(0,0,0,.12); border-radius: 999px; }
 *::-webkit-scrollbar-thumb { background: rgba(191,231,255,.30); border-radius: 999px; }
 *::-webkit-scrollbar-thumb:hover { background: rgba(191,231,255,.45); }
+
+.container-fluid{
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 18px;
+}

@@ -20,8 +20,10 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
           borderBottom: "1px solid var(--border)",
         }}
       >
-        {/* ✅ full width como dashboard */}
-        <div className="container-fluid" style={{ paddingTop: 14, paddingBottom: 14 }}>
+        <div
+          className="container-fluid"
+          style={{ paddingTop: 14, paddingBottom: 14 }}
+        >
           <div
             style={{
               display: "flex",
@@ -32,28 +34,25 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
           >
             {/* Left: Brand + Title */}
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              {/* Logo */}
+              {/* ✅ Logo (clickeable pero NO “botón”) */}
               <Link
                 href="/projects"
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  background: "rgba(255,255,255,.10)",
-                  border: "1px solid var(--border)",
-                  display: "grid",
-                  placeItems: "center",
-                  overflow: "hidden",
-                }}
+                prefetch={false}
                 aria-label="MVD"
                 title="MVD"
-                prefetch={false}
+                style={{
+                  width: 44,
+                  height: 44,
+                  display: "grid",
+                  placeItems: "center",
+                  textDecoration: "none",
+                }}
               >
                 <Image
                   src="/logo_mvd.png"
                   alt="MVD"
-                  width={28}
-                  height={28}
+                  width={40}
+                  height={40}
                   priority
                 />
               </Link>
@@ -106,7 +105,10 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
       </header>
 
       {/* Body */}
-      <main className="container-fluid" style={{ paddingTop: 16, paddingBottom: 30 }}>
+      <main
+        className="container-fluid"
+        style={{ paddingTop: 16, paddingBottom: 30 }}
+      >
         <section
           className="panel"
           style={{
