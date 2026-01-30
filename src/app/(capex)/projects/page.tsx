@@ -31,7 +31,6 @@ const emptyProject: ProjectForm = {
 
 const OPT_EMPTY: SelectOption[] = [{ value: "", label: "—" }];
 
-// ✅ Nombres WBS (placeholder por ahora)
 const OPT_WBS_NAME: SelectOption[] = [
   { value: "", label: "— Selecciona —" },
   { value: "Ingeniería", label: "Ingeniería" },
@@ -105,9 +104,6 @@ function asNullableInt(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/**
- * ✅ Custom dropdown (no native <select>)
- */
 function DarkSelect({
   label,
   value,
@@ -255,11 +251,10 @@ export default function ProjectsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // ✅ si esto NO es null => estás editando un proyecto existente y el code va bloqueado
   const [lockedProjectCode, setLockedProjectCode] = useState<string | null>(null);
 
   const isCodeLocked = useMemo(() => {
-    return !!lockedProjectCode; // lock por modo, no por igualdad
+    return !!lockedProjectCode;
   }, [lockedProjectCode]);
 
   function buildFormFromMeta(meta: ProjectsMeta, project_code: string): ProjectForm | null {
@@ -306,7 +301,6 @@ export default function ProjectsPage() {
       setOptCond(toSelectOptions(meta.lookups?.proj_conditions ?? []));
       setOptArea(toSelectOptions(meta.lookups?.proj_areas ?? []));
       setOptPrio(toPriorityOptions(meta.lookups?.priorities ?? []));
-
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando metadata");
     } finally {
@@ -316,7 +310,6 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     fetchMeta();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectedProjectNode = useMemo(() => {
@@ -352,7 +345,6 @@ export default function ProjectsPage() {
     });
   }
 
-  // ✅ valida también los 5 combos
   function validateProject(f: ProjectForm) {
     if (!/^\d{2}$/.test(f.project_code.trim())) return "project_code debe ser NN (ej: 01)";
     if (!f.project_name.trim()) return "project_name es obligatorio";
@@ -366,7 +358,6 @@ export default function ProjectsPage() {
     return null;
   }
 
-  // ✅ Para deshabilitar el botón
   const canSaveProject = useMemo(() => {
     return (
       /^\d{2}$/.test(proj.project_code.trim()) &&
@@ -385,12 +376,10 @@ export default function ProjectsPage() {
 
     const code = proj.project_code.trim();
 
-    // ✅ si estás editando (lock activo), NO permitas cambiar code (por seguridad)
     if (lockedProjectCode && code !== lockedProjectCode) {
       return setMsg(`No puedes cambiar el código del proyecto (${lockedProjectCode}). Usa "Nuevo" para crear otro.`);
     }
 
-    // ✅ si estás en "Nuevo" (no lock), NO permitas usar un code ya existente
     if (!lockedProjectCode) {
       const exists = projectsFlat.some((p) => p.project_code === code);
       if (exists) return setMsg(`Ya existe el proyecto ${code}. Selecciónalo en la lista para editarlo.`);
@@ -417,7 +406,6 @@ export default function ProjectsPage() {
       setSelectedWbs(null);
       setWbsName("");
 
-      // ✅ luego de guardar, si existe en DB ya es modo edición => lock
       setLockedProjectCode(payload.project_code);
 
       await fetchMeta();
@@ -462,39 +450,36 @@ export default function ProjectsPage() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 14 }}>
       <ProjectTree
-  data={data}
-  selectedProject={selectedProject}
-  selectedWbs={selectedWbs}
-  onSelectProject={(pc) => {
-    setMsg(null);
+        data={data}
+        selectedProject={selectedProject}
+        selectedWbs={selectedWbs}
+        onSelectProject={(pc) => {
+          setMsg(null);
 
-    // ✅ si el árbol “limpia” la selección (pc = "" o null) => modo Nuevo
-    if (!pc) {
-      setProj(emptyProject);
-      setSelectedProject(null);
-      setSelectedWbs(null);
-      setWbsName("");
-      setLockedProjectCode(null);
-      return;
-    }
+          if (!pc) {
+            setProj(emptyProject);
+            setSelectedProject(null);
+            setSelectedWbs(null);
+            setWbsName("");
+            setLockedProjectCode(null);
+            return;
+          }
 
-    setSelectedProject(pc);
-    setSelectedWbs(null);
-    setWbsName("");
+          setSelectedProject(pc);
+          setSelectedWbs(null);
+          setWbsName("");
 
-    loadProjectToForm(pc);
-    setLockedProjectCode(pc); // ✅ seleccionaste existente => lock
-  }}
-  onSelectWbs={(wc) => {
-    setMsg(null);
-    setSelectedWbs(wc);
-  }}
-  height={640}
-/>
-
+          loadProjectToForm(pc);
+          setLockedProjectCode(pc);
+        }}
+        onSelectWbs={(wc) => {
+          setMsg(null);
+          setSelectedWbs(wc);
+        }}
+        height={640}
+      />
 
       <div style={{ display: "grid", gap: 12 }}>
-        {/* Header */}
         <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10 }}>
           <div style={{ fontWeight: 900 }}>Proyecto + WBS</div>
 
@@ -509,7 +494,7 @@ export default function ProjectsPage() {
                 setSelectedProject(null);
                 setSelectedWbs(null);
                 setWbsName("");
-                setLockedProjectCode(null); // ✅ Nuevo => unlock
+                setLockedProjectCode(null);
               }}
             >
               Nuevo
@@ -521,14 +506,13 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Proyecto */}
         <div className="panel-inner" style={{ padding: 14 }}>
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12 }}>
               <Input
                 placeholder="01"
                 value={proj.project_code}
-                disabled={loading || isCodeLocked} // ✅ lock
+                disabled={loading || isCodeLocked}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   setProj((s) => ({ ...s, project_code: e.target.value }))
                 }
@@ -598,7 +582,6 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* WBS debajo (con dropdown) */}
         <div className="panel-inner" style={{ padding: 14 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
             <div style={{ fontWeight: 900 }}>WBS</div>
@@ -617,7 +600,13 @@ export default function ProjectsPage() {
             />
 
             <div style={{ display: "flex", alignItems: "flex-end" }}>
-              <Button type="button" variant="primary" onClick={addWbs} style={{ width: "100%" } as any} disabled={loading}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={addWbs}
+                style={{ width: "100%" } as any}
+                disabled={loading}
+              >
                 Añadir WBS
               </Button>
             </div>
@@ -659,7 +648,6 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Message */}
         {msg ? (
           <div
             className="panel-inner"

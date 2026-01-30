@@ -4,7 +4,7 @@ import React from "react";
 type Props = {
   children: React.ReactNode;
   stickyHeader?: boolean;
-  maxHeight?: number | string; // para matrices grandes
+  maxHeight?: number | string;
 };
 
 export function Table({ children, stickyHeader = true, maxHeight }: Props) {

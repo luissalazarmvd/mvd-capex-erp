@@ -38,7 +38,6 @@ export default function ForecastPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Ajusta esto si quieres otro inicio
   const FROM_PERIOD = 202601;
   const N_PERIODS = 12;
 
@@ -73,19 +72,19 @@ export default function ForecastPage() {
 
   useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-    const projectLabel = useMemo(() => {
+  const projectLabel = useMemo(() => {
     if (!selectedProject) return "";
     const p = projects.find((x) => x.project_code === selectedProject);
     if (!p) return "";
     return `${p.project_code} — ${p.project_name}`;
   }, [projects, selectedProject]);
 
-  // filas visibles (respeta filtro de WBS)
   const rows: Row[] = useMemo(() => {
-    const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
+    const p = selectedProject
+      ? projects.filter((x) => x.project_code === selectedProject)
+      : projects;
 
     const out: Row[] = [];
     for (const proj of p) {
@@ -102,7 +101,6 @@ export default function ForecastPage() {
     return out;
   }, [projects, selectedProject, selectedWbs]);
 
-  // filas del PROYECTO COMPLETO (ignora filtro de WBS) -> para snapshot
   const projectAllRows: Row[] = useMemo(() => {
     if (!selectedProject) return [];
     const proj = projects.find((x) => x.project_code === selectedProject);
@@ -119,11 +117,6 @@ export default function ForecastPage() {
     setDraft((prev) => ({ ...prev, [k]: v }));
   }
 
-  /**
-   * Snapshot por proyecto:
-   * - manda TODAS las celdas del proyecto (WBS x periodos)
-   * - si está en blanco -> "0" (pisar y no mezclar con datos antiguos)
-   */
   async function onSave(_pending: { key: string; value: string }[]) {
     setMsg(null);
 
@@ -140,7 +133,6 @@ export default function ForecastPage() {
       return;
     }
 
-    // Construye snapshot completo
     const payloadAll: { key: string; value: string }[] = [];
     for (const r of projectAllRows) {
       for (const p of periods) {

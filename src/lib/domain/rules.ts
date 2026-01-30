@@ -9,7 +9,7 @@ export type MatrixCol = "AMOUNT" | "ORIG" | "SOC" | "EV_PCT" | "AC";
 
 export type CellKeyParts = {
   wbs_code: string;
-  period_id: number; // YYYYMM
+  period_id: number;
   col: MatrixCol | string;
 };
 
@@ -73,7 +73,6 @@ export function parsePct(raw: MoneyLike): number | null {
 }
 
 export function fmtMoney(n: number): string {
-  // sin locales para no meter comas raras en inputs; solo string simple
   return String(n);
 }
 

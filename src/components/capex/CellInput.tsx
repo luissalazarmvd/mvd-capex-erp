@@ -15,7 +15,6 @@ type Props = {
 };
 
 function normalizeNumberInput(raw: string) {
-  // permite coma y punto (miles/decimal); el backend lo normaliza
   return raw.replace(/[^\d\.\,\-]/g, "");
 }
 
@@ -30,13 +29,11 @@ function clampPct(raw: string) {
   return String(clamped);
 }
 
-// ✅ hint a 2 decimales (mantiene % si viene en texto aparte)
 function fmt2(raw: string | null | undefined) {
   if (raw == null) return "";
   const s = String(raw).trim();
   if (!s) return "";
 
-  // normaliza coma -> punto para parse
   const n = Number(s.replace(",", "."));
   if (!Number.isFinite(n)) return s;
 

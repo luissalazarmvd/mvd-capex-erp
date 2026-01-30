@@ -3,8 +3,8 @@
 import { parseCellKey, isValidPeriodId, isValidWbsCode, parseMoney } from "../domain/rules";
 
 export type ForecastRow = {
-  key: string;   // `${wbs_code}|${period_id}|AMOUNT`
-  value: string; // monto
+  key: string;
+  value: string;
 };
 
 export type ValidationResult =

@@ -5,7 +5,6 @@ import { withTx, sql, getPool } from "./sql";
 type BudgetClass = "ORIG" | "SOC";
 
 function parseKey(key: string) {
-  // `${wbs_code}|${period_id}|${col}`
   const [wbs_code, pid, col] = key.split("|");
   const period_id = Number(pid);
   if (!wbs_code || !Number.isFinite(period_id) || !col) {
@@ -25,10 +24,6 @@ async function periodEndFromId(tx: sql.Transaction, period_id: number): Promise<
   if (!r.recordset?.[0]?.period_end) throw new Error(`period_id no existe: ${period_id}`);
   return r.recordset[0].period_end;
 }
-
-// =======================
-// PROJECT / WBS (upsert)
-// =======================
 
 export async function upsertProject(input: {
   project_code: string;
@@ -113,10 +108,6 @@ export async function upsertWbs(input: {
     );
   `);
 }
-
-// =======================
-// STG "insert-version" (historiza por updated_at)
-// =======================
 
 export async function insertBudgetVersions(
   rows: { key: string; value: string }[]

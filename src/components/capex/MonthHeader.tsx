@@ -4,9 +4,9 @@
 import React from "react";
 
 type Props = {
-  label: string;          // Ene_26
-  sublabel?: string;      // opcional: 2026-01
-  double?: boolean;       // para EV/AC (dos columnas por mes)
+  label: string;
+  sublabel?: string;
+  double?: boolean;
 };
 
 export function MonthHeader({ label, sublabel, double }: Props) {

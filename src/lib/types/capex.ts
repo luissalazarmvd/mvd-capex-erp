@@ -1,8 +1,5 @@
 // src/lib/types/capex.ts
 
-// =====================
-// Tree (Project -> WBS)
-// =====================
 export type WbsNode = {
   wbs_code: string;
   wbs_name: string;
@@ -14,12 +11,10 @@ export type ProjectNode = {
   wbs: WbsNode[];
 };
 
-// =====================
-// Periods / Matrix
-// =====================
+
 export type Period = {
-  period_id: number; // YYYYMM
-  label: string;     // Ene_26
+  period_id: number;
+  label: string;
 };
 
 export type MatrixRow = {
@@ -30,17 +25,14 @@ export type MatrixRow = {
 };
 
 export type MatrixCell = {
-  key: string;          // `${wbs_code}|${period_id}|${col}`
-  value: string;        // draft
-  hint?: string | null; // latest
+  key: string;
+  value: string;
+  hint?: string | null;
 };
 
 export type BudgetClass = "ORIG" | "SOC";
 export type MatrixMode = "budget" | "forecast" | "progress";
 
-// =====================
-// Dropdown lookups
-// =====================
 export type LookupOption = {
   id: number;
   name: string;
@@ -60,9 +52,7 @@ export type ProjectLookups = {
   proj_groups: LookupOption[];
 };
 
-// =====================
-// Project (for create/edit)
-// =====================
+
 export type ProjectInput = {
   project_code: string;
   project_name: string;

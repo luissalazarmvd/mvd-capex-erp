@@ -39,7 +39,6 @@ export default function BudgetPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Ajusta esto si quieres otro inicio
   const FROM_PERIOD = 202601;
   const N_PERIODS = 12;
 
@@ -84,23 +83,19 @@ export default function BudgetPage() {
 
   useEffect(() => {
     loadAll(budgetClass);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    // al cambiar ORIG/SOC, recargar hints y limpiar draft
     setDraft({});
     loadAll(budgetClass);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budgetClass]);
-  
-    const projectLabel = useMemo(() => {
+
+  const projectLabel = useMemo(() => {
     if (!selectedProject) return "";
     const p = projects.find((x) => x.project_code === selectedProject);
     if (!p) return "";
     return `${p.project_code} — ${p.project_name}`;
   }, [projects, selectedProject]);
-
 
   const rows: Row[] = useMemo(() => {
     const p = selectedProject
@@ -164,7 +159,6 @@ export default function BudgetPage() {
         height={640}
       />
 
-      {/* ✅ clave: flex + minWidth:0 para que NADA empuje el grid */}
       <div
         style={{
           display: "flex",
@@ -217,7 +211,6 @@ export default function BudgetPage() {
           </div>
         ) : null}
 
-        {/* ✅ wrapper: permite que la tabla haga scroll sin romper el layout */}
         <div style={{ minWidth: 0 }}>
           <WbsMatrix
             mode="budget"
@@ -226,7 +219,6 @@ export default function BudgetPage() {
                 ? `Budget mensual (${budgetClass}) (cargando…)`
                 : `Budget mensual (${budgetClass})`
             }
-            
             projectLabel={projectLabel}
             periods={periods}
             rows={rows}

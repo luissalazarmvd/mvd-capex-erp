@@ -17,19 +17,13 @@ export type Row = {
 type Props = {
   mode: "budget" | "forecast" | "progress";
   title: string;
-
-  // ✅ nuevo: para mostrar una sola vez arriba
   projectLabel?: string;
-
   periods: Period[];
   rows: Row[];
-
   latest: Record<string, string | null>;
   draft: Record<string, string>;
-
   budgetClass?: "ORIG" | "SOC";
   progressDouble?: boolean;
-
   onChangeDraft: (key: string, value: string) => void;
   onSave: (rows: { key: string; value: string }[]) => Promise<void>;
   onResetDraft?: () => void;
@@ -98,25 +92,20 @@ export function WbsMatrix({
     }
   }
 
-  // ✅ ancho dinámico de la columna izquierda (según WBS más largo)
-  const CELL_W = 110; // cada periodo/col
+  const CELL_W = 110;
 
   const LEFT_W = useMemo(() => {
-    // mide solo lo que se ve ahora (rows filtradas)
     const maxLen = rows.reduce((m, r) => {
       const s = `${r.wbs_code} — ${r.wbs_name}`;
       return Math.max(m, s.length);
     }, 0);
 
-    // aprox px por carácter en este diseño (ajústalo si quieres)
     const px = 110 + maxLen * 6;
 
-    // límites para que nunca quede ridículo
     return Math.max(180, Math.min(px, 280));
   }, [rows]);
 
   return (
-    // ✅ evita que la tabla “pinte” fuera del panel
     <div
       className="panel-inner"
       style={{ padding: 12, overflow: "hidden", minWidth: 0 }}
@@ -128,7 +117,6 @@ export function WbsMatrix({
         </div>
       </div>
 
-      {/* ✅ nombre del proyecto UNA sola vez */}
       {projectLabel ? (
         <div
           className="muted"
@@ -142,21 +130,19 @@ export function WbsMatrix({
         </div>
       ) : null}
 
-      {/* ✅ este es el scroll real: barra justo debajo de la tabla */}
       <div
         style={{
           marginTop: 10,
           maxWidth: "100%",
           overflowX: "auto",
           overflowY: "hidden",
-          paddingBottom: 8, // para que se vea la barra
+          paddingBottom: 8,
         }}
       >
         <table
           style={{
             borderCollapse: "separate",
             borderSpacing: 0,
-            // ✅ importante: que el ancho sea “intrínseco” para forzar overflow
             width: "max-content",
           }}
         >
@@ -271,17 +257,16 @@ export function WbsMatrix({
                     }}
                   >
                     <div
-  style={{
-    fontWeight: 900,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  }}
-  title={`${r.wbs_code} — ${r.wbs_name}`}
->
-  {r.wbs_code} — {r.wbs_name}
-</div>
-
+                      style={{
+                        fontWeight: 900,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                      title={`${r.wbs_code} — ${r.wbs_name}`}
+                    >
+                      {r.wbs_code} — {r.wbs_name}
+                    </div>
                   </td>
 
                   {periods.map((p) =>

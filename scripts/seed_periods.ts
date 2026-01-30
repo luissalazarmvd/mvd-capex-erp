@@ -22,7 +22,7 @@ function labelEs(d: Date) {
 }
 
 async function main() {
-  // rango: 2024-01 a 2030-12 (ajusta)
+
   const from = new Date(2024, 0, 1);
   const to = new Date(2030, 11, 1);
 
@@ -46,7 +46,6 @@ async function main() {
     });
   }
 
-  // insert if not exists
   for (const r of rows) {
     await q(
       `

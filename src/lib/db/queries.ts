@@ -16,9 +16,6 @@ export type PeriodRow = {
   period_end: string;     // ISO
 };
 
-// ==================
-// Lookups (dropdowns)
-// ==================
 export type LookupRow = {
   id: number;
   name: string;
@@ -89,9 +86,6 @@ export async function getProjGroups(): Promise<LookupRow[]> {
   return res.recordset;
 }
 
-// ==============
-// Projects & WBS
-// ==============
 export type ProjectRow = {
   project_code: string;
   project_name: string;
@@ -153,14 +147,11 @@ export async function getPeriods(fromPeriodId: number, n: number): Promise<Perio
   return res.recordset;
 }
 
-// ==============
-// Latest helpers
-// ==============
 export type LatestCell = {
   wbs_code: string;
   period_id: number;
-  col: string;   // ORIG / SOC / AMOUNT / EV_PCT / AC
-  value: string; // ya como string para UI
+  col: string;
+  value: string;
 };
 
 export async function getLatestBudget(

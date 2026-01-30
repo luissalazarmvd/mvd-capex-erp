@@ -3,7 +3,6 @@ export function parseAmount(input: string): number | null {
   const s = String(input ?? "").trim();
   if (!s) return null;
 
-  // permite "1,234.56" y "1234.56" (y también "1 234.56")
   const norm = s.replace(/\s/g, "").replace(/,/g, "");
   const n = Number(norm);
 

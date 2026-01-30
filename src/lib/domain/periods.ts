@@ -1,9 +1,9 @@
 // src/lib/domain/periods.ts
 export type Period = {
-  period_id: number;      // YYYYMM
-  period_label: string;   // Ene_26
-  period_start: string;   // YYYY-MM-DD
-  period_end: string;     // YYYY-MM-DD
+  period_id: number;
+  period_label: string;
+  period_start: string;
+  period_end: string;
 };
 
 export function yyyymmFromDate(d: Date): number {

@@ -1,8 +1,4 @@
 /* src/styles/globals.css */
-
-/* =========
-   TOKENS
-========= */
 :root {
   --bg: #0067ac;        /* fondo general */
   --header: #0a5a94;    /* topbar */
@@ -16,9 +12,6 @@
   --shadow: 0 10px 30px rgba(0,0,0,.18);
 }
 
-/* =========
-   BASE
-========= */
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -29,15 +22,11 @@ body {
 
 * { box-sizing: border-box; }
 
-/* =========
-   UTILS (clases simples reutilizables)
-========= */
 .container-max {
   max-width: 1400px;
   margin: 0 auto;
 }
 
-/* ✅ para dashboards: ocupa todo el ancho como tu otro UI */
 .container-fluid {
   max-width: none;
   margin: 0;
@@ -59,9 +48,6 @@ body {
 
 .muted { color: var(--muted); }
 
-/* =========
-   INPUT LOOK (similar a tu UI)
-========= */
 .input {
   width: 100%;
   background: rgba(0,0,0,.10);
@@ -87,9 +73,6 @@ body {
   outline: none;
 }
 
-/* =========
-   SCROLLBAR (web tipo blending)
-========= */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: rgba(0,0,0,.12); border-radius: 999px; }
 *::-webkit-scrollbar-thumb { background: rgba(191,231,255,.30); border-radius: 999px; }
@@ -100,9 +83,7 @@ body {
   margin: 0 !important;
   padding: 0 18px;
 }
-/* =========
-   NAV LINKS (Topbar)
-========= */
+
 .nav-pill{
   color: #fff !important;
   font-weight: 800 !important;
@@ -118,28 +99,27 @@ body {
   opacity: .85;
 }
 
-/* (opcional) blindaje extra solo en el header */
 header a,
 header a:visited{
   color: #fff !important;
 }
+
 html, body {
-  overflow-x: hidden; /* evita scrollbar horizontal de toda la página */
+  overflow-x: hidden;
 }
 
-/* contenedor scroll SOLO para la tabla */
 .table-scroll {
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border-radius: 12px;            /* opcional: look */
+  border-radius: 12px;
 }
 
-/* asegura que la tabla pueda “crecer” horizontalmente */
 .table-wide {
   width: max-content;
   min-width: 100%;
 }
+
 html, body { overflow-x: hidden; }
 
 .table-scroll { width: 100%; overflow-x: auto; overflow-y: hidden; }

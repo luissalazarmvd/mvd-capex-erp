@@ -34,7 +34,6 @@ export default function ProgressPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Ajusta esto si quieres otro inicio
   const FROM_PERIOD = 202601;
   const N_PERIODS = 12;
 
@@ -69,10 +68,9 @@ export default function ProgressPage() {
 
   useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-    const projectLabel = useMemo(() => {
+  const projectLabel = useMemo(() => {
     if (!selectedProject) return "";
     const p = projects.find((x) => x.project_code === selectedProject);
     if (!p) return "";
@@ -80,7 +78,9 @@ export default function ProgressPage() {
   }, [projects, selectedProject]);
 
   const rows: Row[] = useMemo(() => {
-    const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
+    const p = selectedProject
+      ? projects.filter((x) => x.project_code === selectedProject)
+      : projects;
 
     const out: Row[] = [];
     for (const proj of p) {
@@ -120,7 +120,7 @@ export default function ProgressPage() {
       await Promise.all(tasks);
 
       setDraft({});
-      await loadAll(); // recarga latest desde SQL
+      await loadAll();
       setMsg("OK: progreso guardado");
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando progreso");

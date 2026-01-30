@@ -13,7 +13,6 @@ const NAV = [
 export default function CapexLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
-      {/* Topbar */}
       <header
         style={{
           background: "var(--header)",
@@ -32,7 +31,6 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
               gap: 14,
             }}
           >
-            {/* Left: Brand + Title */}
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <Link
                 href="/projects"
@@ -66,11 +64,8 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
                 </div>
               </div>
             </div>
-
-            {/* ✅ Right: Actions (removido) */}
           </div>
 
-          {/* Nav */}
           <nav
             style={{
               marginTop: 12,
@@ -93,7 +88,6 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
         </div>
       </header>
 
-      {/* Body */}
       <main
         className="container-fluid"
         style={{ paddingTop: 16, paddingBottom: 30 }}
