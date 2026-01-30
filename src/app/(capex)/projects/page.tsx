@@ -66,10 +66,7 @@ type ProjectsMeta = {
 };
 
 function toSelectOptions(xs: LookupOption[], emptyLabel = "—"): SelectOption[] {
-  return [
-    { value: "", label: emptyLabel },
-    ...xs.map((x) => ({ value: String(x.id), label: x.name })),
-  ];
+  return [{ value: "", label: emptyLabel }, ...xs.map((x) => ({ value: String(x.id), label: x.name }))];
 }
 
 function toPriorityOptions(xs: PriorityOption[]): SelectOption[] {
@@ -421,7 +418,7 @@ export default function ProjectsPage() {
   const existingWbs = selectedProjectNode?.wbs ?? [];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 14 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 14, alignItems: "start" }}>
       <ProjectTree
         data={data}
         selectedProject={selectedProject}
@@ -452,17 +449,8 @@ export default function ProjectsPage() {
         height={640}
       />
 
-      <div style={{ display: "grid", gap: 12 }}>
-        <div
-          className="panel-inner"
-          style={{
-            padding: "10px 12px",
-            display: "flex",
-            gap: 10,
-            alignItems: "center",
-            minHeight: 52,
-          }}
-        >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+        <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10 }}>
           <div style={{ fontWeight: 900 }}>Proyecto + WBS</div>
 
           <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
