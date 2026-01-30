@@ -63,6 +63,15 @@ export function WbsMatrix({
     return progressDouble ? ["EV_PCT", "AC"] : ["EV_PCT"];
   }, [mode, budgetClass, progressDouble]);
 
+  // ✅ anchos más razonables (antes era 340 + 140 por col)
+  const FIRST_COL_W = 300;
+  const CELL_W = 120;
+
+  const tableMinWidth = useMemo(() => {
+    // 1ra columna + todas las celdas
+    return FIRST_COL_W + periods.length * cols.length * CELL_W;
+  }, [periods.length, cols.length]);
+
   const pending = useMemo(() => {
     const out: { key: string; value: string }[] = [];
     for (const r of rows) {
@@ -102,157 +111,170 @@ export function WbsMatrix({
         </div>
       </div>
 
-      {/* ✅ Scroll HORIZONTAL pegado a la tabla (no al body/página) */}
+      {/* ✅ el scroll horizontal vive SOLO acá, pegado a la tabla */}
       <div
-        className="table-scroll"
         style={{
           marginTop: 10,
+          width: "100%",
           overflowX: "auto",
           overflowY: "hidden",
+          scrollbarGutter: "stable", // reserva espacio para scrollbar
+          paddingBottom: 2, // para que el scrollbar se vea “justo abajo”
           borderRadius: 12,
         }}
       >
-        <div className="table-wide" style={{ width: "max-content", minWidth: "100%" }}>
-          <table
-            style={{
-              borderCollapse: "separate",
-              borderSpacing: 0,
-              minWidth: 920,
-            }}
-          >
-            <thead>
+        <table
+          style={{
+            width: "100%",
+            minWidth: tableMinWidth, // ✅ solo se pasa si realmente no entra
+            borderCollapse: "separate",
+            borderSpacing: 0,
+          }}
+        >
+          <thead>
+            <tr>
+              <th
+                style={{
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 3,
+                  background: "rgba(0,0,0,.22)",
+                  borderBottom: "1px solid var(--border)",
+                  padding: "10px 10px",
+                  textAlign: "left",
+                  fontWeight: 900,
+                  minWidth: FIRST_COL_W,
+                }}
+              >
+                Proyecto / WBS
+              </th>
+
+              {periods.map((p) => (
+                <th
+                  key={p.period_id}
+                  colSpan={cols.length}
+                  style={{
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 1,
+                    background: "rgba(0,0,0,.22)",
+                    borderBottom: "1px solid var(--border)",
+                    padding: "10px 10px",
+                    textAlign: "center",
+                    fontWeight: 900,
+                    minWidth: CELL_W * cols.length,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {p.label}
+                </th>
+              ))}
+            </tr>
+
+            {cols.length > 1 ? (
               <tr>
                 <th
                   style={{
                     position: "sticky",
                     left: 0,
                     zIndex: 3,
-                    background: "rgba(0,0,0,.22)",
-                    borderBottom: "1px solid var(--border)",
-                    padding: "10px 10px",
+                    background: "rgba(0,0,0,.18)",
+                    borderBottom: "1px solid rgba(191,231,255,.12)",
+                    padding: "8px 10px",
                     textAlign: "left",
                     fontWeight: 900,
-                    minWidth: 340,
+                    minWidth: FIRST_COL_W,
                   }}
                 >
-                  Proyecto / WBS
+                  &nbsp;
                 </th>
 
-                {periods.map((p) => (
-                  <th
-                    key={p.period_id}
-                    colSpan={cols.length}
-                    style={{
-                      position: "sticky",
-                      top: 0,
-                      zIndex: 1,
-                      background: "rgba(0,0,0,.22)",
-                      borderBottom: "1px solid var(--border)",
-                      padding: "10px 10px",
-                      textAlign: "center",
-                      fontWeight: 900,
-                      minWidth: 140 * cols.length,
-                    }}
-                  >
-                    {p.label}
-                  </th>
-                ))}
+                {periods.map((p) =>
+                  cols.map((c) => (
+                    <th
+                      key={`${p.period_id}-${c}`}
+                      style={{
+                        background: "rgba(0,0,0,.18)",
+                        borderBottom: "1px solid rgba(191,231,255,.12)",
+                        padding: "8px 10px",
+                        textAlign: "center",
+                        fontWeight: 900,
+                        minWidth: CELL_W,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {c === "EV_PCT" ? "EV%" : c}
+                    </th>
+                  ))
+                )}
               </tr>
+            ) : null}
+          </thead>
 
-              {cols.length > 1 ? (
-                <tr>
-                  <th
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  className="muted"
+                  style={{ padding: 12 }}
+                  colSpan={1 + periods.length * cols.length}
+                >
+                  Selecciona un proyecto o WBS.
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.wbs_code}>
+                  <td
                     style={{
                       position: "sticky",
                       left: 0,
-                      zIndex: 3,
-                      background: "rgba(0,0,0,.18)",
-                      borderBottom: "1px solid rgba(191,231,255,.12)",
-                      padding: "8px 10px",
-                      textAlign: "left",
-                      fontWeight: 900,
+                      zIndex: 2,
+                      background: "rgba(0,0,0,.14)",
+                      borderBottom: "1px solid rgba(191,231,255,.10)",
+                      padding: "10px 10px",
+                      minWidth: FIRST_COL_W,
                     }}
                   >
-                    &nbsp;
-                  </th>
+                    <div style={{ fontWeight: 900 }}>
+                      {r.project_code} — {r.project_name}
+                    </div>
+                    <div className="muted" style={{ fontWeight: 800, marginTop: 2 }}>
+                      {r.wbs_code} — {r.wbs_name}
+                    </div>
+                  </td>
 
                   {periods.map((p) =>
-                    cols.map((c) => (
-                      <th
-                        key={`${p.period_id}-${c}`}
-                        style={{
-                          background: "rgba(0,0,0,.18)",
-                          borderBottom: "1px solid rgba(191,231,255,.12)",
-                          padding: "8px 10px",
-                          textAlign: "center",
-                          fontWeight: 900,
-                          minWidth: 140,
-                        }}
-                      >
-                        {c === "EV_PCT" ? "EV%" : c}
-                      </th>
-                    ))
+                    cols.map((c) => {
+                      const k = keyOf(r.wbs_code, p.period_id, c);
+                      const hint = latest[k] ?? null;
+                      const val = Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : "";
+                      const cellMode = c === "EV_PCT" ? "pct" : "money";
+
+                      return (
+                        <td
+                          key={k}
+                          style={{
+                            borderBottom: "1px solid rgba(191,231,255,.10)",
+                            padding: 6,
+                            minWidth: CELL_W,
+                          }}
+                        >
+                          <CellInput
+                            mode={cellMode}
+                            value={val}
+                            hint={hint}
+                            onChange={(v) => onChangeDraft(k, v)}
+                          />
+                        </td>
+                      );
+                    })
                   )}
                 </tr>
-              ) : null}
-            </thead>
-
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td className="muted" style={{ padding: 12 }} colSpan={1 + periods.length * cols.length}>
-                    Selecciona un proyecto o WBS.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r) => (
-                  <tr key={r.wbs_code}>
-                    <td
-                      style={{
-                        position: "sticky",
-                        left: 0,
-                        zIndex: 2,
-                        background: "rgba(0,0,0,.14)",
-                        borderBottom: "1px solid rgba(191,231,255,.10)",
-                        padding: "10px 10px",
-                      }}
-                    >
-                      <div style={{ fontWeight: 900 }}>
-                        {r.project_code} — {r.project_name}
-                      </div>
-                      <div className="muted" style={{ fontWeight: 800, marginTop: 2 }}>
-                        {r.wbs_code} — {r.wbs_name}
-                      </div>
-                    </td>
-
-                    {periods.map((p) =>
-                      cols.map((c) => {
-                        const k = keyOf(r.wbs_code, p.period_id, c);
-                        const hint = latest[k] ?? null;
-                        const val = Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : "";
-
-                        const cellMode = c === "EV_PCT" ? "pct" : "money";
-
-                        return (
-                          <td
-                            key={k}
-                            style={{
-                              borderBottom: "1px solid rgba(191,231,255,.10)",
-                              padding: 6,
-                              minWidth: 140,
-                            }}
-                          >
-                            <CellInput mode={cellMode} value={val} hint={hint} onChange={(v) => onChangeDraft(k, v)} />
-                          </td>
-                        );
-                      })
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       <SaveBar
