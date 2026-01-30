@@ -98,9 +98,22 @@ export function WbsMatrix({
     }
   }
 
-  // ✅ widths más chicos
-  const LEFT_W = 320; // columna sticky
+  // ✅ ancho dinámico de la columna izquierda (según WBS más largo)
   const CELL_W = 110; // cada periodo/col
+
+  const LEFT_W = useMemo(() => {
+    // mide solo lo que se ve ahora (rows filtradas)
+    const maxLen = rows.reduce((m, r) => {
+      const s = `${r.wbs_code} — ${r.wbs_name}`;
+      return Math.max(m, s.length);
+    }, 0);
+
+    // aprox px por carácter en este diseño (ajústalo si quieres)
+    const px = 150 + maxLen * 7;
+
+    // límites para que nunca quede ridículo
+    return Math.max(220, Math.min(px, 360));
+  }, [rows]);
 
   return (
     // ✅ evita que la tabla “pinte” fuera del panel
@@ -258,9 +271,18 @@ export function WbsMatrix({
                       minWidth: LEFT_W,
                     }}
                   >
-                    <div style={{ fontWeight: 900 }}>
-                      {r.wbs_code} — {r.wbs_name}
-                    </div>
+                    <div
+  style={{
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }}
+  title={`${r.wbs_code} — ${r.wbs_name}`}
+>
+  {r.wbs_code} — {r.wbs_name}
+</div>
+
                   </td>
 
                   {periods.map((p) =>
