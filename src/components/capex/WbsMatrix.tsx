@@ -109,10 +109,10 @@ export function WbsMatrix({
     }, 0);
 
     // aprox px por carácter en este diseño (ajústalo si quieres)
-    const px = 150 + maxLen * 7;
+    const px = 110 + maxLen * 6;
 
     // límites para que nunca quede ridículo
-    return Math.max(220, Math.min(px, 360));
+    return Math.max(180, Math.min(px, 280));
   }, [rows]);
 
   return (
@@ -158,7 +158,6 @@ export function WbsMatrix({
             borderSpacing: 0,
             // ✅ importante: que el ancho sea “intrínseco” para forzar overflow
             width: "max-content",
-            minWidth: "100%",
           }}
         >
           <thead>
