@@ -34,14 +34,13 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
           >
             {/* Left: Brand + Title */}
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              {/* ✅ Logo grande manteniendo ratio (clickeable pero NO “botón”) */}
               <Link
                 href="/projects"
                 prefetch={false}
                 aria-label="MVD"
                 title="MVD"
                 style={{
-                  width: 130,     // 🔼 ajusta 110–150 si quieres
+                  width: 130,
                   height: 44,
                   position: "relative",
                   display: "block",
@@ -68,18 +67,7 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
               </div>
             </div>
 
-            {/* Right: Actions */}
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="btn btn-ghost" type="button">
-                Actualizar
-              </button>
-              <button className="btn btn-ghost" type="button">
-                Exportar Excel
-              </button>
-              <button className="btn btn-primary" type="button">
-                Cerrar sesión
-              </button>
-            </div>
+            {/* ✅ Right: Actions (removido) */}
           </div>
 
           {/* Nav */}
