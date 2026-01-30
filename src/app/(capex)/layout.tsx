@@ -10,9 +10,6 @@ const NAV = [
   { href: "/reports", label: "Reportes" },
 ];
 
-// ✅ ancho tipo “dashboard”
-const SHELL_MAX = 1600;
-
 export default function CapexLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
@@ -23,14 +20,8 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
           borderBottom: "1px solid var(--border)",
         }}
       >
-        {/* ✅ reemplaza container-max por un contenedor más ancho */}
-        <div
-          style={{
-            maxWidth: SHELL_MAX,
-            margin: "0 auto",
-            padding: "14px 18px",
-          }}
-        >
+        {/* ✅ full width como dashboard */}
+        <div className="container-fluid" style={{ paddingTop: 14, paddingBottom: 14 }}>
           <div
             style={{
               display: "flex",
@@ -115,18 +106,11 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
       </header>
 
       {/* Body */}
-      <main
-        style={{
-          maxWidth: SHELL_MAX,
-          margin: "0 auto",
-          padding: "16px 18px 30px",
-        }}
-      >
+      <main className="container-fluid" style={{ paddingTop: 16, paddingBottom: 30 }}>
         <section
           className="panel"
           style={{
             padding: 14,
-            // ✅ que no quede “enano” visualmente
             minHeight: "calc(100vh - 160px)",
           }}
         >

@@ -37,6 +37,13 @@ body {
   margin: 0 auto;
 }
 
+/* ✅ para dashboards: ocupa todo el ancho como tu otro UI */
+.container-fluid {
+  max-width: none;
+  margin: 0;
+  padding: 0 18px;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
