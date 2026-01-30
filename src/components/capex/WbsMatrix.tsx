@@ -81,7 +81,10 @@ export function WbsMatrix({
     setSaving(true);
     try {
       await onSave(pending);
-      setLastSavedAt(new Date().toLocaleString());
+      setLastSavedAt(
+  new Date().toLocaleString("es-PE", { timeZone: "America/Lima", hour12: false })
+);
+
     } catch (e: any) {
       setErr(e?.message || "Error al guardar");
     } finally {
