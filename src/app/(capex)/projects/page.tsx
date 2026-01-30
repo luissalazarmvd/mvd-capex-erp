@@ -307,17 +307,6 @@ export default function ProjectsPage() {
       setOptArea(toSelectOptions(meta.lookups?.proj_areas ?? []));
       setOptPrio(toPriorityOptions(meta.lookups?.priorities ?? []));
 
-      // ✅ si no hay selección, agarra el primero y carga form + bloquea code
-      if (!selectedProject && meta.tree?.length) {
-        const first = meta.tree[0].project_code;
-        setSelectedProject(first);
-        setSelectedWbs(null);
-
-        const f = buildFormFromMeta(meta, first);
-        if (f) setProj(f);
-
-        setLockedProjectCode(first); // ✅ edit mode => lock
-      }
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando metadata");
     } finally {
@@ -473,26 +462,36 @@ export default function ProjectsPage() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 14 }}>
       <ProjectTree
-        data={data}
-        selectedProject={selectedProject}
-        selectedWbs={selectedWbs}
-        onSelectProject={(pc) => {
-          setMsg(null);
-          setSelectedProject(pc);
-          setSelectedWbs(null);
-          setWbsName("");
+  data={data}
+  selectedProject={selectedProject}
+  selectedWbs={selectedWbs}
+  onSelectProject={(pc) => {
+    setMsg(null);
 
-          if (pc) {
-            loadProjectToForm(pc);
-            setLockedProjectCode(pc); // ✅ seleccionaste existente => lock
-          }
-        }}
-        onSelectWbs={(wc) => {
-          setMsg(null);
-          setSelectedWbs(wc);
-        }}
-        height={640}
-      />
+    // ✅ si el árbol “limpia” la selección (pc = "" o null) => modo Nuevo
+    if (!pc) {
+      setProj(emptyProject);
+      setSelectedProject(null);
+      setSelectedWbs(null);
+      setWbsName("");
+      setLockedProjectCode(null);
+      return;
+    }
+
+    setSelectedProject(pc);
+    setSelectedWbs(null);
+    setWbsName("");
+
+    loadProjectToForm(pc);
+    setLockedProjectCode(pc); // ✅ seleccionaste existente => lock
+  }}
+  onSelectWbs={(wc) => {
+    setMsg(null);
+    setSelectedWbs(wc);
+  }}
+  height={640}
+/>
+
 
       <div style={{ display: "grid", gap: 12 }}>
         {/* Header */}
