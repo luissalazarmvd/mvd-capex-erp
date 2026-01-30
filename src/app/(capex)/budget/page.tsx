@@ -95,7 +95,9 @@ export default function BudgetPage() {
   }, [budgetClass]);
 
   const rows: Row[] = useMemo(() => {
-    const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
+    const p = selectedProject
+      ? projects.filter((x) => x.project_code === selectedProject)
+      : projects;
 
     const out: Row[] = [];
     for (const proj of p) {
@@ -135,7 +137,14 @@ export default function BudgetPage() {
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 14 }}>
+    <div
+      style={{
+        display: "grid",
+        // ✅ clave: permite que la columna derecha ENCOJA dentro del panel
+        gridTemplateColumns: "360px minmax(0, 1fr)",
+        gap: 14,
+      }}
+    >
       <ProjectTree
         data={projects}
         selectedProject={selectedProject}
@@ -148,8 +157,18 @@ export default function BudgetPage() {
         height={640}
       />
 
-      <div style={{ display: "grid", gap: 12 }}>
-        <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          // ✅ evita que el contenido (tabla) “empuje” el grid y se salga
+          minWidth: 0,
+        }}
+      >
+        <div
+          className="panel-inner"
+          style={{ padding: 10, display: "flex", gap: 10 }}
+        >
           <Button
             type="button"
             size="sm"
@@ -180,7 +199,9 @@ export default function BudgetPage() {
               border: msg.startsWith("OK")
                 ? "1px solid rgba(102,199,255,.45)"
                 : "1px solid rgba(255,80,80,.45)",
-              background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+              background: msg.startsWith("OK")
+                ? "rgba(102,199,255,.10)"
+                : "rgba(255,80,80,.10)",
               fontWeight: 800,
             }}
           >
@@ -190,7 +211,11 @@ export default function BudgetPage() {
 
         <WbsMatrix
           mode="budget"
-          title={loading ? `Budget mensual (${budgetClass}) (cargando…)` : `Budget mensual (${budgetClass})`}
+          title={
+            loading
+              ? `Budget mensual (${budgetClass}) (cargando…)`
+              : `Budget mensual (${budgetClass})`
+          }
           periods={periods}
           rows={rows}
           latest={latest}
