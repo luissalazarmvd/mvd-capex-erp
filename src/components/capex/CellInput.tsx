@@ -19,7 +19,6 @@ function normalizeNumberInput(raw: string) {
   return raw.replace(/[^\d\.\,\-]/g, "");
 }
 
-
 function clampPct(raw: string) {
   const s = raw.trim();
   if (!s) return s;
@@ -31,6 +30,18 @@ function clampPct(raw: string) {
   return String(clamped);
 }
 
+// ✅ hint a 2 decimales (mantiene % si viene en texto aparte)
+function fmt2(raw: string | null | undefined) {
+  if (raw == null) return "";
+  const s = String(raw).trim();
+  if (!s) return "";
+
+  // normaliza coma -> punto para parse
+  const n = Number(s.replace(",", "."));
+  if (!Number.isFinite(n)) return s;
+
+  return n.toFixed(2);
+}
 
 export function CellInput({
   mode,
@@ -98,7 +109,7 @@ export function CellInput({
           gap: 8,
         }}
       >
-        <span>{hint ? `Prev: ${hint}` : ""}</span>
+        <span>{hint ? `Prev: ${fmt2(hint)}` : ""}</span>
         <span style={{ fontWeight: 900 }}>{mode === "pct" ? "%" : ""}</span>
       </div>
     </div>
