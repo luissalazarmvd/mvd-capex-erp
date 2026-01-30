@@ -22,7 +22,6 @@ type Props = {
   periods: Period[];
   rows: Row[];
 
-
   rowsForTotals?: Row[];
 
   latest: Record<string, string | null>;
@@ -43,8 +42,6 @@ function keyOf(wbs: string, period_id: number, col: string) {
 function parseNum(x: string | null | undefined): number {
   const s = String(x ?? "").trim();
   if (!s) return 0;
-
-  // soporta "1,234.56" o "1234.56"
   const cleaned = s.replace(/[^0-9.,-]/g, "").replace(/,/g, "");
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : 0;
@@ -130,23 +127,28 @@ export function WbsMatrix({
     return Math.max(180, Math.min(px, 280));
   }, [rows]);
 
-
   function effectiveValue(wbs: string, period_id: number, col: string): number {
     const k = keyOf(wbs, period_id, col);
     if (Object.prototype.hasOwnProperty.call(draft, k)) return parseNum(draft[k]);
     return parseNum(latest[k]);
   }
 
-
   const showRowTotal = mode === "budget" || mode === "forecast";
-
-
-  const showProjectTotals = mode === "budget";
-
+  const showProjectTotals = mode === "budget" || mode === "forecast";
   const baseRowsForTotals = rowsForTotals ?? rows;
 
   const totalsTop = useMemo(() => {
     if (!showProjectTotals) return { orig: 0, soc: 0, both: 0 };
+
+    if (mode === "forecast") {
+      let total = 0;
+      for (const r of baseRowsForTotals) {
+        for (const p of periods) {
+          total += effectiveValue(r.wbs_code, p.period_id, "AMOUNT");
+        }
+      }
+      return { orig: total, soc: 0, both: total };
+    }
 
     let orig = 0;
     let soc = 0;
@@ -158,22 +160,17 @@ export function WbsMatrix({
       }
     }
     return { orig, soc, both: orig + soc };
-
-  }, [showProjectTotals, baseRowsForTotals, periods, latest, draft]);
+  }, [showProjectTotals, mode, baseRowsForTotals, periods, latest, draft]);
 
   function rowTotal(r: Row): number {
-
-    const c = mode === "forecast" ? "AMOUNT" : (budgetClass || "ORIG");
+    const c = mode === "forecast" ? "AMOUNT" : budgetClass || "ORIG";
     let s = 0;
     for (const p of periods) s += effectiveValue(r.wbs_code, p.period_id, c);
     return s;
   }
 
   return (
-    <div
-      className="panel-inner"
-      style={{ padding: 12, overflow: "hidden", minWidth: 0 }}
-    >
+    <div className="panel-inner" style={{ padding: 12, overflow: "hidden", minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ fontWeight: 900 }}>{title}</div>
         <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
@@ -182,68 +179,49 @@ export function WbsMatrix({
       </div>
 
       {projectLabel ? (
-        <div
-          className="muted"
-          style={{
-            marginTop: 6,
-            fontWeight: 900,
-            opacity: 0.95,
-          }}
-        >
+        <div className="muted" style={{ marginTop: 6, fontWeight: 900, opacity: 0.95 }}>
           {projectLabel}
         </div>
       ) : null}
 
-      {/* Totales arriba (solo Budget) */}
       {showProjectTotals ? (
-        <div
-          style={{
-            marginTop: 10,
-            display: "flex",
-            gap: 12,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <div className="panel-inner" style={{ padding: "8px 10px" }}>
-            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
-              Total ORIG:
-            </span>
-            <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.orig)}</span>
-          </div>
+        <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {mode === "budget" ? (
+            <>
+              <div className="panel-inner" style={{ padding: "8px 10px" }}>
+                <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+                  Total ORIG:
+                </span>
+                <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.orig)}</span>
+              </div>
 
-          <div className="panel-inner" style={{ padding: "8px 10px" }}>
-            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
-              Total SOC:
-            </span>
-            <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.soc)}</span>
-          </div>
+              <div className="panel-inner" style={{ padding: "8px 10px" }}>
+                <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+                  Total SOC:
+                </span>
+                <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.soc)}</span>
+              </div>
 
-          <div className="panel-inner" style={{ padding: "8px 10px" }}>
-            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
-              Total Proyecto:
-            </span>
-            <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.both)}</span>
-          </div>
+              <div className="panel-inner" style={{ padding: "8px 10px" }}>
+                <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+                  Total Proyecto:
+                </span>
+                <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.both)}</span>
+              </div>
+            </>
+          ) : (
+            <div className="panel-inner" style={{ padding: "8px 10px" }}>
+              <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+                Total Proyecto:
+              </span>
+              <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.both)}</span>
+            </div>
+          )}
         </div>
       ) : null}
 
-      <div
-        style={{
-          marginTop: 10,
-          maxWidth: "100%",
-          overflowX: "auto",
-          overflowY: "hidden",
-          paddingBottom: 8,
-        }}
-      >
-        <table
-          style={{
-            borderCollapse: "separate",
-            borderSpacing: 0,
-            width: "max-content",
-          }}
-        >
+      <div style={{ marginTop: 10, maxWidth: "100%", overflowX: "auto", overflowY: "hidden", paddingBottom: 8 }}>
+        <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "max-content" }}>
           <thead>
             <tr>
               <th
@@ -284,7 +262,6 @@ export function WbsMatrix({
                 </th>
               ))}
 
-              {/* TOTAL al final (solo Budget/Forecast) */}
               {showRowTotal ? (
                 <th
                   style={{
@@ -408,9 +385,7 @@ export function WbsMatrix({
                       cols.map((c) => {
                         const k = keyOf(r.wbs_code, p.period_id, c);
                         const hint = latest[k] ?? null;
-                        const val = Object.prototype.hasOwnProperty.call(draft, k)
-                          ? draft[k]
-                          : "";
+                        const val = Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : "";
                         const cellMode = c === "EV_PCT" ? "pct" : "money";
 
                         return (
@@ -423,18 +398,12 @@ export function WbsMatrix({
                               minWidth: CELL_W,
                             }}
                           >
-                            <CellInput
-                              mode={cellMode}
-                              value={val}
-                              hint={hint}
-                              onChange={(v) => onChangeDraft(k, v)}
-                            />
+                            <CellInput mode={cellMode} value={val} hint={hint} onChange={(v) => onChangeDraft(k, v)} />
                           </td>
                         );
                       })
                     )}
 
-                    {/* TOTAL por fila */}
                     {showRowTotal ? (
                       <td
                         style={{

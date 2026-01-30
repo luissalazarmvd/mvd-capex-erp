@@ -82,9 +82,7 @@ export default function ForecastPage() {
   }, [projects, selectedProject]);
 
   const rows: Row[] = useMemo(() => {
-    const p = selectedProject
-      ? projects.filter((x) => x.project_code === selectedProject)
-      : projects;
+    const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
 
     const out: Row[] = [];
     for (const proj of p) {
@@ -179,9 +177,7 @@ export default function ForecastPage() {
             className="panel-inner"
             style={{
               padding: 12,
-              border: msg.startsWith("OK")
-                ? "1px solid rgba(102,199,255,.45)"
-                : "1px solid rgba(255,80,80,.45)",
+              border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
               background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
               fontWeight: 800,
             }}
@@ -196,6 +192,7 @@ export default function ForecastPage() {
           projectLabel={projectLabel}
           periods={periods}
           rows={rows}
+          rowsForTotals={projectAllRows}
           latest={latest}
           draft={draft}
           onChangeDraft={onChangeDraft}
