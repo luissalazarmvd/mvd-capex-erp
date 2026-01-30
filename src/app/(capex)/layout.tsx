@@ -10,6 +10,9 @@ const NAV = [
   { href: "/reports", label: "Reportes" },
 ];
 
+// ✅ ancho tipo “dashboard”
+const SHELL_MAX = 1600;
+
 export default function CapexLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
@@ -20,7 +23,14 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <div className="container-max" style={{ padding: "14px 18px" }}>
+        {/* ✅ reemplaza container-max por un contenedor más ancho */}
+        <div
+          style={{
+            maxWidth: SHELL_MAX,
+            margin: "0 auto",
+            padding: "14px 18px",
+          }}
+        >
           <div
             style={{
               display: "flex",
@@ -31,7 +41,7 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
           >
             {/* Left: Brand + Title */}
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              {/* ✅ Logo */}
+              {/* Logo */}
               <Link
                 href="/projects"
                 style={{
@@ -105,8 +115,21 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
       </header>
 
       {/* Body */}
-      <main className="container-max" style={{ padding: "16px 18px 30px" }}>
-        <section className="panel" style={{ padding: 14 }}>
+      <main
+        style={{
+          maxWidth: SHELL_MAX,
+          margin: "0 auto",
+          padding: "16px 18px 30px",
+        }}
+      >
+        <section
+          className="panel"
+          style={{
+            padding: 14,
+            // ✅ que no quede “enano” visualmente
+            minHeight: "calc(100vh - 160px)",
+          }}
+        >
           {children}
         </section>
       </main>
