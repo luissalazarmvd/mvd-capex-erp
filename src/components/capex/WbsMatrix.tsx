@@ -129,7 +129,7 @@ export function WbsMatrix({
                   position: "sticky",
                   left: 0,
                   zIndex: 3,
-                  background: "rgba(0,0,0,.22)",
+                  background: "var(--panel2)",
                   borderBottom: "1px solid var(--border)",
                   padding: "10px 10px",
                   textAlign: "left",
@@ -170,7 +170,8 @@ export function WbsMatrix({
                     position: "sticky",
                     left: 0,
                     zIndex: 3,
-                    background: "rgba(0,0,0,.18)",
+                    background: "var(--panel2)",
+
                     borderBottom: "1px solid rgba(191,231,255,.12)",
                     padding: "8px 10px",
                     textAlign: "left",
@@ -223,7 +224,8 @@ export function WbsMatrix({
                       position: "sticky",
                       left: 0,
                       zIndex: 2,
-                      background: "rgba(0,0,0,.14)",
+                      background: "var(--panel2)",
+
                       borderBottom: "1px solid rgba(191,231,255,.10)",
                       padding: "10px 10px",
                       width: LEFT_W,
