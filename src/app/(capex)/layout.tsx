@@ -34,26 +34,27 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
           >
             {/* Left: Brand + Title */}
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              {/* ✅ Logo (clickeable pero NO “botón”) */}
+              {/* ✅ Logo grande manteniendo ratio (clickeable pero NO “botón”) */}
               <Link
                 href="/projects"
                 prefetch={false}
                 aria-label="MVD"
                 title="MVD"
                 style={{
-                  width: 44,
+                  width: 130,     // 🔼 ajusta 110–150 si quieres
                   height: 44,
-                  display: "grid",
-                  placeItems: "center",
+                  position: "relative",
+                  display: "block",
                   textDecoration: "none",
                 }}
               >
                 <Image
                   src="/logo_mvd.png"
                   alt="MVD"
-                  width={40}
-                  height={40}
+                  fill
                   priority
+                  style={{ objectFit: "contain" }}
+                  sizes="130px"
                 />
               </Link>
 
