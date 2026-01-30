@@ -21,14 +21,10 @@ type Props = {
   periods: Period[];
   rows: Row[];
 
-  // key: `${wbs_code}|${period_id}|${col}`
   latest: Record<string, string | null>;
   draft: Record<string, string>;
 
-  // Budget
   budgetClass?: "ORIG" | "SOC";
-
-  // Progress
   progressDouble?: boolean;
 
   onChangeDraft: (key: string, value: string) => void;
@@ -63,15 +59,6 @@ export function WbsMatrix({
     return progressDouble ? ["EV_PCT", "AC"] : ["EV_PCT"];
   }, [mode, budgetClass, progressDouble]);
 
-  // ✅ anchos más razonables (antes era 340 + 140 por col)
-  const FIRST_COL_W = 300;
-  const CELL_W = 120;
-
-  const tableMinWidth = useMemo(() => {
-    // 1ra columna + todas las celdas
-    return FIRST_COL_W + periods.length * cols.length * CELL_W;
-  }, [periods.length, cols.length]);
-
   const pending = useMemo(() => {
     const out: { key: string; value: string }[] = [];
     for (const r of rows) {
@@ -102,8 +89,13 @@ export function WbsMatrix({
     }
   }
 
+  // ✅ widths más chicos
+  const LEFT_W = 320;   // columna sticky
+  const CELL_W = 110;   // cada periodo/col
+
   return (
-    <div className="panel-inner" style={{ padding: 12 }}>
+    // ✅ evita que la tabla “pinte” fuera del panel
+    <div className="panel-inner" style={{ padding: 12, overflow: "hidden", minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ fontWeight: 900 }}>{title}</div>
         <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
@@ -111,24 +103,23 @@ export function WbsMatrix({
         </div>
       </div>
 
-      {/* ✅ el scroll horizontal vive SOLO acá, pegado a la tabla */}
+      {/* ✅ este es el scroll real: barra justo debajo de la tabla */}
       <div
         style={{
           marginTop: 10,
-          width: "100%",
+          maxWidth: "100%",
           overflowX: "auto",
           overflowY: "hidden",
-          scrollbarGutter: "stable", // reserva espacio para scrollbar
-          paddingBottom: 2, // para que el scrollbar se vea “justo abajo”
-          borderRadius: 12,
+          paddingBottom: 8, // para que se vea la barra
         }}
       >
         <table
           style={{
-            width: "100%",
-            minWidth: tableMinWidth, // ✅ solo se pasa si realmente no entra
             borderCollapse: "separate",
             borderSpacing: 0,
+            // ✅ importante: que el ancho sea “intrínseco” para forzar overflow
+            width: "max-content",
+            minWidth: "100%",
           }}
         >
           <thead>
@@ -143,7 +134,8 @@ export function WbsMatrix({
                   padding: "10px 10px",
                   textAlign: "left",
                   fontWeight: 900,
-                  minWidth: FIRST_COL_W,
+                  width: LEFT_W,
+                  minWidth: LEFT_W,
                 }}
               >
                 Proyecto / WBS
@@ -162,8 +154,8 @@ export function WbsMatrix({
                     padding: "10px 10px",
                     textAlign: "center",
                     fontWeight: 900,
+                    width: CELL_W * cols.length,
                     minWidth: CELL_W * cols.length,
-                    whiteSpace: "nowrap",
                   }}
                 >
                   {p.label}
@@ -183,7 +175,8 @@ export function WbsMatrix({
                     padding: "8px 10px",
                     textAlign: "left",
                     fontWeight: 900,
-                    minWidth: FIRST_COL_W,
+                    width: LEFT_W,
+                    minWidth: LEFT_W,
                   }}
                 >
                   &nbsp;
@@ -199,8 +192,8 @@ export function WbsMatrix({
                         padding: "8px 10px",
                         textAlign: "center",
                         fontWeight: 900,
+                        width: CELL_W,
                         minWidth: CELL_W,
-                        whiteSpace: "nowrap",
                       }}
                     >
                       {c === "EV_PCT" ? "EV%" : c}
@@ -233,7 +226,8 @@ export function WbsMatrix({
                       background: "rgba(0,0,0,.14)",
                       borderBottom: "1px solid rgba(191,231,255,.10)",
                       padding: "10px 10px",
-                      minWidth: FIRST_COL_W,
+                      width: LEFT_W,
+                      minWidth: LEFT_W,
                     }}
                   >
                     <div style={{ fontWeight: 900 }}>
@@ -257,6 +251,7 @@ export function WbsMatrix({
                           style={{
                             borderBottom: "1px solid rgba(191,231,255,.10)",
                             padding: 6,
+                            width: CELL_W,
                             minWidth: CELL_W,
                           }}
                         >

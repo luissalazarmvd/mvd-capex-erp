@@ -140,7 +140,6 @@ export default function BudgetPage() {
     <div
       style={{
         display: "grid",
-        // ✅ clave: permite que la columna derecha ENCOJA dentro del panel
         gridTemplateColumns: "360px minmax(0, 1fr)",
         gap: 14,
       }}
@@ -157,11 +156,12 @@ export default function BudgetPage() {
         height={640}
       />
 
+      {/* ✅ clave: flex + minWidth:0 para que NADA empuje el grid */}
       <div
         style={{
-          display: "grid",
+          display: "flex",
+          flexDirection: "column",
           gap: 12,
-          // ✅ evita que el contenido (tabla) “empuje” el grid y se salga
           minWidth: 0,
         }}
       >
@@ -209,22 +209,25 @@ export default function BudgetPage() {
           </div>
         ) : null}
 
-        <WbsMatrix
-          mode="budget"
-          title={
-            loading
-              ? `Budget mensual (${budgetClass}) (cargando…)`
-              : `Budget mensual (${budgetClass})`
-          }
-          periods={periods}
-          rows={rows}
-          latest={latest}
-          draft={draft}
-          budgetClass={budgetClass}
-          onChangeDraft={onChangeDraft}
-          onSave={onSave}
-          onResetDraft={onResetDraft}
-        />
+        {/* ✅ wrapper: permite que la tabla haga scroll sin romper el layout */}
+        <div style={{ minWidth: 0 }}>
+          <WbsMatrix
+            mode="budget"
+            title={
+              loading
+                ? `Budget mensual (${budgetClass}) (cargando…)`
+                : `Budget mensual (${budgetClass})`
+            }
+            periods={periods}
+            rows={rows}
+            latest={latest}
+            draft={draft}
+            budgetClass={budgetClass}
+            onChangeDraft={onChangeDraft}
+            onSave={onSave}
+            onResetDraft={onResetDraft}
+          />
+        </div>
       </div>
     </div>
   );
