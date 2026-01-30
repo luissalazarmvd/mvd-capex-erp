@@ -2,11 +2,12 @@
 "use client";
 
 import { apiGet, apiPost } from "../../../lib/apiClient";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { Input } from "../../../components/ui/Input";
-import { Select, SelectOption } from "../../../components/ui/Select";
 import { Button } from "../../../components/ui/Button";
+
+export type SelectOption = { value: string; label: string };
 
 type ProjectForm = {
   project_code: string;
@@ -104,6 +105,140 @@ function asNullableInt(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * ✅ Custom dropdown (no native <select>)
+ * - Fondo azul oscuro (panel2)
+ * - Letras blancas
+ * - Hover celeste
+ */
+function DarkSelect({
+  label,
+  value,
+  options,
+  onValueChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  options: SelectOption[];
+  onValueChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  const current = useMemo(() => {
+    return options.find((o) => o.value === value)?.label ?? options[0]?.label ?? "—";
+  }, [options, value]);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ display: "grid", gap: 6, position: "relative" }}>
+      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((s) => !s)}
+        style={{
+          width: "100%",
+          background: "rgba(0,0,0,.10)",
+          border: "1px solid var(--border)",
+          color: "var(--text)",
+          borderRadius: 10,
+          padding: "10px 12px",
+          outline: "none",
+          textAlign: "left",
+          cursor: disabled ? "not-allowed" : "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          fontWeight: 900,
+          opacity: disabled ? 0.7 : 1,
+        }}
+      >
+        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{current}</span>
+        <span
+          style={{
+            width: 0,
+            height: 0,
+            borderLeft: "6px solid transparent",
+            borderRight: "6px solid transparent",
+            borderTop: "7px solid rgba(191,231,255,.75)",
+            opacity: 0.9,
+          }}
+        />
+      </button>
+
+      {open ? (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 50,
+            top: "100%",
+            left: 0,
+            right: 0,
+            marginTop: 6,
+            background: "var(--panel2)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            boxShadow: "var(--shadow)",
+            overflow: "hidden",
+            maxHeight: 240,
+          }}
+        >
+          <div style={{ maxHeight: 240, overflow: "auto" }}>
+            {options.map((o) => {
+              const active = o.value === value;
+              return (
+                <button
+                  key={o.value || "__empty__"}
+                  type="button"
+                  onClick={() => {
+                    onValueChange(o.value);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    border: "none",
+                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    color: "#fff",
+                    cursor: "pointer",
+                    fontWeight: active ? 900 : 800,
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = active
+                      ? "rgba(102,199,255,.18)"
+                      : "rgba(102,199,255,.10)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = active
+                      ? "rgba(102,199,255,.18)"
+                      : "transparent";
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function ProjectsPage() {
   // data del tree (izquierda)
   const [data, setData] = useState<ProjectNode[]>([]);
@@ -142,7 +277,6 @@ export default function ProjectsPage() {
       setOptArea(toSelectOptions(meta.lookups?.proj_areas ?? []));
       setOptPrio(toPriorityOptions(meta.lookups?.priorities ?? []));
 
-      // seleccionar primero si no hay selection
       if (!selectedProject && meta.tree?.length) {
         const first = meta.tree[0].project_code;
         setSelectedProject(first);
@@ -168,7 +302,6 @@ export default function ProjectsPage() {
   function loadProjectToForm(project_code: string) {
     const p = projectsFlat.find((x) => x.project_code === project_code);
     if (!p) {
-      // fallback a lo que haya en tree
       const t = data.find((x) => x.project_code === project_code);
       if (!t) return;
       setProj({
@@ -302,13 +435,7 @@ export default function ProjectsPage() {
               Nuevo
             </Button>
 
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => fetchMeta()}
-              disabled={loading}
-            >
+            <Button type="button" size="sm" variant="ghost" onClick={() => fetchMeta()} disabled={loading}>
               {loading ? "Cargando..." : "Refrescar"}
             </Button>
           </div>
@@ -321,63 +448,54 @@ export default function ProjectsPage() {
               <Input
                 placeholder="01"
                 value={proj.project_code}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setProj((s) => ({ ...s, project_code: e.target.value }))
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProj((s) => ({ ...s, project_code: e.target.value }))}
                 hint="Código NN"
               />
               <Input
                 placeholder="Nombre del proyecto"
                 value={proj.project_name}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setProj((s) => ({ ...s, project_name: e.target.value }))
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProj((s) => ({ ...s, project_name: e.target.value }))}
               />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-              <Select
+              <DarkSelect
                 label="Grupo"
                 value={proj.proj_group_id}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                  setProj((s) => ({ ...s, proj_group_id: e.target.value }))
-                }
+                onValueChange={(v) => setProj((s) => ({ ...s, proj_group_id: v }))}
                 options={optGroups}
+                disabled={loading}
               />
-              <Select
+              <DarkSelect
                 label="Inv. Class"
                 value={proj.inv_class_id}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                  setProj((s) => ({ ...s, inv_class_id: e.target.value }))
-                }
+                onValueChange={(v) => setProj((s) => ({ ...s, inv_class_id: v }))}
                 options={optInvClass}
+                disabled={loading}
               />
-              <Select
+              <DarkSelect
                 label="Condición"
                 value={proj.proj_condition_id}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                  setProj((s) => ({ ...s, proj_condition_id: e.target.value }))
-                }
+                onValueChange={(v) => setProj((s) => ({ ...s, proj_condition_id: v }))}
                 options={optCond}
+                disabled={loading}
               />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <Select
+              <DarkSelect
                 label="Área"
                 value={proj.proj_area_id}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                  setProj((s) => ({ ...s, proj_area_id: e.target.value }))
-                }
+                onValueChange={(v) => setProj((s) => ({ ...s, proj_area_id: v }))}
                 options={optArea}
+                disabled={loading}
               />
-              <Select
+              <DarkSelect
                 label="Prioridad"
                 value={proj.priority_id}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                  setProj((s) => ({ ...s, priority_id: e.target.value }))
-                }
+                onValueChange={(v) => setProj((s) => ({ ...s, priority_id: v }))}
                 options={optPrio}
+                disabled={loading}
               />
             </div>
 
@@ -399,11 +517,12 @@ export default function ProjectsPage() {
           </div>
 
           <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 190px", gap: 12 }}>
-            <Select
+            <DarkSelect
               label="Nombre de WBS"
               value={wbsName}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setWbsName(e.target.value)}
+              onValueChange={(v) => setWbsName(v)}
               options={OPT_WBS_NAME}
+              disabled={loading}
             />
 
             <div style={{ display: "flex", alignItems: "flex-end" }}>
