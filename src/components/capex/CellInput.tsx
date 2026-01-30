@@ -15,18 +15,22 @@ type Props = {
 };
 
 function normalizeNumberInput(raw: string) {
-  return raw.replace(/[^\d\.\-]/g, "");
+  // permite coma y punto (miles/decimal); el backend lo normaliza
+  return raw.replace(/[^\d\.\,\-]/g, "");
 }
+
 
 function clampPct(raw: string) {
   const s = raw.trim();
   if (!s) return s;
-  const n = Number(s);
+
+  const n = Number(s.replace(",", "."));
   if (Number.isNaN(n)) return s;
+
   const clamped = Math.max(0, Math.min(100, n));
-  // no forzar decimales; conservar “look” simple
   return String(clamped);
 }
+
 
 export function CellInput({
   mode,
