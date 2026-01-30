@@ -1,4 +1,5 @@
 // src/app/(capex)/layout.tsx
+import Image from "next/image";
 import Link from "next/link";
 
 const NAV = [
@@ -30,7 +31,9 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
           >
             {/* Left: Brand + Title */}
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div
+              {/* ✅ Logo */}
+              <Link
+                href="/projects"
                 style={{
                   width: 40,
                   height: 40,
@@ -39,14 +42,20 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
                   border: "1px solid var(--border)",
                   display: "grid",
                   placeItems: "center",
-                  fontWeight: 800,
-                  letterSpacing: 0.5,
+                  overflow: "hidden",
                 }}
                 aria-label="MVD"
                 title="MVD"
+                prefetch={false}
               >
-                MVD
-              </div>
+                <Image
+                  src="/logo_mvd.png"
+                  alt="MVD"
+                  width={28}
+                  height={28}
+                  priority
+                />
+              </Link>
 
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>
@@ -85,7 +94,6 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
               <Link
                 key={n.href}
                 href={n.href}
-                // ✅ blanco, grande y “gordito”; además evita morado de visited
                 className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
                 prefetch={false}
               >
