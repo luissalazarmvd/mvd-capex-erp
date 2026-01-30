@@ -21,6 +21,10 @@ type LatestResp = {
   latest: Record<string, string | null>;
 };
 
+function keyOf(wbs: string, period_id: number, col: string) {
+  return `${wbs}|${period_id}|${col}`;
+}
+
 export default function ForecastPage() {
   const [projects, setProjects] = useState<ProjectNode[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
@@ -72,6 +76,7 @@ export default function ForecastPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // filas visibles (respeta filtro de WBS)
   const rows: Row[] = useMemo(() => {
     const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
 
@@ -90,18 +95,66 @@ export default function ForecastPage() {
     return out;
   }, [projects, selectedProject, selectedWbs]);
 
+  // filas del PROYECTO COMPLETO (ignora filtro de WBS) -> para snapshot
+  const projectAllRows: Row[] = useMemo(() => {
+    if (!selectedProject) return [];
+    const proj = projects.find((x) => x.project_code === selectedProject);
+    if (!proj) return [];
+    return (proj.wbs ?? []).map((w) => ({
+      project_code: proj.project_code,
+      project_name: proj.project_name,
+      wbs_code: w.wbs_code,
+      wbs_name: w.wbs_name,
+    }));
+  }, [projects, selectedProject]);
+
   function onChangeDraft(k: string, v: string) {
     setDraft((prev) => ({ ...prev, [k]: v }));
   }
 
-  async function onSave(payload: { key: string; value: string }[]) {
+  /**
+   * Snapshot por proyecto:
+   * - manda TODAS las celdas del proyecto (WBS x periodos)
+   * - si está en blanco -> "0" (pisar y no mezclar con datos antiguos)
+   */
+  async function onSave(_pending: { key: string; value: string }[]) {
     setMsg(null);
+
+    if (!selectedProject) {
+      setMsg("ERROR: selecciona un proyecto");
+      return;
+    }
+    if (!periods.length) {
+      setMsg("ERROR: no hay periodos cargados");
+      return;
+    }
+    if (!projectAllRows.length) {
+      setMsg("ERROR: el proyecto no tiene WBS");
+      return;
+    }
+
+    // Construye snapshot completo
+    const payloadAll: { key: string; value: string }[] = [];
+    for (const r of projectAllRows) {
+      for (const p of periods) {
+        const k = keyOf(r.wbs_code, p.period_id, "AMOUNT");
+        const raw = Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : "";
+        const v = String(raw ?? "").trim();
+        payloadAll.push({ key: k, value: v === "" ? "0" : v });
+      }
+    }
+
     try {
-      await apiPost("/api/forecast/upsert", { rows: payload });
+      await apiPost("/api/forecast/upsert", {
+        project_code: selectedProject,
+        from: FROM_PERIOD,
+        n: N_PERIODS,
+        rows: payloadAll,
+      });
 
       setDraft({});
-      await loadAll(); // recarga latest desde SQL
-      setMsg("OK: forecast guardado");
+      await loadAll();
+      setMsg("OK: forecast guardado (snapshot por proyecto)");
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando forecast");
     }
