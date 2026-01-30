@@ -93,6 +93,14 @@ export default function BudgetPage() {
     loadAll(budgetClass);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budgetClass]);
+  
+    const projectLabel = useMemo(() => {
+    if (!selectedProject) return "";
+    const p = projects.find((x) => x.project_code === selectedProject);
+    if (!p) return "";
+    return `${p.project_code} — ${p.project_name}`;
+  }, [projects, selectedProject]);
+
 
   const rows: Row[] = useMemo(() => {
     const p = selectedProject
@@ -218,6 +226,8 @@ export default function BudgetPage() {
                 ? `Budget mensual (${budgetClass}) (cargando…)`
                 : `Budget mensual (${budgetClass})`
             }
+            
+            projectLabel={projectLabel}
             periods={periods}
             rows={rows}
             latest={latest}

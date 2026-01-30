@@ -18,6 +18,9 @@ type Props = {
   mode: "budget" | "forecast" | "progress";
   title: string;
 
+  // ✅ nuevo: para mostrar una sola vez arriba
+  projectLabel?: string;
+
   periods: Period[];
   rows: Row[];
 
@@ -39,6 +42,7 @@ function keyOf(wbs: string, period_id: number, col: string) {
 export function WbsMatrix({
   mode,
   title,
+  projectLabel,
   periods,
   rows,
   latest,
@@ -82,9 +86,11 @@ export function WbsMatrix({
     try {
       await onSave(pending);
       setLastSavedAt(
-  new Date().toLocaleString("es-PE", { timeZone: "America/Lima", hour12: false })
-);
-
+        new Date().toLocaleString("es-PE", {
+          timeZone: "America/Lima",
+          hour12: false,
+        })
+      );
     } catch (e: any) {
       setErr(e?.message || "Error al guardar");
     } finally {
@@ -93,18 +99,35 @@ export function WbsMatrix({
   }
 
   // ✅ widths más chicos
-  const LEFT_W = 320;   // columna sticky
-  const CELL_W = 110;   // cada periodo/col
+  const LEFT_W = 320; // columna sticky
+  const CELL_W = 110; // cada periodo/col
 
   return (
     // ✅ evita que la tabla “pinte” fuera del panel
-    <div className="panel-inner" style={{ padding: 12, overflow: "hidden", minWidth: 0 }}>
+    <div
+      className="panel-inner"
+      style={{ padding: 12, overflow: "hidden", minWidth: 0 }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ fontWeight: 900 }}>{title}</div>
         <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
           {rows.length} filas
         </div>
       </div>
+
+      {/* ✅ nombre del proyecto UNA sola vez */}
+      {projectLabel ? (
+        <div
+          className="muted"
+          style={{
+            marginTop: 6,
+            fontWeight: 900,
+            opacity: 0.95,
+          }}
+        >
+          {projectLabel}
+        </div>
+      ) : null}
 
       {/* ✅ este es el scroll real: barra justo debajo de la tabla */}
       <div
@@ -141,7 +164,7 @@ export function WbsMatrix({
                   minWidth: LEFT_W,
                 }}
               >
-                Proyecto / WBS
+                WBS
               </th>
 
               {periods.map((p) => (
@@ -236,9 +259,6 @@ export function WbsMatrix({
                     }}
                   >
                     <div style={{ fontWeight: 900 }}>
-                      {r.project_code} — {r.project_name}
-                    </div>
-                    <div className="muted" style={{ fontWeight: 800, marginTop: 2 }}>
                       {r.wbs_code} — {r.wbs_name}
                     </div>
                   </td>
@@ -247,7 +267,9 @@ export function WbsMatrix({
                     cols.map((c) => {
                       const k = keyOf(r.wbs_code, p.period_id, c);
                       const hint = latest[k] ?? null;
-                      const val = Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : "";
+                      const val = Object.prototype.hasOwnProperty.call(draft, k)
+                        ? draft[k]
+                        : "";
                       const cellMode = c === "EV_PCT" ? "pct" : "money";
 
                       return (

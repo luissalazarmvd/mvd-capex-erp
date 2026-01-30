@@ -72,6 +72,13 @@ export default function ProgressPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+    const projectLabel = useMemo(() => {
+    if (!selectedProject) return "";
+    const p = projects.find((x) => x.project_code === selectedProject);
+    if (!p) return "";
+    return `${p.project_code} — ${p.project_name}`;
+  }, [projects, selectedProject]);
+
   const rows: Row[] = useMemo(() => {
     const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
 
@@ -154,6 +161,7 @@ export default function ProgressPage() {
         <WbsMatrix
           mode="progress"
           title={loading ? "Avance y Costos (cargando…)" : "Avance y Costos (EV% y AC)"}
+          projectLabel={projectLabel}
           periods={periods}
           rows={rows}
           latest={latest}

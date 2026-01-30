@@ -76,6 +76,13 @@ export default function ForecastPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+    const projectLabel = useMemo(() => {
+    if (!selectedProject) return "";
+    const p = projects.find((x) => x.project_code === selectedProject);
+    if (!p) return "";
+    return `${p.project_code} — ${p.project_name}`;
+  }, [projects, selectedProject]);
+
   // filas visibles (respeta filtro de WBS)
   const rows: Row[] = useMemo(() => {
     const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
@@ -194,6 +201,7 @@ export default function ForecastPage() {
         <WbsMatrix
           mode="forecast"
           title={loading ? "Forecast mensual (cargando…)" : "Forecast mensual"}
+          projectLabel={projectLabel}
           periods={periods}
           rows={rows}
           latest={latest}
