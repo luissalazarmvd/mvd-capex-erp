@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPost } from "../../../lib/apiClient";
+import { apiDownload, apiGet, apiPost } from "../../../lib/apiClient";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { WbsMatrix, Period, Row } from "../../../components/capex/WbsMatrix";
 import { Button } from "../../../components/ui/Button";
@@ -33,12 +33,12 @@ export default function BudgetPage() {
 
   const [budgetClass, setBudgetClass] = useState<BudgetClass>("ORIG");
 
-
   const [latest, setLatest] = useState<Record<string, string | null>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
 
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [exporting, setExporting] = useState<boolean>(false);
 
   const FROM_PERIOD = 202601;
   const N_PERIODS = 12;
@@ -60,7 +60,6 @@ export default function BudgetPage() {
       setSelectedWbs(null);
     }
   }
-
 
   async function loadLatestBoth() {
     const [orig, soc] = (await Promise.all([
@@ -89,15 +88,11 @@ export default function BudgetPage() {
 
   useEffect(() => {
     loadAll();
-
   }, []);
 
   useEffect(() => {
-
     setDraft({});
-
     loadAll();
-
   }, [budgetClass]);
 
   const projectLabel = useMemo(() => {
@@ -108,9 +103,7 @@ export default function BudgetPage() {
   }, [projects, selectedProject]);
 
   const rows: Row[] = useMemo(() => {
-    const p = selectedProject
-      ? projects.filter((x) => x.project_code === selectedProject)
-      : projects;
+    const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
 
     const out: Row[] = [];
     for (const proj of p) {
@@ -148,7 +141,6 @@ export default function BudgetPage() {
 
     try {
       await apiPost("/api/budget/upsert", { rows: payload });
-
       setDraft({});
       await loadAll();
       setMsg("OK: budget guardado");
@@ -159,6 +151,23 @@ export default function BudgetPage() {
 
   function onResetDraft() {
     setDraft({});
+  }
+
+  async function onExport() {
+    setMsg(null);
+    setExporting(true);
+    try {
+      if (budgetClass === "ORIG") {
+        await apiDownload("/api/export/budget-orig", "budget_orig.xlsx");
+      } else {
+        await apiDownload("/api/export/budget-soc", "budget_soc.xlsx");
+      }
+      setMsg("OK: export descargado");
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR exportando");
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -189,10 +198,7 @@ export default function BudgetPage() {
           minWidth: 0,
         }}
       >
-        <div
-          className="panel-inner"
-          style={{ padding: 10, display: "flex", gap: 10 }}
-        >
+        <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
           <Button
             type="button"
             size="sm"
@@ -210,8 +216,14 @@ export default function BudgetPage() {
             SOC
           </Button>
 
-          <div className="muted" style={{ marginLeft: "auto", fontWeight: 800 }}>
-            {loading ? "Cargando…" : ""}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+            <Button type="button" size="sm" variant="ghost" onClick={onExport} disabled={loading || exporting}>
+              {exporting ? "Exportando…" : "Exportar"}
+            </Button>
+
+            <div className="muted" style={{ fontWeight: 800 }}>
+              {loading ? "Cargando…" : ""}
+            </div>
           </div>
         </div>
 
@@ -223,9 +235,7 @@ export default function BudgetPage() {
               border: msg.startsWith("OK")
                 ? "1px solid rgba(102,199,255,.45)"
                 : "1px solid rgba(255,80,80,.45)",
-              background: msg.startsWith("OK")
-                ? "rgba(102,199,255,.10)"
-                : "rgba(255,80,80,.10)",
+              background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
               fontWeight: 800,
             }}
           >
@@ -236,11 +246,7 @@ export default function BudgetPage() {
         <div style={{ minWidth: 0 }}>
           <WbsMatrix
             mode="budget"
-            title={
-              loading
-                ? `Budget mensual (${budgetClass}) (cargando…)`
-                : `Budget mensual (${budgetClass})`
-            }
+            title={loading ? `Budget mensual (${budgetClass}) (cargando…)` : `Budget mensual (${budgetClass})`}
             projectLabel={projectLabel}
             periods={periods}
             rows={rows}

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPost } from "../../../lib/apiClient";
+import { apiDownload, apiGet, apiPost } from "../../../lib/apiClient";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { WbsMatrix, Period, Row } from "../../../components/capex/WbsMatrix";
 import { Button } from "../../../components/ui/Button";
@@ -34,6 +34,7 @@ export default function ForecastPage() {
 
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [exporting, setExporting] = useState<boolean>(false);
 
   const FROM_PERIOD = 202601;
   const N_PERIODS = 12;
@@ -69,7 +70,6 @@ export default function ForecastPage() {
 
   useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const projectLabel = useMemo(() => {
@@ -148,6 +148,19 @@ export default function ForecastPage() {
     }
   }
 
+  async function onExport() {
+    setMsg(null);
+    setExporting(true);
+    try {
+      await apiDownload("/api/export/forecast", "forecast.xlsx");
+      setMsg("OK: export descargado");
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR exportando");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const headerActions = (
     <>
       <Button
@@ -165,8 +178,14 @@ export default function ForecastPage() {
         Resetear forecast (Proyecto)
       </Button>
 
+      <Button type="button" variant="ghost" size="sm" disabled={loading || exporting} onClick={onExport}>
+        {exporting ? "Exportando…" : "Exportar"}
+      </Button>
+
       <div className="muted" style={{ fontWeight: 800, fontSize: 12 }}>
-        {selectedProject ? `Proyecto: ${selectedProject}${selectedWbs ? ` | WBS: ${selectedWbs}` : ""}` : "Selecciona un proyecto"}
+        {selectedProject
+          ? `Proyecto: ${selectedProject}${selectedWbs ? ` | WBS: ${selectedWbs}` : ""}`
+          : "Selecciona un proyecto"}
       </div>
     </>
   );

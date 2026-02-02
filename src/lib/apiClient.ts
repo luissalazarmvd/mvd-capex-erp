@@ -51,3 +51,31 @@ export async function apiPost(path: string, body: Json) {
 
   return parseOrThrow(r);
 }
+
+export async function apiDownload(path: string, filename: string) {
+  const base = getBaseUrl();
+  const key = getApiKey();
+
+  const r = await fetch(`${base}${path}`, {
+    method: "GET",
+    headers: { "x-api-key": key },
+    cache: "no-store",
+  });
+
+  if (!r.ok) {
+    const out = await r.json().catch(() => ({}));
+    throw new Error(out?.error ?? `HTTP ${r.status}`);
+  }
+
+  const blob = await r.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(() => window.URL.revokeObjectURL(url), 0);
+}

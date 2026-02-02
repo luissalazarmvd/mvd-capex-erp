@@ -2,9 +2,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPost } from "../../../lib/apiClient";
+import { apiDownload, apiGet, apiPost } from "../../../lib/apiClient";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { WbsMatrix, Period, Row } from "../../../components/capex/WbsMatrix";
+import { Button } from "../../../components/ui/Button";
 
 type ProjectsMeta = {
   ok: boolean;
@@ -34,6 +35,7 @@ export default function ProgressPage() {
 
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [exporting, setExporting] = useState<boolean>(false);
 
   const FROM_PERIOD = 202601;
   const N_PERIODS = 12;
@@ -84,9 +86,7 @@ export default function ProgressPage() {
   }, [projects, selectedProject]);
 
   const rows: Row[] = useMemo(() => {
-    const p = selectedProject
-      ? projects.filter((x) => x.project_code === selectedProject)
-      : projects;
+    const p = selectedProject ? projects.filter((x) => x.project_code === selectedProject) : projects;
 
     const out: Row[] = [];
     for (const proj of p) {
@@ -102,18 +102,6 @@ export default function ProgressPage() {
     }
     return out;
   }, [projects, selectedProject, selectedWbs]);
-
-  const projectAllRows: Row[] = useMemo(() => {
-    if (!selectedProject) return [];
-    const proj = projects.find((x) => x.project_code === selectedProject);
-    if (!proj) return [];
-    return (proj.wbs ?? []).map((w) => ({
-      project_code: proj.project_code,
-      project_name: proj.project_name,
-      wbs_code: w.wbs_code,
-      wbs_name: w.wbs_name,
-    }));
-  }, [projects, selectedProject]);
 
   function onChangeDraft(k: string, v: string) {
     setDraft((prev) => ({ ...prev, [k]: v }));
@@ -145,6 +133,27 @@ export default function ProgressPage() {
     }
   }
 
+  async function onExport() {
+    setMsg(null);
+    setExporting(true);
+    try {
+      await apiDownload("/api/export/ev", "ev.xlsx");
+      setMsg("OK: export descargado");
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR exportando");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const headerActions = (
+    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <Button type="button" size="sm" variant="ghost" disabled={loading || exporting} onClick={onExport}>
+        {exporting ? "Exportando…" : "Exportar"}
+      </Button>
+    </div>
+  );
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 14 }}>
       <ProjectTree
@@ -165,9 +174,7 @@ export default function ProgressPage() {
             className="panel-inner"
             style={{
               padding: 12,
-              border: msg.startsWith("OK")
-                ? "1px solid rgba(102,199,255,.45)"
-                : "1px solid rgba(255,80,80,.45)",
+              border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
               background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
               fontWeight: 800,
             }}
@@ -180,6 +187,7 @@ export default function ProgressPage() {
           mode="progress"
           title={loading ? "Avance y Costos (cargando…)" : "Avance y Costos (EV% y AC)"}
           projectLabel={projectLabel}
+          headerActions={headerActions}
           periods={periods}
           rows={rows}
           latest={latest}

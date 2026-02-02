@@ -44,10 +44,36 @@ function keyOf(wbs: string, period_id: number, col: string) {
 }
 
 function parseNum(x: string | null | undefined): number {
-  const s = String(x ?? "").trim();
-  if (!s) return 0;
-  const cleaned = s.replace(/[^0-9.,-]/g, "").replace(/,/g, "");
-  const n = Number(cleaned);
+  const s0 = String(x ?? "").trim();
+  if (!s0) return 0;
+
+  let s = s0.replace(/\s+/g, "");
+
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = s.lastIndexOf(",");
+    const lastDot = s.lastIndexOf(".");
+    const decSep = lastComma > lastDot ? "," : ".";
+    const thouSep = decSep === "," ? "." : ",";
+    s = s.split(thouSep).join("");
+    if (decSep === ",") s = s.replace(",", ".");
+  } else if (hasComma && !hasDot) {
+    const parts = s.split(",");
+    if (parts.length === 2 && parts[1].length === 3) {
+      s = parts.join("");
+    } else {
+      s = s.replace(",", ".");
+    }
+  } else {
+    const parts = s.split(".");
+    if (parts.length > 2) {
+      s = parts.join("");
+    }
+  }
+
+  const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -645,7 +671,7 @@ export function WbsMatrix({
         lastSavedAt={lastSavedAt}
         error={err}
         onSave={handleSave}
-        onReset={onResetDraft}
+        onReset={onResetDraft ?? (() => {})}
       />
     </div>
   );
