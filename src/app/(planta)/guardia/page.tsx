@@ -1,0 +1,327 @@
+// src/app/(planta)/guardia/page.tsx
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { apiGet, apiPost } from "../../../lib/apiClient";
+import { Input } from "../../../components/ui/Input";
+import { Button } from "../../../components/ui/Button";
+
+type LookupsResp = {
+  ok: boolean;
+  supervisors: string[];
+};
+
+type GuardiaGetResp = {
+  ok: boolean;
+  shift_id: string;
+  header: any | null;
+  consumables: any[];
+  balls: any[];
+  duration: any[];
+};
+
+type Form = {
+  shift_date: string;
+  plant_shift: "A" | "B" | "";
+  plant_supervisor: string;
+  tmh: string;
+  h2o_pct: string;
+  au_feed: string;
+  ag_feed: string;
+};
+
+function isoTodayPe(): string {
+  // Simple: hoy en Perú (-05)
+  const now = new Date();
+  const pe = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+  const y = pe.getUTCFullYear();
+  const m = String(pe.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(pe.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function buildShiftId(shift_date: string, plant_shift: "A" | "B" | "") {
+  if (!shift_date || (plant_shift !== "A" && plant_shift !== "B")) return "";
+  const ymd = shift_date.replaceAll("-", "");
+  return `${ymd}-${plant_shift}`;
+}
+
+function Select({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: "100%",
+          background: "rgba(0,0,0,.10)",
+          border: "1px solid var(--border)",
+          color: "var(--text)",
+          borderRadius: 10,
+          padding: "10px 12px",
+          outline: "none",
+          fontWeight: 900,
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.7 : 1,
+        }}
+      >
+        {options.map((o) => (
+          <option key={o.value || "__empty__"} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+export default function GuardiaPage() {
+  const [supervisors, setSupervisors] = useState<string[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const [loadingLookups, setLoadingLookups] = useState<boolean>(true);
+  const [loadingExisting, setLoadingExisting] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+
+  const [form, setForm] = useState<Form>({
+    shift_date: isoTodayPe(),
+    plant_shift: "",
+    plant_supervisor: "",
+    tmh: "",
+    h2o_pct: "",
+    au_feed: "",
+    ag_feed: "",
+  });
+
+  const shift_id = useMemo(
+    () => buildShiftId(form.shift_date, form.plant_shift),
+    [form.shift_date, form.plant_shift]
+  );
+
+  const canSave = useMemo(() => {
+    return (
+      !!form.shift_date &&
+      (form.plant_shift === "A" || form.plant_shift === "B") &&
+      !!form.plant_supervisor.trim() &&
+      !saving
+    );
+  }, [form.shift_date, form.plant_shift, form.plant_supervisor, saving]);
+
+  async function loadLookups() {
+    setLoadingLookups(true);
+    setMsg(null);
+    try {
+      const r = (await apiGet("/api/planta/lookups")) as LookupsResp;
+      setSupervisors((r.supervisors ?? []).filter((x) => String(x || "").trim().length > 0));
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando supervisores");
+    } finally {
+      setLoadingLookups(false);
+    }
+  }
+
+  async function loadExistingIfAny(date: string, shift: "A" | "B" | "") {
+    if (!date || (shift !== "A" && shift !== "B")) return;
+    setLoadingExisting(true);
+    setMsg(null);
+    try {
+      const r = (await apiGet(
+        `/api/planta/guardia/get?date=${encodeURIComponent(date)}&shift=${encodeURIComponent(shift)}`
+      )) as GuardiaGetResp;
+
+      const h = r.header;
+
+      if (h) {
+        // Si existe registro: precargar valores.
+        // Ojo: el backend ya está con "null no pisa", así que aquí podemos mandar strings vacíos o mantener.
+        setForm((s) => ({
+          ...s,
+          plant_supervisor: (h.plant_supervisor ?? s.plant_supervisor) as string,
+          tmh: h.tmh === null || h.tmh === undefined ? "" : String(h.tmh),
+          h2o_pct: h.h2o_pct === null || h.h2o_pct === undefined ? "" : String(h.h2o_pct),
+          au_feed: h.au_feed === null || h.au_feed === undefined ? "" : String(h.au_feed),
+          ag_feed: h.ag_feed === null || h.ag_feed === undefined ? "" : String(h.ag_feed),
+        }));
+        setMsg(`OK: cargado ${r.shift_id}`);
+      } else {
+        // Si no hay: limpiar inputs numéricos pero mantener fecha/guardia
+        setForm((s) => ({
+          ...s,
+          tmh: "",
+          h2o_pct: "",
+          au_feed: "",
+          ag_feed: "",
+        }));
+        setMsg(null);
+      }
+    } catch (e: any) {
+      // Si falla por "no existe", ideal sería que el API devuelva ok=true, header=null (ya lo hace).
+      // Igual, no spamear error si no encontramos.
+      const m = String(e?.message || "");
+      if (m.includes("400") || m.includes("404")) {
+        setMsg(null);
+      } else {
+        setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando guardia");
+      }
+    } finally {
+      setLoadingExisting(false);
+    }
+  }
+
+  useEffect(() => {
+    loadLookups();
+  }, []);
+
+  useEffect(() => {
+    loadExistingIfAny(form.shift_date, form.plant_shift);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.shift_date, form.plant_shift]);
+
+  async function onSave() {
+    setMsg(null);
+    setSaving(true);
+    try {
+      // Importante:
+      // - En tu server.js: dec18OrNull("") => null. Eso está perfecto: null NO pisa.
+      // - Si el usuario pone 0, se manda "0" => 0.000... y SÍ pisa.
+      const payload = {
+        shift_date: form.shift_date,
+        plant_shift: form.plant_shift, // A/B
+        plant_supervisor: form.plant_supervisor,
+        tmh: form.tmh,
+        h2o_pct: form.h2o_pct,
+        au_feed: form.au_feed,
+        ag_feed: form.ag_feed,
+      };
+
+      const r: any = await apiPost("/api/planta/guardia/upsert", payload);
+      setMsg(`OK: guardado ${String(r?.shift_id || shift_id)}`);
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando guardia");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
+      <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ fontWeight: 900 }}>Crear Guardia</div>
+        <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+          {shift_id ? `shift_id: ${shift_id}` : "Selecciona fecha y guardia"}
+        </div>
+
+        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+          <Button type="button" size="sm" variant="ghost" onClick={loadLookups} disabled={loadingLookups || saving}>
+            {loadingLookups ? "Cargando..." : "Refrescar"}
+          </Button>
+          <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+      </div>
+
+      {msg ? (
+        <div
+          className="panel-inner"
+          style={{
+            padding: 12,
+            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
+            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            fontWeight: 800,
+          }}
+        >
+          {msg}
+        </div>
+      ) : null}
+
+      <div className="panel-inner" style={{ padding: 14 }}>
+        <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "260px 200px 1fr", gap: 12, alignItems: "end" }}>
+            <Input
+              placeholder="YYYY-MM-DD"
+              value={form.shift_date}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setForm((s) => ({ ...s, shift_date: e.target.value }))
+              }
+              hint="Fecha de la Guardia"
+            />
+
+            <Select
+              label="Guardia"
+              value={form.plant_shift}
+              onChange={(v) => setForm((s) => ({ ...s, plant_shift: (v as any) || "" }))}
+              disabled={saving}
+              options={[
+                { value: "", label: "— Selecciona —" },
+                { value: "A", label: "A" },
+                { value: "B", label: "B" },
+              ]}
+            />
+
+            <Select
+              label="Supervisor"
+              value={form.plant_supervisor}
+              onChange={(v) => setForm((s) => ({ ...s, plant_supervisor: v }))}
+              disabled={loadingLookups || saving}
+              options={[
+                { value: "", label: "— Selecciona —" },
+                ...supervisors.map((x) => ({ value: x, label: x })),
+              ]}
+            />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input
+              placeholder=""
+              value={form.tmh}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, tmh: e.target.value }))}
+              hint="TMH"
+            />
+            <Input
+              placeholder=""
+              value={form.h2o_pct}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, h2o_pct: e.target.value }))}
+              hint="%Humedad (Decimal)"
+            />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input
+              placeholder=""
+              value={form.au_feed}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, au_feed: e.target.value }))}
+              hint="Au Feed (g/t)"
+            />
+            <Input
+              placeholder=""
+              value={form.ag_feed}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, ag_feed: e.target.value }))}
+              hint="Ag Feed (g/t)"
+            />
+          </div>
+
+          {loadingExisting ? (
+            <div className="muted" style={{ fontWeight: 800 }}>
+              Cargando datos existentes…
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}

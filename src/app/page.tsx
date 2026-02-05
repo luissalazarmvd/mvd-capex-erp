@@ -1,6 +1,6 @@
 // src/app/page.tsx
-import { redirect } from "next/navigation";
+import PortalPage from "./(portal)/page";
 
 export default function Home() {
-  redirect("/projects");
+  return <PortalPage />;
 }
