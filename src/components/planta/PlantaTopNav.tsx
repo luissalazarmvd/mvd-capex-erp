@@ -5,13 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV = [
-  { href: "/guardia", label: "Crear Guardia" },
-  { href: "/produccion", label: "Producción" },
-  { href: "/relave", label: "Relave" },
-  { href: "/reactivos", label: "Reactivos" },
-  { href: "/bolas", label: "Bolas" },
-  { href: "/duracion", label: "Duración" },
-  { href: "/reports", label: "Reportes" },
+  { href: "/planta/guardia", label: "Crear Guardia" },
+  { href: "/planta/produccion", label: "Producción" },
+  { href: "/planta/relave", label: "Relave" },
+  { href: "/planta/reactivos", label: "Reactivos" },
+  { href: "/planta/bolas", label: "Bolas" },
+  { href: "/planta/duracion", label: "Duración" },
+  { href: "/planta/reports", label: "Reportes" },
 ];
 
 export default function PlantaTopNav() {
