@@ -34,10 +34,8 @@ async function verifyToken(token: string, secret: string) {
 
   const [payloadB64, sigB64] = parts;
 
-  // Firma esperada
   const expected = await hmacSha256(secret, payloadB64);
 
-  // Firma recibida
   let got: Uint8Array;
   try {
     got = b64urlToBytes(sigB64);
@@ -47,7 +45,6 @@ async function verifyToken(token: string, secret: string) {
 
   if (!timingSafeEqual(expected, got)) return null;
 
-  // Payload
   let payload: any;
   try {
     payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(payloadB64)));
@@ -65,7 +62,6 @@ async function verifyToken(token: string, secret: string) {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // ✅ Permitir: portal + login + assets
   if (
     pathname === "/" ||
     pathname.startsWith("/api/auth/login") ||
@@ -80,7 +76,7 @@ export async function middleware(req: NextRequest) {
 
   const secret = process.env.AUTH_SECRET || "";
   if (!secret) {
-    // Sin secret -> bloquea todo menos portal/login
+
     const url = req.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
@@ -95,7 +91,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Reglas por “área”
+
   const need = pathname.startsWith("/planta") ? "planta" : "capex";
 
   if (!auth.scopes.includes(need)) {
@@ -107,7 +103,6 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-// Aplica a todo excepto estáticos internos
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

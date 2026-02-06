@@ -25,7 +25,7 @@ type Form = {
   plant_shift: "A" | "B" | "";
   plant_supervisor: string;
   tmh: string;
-  h2o_pct: string; // UI: 1-100 (porcentaje)
+  h2o_pct: string;
   au_feed: string;
   ag_feed: string;
 };
@@ -58,7 +58,7 @@ function toNumOrNull(s: string) {
 }
 
 function clampStrPctToDecimalOrNull(s: string) {
-  // UI: 1..100  => SQL: 0.01..1.00
+
   const pct = toNumOrNull(s);
   if (pct === null) return null;
   if (pct < 1 || pct > 100) return null;
@@ -139,7 +139,7 @@ function Select({
               right: 0,
               borderRadius: 12,
               border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(5, 25, 45, .98)", // azul oscuro
+              background: "rgba(5, 25, 45, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
             }}
@@ -235,7 +235,7 @@ export default function GuardiaPage() {
     plant_shift: "",
     plant_supervisor: "",
     tmh: "",
-    h2o_pct: "", // UI: 1-100
+    h2o_pct: "",
     au_feed: "",
     ag_feed: "",
   });
@@ -247,12 +247,12 @@ export default function GuardiaPage() {
 
   const metricsOk = useMemo(() => {
     const tmh = toNumOrNaN(form.tmh);
-    const h2oPct = toNumOrNaN(form.h2o_pct); // UI: 1..100
+    const h2oPct = toNumOrNaN(form.h2o_pct);
     const au = toNumOrNaN(form.au_feed);
     const ag = toNumOrNaN(form.ag_feed);
 
     const okTmh = Number.isFinite(tmh) && tmh >= 0;
-    const okH2o = Number.isFinite(h2oPct) && h2oPct >= 1 && h2oPct <= 100; // ✅ 1..100
+    const okH2o = Number.isFinite(h2oPct) && h2oPct >= 1 && h2oPct <= 100;
     const okAu = Number.isFinite(au) && au >= 0;
     const okAg = Number.isFinite(ag) && ag >= 0;
 
@@ -303,11 +303,11 @@ export default function GuardiaPage() {
           ...s,
           plant_supervisor: (h.plant_supervisor ?? s.plant_supervisor) as string,
           tmh: h.tmh === null || h.tmh === undefined ? "" : String(h.tmh),
-          // ✅ SQL guarda decimal (0-1). UI muestra 1-100:
+
           h2o_pct:
             h.h2o_pct === null || h.h2o_pct === undefined
               ? ""
-              : String(Math.round(Number(h.h2o_pct) * 100 * 1000) / 1000), // 3 dec en %
+              : String(Math.round(Number(h.h2o_pct) * 100 * 1000) / 1000),
           au_feed: h.au_feed === null || h.au_feed === undefined ? "" : String(h.au_feed),
           ag_feed: h.ag_feed === null || h.ag_feed === undefined ? "" : String(h.ag_feed),
         }));
@@ -351,7 +351,7 @@ export default function GuardiaPage() {
         plant_shift: form.plant_shift,
         plant_supervisor: form.plant_supervisor,
         tmh: toNumOrNull(form.tmh),
-        // ✅ UI 1..100 => SQL decimal 0..1
+
         h2o_pct: clampStrPctToDecimalOrNull(form.h2o_pct),
         au_feed: toNumOrNull(form.au_feed),
         ag_feed: toNumOrNull(form.ag_feed),
