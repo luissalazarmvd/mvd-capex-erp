@@ -337,13 +337,13 @@ export default function PlantaDuracionPage() {
   const opMin = useMemo(() => {
     const h = clampInt(parseIntSafeNonNeg(opH), 0, 12);
     const m = clampInt(parseIntSafeNonNeg(opM), 0, 59);
-    return clampInt(h * 60 + m, 0, 720);
+    return h * 60 + m;
   }, [opH, opM]);
 
   const stopMin = useMemo(() => {
     const h = clampInt(parseIntSafeNonNeg(stopH), 0, 12);
     const m = clampInt(parseIntSafeNonNeg(stopM), 0, 59);
-    return clampInt(h * 60 + m, 0, 720);
+    return h * 60 + m;
   }, [stopH, stopM]);
 
   const total = opMin + stopMin;
