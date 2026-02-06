@@ -749,7 +749,7 @@ export default function PlantaReportsPage() {
       </div>
 
       <div className="panel-inner" style={{ padding: 14 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "240px 240px 1fr", gap: 12, alignItems: "end" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "240px 240px", gap: 12, alignItems: "end" }}>
           <DatePicker
             label="Fecha inicio"
             valueIso={dateFrom}
@@ -765,13 +765,6 @@ export default function PlantaReportsPage() {
             max={today}
             min={dateFrom || undefined}
           />
-          <div className="muted" style={{ fontWeight: 900, fontSize: 12, alignSelf: "center" }}>
-            Regla:
-            <span style={{ opacity: 0.9 }}>
-              {" "}
-              (g/t, g/l) ponderado por TMS · (g, m³, l, TMS) suma · (%) promedio simple
-            </span>
-          </div>
         </div>
       </div>
 
