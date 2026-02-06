@@ -494,8 +494,6 @@ export default function PlantaReportsPage() {
   left: 0,
   zIndex: z,
   background: bg,
-  backgroundColor: bg,
-  opacity: 1,
   });
 
   const stickyLeftGuardiaCell = (bg: string, z = 5): React.CSSProperties => ({
@@ -503,8 +501,7 @@ export default function PlantaReportsPage() {
   left: W_FECHA,
   zIndex: z,
   background: bg,
-  backgroundColor: bg,
-  opacity: 1,
+  boxShadow: "10px 0 16px rgba(0,0,0,.25)",
   });
 
   const stickyLeftFechaFoot: React.CSSProperties = {
@@ -671,6 +668,8 @@ export default function PlantaReportsPage() {
                 for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
 
                 const dayBg = "rgba(0,0,0,.22)";
+                const dayStickyBg = "rgba(5, 25, 45, .96)";
+                const rowStickyBg = "rgba(5, 25, 45, .92)";
                 const rowBg = "rgba(0,0,0,.10)";
                 const dayBorder = "1px solid rgba(191, 231, 255, 0.18)";
                 const rowBorder = "1px solid rgba(255,255,255,.06)";
@@ -682,7 +681,7 @@ export default function PlantaReportsPage() {
                         className="capex-td capex-td-strong"
                         style={{
                           ...cellBase,
-                          ...stickyLeftFechaCell(dayBg, 7),
+                          ...stickyLeftFechaCell(dayStickyBg, 7),
                           fontWeight: 900,
                           borderBottom: dayBorder,
                         }}
@@ -711,7 +710,7 @@ export default function PlantaReportsPage() {
                         className="capex-td"
                         style={{
                           ...cellBase,
-                          ...stickyLeftGuardiaCell(dayBg, 7),
+                          ...stickyLeftGuardiaCell(dayStickyBg, 7),
                           fontWeight: 900,
                           opacity: 0.9,
                           borderBottom: dayBorder,
@@ -747,7 +746,7 @@ export default function PlantaReportsPage() {
                               className="capex-td"
                               style={{
                                 ...cellBase,
-                                ...stickyLeftFechaCell(rowBg, 5),
+                                ...stickyLeftFechaCell(rowStickyBg, 5),
                                 borderBottom: rowBorder,
                               }}
                             />
@@ -755,7 +754,7 @@ export default function PlantaReportsPage() {
                               className="capex-td capex-td-strong"
                               style={{
                                 ...cellBase,
-                                ...stickyLeftGuardiaCell(rowBg, 5),
+                                ...stickyLeftGuardiaCell(rowStickyBg, 5),
                                 fontWeight: 900,
                                 borderBottom: rowBorder,
                               }}
