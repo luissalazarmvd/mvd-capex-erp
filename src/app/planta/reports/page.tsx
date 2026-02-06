@@ -490,17 +490,21 @@ export default function PlantaReportsPage() {
   };
 
   const stickyLeftFechaCell = (bg: string, z = 5): React.CSSProperties => ({
-    position: "sticky",
-    left: 0,
-    zIndex: z,
-    background: bg,
+  position: "sticky",
+  left: 0,
+  zIndex: z,
+  background: bg,
+  backgroundColor: bg,
+  opacity: 1,
   });
 
   const stickyLeftGuardiaCell = (bg: string, z = 5): React.CSSProperties => ({
-    position: "sticky",
-    left: W_FECHA,
-    zIndex: z,
-    background: bg,
+  position: "sticky",
+  left: W_FECHA,
+  zIndex: z,
+  background: bg,
+  backgroundColor: bg,
+  opacity: 1,
   });
 
   const stickyLeftFechaFoot: React.CSSProperties = {
