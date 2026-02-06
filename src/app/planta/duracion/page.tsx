@@ -335,14 +335,14 @@ export default function PlantaDuracionPage() {
   }, [shiftId]);
 
   const opMin = useMemo(() => {
-    const h = clampInt(parseIntSafeNonNeg(opH), 0, 12);
-    const m = clampInt(parseIntSafeNonNeg(opM), 0, 59);
+    const h = parseIntSafeNonNeg(opH);
+    const m = parseIntSafeNonNeg(opM);
     return h * 60 + m;
   }, [opH, opM]);
 
   const stopMin = useMemo(() => {
-    const h = clampInt(parseIntSafeNonNeg(stopH), 0, 12);
-    const m = clampInt(parseIntSafeNonNeg(stopM), 0, 59);
+    const h = parseIntSafeNonNeg(stopH);
+    const m = parseIntSafeNonNeg(stopM);
     return h * 60 + m;
   }, [stopH, stopM]);
 
