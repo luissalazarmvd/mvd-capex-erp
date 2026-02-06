@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
+import { Table } from "../../../components/ui/Table";
 
 type MonthRow = {
   tank_day: string;
@@ -157,9 +158,13 @@ function okNonNegOrEmpty(s: string) {
 
 function makeBlankRow(tank_day: string): RowState {
   const z: any = { tank_day };
-  for (const k of AU_KEYS) z[k] = "";
-  for (const k of AG_KEYS) z[k] = "";
+  for (const k of AU_KEYS) triggered(z, k);
+  for (const k of AG_KEYS) triggered(z, k);
   return z as RowState;
+
+  function triggered(obj: any, key: string) {
+    obj[key] = "";
+  }
 }
 
 function fromApiRow(r: MonthRow): RowState {
@@ -178,12 +183,10 @@ function weekdayShort(ymd: string) {
 
 export default function CarbonPage() {
   const [msg, setMsg] = useState<string | null>(null);
-
   const [ym, setYm] = useState(defaultYm());
 
   const [loading, setLoading] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
-  const [savingDay, setSavingDay] = useState<Record<string, boolean>>({});
 
   const [rows, setRows] = useState<RowState[]>([]);
   const [dirty, setDirty] = useState<Record<string, true>>({});
@@ -194,6 +197,7 @@ export default function CarbonPage() {
     const hasDirty = Object.keys(dirty).length > 0;
     if (!hasDirty) return false;
     if (savingAll || loading) return false;
+
     for (const r of rows) {
       if (!dirty[r.tank_day]) continue;
       for (const k of AU_KEYS) if (!okNonNegOrEmpty((r as any)[k])) return false;
@@ -258,40 +262,6 @@ export default function CarbonPage() {
     return true;
   }
 
-  async function saveOne(day: string) {
-    const r = rows.find((x) => x.tank_day === day);
-    if (!r) return;
-    if (!rowValid(r)) {
-      setMsg(`ERROR: valores inválidos en ${day}`);
-      return;
-    }
-
-    setSavingDay((s) => ({ ...s, [day]: true }));
-    setMsg(null);
-    try {
-      const payload: any = { tank_day: day };
-      for (const k of AU_KEYS) payload[k] = toNumOrNull((r as any)[k]);
-      for (const k of AG_KEYS) payload[k] = toNumOrNull((r as any)[k]);
-
-      await apiPost("/api/planta/carbones/upsert", payload);
-
-      setDirty((d) => {
-        const next = { ...d };
-        delete next[day];
-        return next;
-      });
-      setMsg(`OK: guardado ${day} · Carbones`);
-    } catch (e: any) {
-      setMsg(e?.message ? `ERROR: ${e.message}` : `ERROR guardando ${day}`);
-    } finally {
-      setSavingDay((s) => {
-        const next = { ...s };
-        delete next[day];
-        return next;
-      });
-    }
-  }
-
   async function saveAll() {
     const days = Object.keys(dirty);
     if (!days.length) return;
@@ -307,56 +277,53 @@ export default function CarbonPage() {
 
     setSavingAll(true);
     setMsg(null);
+
     try {
       for (const d of days) {
-        await saveOne(d);
+        const r = rows.find((x) => x.tank_day === d);
+        if (!r) continue;
+
+        const payload: any = { tank_day: d };
+        for (const k of AU_KEYS) payload[k] = toNumOrNull((r as any)[k]);
+        for (const k of AG_KEYS) payload[k] = toNumOrNull((r as any)[k]);
+
+        await apiPost("/api/planta/carbones/upsert", payload);
       }
-      setMsg(`OK: guardado mes ${ym.trim()} · Carbones`);
+
+      setDirty({});
+      setMsg(`OK: carbones guardados (${ym.trim()})`);
     } catch (e: any) {
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando mes");
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando carbones");
     } finally {
       setSavingAll(false);
     }
   }
 
-  const colStyle: React.CSSProperties = {
-    minWidth: 108,
-    maxWidth: 120,
-  };
+  const colW: React.CSSProperties = { minWidth: 92, maxWidth: 110 };
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
     background: "rgba(0,0,0,.10)",
     border: "1px solid var(--border)",
     color: "var(--text)",
-    borderRadius: 10,
-    padding: "8px 10px",
+    borderRadius: 8,
+    padding: "6px 8px",
     outline: "none",
     fontWeight: 900,
+    fontSize: 12,
   };
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 1400 }}>
+    <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Carbones</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <Input
-              value={ym}
-              onChange={(e: any) => setYm(String(e.target.value || "").trim())}
-              hint="Mes (YYYYMM) · ej: 202601"
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => loadMonth(ym)}
-              disabled={loading || savingAll || !isYmValid}
-            >
-              {loading ? "Cargando..." : "Cargar"}
-            </Button>
-          </div>
+          <Input value={ym} onChange={(e: any) => setYm(String(e.target.value || "").trim())} hint="Mes (YYYYMM)" />
+
+          <Button type="button" size="sm" variant="ghost" onClick={() => loadMonth(ym)} disabled={loading || savingAll || !isYmValid}>
+            {loading ? "Cargando…" : "Cargar"}
+          </Button>
 
           <Button type="button" size="sm" variant="primary" onClick={saveAll} disabled={!canSaveAll}>
             {savingAll ? "Guardando…" : "Guardar cambios"}
@@ -368,7 +335,7 @@ export default function CarbonPage() {
         <div
           className="panel-inner"
           style={{
-            padding: 12,
+            padding: 10,
             border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
             background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
             fontWeight: 800,
@@ -378,173 +345,116 @@ export default function CarbonPage() {
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 14 }}>
+      <div style={{ minWidth: 0 }}>
         {!isYmValid ? (
-          <div className="muted" style={{ fontWeight: 800 }}>
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
             Ingresa un mes válido en formato YYYYMM.
           </div>
         ) : rows.length ? (
-          <div style={{ overflow: "auto", borderRadius: 12, border: "1px solid rgba(255,255,255,.06)" }}>
-            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-              <thead>
-                <tr>
-                  <th
-                    style={{
-                      position: "sticky",
-                      left: 0,
-                      zIndex: 3,
-                      background: "var(--panel)",
-                      textAlign: "left",
-                      padding: "10px 10px",
-                      borderBottom: "1px solid rgba(255,255,255,.08)",
-                      fontWeight: 900,
-                      minWidth: 140,
-                    }}
-                  >
-                    Día
-                  </th>
+          <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
+            <thead>
+              <tr>
+                <th
+                  className="capex-th"
+                  style={{
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 3,
+                    minWidth: 150,
+                  }}
+                >
+                  Día
+                </th>
 
-                  <th
-                    style={{
-                      background: "var(--panel)",
-                      textAlign: "left",
-                      padding: "10px 10px",
-                      borderBottom: "1px solid rgba(255,255,255,.08)",
-                      fontWeight: 900,
-                      minWidth: 120,
-                    }}
-                  >
-                    Acción
+                {AU_KEYS.map((k, i) => (
+                  <th key={k} className={`capex-th ${i === 0 ? "capex-th-sep" : ""}`} style={colW}>
+                    {k.toUpperCase()}
                   </th>
+                ))}
 
-                  {AU_KEYS.map((k) => (
-                    <th
-                      key={k}
+                {AG_KEYS.map((k, i) => (
+                  <th key={k} className={`capex-th ${i === 0 ? "capex-th-sep" : ""}`} style={colW}>
+                    {k.toUpperCase()}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {rows.map((r) => {
+                const isDirty = !!dirty[r.tank_day];
+                const valid = rowValid(r);
+
+                return (
+                  <tr key={r.tank_day} className="capex-tr" style={{ background: isDirty ? "rgba(102,199,255,.05)" : "transparent" }}>
+                    <td
+                      className="capex-td capex-td-strong"
                       style={{
-                        ...colStyle,
-                        background: "var(--panel)",
-                        textAlign: "left",
-                        padding: "10px 10px",
-                        borderBottom: "1px solid rgba(255,255,255,.08)",
-                        fontWeight: 900,
+                        position: "sticky",
+                        left: 0,
+                        zIndex: 2,
+                        background: isDirty ? "rgba(102,199,255,.05)" : "rgba(0,0,0,.18)",
+                        minWidth: 150,
+                        padding: "6px 10px",
                       }}
                     >
-                      {k.toUpperCase()}
-                    </th>
-                  ))}
-
-                  {AG_KEYS.map((k) => (
-                    <th
-                      key={k}
-                      style={{
-                        ...colStyle,
-                        background: "var(--panel)",
-                        textAlign: "left",
-                        padding: "10px 10px",
-                        borderBottom: "1px solid rgba(255,255,255,.08)",
-                        fontWeight: 900,
-                      }}
-                    >
-                      {k.toUpperCase()}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {rows.map((r) => {
-                  const isDirty = !!dirty[r.tank_day];
-                  const busy = !!savingDay[r.tank_day] || savingAll || loading;
-                  const valid = rowValid(r);
-
-                  return (
-                    <tr key={r.tank_day} style={{ background: isDirty ? "rgba(102,199,255,.06)" : "transparent" }}>
-                      <td
-                        style={{
-                          position: "sticky",
-                          left: 0,
-                          zIndex: 2,
-                          background: isDirty ? "rgba(102,199,255,.06)" : "var(--panel)",
-                          padding: "10px 10px",
-                          borderBottom: "1px solid rgba(255,255,255,.06)",
-                          fontWeight: 900,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <div>{r.tank_day}</div>
-                          <div className="muted" style={{ fontWeight: 900, fontSize: 12 }}>
-                            {weekdayShort(r.tank_day)}
-                          </div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <div>{r.tank_day}</div>
+                        <div className="muted" style={{ fontWeight: 900, fontSize: 12 }}>
+                          {weekdayShort(r.tank_day)}
                         </div>
                         {!valid ? (
-                          <div style={{ marginTop: 4, fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>
-                            Solo números ≥ 0 (o vacío)
-                          </div>
+                          <div style={{ marginLeft: 8, fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Inválido</div>
                         ) : null}
-                      </td>
+                      </div>
+                    </td>
 
-                      <td style={{ padding: "10px 10px", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => saveOne(r.tank_day)}
-                          disabled={!isDirty || busy || !valid}
-                        >
-                          {savingDay[r.tank_day] ? "Guardando…" : "Guardar"}
-                        </Button>
-                      </td>
+                    {AU_KEYS.map((k, i) => {
+                      const v = (r as any)[k] as string;
+                      const ok = okNonNegOrEmpty(v);
+                      return (
+                        <td key={k} className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`} style={{ padding: "6px 8px" }}>
+                          <input
+                            value={v}
+                            disabled={savingAll || loading}
+                            onChange={(e) => setCell(r.tank_day, k, e.target.value)}
+                            style={{
+                              ...inputStyle,
+                              border: ok ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                              background: ok ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                              opacity: savingAll || loading ? 0.7 : 1,
+                            }}
+                          />
+                        </td>
+                      );
+                    })}
 
-                      {AU_KEYS.map((k) => {
-                        const v = (r as any)[k] as string;
-                        const ok = okNonNegOrEmpty(v);
-                        return (
-                          <td key={k} style={{ padding: "8px 10px", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
-                            <input
-                              value={v}
-                              disabled={busy}
-                              onChange={(e) => setCell(r.tank_day, k, e.target.value)}
-                              style={{
-                                ...inputStyle,
-                                border: ok ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                                background: ok ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-                                opacity: busy ? 0.7 : 1,
-                              }}
-                              placeholder=""
-                            />
-                          </td>
-                        );
-                      })}
-
-                      {AG_KEYS.map((k) => {
-                        const v = (r as any)[k] as string;
-                        const ok = okNonNegOrEmpty(v);
-                        return (
-                          <td key={k} style={{ padding: "8px 10px", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
-                            <input
-                              value={v}
-                              disabled={busy}
-                              onChange={(e) => setCell(r.tank_day, k, e.target.value)}
-                              style={{
-                                ...inputStyle,
-                                border: ok ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                                background: ok ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-                                opacity: busy ? 0.7 : 1,
-                              }}
-                              placeholder=""
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    {AG_KEYS.map((k, i) => {
+                      const v = (r as any)[k] as string;
+                      const ok = okNonNegOrEmpty(v);
+                      return (
+                        <td key={k} className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`} style={{ padding: "6px 8px" }}>
+                          <input
+                            value={v}
+                            disabled={savingAll || loading}
+                            onChange={(e) => setCell(r.tank_day, k, e.target.value)}
+                            style={{
+                              ...inputStyle,
+                              border: ok ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                              background: ok ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                              opacity: savingAll || loading ? 0.7 : 1,
+                            }}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
         ) : (
-          <div className="muted" style={{ fontWeight: 800 }}>
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
             {loading ? "Cargando…" : "No hay filas para este mes."}
           </div>
         )}
