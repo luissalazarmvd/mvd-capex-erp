@@ -458,10 +458,9 @@ export default function ReactivosPage() {
   }
 
   const shiftLabel = (s: ShiftRow) => {
-    const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
-    const d = s.shift_date ? ` · ${s.shift_date}` : "";
-    return `${s.shift_id}${d}${sup}`;
-  };
+  const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
+  return `${s.shift_id}${sup}`;
+};
 
   return (
     <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
