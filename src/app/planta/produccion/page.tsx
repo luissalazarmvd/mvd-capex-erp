@@ -27,10 +27,45 @@ type GuardiaGetResp = {
   duration: any[];
 };
 
-function toCleanQty(v: string) {
-  const s = String(v ?? "").trim();
-  if (!s) return null;
-  return s;
+function toNumOrNaN(s: string) {
+  if (!s) return NaN;
+  const t = String(s).trim().replace(",", ".");
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function toNumOrNull(s: string) {
+  const n = toNumOrNaN(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function okNonNegOrEmpty(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  const n = toNumOrNaN(t);
+  return Number.isFinite(n) && n >= 0;
+}
+
+function okPct1to100OrEmpty(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  const n = toNumOrNaN(t);
+  return Number.isFinite(n) && n >= 1 && n <= 100;
+}
+
+function okPh1to14OrEmpty(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  const n = toNumOrNaN(t);
+  return Number.isFinite(n) && n >= 1 && n <= 14;
+}
+
+function pctStrToDecimalOrNull(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return null;
+  const n = toNumOrNaN(t);
+  if (!Number.isFinite(n) || n < 1 || n > 100) return null;
+  return n / 100;
 }
 
 function SearchableDropdown({
@@ -206,12 +241,23 @@ export default function ProduccionPage() {
   const [phAds, setPhAds] = useState("");
   const [phTail, setPhTail] = useState("");
 
-  const canSave = useMemo(() => !!shiftId && !saving, [shiftId, saving]);
-
   const shiftLabel = (s: OpenShift) => {
     const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
     return `${s.shift_id}${sup}`;
   };
+
+  const validNonNeg =
+    okNonNegOrEmpty(densityOf) &&
+    okNonNegOrEmpty(auSolidOf) &&
+    okNonNegOrEmpty(auSoluOf) &&
+    okNonNegOrEmpty(agSolidOf) &&
+    okNonNegOrEmpty(agSoluOf);
+
+  const validPct = okPct1to100OrEmpty(pct200) && okPct1to100OrEmpty(nacnOf) && okPct1to100OrEmpty(nacnAds) && okPct1to100OrEmpty(nacnTail);
+
+  const validPh = okPh1to14OrEmpty(phOf) && okPh1to14OrEmpty(phAds) && okPh1to14OrEmpty(phTail);
+
+  const canSave = useMemo(() => !!shiftId && validNonNeg && validPct && validPh && !saving, [shiftId, validNonNeg, validPct, validPh, saving]);
 
   async function loadShifts() {
     setLoadingShifts(true);
@@ -265,7 +311,11 @@ export default function ProduccionPage() {
 
       if (h) {
         if (h.density_of !== null && h.density_of !== undefined) setDensityOf(String(h.density_of));
-        if (h.pct_200 !== null && h.pct_200 !== undefined) setPct200(String(h.pct_200));
+
+        if (h.pct_200 !== null && h.pct_200 !== undefined) {
+          const v = Number(h.pct_200);
+          setPct200(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.pct_200));
+        }
 
         if (h.au_solid_of !== null && h.au_solid_of !== undefined) setAuSolidOf(String(h.au_solid_of));
         if (h.au_solu_of !== null && h.au_solu_of !== undefined) setAuSoluOf(String(h.au_solu_of));
@@ -273,9 +323,18 @@ export default function ProduccionPage() {
         if (h.ag_solid_of !== null && h.ag_solid_of !== undefined) setAgSolidOf(String(h.ag_solid_of));
         if (h.ag_solu_of !== null && h.ag_solu_of !== undefined) setAgSoluOf(String(h.ag_solu_of));
 
-        if (h.nacn_of !== null && h.nacn_of !== undefined) setNacnOf(String(h.nacn_of));
-        if (h.nacn_ads !== null && h.nacn_ads !== undefined) setNacnAds(String(h.nacn_ads));
-        if (h.nacn_tail !== null && h.nacn_tail !== undefined) setNacnTail(String(h.nacn_tail));
+        if (h.nacn_of !== null && h.nacn_of !== undefined) {
+          const v = Number(h.nacn_of);
+          setNacnOf(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.nacn_of));
+        }
+        if (h.nacn_ads !== null && h.nacn_ads !== undefined) {
+          const v = Number(h.nacn_ads);
+          setNacnAds(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.nacn_ads));
+        }
+        if (h.nacn_tail !== null && h.nacn_tail !== undefined) {
+          const v = Number(h.nacn_tail);
+          setNacnTail(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.nacn_tail));
+        }
 
         if (h.ph_of !== null && h.ph_of !== undefined) setPhOf(String(h.ph_of));
         if (h.ph_ads !== null && h.ph_ads !== undefined) setPhAds(String(h.ph_ads));
@@ -294,7 +353,6 @@ export default function ProduccionPage() {
   useEffect(() => {
     if (!shiftId) return;
     loadExisting(shiftId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shiftId]);
 
   async function onSave() {
@@ -303,23 +361,18 @@ export default function ProduccionPage() {
     try {
       const payload = {
         shift_id: shiftId.trim().toUpperCase(),
-
-        density_of: toCleanQty(densityOf),
-        pct_200: toCleanQty(pct200),
-
-        au_solid_of: toCleanQty(auSolidOf),
-        au_solu_of: toCleanQty(auSoluOf),
-
-        ag_solid_of: toCleanQty(agSolidOf),
-        ag_solu_of: toCleanQty(agSoluOf),
-
-        nacn_of: toCleanQty(nacnOf),
-        nacn_ads: toCleanQty(nacnAds),
-        nacn_tail: toCleanQty(nacnTail),
-
-        ph_of: toCleanQty(phOf),
-        ph_ads: toCleanQty(phAds),
-        ph_tail: toCleanQty(phTail),
+        density_of: toNumOrNull(densityOf),
+        pct_200: pctStrToDecimalOrNull(pct200),
+        au_solid_of: toNumOrNull(auSolidOf),
+        au_solu_of: toNumOrNull(auSoluOf),
+        ag_solid_of: toNumOrNull(agSolidOf),
+        ag_solu_of: toNumOrNull(agSoluOf),
+        nacn_of: pctStrToDecimalOrNull(nacnOf),
+        nacn_ads: pctStrToDecimalOrNull(nacnAds),
+        nacn_tail: pctStrToDecimalOrNull(nacnTail),
+        ph_of: toNumOrNull(phOf),
+        ph_ads: toNumOrNull(phAds),
+        ph_tail: toNumOrNull(phTail),
       };
 
       await apiPost("/api/planta/produccion/upsert", payload);
@@ -369,7 +422,7 @@ export default function ProduccionPage() {
             items={shifts}
             getKey={(x: OpenShift) => x.shift_id}
             getLabel={(x: OpenShift) => shiftLabel(x)}
-            onSelect={(x: OpenShift) => setShiftId(x.shift_id)}
+            onSelect={(x: OpenShift) => setShiftId(String(x.shift_id || "").trim().toUpperCase())}
             disabled={saving}
           />
 
@@ -389,7 +442,7 @@ export default function ProduccionPage() {
 
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr", alignItems: "start" }}>
             <Input value={densityOf} onChange={(e: any) => setDensityOf(e.target.value)} hint="Densidad (g/l)" />
-            <Input value={pct200} onChange={(e: any) => setPct200(e.target.value)} hint="%-m-200 (Decimal)" />
+            <Input value={pct200} onChange={(e: any) => setPct200(e.target.value)} hint="%-m-200 (1-100)" />
             <div />
 
             <Input value={auSolidOf} onChange={(e: any) => setAuSolidOf(e.target.value)} hint="Au Sólido OF (g/t)" />
@@ -397,14 +450,14 @@ export default function ProduccionPage() {
             <Input value={agSolidOf} onChange={(e: any) => setAgSolidOf(e.target.value)} hint="Ag Sólido OF (g/t)" />
 
             <Input value={agSoluOf} onChange={(e: any) => setAgSoluOf(e.target.value)} hint="Ag Solución OF (g/m³)" />
-            <Input value={nacnOf} onChange={(e: any) => setNacnOf(e.target.value)} hint="%NaCN OF (Decimal)" />
-            <Input value={nacnAds} onChange={(e: any) => setNacnAds(e.target.value)} hint="%NaCN TK1 (Decimal)" />
+            <Input value={nacnOf} onChange={(e: any) => setNacnOf(e.target.value)} hint="%NaCN OF (1-100)" />
+            <Input value={nacnAds} onChange={(e: any) => setNacnAds(e.target.value)} hint="%NaCN TK1 (1-100)" />
 
-            <Input value={nacnTail} onChange={(e: any) => setNacnTail(e.target.value)} hint="%NaCN TK11 (Decimal)" />
-            <Input value={phOf} onChange={(e: any) => setPhOf(e.target.value)} hint="PH OF" />
-            <Input value={phAds} onChange={(e: any) => setPhAds(e.target.value)} hint="PH TK1" />
+            <Input value={nacnTail} onChange={(e: any) => setNacnTail(e.target.value)} hint="%NaCN TK11 (1-100)" />
+            <Input value={phOf} onChange={(e: any) => setPhOf(e.target.value)} hint="PH OF (1-14)" />
+            <Input value={phAds} onChange={(e: any) => setPhAds(e.target.value)} hint="PH TK1 (1-14)" />
 
-            <Input value={phTail} onChange={(e: any) => setPhTail(e.target.value)} hint="PH TK11" />
+            <Input value={phTail} onChange={(e: any) => setPhTail(e.target.value)} hint="PH TK11 (1-14)" />
             <div />
             <div />
           </div>
