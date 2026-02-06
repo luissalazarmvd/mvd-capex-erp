@@ -23,7 +23,7 @@ export default function PortalPage() {
         <Button type="button" size="lg" variant="primary" onClick={() => router.push("/projects")}>
           Proyectos CAPEX
         </Button>
-        <Button type="button" size="lg" variant="ghost" onClick={() => router.push("/guardia")}>
+        <Button type="button" size="lg" variant="ghost" onClick={() => router.push("/planta/guardia")}>
           Planta
         </Button>
       </div>
