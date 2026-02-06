@@ -351,7 +351,6 @@ function buildExportMatrix(args: {
     const dayTotals: Record<string, any> = {};
     for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
 
-    // Total del día
     totalRowIdxs.push(rows.length);
     rows.push([
       fmtDateDdMm(g.dateIso),
@@ -362,7 +361,6 @@ function buildExportMatrix(args: {
       }),
     ]);
 
-    // Detalle
     for (const r of g.rows) {
       rows.push([
         fmtDateDdMm(g.dateIso),
@@ -383,7 +381,7 @@ function buildExportMatrix(args: {
     }
   }
 
-  // Total general (como footer de la web)
+
   totalRowIdxs.push(rows.length);
   rows.push([
     "Total",
@@ -415,7 +413,6 @@ export default function PlantaReportsPage() {
 
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
 
-  // NUEVO: orden por fecha (default: última -> más antigua)
   const [dateOrder, setDateOrder] = useState<"desc" | "asc">("desc");
 
   async function load() {
@@ -489,9 +486,9 @@ export default function PlantaReportsPage() {
     }
 
     const entries = Array.from(m.entries()).sort((a, b) => {
-      // desc: última -> más antigua (default)
+
       if (dateOrder === "desc") return a[0] < b[0] ? 1 : -1;
-      // asc: más antigua -> última
+
       return a[0] > b[0] ? 1 : -1;
     });
 
