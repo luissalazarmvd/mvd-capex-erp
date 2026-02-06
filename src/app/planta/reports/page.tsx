@@ -67,26 +67,8 @@ function isoTodayPe(): string {
   return `${y}-${m}-${d}`;
 }
 
-function addDays(iso: string, days: number): string {
-  if (!iso) return iso;
-  const [y, m, d] = iso.split("-").map((x) => Number(x));
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  const yy = dt.getUTCFullYear();
-  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getUTCDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-}
-
-function clampIso(iso: string) {
-  const max = isoTodayPe();
-  if (!iso) return max;
-  return iso > max ? max : iso;
-}
-
 function parseShiftId(shift_id: string): { dateIso: string; shift: string } {
   const s = String(shift_id || "").trim();
-  // expected: yyyymmdd-A
   const parts = s.split("-");
   const ymd = parts[0] || "";
   const shift = parts[1] || "";
@@ -97,6 +79,11 @@ function parseShiftId(shift_id: string): { dateIso: string; shift: string } {
     return { dateIso: `${y}-${m}-${d}`, shift };
   }
   return { dateIso: "", shift };
+}
+
+function monthStartIso(iso: string) {
+  if (!iso || iso.length !== 10) return iso;
+  return `${iso.slice(0, 7)}-01`;
 }
 
 function toNum(v: any) {
@@ -197,7 +184,7 @@ type ColDef = {
   label: string;
   w?: number;
   agg: Agg;
-  fmt?: (v: any, row?: any) => string;
+  fmt?: (v: any) => string;
 };
 
 function buildColumns(mode: "AU" | "AG"): ColDef[] {
@@ -211,7 +198,6 @@ function buildColumns(mode: "AU" | "AG"): ColDef[] {
     { key: "ag_feed_g", label: "Ag (g) Feed", w: 100, agg: "sum", fmt: (v) => fmtInt(v) },
 
     { key: "operation_hr", label: "Operación (h)", w: 102, agg: "sum", fmt: (v) => fmtFixed(v, 1) },
-    // regla no definida; lo tratamos como promedio simple (sin ponderar)
     { key: "prod_ratio", label: "Ratio (t/h)", w: 96, agg: "avg", fmt: (v) => fmtFixed(v, 1) },
 
     { key: "density_of", label: "Den (g/l)", w: 90, agg: "wavg_tms", fmt: (v) => fmtInt(v) },
@@ -319,14 +305,15 @@ export default function PlantaReportsPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const today = useMemo(() => isoTodayPe(), []);
-  const [dateFrom, setDateFrom] = useState<string>(() => clampIso(addDays(isoTodayPe(), -14)));
-  const [dateTo, setDateTo] = useState<string>(() => clampIso(isoTodayPe()));
-
   const cols = useMemo(() => buildColumns(mode), [mode]);
+
+  // rango por defecto (se setea cuando llega data)
+  const [dateFrom, setDateFrom] = useState<string>(() => monthStartIso(today));
+  const [dateTo, setDateTo] = useState<string>(() => today);
+  const [rangeInit, setRangeInit] = useState(false);
 
   // expand/collapse por día
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
-  const firstLoadRef = useRef(true);
 
   async function load() {
     setLoading(true);
@@ -346,14 +333,38 @@ export default function PlantaReportsPage() {
     load();
   }, []);
 
-  // normaliza rango (from <= to) y clamp a hoy
+  // set defaults según última fecha disponible en la data (una sola vez)
+  useEffect(() => {
+    if (rangeInit) return;
+    if (!allRows.length) return;
+
+    let maxIso = "";
+    for (const r of allRows) {
+      const { dateIso } = parseShiftId(r.shift_id);
+      if (!dateIso) continue;
+      if (!maxIso || dateIso > maxIso) maxIso = dateIso;
+    }
+    const end = maxIso || today;
+    const start = monthStartIso(end);
+
+    setDateTo(end);
+    setDateFrom(start);
+
+    // por defecto: contraído, solo el día más reciente abierto
+    setOpenDays({ [end]: true });
+    setRangeInit(true);
+  }, [allRows, rangeInit, today]);
+
+  // normaliza rango (from <= to) + clamp a hoy
   useEffect(() => {
     const max = today;
     let f = dateFrom ? dateFrom : max;
     let t = dateTo ? dateTo : max;
+
     if (t > max) t = max;
     if (f > max) f = max;
     if (f && t && f > t) f = t;
+
     if (f !== dateFrom) setDateFrom(f);
     if (t !== dateTo) setDateTo(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -378,23 +389,13 @@ export default function PlantaReportsPage() {
       arr.push({ ...r, _shift: shift });
       m.set(dateIso, arr);
     }
-    const out: Group[] = Array.from(m.entries())
+    return Array.from(m.entries())
       .sort((a, b) => (a[0] < b[0] ? 1 : -1)) // desc
       .map(([dateIso, rows]) => ({
         dateIso,
         rows: rows.sort((a, b) => String(a._shift).localeCompare(String(b._shift))),
       }));
-    return out;
   }, [filtered]);
-
-  // al primer armado: abre el día más reciente
-  useEffect(() => {
-    if (!firstLoadRef.current) return;
-    if (!groups.length) return;
-    firstLoadRef.current = false;
-    const newest = groups[0].dateIso;
-    setOpenDays((s) => ({ ...s, [newest]: true }));
-  }, [groups]);
 
   const overallTotals = useMemo(() => {
     const base = filtered;
@@ -404,6 +405,16 @@ export default function PlantaReportsPage() {
     }
     return obj;
   }, [filtered, cols]);
+
+  function onExpandAll() {
+    const next: Record<string, boolean> = {};
+    for (const g of groups) next[g.dateIso] = true;
+    setOpenDays(next);
+  }
+
+  function onCollapseAll() {
+    setOpenDays({});
+  }
 
   const headerBg = "rgb(6, 36, 58)";
   const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
@@ -432,10 +443,7 @@ export default function PlantaReportsPage() {
     whiteSpace: "nowrap",
   };
 
-  const numCell: React.CSSProperties = {
-    ...cellBase,
-    textAlign: "right",
-  };
+  const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -464,6 +472,15 @@ export default function PlantaReportsPage() {
 
           <Button type="button" size="sm" variant="default" onClick={load} disabled={loading}>
             {loading ? "Cargando…" : "Refrescar"}
+          </Button>
+
+          <div style={{ width: 10 }} />
+
+          <Button type="button" size="sm" variant="ghost" onClick={onExpandAll} disabled={loading || !groups.length}>
+            Desglosar todo
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onCollapseAll} disabled={loading || !groups.length}>
+            Contraer todo
           </Button>
         </div>
 
@@ -515,7 +532,7 @@ export default function PlantaReportsPage() {
 
       <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
         {groups.length ? (
-          <Table stickyHeader maxHeight={"calc(100vh - 560px)"}>
+          <Table stickyHeader maxHeight={"calc(100vh - 240px)"}>
             <thead>
               <tr>
                 <th
@@ -575,13 +592,10 @@ export default function PlantaReportsPage() {
               {groups.map((g) => {
                 const dayOpen = !!openDays[g.dateIso];
                 const dayTotals: Record<string, any> = {};
-                for (const c of cols) {
-                  dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
-                }
+                for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
 
                 return (
                   <React.Fragment key={g.dateIso}>
-                    {/* fila "día" (A+B) */}
                     <tr className="capex-tr">
                       <td
                         className="capex-td capex-td-strong"
@@ -627,7 +641,7 @@ export default function PlantaReportsPage() {
 
                       {cols.map((c) => {
                         const v = dayTotals[String(c.key)];
-                        const text = c.fmt ? c.fmt(v, null as any) : v ?? "";
+                        const text = c.fmt ? c.fmt(v) : v ?? "";
                         return (
                           <td
                             key={`day-${g.dateIso}-${String(c.key)}`}
@@ -645,7 +659,6 @@ export default function PlantaReportsPage() {
                       })}
                     </tr>
 
-                    {/* filas detalle (guardias) */}
                     {dayOpen
                       ? g.rows.map((r) => (
                           <tr key={String(r.shift_id || "")} className="capex-tr">
@@ -656,9 +669,7 @@ export default function PlantaReportsPage() {
                                 background: "rgba(0,0,0,.10)",
                                 borderBottom: "1px solid rgba(255,255,255,.06)",
                               }}
-                            >
-                              {/* vacío para que visualmente parezca agrupado */}
-                            </td>
+                            />
                             <td
                               className="capex-td capex-td-strong"
                               style={{
@@ -673,7 +684,7 @@ export default function PlantaReportsPage() {
 
                             {cols.map((c) => {
                               const v = (r as any)[c.key];
-                              const text = c.fmt ? c.fmt(v, r) : v ?? "";
+                              const text = c.fmt ? c.fmt(v) : v ?? "";
                               return (
                                 <td
                                   key={`row-${String(r.shift_id)}-${String(c.key)}`}
@@ -724,7 +735,7 @@ export default function PlantaReportsPage() {
 
                 {cols.map((c) => {
                   const v = overallTotals[String(c.key)];
-                  const text = c.fmt ? c.fmt(v, null as any) : v ?? "";
+                  const text = c.fmt ? c.fmt(v) : v ?? "";
                   return (
                     <td
                       key={`tot-${String(c.key)}`}
@@ -750,8 +761,14 @@ export default function PlantaReportsPage() {
         )}
       </div>
 
+      <div style={{ height: 6 }} />
+
+      <div className="panel-inner" style={{ padding: "10px 12px" }}>
+        <div style={{ fontWeight: 900 }}>Dashboard - Power BI</div>
+      </div>
+
       <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ position: "relative", width: "100%", height: "calc(100vh - 260px)" }}>
+        <div style={{ position: "relative", width: "100%", height: "calc(100vh - 180px)" }}>
           <iframe
             title="MVD - Planta - Reportes"
             src={PBI_PLANTA_REPORTS_URL}
