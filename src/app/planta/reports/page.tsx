@@ -666,8 +666,8 @@ export default function PlantaReportsPage() {
                 const dayTotals: Record<string, any> = {};
                 for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
 
-                const dayBg = "rgb(6, 36, 58)";
-                const rowBg = "rgb(4, 28, 48)";
+                const dayBg = "rgba(0,0,0,.22)";
+                const rowBg = "rgba(0,0,0,.10)";
                 const dayBorder = "1px solid rgba(191, 231, 255, 0.18)";
                 const rowBorder = "1px solid rgba(255,255,255,.06)";
 
