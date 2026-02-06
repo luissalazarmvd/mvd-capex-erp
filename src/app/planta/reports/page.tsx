@@ -4,7 +4,7 @@
 import React from "react";
 
 const PBI_PLANTA_REPORTS_URL =
-  "https://app.powerbi.com/view?r=eyJrIjoiZDRlZjRlNzQtOGNkOS00NTM1LTg3ODUtNzFlMTdmMTBiZjU3IiwidCI6IjYzNzhiZmNkLWRjYjktNDMwZi05Nzc4LWRiNTk3NGRjMmFkYyIsImMiOjR9";
+  "https://app.powerbi.com/view?r=eyJrIjoiOTVmMzI2NWQtZDgzNy00ZGI3LWE5MzMtZjllNDcxOWIyZWU2IiwidCI6IjYzNzhiZmNkLWRjYjktNDMwZi05Nzc4LWRiNTk3NGRjMmFkYyIsImMiOjR9";
 
 export default function PlantaReportsPage() {
   return (

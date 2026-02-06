@@ -1,16 +1,22 @@
 // src/app/planta/relave/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 
 type ShiftRow = {
-  shift_id: string; // YYYYMMDD-A/B
-  shift_date: string; // YYYY-MM-DD
+  shift_id: string;
+  shift_date: string;
   plant_shift: "A" | "B";
   plant_supervisor?: string | null;
+};
+
+type ShiftsResp = {
+  ok: boolean;
+  shifts: ShiftRow[];
+  error?: string;
 };
 
 type GuardiaHeader = {
@@ -18,12 +24,6 @@ type GuardiaHeader = {
   au_solu_tail?: any;
   ag_solid_tail?: any;
   ag_solu_tail?: any;
-};
-
-type ShiftsResp = {
-  ok: boolean;
-  shifts: ShiftRow[];
-  error?: string;
 };
 
 type GuardiaResp = {
@@ -35,14 +35,19 @@ type GuardiaResp = {
 
 type UpsertResp = { ok: boolean; error?: string };
 
-function shiftIdToQuery(shift_id: string) {
+function isIsoDate(s: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim());
+}
+
+function parseShiftIdToQuery(shift_id: string): { date: string; shift: "A" | "B" } | null {
   const s = String(shift_id || "").trim().toUpperCase();
-  const [ymd, sh] = s.split("-");
-  if (!ymd || !sh) return null;
-  if (!/^\d{8}$/.test(ymd)) return null;
-  if (!(sh === "A" || sh === "B")) return null;
+  const m = s.match(/^(\d{8})-([AB])$/);
+  if (!m) return null;
+  const ymd = m[1];
+  const shift = m[2] as "A" | "B";
   const date = `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
-  return { date, shift: sh as "A" | "B" };
+  if (!isIsoDate(date)) return null;
+  return { date, shift };
 }
 
 function toTextNum(v: any) {
@@ -51,18 +56,173 @@ function toTextNum(v: any) {
   return Number.isFinite(n) ? String(n) : "";
 }
 
-// null si vacío; número si válido; NaN si inválido
-function parseNullableNumber(s: string) {
+function parseNullableNumberNonNeg(s: string) {
   const t = String(s ?? "").trim();
   if (!t) return null;
-
-  // soporta coma decimal
   const normalized = t.replace(/\s+/g, "").replace(",", ".");
   const n = Number(normalized);
-  return Number.isFinite(n) ? n : NaN;
+  if (!Number.isFinite(n)) return NaN;
+  if (n < 0) return NaN;
+  return n;
+}
+
+function SearchableDropdown({
+  label,
+  placeholder,
+  value,
+  items,
+  getKey,
+  getLabel,
+  onSelect,
+  disabled,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  items: any[];
+  getKey: (x: any) => string;
+  getLabel: (x: any) => string;
+  onSelect: (x: any) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const boxRef = useRef<HTMLDivElement | null>(null);
+
+  const filtered = useMemo(() => {
+    const qq = q.trim().toLowerCase();
+    if (!qq) return items;
+    return items.filter((it) => {
+      const a = getLabel(it).toLowerCase();
+      const b = getKey(it).toLowerCase();
+      return a.includes(qq) || b.includes(qq);
+    });
+  }, [q, items, getKey, getLabel]);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!boxRef.current) return;
+      if (!boxRef.current.contains(e.target as any)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  return (
+    <div ref={boxRef} style={{ display: "grid", gap: 6, position: "relative" }}>
+      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          value={open ? q : value}
+          placeholder={placeholder}
+          disabled={disabled}
+          onFocus={() => {
+            if (disabled) return;
+            setOpen(true);
+            setQ("");
+          }}
+          onChange={(e) => {
+            setOpen(true);
+            setQ(e.target.value);
+          }}
+          style={{
+            width: "100%",
+            background: "rgba(0,0,0,.10)",
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+            borderRadius: 10,
+            padding: "10px 12px",
+            outline: "none",
+            fontWeight: 900,
+            opacity: disabled ? 0.7 : 1,
+          }}
+        />
+
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen((s) => !s)}
+          style={{
+            width: 44,
+            height: 42,
+            borderRadius: 10,
+            border: "1px solid var(--border)",
+            background: "rgba(0,0,0,.10)",
+            cursor: disabled ? "not-allowed" : "pointer",
+            opacity: disabled ? 0.7 : 1,
+            fontWeight: 900,
+            color: "var(--text)",
+          }}
+          aria-label="Abrir"
+          title="Abrir"
+        >
+          ▾
+        </button>
+      </div>
+
+      {open ? (
+        <div
+          style={{
+            position: "absolute",
+            top: 72,
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            background: "var(--panel)",
+            boxShadow: "0 10px 24px rgba(0,0,0,.25)",
+            maxHeight: 280,
+            overflow: "auto",
+          }}
+        >
+          {filtered.length ? (
+            filtered.map((it) => {
+              const k = getKey(it);
+              const lbl = getLabel(it);
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => {
+                    onSelect(it);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    color: "var(--text)",
+                    fontWeight: 900,
+                    borderBottom: "1px solid rgba(255,255,255,.06)",
+                  }}
+                >
+                  {lbl}
+                </button>
+              );
+            })
+          ) : (
+            <div className="muted" style={{ padding: 12, fontWeight: 800 }}>
+              No hay resultados
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export default function RelavePage() {
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const [loadingShifts, setLoadingShifts] = useState(true);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [shiftId, setShiftId] = useState<string>("");
 
@@ -71,93 +231,143 @@ export default function RelavePage() {
   const [agSolid, setAgSolid] = useState<string>("");
   const [agSolu, setAgSolu] = useState<string>("");
 
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const shiftsSorted = useMemo(() => {
+    const list = Array.isArray(shifts) ? [...shifts] : [];
+    list.sort((a, b) => {
+      const ad = String(a.shift_date || "").replaceAll("-", "");
+      const bd = String(b.shift_date || "").replaceAll("-", "");
+      if (ad !== bd) return bd.localeCompare(ad);
+      const ash = String(a.plant_shift || "");
+      const bsh = String(b.plant_shift || "");
+      if (ash !== bsh) return bsh.localeCompare(ash);
+      return String(b.shift_id || "").localeCompare(String(a.shift_id || ""));
+    });
+    return list;
+  }, [shifts]);
 
-  const selectedShift = useMemo(
-    () => shifts.find((x) => x.shift_id === shiftId) || null,
-    [shifts, shiftId]
-  );
+  const shiftLabel = (s: ShiftRow) => {
+    const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
+    return `${s.shift_id}${sup}`;
+  };
+
+  const canSave = useMemo(() => {
+    if (saving) return false;
+    const sid = String(shiftId || "").trim();
+    if (!sid) return false;
+
+    const a1 = parseNullableNumberNonNeg(auSolid);
+    const a2 = parseNullableNumberNonNeg(auSolu);
+    const g1 = parseNullableNumberNonNeg(agSolid);
+    const g2 = parseNullableNumberNonNeg(agSolu);
+
+    const arr = [a1, a2, g1, g2];
+
+    const anyFilled = [auSolid, auSolu, agSolid, agSolu].some((x) => String(x || "").trim() !== "");
+    if (!anyFilled) return false;
+
+    for (const v of arr) {
+      if (v === null) continue;
+      if (!Number.isFinite(v) || v <= 0) return false;
+    }
+
+    return true;
+  }, [shiftId, auSolid, auSolu, agSolid, agSolu, saving]);
 
   async function loadShifts() {
-    setLoading(true);
+    setLoadingShifts(true);
     setMsg(null);
     try {
-      const r = (await apiGet("/api/planta/shifts?top=400")) as ShiftsResp;
-
-      if (!r?.ok) throw new Error(r?.error || "No se pudo cargar turnos");
-      const list = Array.isArray(r.shifts) ? r.shifts : [];
+      const r = (await apiGet("/api/planta/shifts?top=500")) as ShiftsResp;
+      const list = Array.isArray((r as any)?.shifts) ? ((r as any).shifts as ShiftRow[]) : [];
       setShifts(list);
-      if (!shiftId && list.length) setShiftId(list[0].shift_id);
+      if (list[0]?.shift_id) setShiftId(String(list[0].shift_id || "").trim().toUpperCase());
     } catch (e: any) {
-      setMsg({ type: "err", text: String(e?.message || e) });
+      setShifts([]);
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando guardias");
     } finally {
-      setLoading(false);
+      setLoadingShifts(false);
     }
   }
 
-  async function loadTailForShift(sid: string) {
-    const q = shiftIdToQuery(sid);
+  function clearEntryFields() {
+    setAuSolid("");
+    setAuSolu("");
+    setAgSolid("");
+    setAgSolu("");
+  }
+
+  async function loadExistingForShift(sid: string) {
+    const q = parseShiftIdToQuery(sid);
     if (!q) return;
 
-    setLoading(true);
+    setLoadingExisting(true);
     setMsg(null);
-    try {
-      const r = (await apiGet(`/api/planta/guardia/get?date=${q.date}&shift=${q.shift}`)) as GuardiaResp;
 
-      if (!r?.ok) throw new Error(r?.error || "No se pudo cargar datos del turno");
-      const h = r.header || {};
+    try {
+      const r = (await apiGet(
+        `/api/planta/guardia/get?date=${encodeURIComponent(q.date)}&shift=${encodeURIComponent(q.shift)}`
+      )) as any;
+
+      const h: GuardiaHeader = (r?.header as any) || {};
       setAuSolid(toTextNum(h.au_solid_tail));
       setAuSolu(toTextNum(h.au_solu_tail));
       setAgSolid(toTextNum(h.ag_solid_tail));
       setAgSolu(toTextNum(h.ag_solu_tail));
     } catch (e: any) {
-      setMsg({ type: "err", text: String(e?.message || e) });
+      clearEntryFields();
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando relave");
     } finally {
-      setLoading(false);
+      setLoadingExisting(false);
     }
   }
 
   useEffect(() => {
     loadShifts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (shiftId) loadTailForShift(shiftId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!shiftId) {
+      clearEntryFields();
+      return;
+    }
+    loadExistingForShift(shiftId);
   }, [shiftId]);
 
   async function onSave() {
     setMsg(null);
 
-    if (!shiftId) {
-      setMsg({ type: "err", text: "Selecciona un turno (shift_id)." });
+    const sid = String(shiftId || "").trim().toUpperCase();
+    if (!sid) {
+      setMsg("ERROR: Selecciona un turno (shift_id).");
       return;
     }
 
-    const a1 = parseNullableNumber(auSolid);
-    const a2 = parseNullableNumber(auSolu);
-    const g1 = parseNullableNumber(agSolid);
-    const g2 = parseNullableNumber(agSolu);
+    const a1 = parseNullableNumberNonNeg(auSolid);
+    const a2 = parseNullableNumberNonNeg(auSolu);
+    const g1 = parseNullableNumberNonNeg(agSolid);
+    const g2 = parseNullableNumberNonNeg(agSolu);
 
     const values = [a1, a2, g1, g2];
+    const raw = [auSolid, auSolu, agSolid, agSolu];
 
-    // si el usuario llenó algo: debe ser número y > 0
+    const anyFilled = raw.some((x) => String(x || "").trim() !== "");
+    if (!anyFilled) {
+      setMsg("ERROR: Ingresa al menos un valor.");
+      return;
+    }
+
     for (const v of values) {
-      if (v === null) continue; // vacío permitido
+      if (v === null) continue;
       if (!Number.isFinite(v) || v <= 0) {
-        setMsg({ type: "err", text: "Si llenas un valor, debe ser numérico y mayor a 0." });
+        setMsg("ERROR: Si llenas un valor, debe ser numérico y mayor a 0.");
         return;
       }
     }
 
     setSaving(true);
     try {
-      const payload: any = { shift_id: shiftId };
+      const payload: any = { shift_id: sid };
 
-      // si está vacío, mandamos null para que el API NO toque nada (COALESCE)
       payload.au_solid_tail = a1 === null ? null : a1;
       payload.au_solu_tail = a2 === null ? null : a2;
       payload.ag_solid_tail = g1 === null ? null : g1;
@@ -166,122 +376,127 @@ export default function RelavePage() {
       const r = (await apiPost(`/api/planta/relave/upsert`, payload)) as UpsertResp;
       if (!r?.ok) throw new Error(r?.error || "No se pudo guardar");
 
-      setMsg({ type: "ok", text: "Relave guardado." });
-      await loadTailForShift(shiftId);
+      setMsg(`OK: guardado ${sid} · Relave`);
+      await loadExistingForShift(sid);
     } catch (e: any) {
-      setMsg({ type: "err", text: String(e?.message || e) });
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando relave");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Relave</h1>
-          <p className="text-sm text-muted-foreground">Registro de Au/Ag en colas por turno</p>
-        </div>
+    <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
+      <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ fontWeight: 900 }}>Relave</div>
 
-        <div className="flex gap-2">
-          <Button onClick={loadShifts} disabled={loading || saving}>
-            Recargar
+        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+          <Button type="button" size="sm" variant="ghost" onClick={loadShifts} disabled={loadingShifts || saving}>
+            {loadingShifts ? "Cargando..." : "Recargar"}
           </Button>
-          <Button onClick={onSave} disabled={saving || loading || !shiftId}>
-            {saving ? "Guardando..." : "Guardar"}
-          </Button>
-        </div>
-      </div>
-
-      {msg && (
-        <div
-          className={`mt-4 rounded-md border p-3 text-sm ${
-            msg.type === "ok" ? "border-green-600" : "border-red-600"
-          }`}
-        >
-          {msg.text}
-        </div>
-      )}
-
-      <div className="mt-6 rounded-xl border p-4">
-        <div className="grid gap-3">
-          <label className="text-sm font-medium">Turno (shift_id)</label>
-          <select
-            className="w-full rounded-md border px-3 py-2"
-            value={shiftId}
-            onChange={(e) => setShiftId(e.target.value)}
-            disabled={loading || saving}
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            onClick={onSave}
+            disabled={!canSave || loadingExisting}
+            title={loadingExisting ? "Cargando datos existentes..." : ""}
           >
-            {!shifts.length && <option value="">(Sin turnos)</option>}
-            {shifts.map((s) => (
-              <option key={s.shift_id} value={s.shift_id}>
-                {s.shift_id} — {s.shift_date} — {s.plant_shift}
-                {s.plant_supervisor ? ` — ${s.plant_supervisor}` : ""}
-              </option>
-            ))}
-          </select>
-
-          {selectedShift && (
-            <div className="text-xs text-muted-foreground">
-              Seleccionado: {selectedShift.shift_id} ({selectedShift.shift_date} / {selectedShift.plant_shift})
-            </div>
-          )}
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
         </div>
       </div>
 
-      <div className="mt-6 rounded-xl border p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium">Au Sólido Relave (g/t)</label>
+      {msg ? (
+        <div
+          className="panel-inner"
+          style={{
+            padding: 12,
+            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
+            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            fontWeight: 800,
+          }}
+        >
+          {msg}
+        </div>
+      ) : null}
+
+      <div className="panel-inner" style={{ padding: 14 }}>
+        <div style={{ display: "grid", gap: 12 }}>
+          <SearchableDropdown
+            label="Guardia"
+            placeholder={loadingShifts ? "Cargando guardias..." : "Busca: 20260205-A, supervisor..."}
+            value={shiftId}
+            items={shiftsSorted}
+            getKey={(x: ShiftRow) => x.shift_id}
+            getLabel={(x: ShiftRow) => shiftLabel(x)}
+            onSelect={(x: ShiftRow) => setShiftId(String(x.shift_id || "").trim().toUpperCase())}
+            disabled={saving}
+          />
+
+          {!shiftsSorted.length ? (
+            <div style={{ display: "grid", gap: 6 }}>
+              <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+                Pega el shift_id manual (formato: YYYYMMDD-A o YYYYMMDD-B).
+              </div>
+              <Input
+                placeholder="Ej: 20260205-A"
+                value={shiftId}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShiftId(e.target.value.trim().toUpperCase())}
+                hint="shift_id"
+              />
+            </div>
+          ) : null}
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido Relave (g/t)</div>
             <Input
-              className="mt-1"
+              placeholder="vacío o > 0"
               value={auSolid}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolid(e.target.value)}
-              inputMode="decimal"
-              disabled={loading || saving}
-              placeholder="vacío o > 0"
+              hint=""
             />
           </div>
 
-          <div>
-            <label className="text-sm font-medium">Au Solución Relave (g/m³)</label>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución Relave (g/m³)</div>
             <Input
-              className="mt-1"
+              placeholder="vacío o > 0"
               value={auSolu}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolu(e.target.value)}
-              inputMode="decimal"
-              disabled={loading || saving}
-              placeholder="vacío o > 0"
+              hint=""
             />
           </div>
 
-          <div>
-            <label className="text-sm font-medium">Ag Sólido Relave (g/t)</label>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido Relave (g/t)</div>
             <Input
-              className="mt-1"
+              placeholder="vacío o > 0"
               value={agSolid}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolid(e.target.value)}
-              inputMode="decimal"
-              disabled={loading || saving}
-              placeholder="vacío o > 0"
+              hint=""
             />
           </div>
 
-          <div>
-            <label className="text-sm font-medium">Ag Solución Relave (g/m³)</label>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución Relave (g/m³)</div>
             <Input
-              className="mt-1"
+              placeholder="vacío o > 0"
               value={agSolu}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolu(e.target.value)}
-              inputMode="decimal"
-              disabled={loading || saving}
-              placeholder="vacío o > 0"
+              hint=""
             />
           </div>
-        </div>
 
-        <div className="mt-4 text-xs text-muted-foreground">
-          Guardado por turno (shift_id). Si dejas campos vacíos, no se actualizan.
+          <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+            Guardado por turno (shift_id). Si dejas campos vacíos, no se actualizan.
+          </div>
+
+          {loadingExisting ? (
+            <div className="muted" style={{ fontWeight: 800 }}>
+              Cargando datos existentes…
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
