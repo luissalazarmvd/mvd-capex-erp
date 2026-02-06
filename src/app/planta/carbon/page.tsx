@@ -341,7 +341,6 @@ export default function CarbonPage() {
     textAlign: "center",
   };
 
-  // “dos tablas” visuales: Au y Ag como bloques con su borde redondeado (sin rayas)
   const groupBorder = "1px solid rgba(191, 231, 255, 0.22)";
   const groupBg = "rgba(0,0,0,.08)";
 
@@ -355,41 +354,34 @@ export default function CarbonPage() {
   const agBotBL: React.CSSProperties = { borderBottomLeftRadius: 12 };
   const agBotBR: React.CSSProperties = { borderBottomRightRadius: 12 };
 
-  // separación entre “tablas”
-  const GAP_W = 28;
+  // ✅ mitad de lo que tenías (28 -> 14)
+  const GAP_W = 14;
 
   // sticky de 2 filas de header (Au/Ag + TKs)
   const HEADER_ROW1_H = 44;
 
-  // sticky con “vidrio”: más sólidas pero con blur y un poco de transparencia
-  const stickyGlassBg = "rgba(6, 36, 58, 0.82)"; // menos transparente que antes (pero no sólido)
-  const stickyGlassBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const stickyGlassShadow = "0 8px 18px rgba(0,0,0,.18)";
-  const stickyGlassBlur: React.CSSProperties = {
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-  };
+  // ✅ fondo ENTERO (no transparente) para Au/Ag/TKs/Día sticky
+  const solidHeaderBg = "rgb(6, 36, 58)";
+  const solidHeaderBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const solidHeaderShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyRow1: React.CSSProperties = {
     position: "sticky",
     top: 0,
     zIndex: 8,
-    background: stickyGlassBg,
-    boxShadow: stickyGlassShadow,
-    ...stickyGlassBlur,
+    background: solidHeaderBg,
+    boxShadow: solidHeaderShadow,
   };
 
   const stickyRow2: React.CSSProperties = {
     position: "sticky",
     top: HEADER_ROW1_H,
     zIndex: 7,
-    background: stickyGlassBg,
-    boxShadow: stickyGlassShadow,
-    ...stickyGlassBlur,
+    background: solidHeaderBg,
+    boxShadow: solidHeaderShadow,
   };
 
-  // también aplica “vidrio” al sticky de Día (columna izquierda)
-  const stickyDayBg = "rgba(6, 36, 58, 0.86)";
+  const stickyDayBg = "rgb(6, 36, 58)";
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -471,7 +463,6 @@ export default function CarbonPage() {
                     minWidth: 150,
                     background: stickyDayBg,
                     borderRight: "1px solid rgba(255,255,255,.08)",
-                    ...stickyGlassBlur,
                   }}
                 >
                   Día
@@ -483,8 +474,8 @@ export default function CarbonPage() {
                   style={{
                     ...stickyRow1,
                     textAlign: "center",
-                    background: stickyGlassBg,
-                    border: stickyGlassBorder,
+                    background: solidHeaderBg,
+                    border: solidHeaderBorder,
                     borderBottom: "0",
                     ...auHeadTL,
                     ...auHeadTR,
@@ -504,8 +495,6 @@ export default function CarbonPage() {
                     background: "transparent",
                     borderBottom: "0",
                     boxShadow: "none",
-                    backdropFilter: "none",
-                    WebkitBackdropFilter: "none",
                   }}
                 />
 
@@ -515,8 +504,8 @@ export default function CarbonPage() {
                   style={{
                     ...stickyRow1,
                     textAlign: "center",
-                    background: stickyGlassBg,
-                    border: stickyGlassBorder,
+                    background: solidHeaderBg,
+                    border: solidHeaderBorder,
                     borderBottom: "0",
                     ...agHeadTL,
                     ...agHeadTR,
@@ -534,10 +523,10 @@ export default function CarbonPage() {
                     style={{
                       ...stickyRow2,
                       ...colW,
-                      background: stickyGlassBg,
-                      borderLeft: i === 0 ? stickyGlassBorder : undefined,
-                      borderRight: i === AU_KEYS.length - 1 ? stickyGlassBorder : undefined,
-                      borderBottom: stickyGlassBorder,
+                      background: solidHeaderBg,
+                      borderLeft: i === 0 ? solidHeaderBorder : undefined,
+                      borderRight: i === AU_KEYS.length - 1 ? solidHeaderBorder : undefined,
+                      borderBottom: solidHeaderBorder,
                       ...(i === 0 ? auHeadTL : {}),
                       ...(i === AU_KEYS.length - 1 ? auHeadTR : {}),
                     }}
@@ -557,8 +546,6 @@ export default function CarbonPage() {
                     background: "transparent",
                     borderBottom: "0",
                     boxShadow: "none",
-                    backdropFilter: "none",
-                    WebkitBackdropFilter: "none",
                   }}
                 />
 
@@ -569,10 +556,10 @@ export default function CarbonPage() {
                     style={{
                       ...stickyRow2,
                       ...colW,
-                      background: stickyGlassBg,
-                      borderLeft: i === 0 ? stickyGlassBorder : undefined,
-                      borderRight: i === AG_KEYS.length - 1 ? stickyGlassBorder : undefined,
-                      borderBottom: stickyGlassBorder,
+                      background: solidHeaderBg,
+                      borderLeft: i === 0 ? solidHeaderBorder : undefined,
+                      borderRight: i === AG_KEYS.length - 1 ? solidHeaderBorder : undefined,
+                      borderBottom: solidHeaderBorder,
                       ...(i === 0 ? agHeadTL : {}),
                       ...(i === AG_KEYS.length - 1 ? agHeadTR : {}),
                     }}
