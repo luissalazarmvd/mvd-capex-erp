@@ -47,20 +47,45 @@ function parseShiftIdToQuery(shift_id: string): { date: string; shift: "A" | "B"
   return { date, shift };
 }
 
-function toNumOrNull(v: string) {
-  const s = String(v ?? "").trim();
-  if (!s) return null;
-  const t = s.replace(",", ".").replace(/[^0-9.\-]/g, "");
-  if (!t) return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
+// Validación tipo back (acepta 1,234.56 y 1.234,56, etc.)
+function toDecimalStrOrNullFront(v: string, scale = 18) {
+  const s0 = String(v ?? "").trim();
+  if (!s0) return null;
+
+  let s = s0.replace(/\s+/g, "");
+
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = s.lastIndexOf(",");
+    const lastDot = s.lastIndexOf(".");
+    const decSep = lastComma > lastDot ? "," : ".";
+    const thouSep = decSep === "," ? "." : ",";
+    s = s.split(thouSep).join("");
+    if (decSep === ",") s = s.replace(",", ".");
+  } else if (hasComma && !hasDot) {
+    const parts = s.split(",");
+    if (parts.length === 2 && parts[1].length === 3) s = parts.join("");
+    else s = s.replace(",", ".");
+  } else {
+    const parts = s.split(".");
+    if (parts.length > 2) s = parts.join("");
+  }
+
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  if (n < 0) return null;
+  if (Math.abs(n) > 9e15) return null;
+
+  const f = Math.pow(10, scale);
+  const rounded = Math.round(n * f) / f;
+  return rounded.toFixed(scale);
 }
 
 function qtyOk(v: string) {
-  const n = toNumOrNull(v);
-  return n !== null && n >= 0;
+  return toDecimalStrOrNullFront(v, 18) !== null;
 }
-
 
 function SearchableDropdown({
   label,
@@ -227,7 +252,6 @@ export default function ReactivosPage() {
 
   const canSave = useMemo(() => !!shiftId && !!insumo && qtyOk(qty) && !saving, [shiftId, insumo, qty, saving]);
 
-  // asegura orden (por si el server cambia)
   const shiftsSorted = useMemo(() => {
     const list = Array.isArray(shifts) ? [...shifts] : [];
     list.sort((a, b) => {
@@ -246,7 +270,6 @@ export default function ReactivosPage() {
     setLoadingShifts(true);
     setMsg(null);
     try {
-      // NUEVO: guardias existentes (sin status)
       const r = (await apiGet("/api/planta/shifts?top=500")) as ShiftsResp;
       const list = Array.isArray(r.shifts) ? r.shifts : [];
       setShifts(list);
@@ -271,8 +294,12 @@ export default function ReactivosPage() {
       const cons = r.consumables || [];
       if (insumo) {
         const hit = cons.find((x) => String(x.reagent_name || "").trim() === insumo);
-        if (hit && hit.qty !== null && hit.qty !== undefined) setQty(String(hit.qty));
-        else setQty("");
+        if (hit && hit.qty !== null && hit.qty !== undefined) {
+          const s = String(hit.qty);
+          setQty(s.includes("e") || s.includes("E") ? Number(hit.qty).toFixed(18) : s);
+        } else {
+          setQty("");
+        }
       }
     } catch {
       // si no existe aún, normal
@@ -306,7 +333,7 @@ export default function ReactivosPage() {
         items: [
           {
             reagent_name: insumo,
-            qty: toNumOrNull(qty),
+            qty: qty.trim(), // string, el back lo parsea
           },
         ],
       };
@@ -368,7 +395,6 @@ export default function ReactivosPage() {
             disabled={saving}
           />
 
-          {/* fallback manual si no hay data */}
           {!shiftsSorted.length ? (
             <div style={{ display: "grid", gap: 6 }}>
               <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
