@@ -18,6 +18,15 @@ type ShiftsResp = {
   shifts: ShiftRow[];
 };
 
+type GuardiaGetResp = {
+  ok: boolean;
+  shift_id: string;
+  header: any | null;
+  consumables: { shift_id: string; reagent_name: string; qty: any }[];
+  balls: { shift_id: string; mill: string; reagent_name: any; balls_weight: any }[];
+  duration: any[];
+};
+
 const MILLS = ["M1", "M2", "M3"] as const;
 
 const BALL_SIZES = [
@@ -29,6 +38,21 @@ const BALL_SIZES = [
   `Bola de Acero 3.5"`,
   `Bola de Acero 4"`,
 ] as const;
+
+function isIsoDate(s: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim());
+}
+
+function parseShiftIdToQuery(shift_id: string): { date: string; shift: "A" | "B" } | null {
+  const s = String(shift_id || "").trim().toUpperCase();
+  const m = s.match(/^(\d{8})-([AB])$/);
+  if (!m) return null;
+  const ymd = m[1];
+  const shift = m[2] as "A" | "B";
+  const date = `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
+  if (!isIsoDate(date)) return null;
+  return { date, shift };
+}
 
 function toDecimalStrOrNullFront(v: string, scale = 18) {
   const s0 = String(v ?? "").trim();
@@ -68,7 +92,10 @@ function toDecimalStrOrNullFront(v: string, scale = 18) {
 function qtyOkNonNeg(v: string) {
   const t = String(v ?? "").trim();
   if (!t) return false;
-  return toDecimalStrOrNullFront(t, 18) !== null && Number(t.replace(",", ".")) >= 0;
+  const dec = toDecimalStrOrNullFront(t, 18);
+  if (dec === null) return false;
+  const n = Number(dec);
+  return Number.isFinite(n) && n >= 0;
 }
 
 function Select({
@@ -339,6 +366,7 @@ export default function BolasPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const [loadingShifts, setLoadingShifts] = useState(true);
+  const [loadingExisting, setLoadingExisting] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
@@ -347,6 +375,9 @@ export default function BolasPage() {
   const [mill, setMill] = useState<string>("");
   const [size, setSize] = useState<string>("");
   const [weight, setWeight] = useState<string>("");
+
+  const [loadedKey, setLoadedKey] = useState<string>("");
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
 
   const shiftsSorted = useMemo(() => {
     const list = Array.isArray(shifts) ? [...shifts] : [];
@@ -362,24 +393,24 @@ export default function BolasPage() {
     return list;
   }, [shifts]);
 
-  const canSave = useMemo(() => {
-    const sid = String(shiftId || "").trim();
-    const m = String(mill || "").trim();
-    const sz = String(size || "").trim();
-    const okW = qtyOkNonNeg(weight) && Number(String(weight || "").trim().replace(",", ".")) > 0;
-    return !!sid && !!m && !!sz && okW && !saving;
-  }, [shiftId, mill, size, weight, saving]);
-
   const shiftLabel = (s: ShiftRow) => {
     const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
     return `${s.shift_id}${sup}`;
   };
 
+  const canSave = useMemo(() => {
+    const sid = String(shiftId || "").trim();
+    const m = String(mill || "").trim();
+    const sz = String(size || "").trim();
+    const okW = qtyOkNonNeg(weight) && Number(toDecimalStrOrNullFront(weight, 18) || "0") > 0;
+    return !!sid && !!m && !!sz && okW && !saving;
+  }, [shiftId, mill, size, weight, saving]);
+
   async function loadShifts() {
     setLoadingShifts(true);
     setMsg(null);
     try {
-      const r = (await apiGet("/api/planta/shifts?top=250")) as ShiftsResp;
+      const r = (await apiGet("/api/planta/shifts?top=500")) as ShiftsResp;
       const list = Array.isArray((r as any)?.shifts) ? ((r as any).shifts as ShiftRow[]) : [];
       setShifts(list);
       if (list[0]?.shift_id) setShiftId(String(list[0].shift_id || "").trim().toUpperCase());
@@ -391,9 +422,79 @@ export default function BolasPage() {
     }
   }
 
+  function clearEntryFields() {
+    setSize("");
+    setWeight("");
+    setIsEditingExisting(false);
+    setLoadedKey("");
+  }
+
+  async function loadExistingForShiftMill(sid: string, m: string) {
+    const q = parseShiftIdToQuery(sid);
+    if (!q) return;
+
+    setLoadingExisting(true);
+    setMsg(null);
+
+    try {
+      const r = (await apiGet(
+        `/api/planta/guardia/get?date=${encodeURIComponent(q.date)}&shift=${encodeURIComponent(q.shift)}`
+      )) as GuardiaGetResp;
+
+      const mm = String(m || "").trim().toUpperCase();
+      const hit = (r.balls || []).find((x) => String(x.mill || "").trim().toUpperCase() === mm);
+
+      if (hit) {
+        const rn = hit.reagent_name === null || hit.reagent_name === undefined ? "" : String(hit.reagent_name);
+        setSize(rn);
+
+        if (hit.balls_weight !== null && hit.balls_weight !== undefined) {
+          const s = String(hit.balls_weight);
+          setWeight(s.includes("e") || s.includes("E") ? Number(hit.balls_weight).toFixed(18) : s);
+        } else {
+          setWeight("");
+        }
+
+        setIsEditingExisting(true);
+      } else {
+        setIsEditingExisting(false);
+        setSize("");
+        setWeight("");
+      }
+
+      setLoadedKey(`${String(sid || "").trim().toUpperCase()}|${mm}`);
+    } catch {
+      setIsEditingExisting(false);
+      setSize("");
+      setWeight("");
+      setLoadedKey(`${String(sid || "").trim().toUpperCase()}|${String(m || "").trim().toUpperCase()}`);
+    } finally {
+      setLoadingExisting(false);
+    }
+  }
+
   useEffect(() => {
     loadShifts();
   }, []);
+
+  useEffect(() => {
+    clearEntryFields();
+  }, [shiftId]);
+
+  useEffect(() => {
+    if (!shiftId || !mill) {
+      setIsEditingExisting(false);
+      setLoadedKey("");
+      setSize("");
+      setWeight("");
+      return;
+    }
+
+    const key = `${String(shiftId || "").trim().toUpperCase()}|${String(mill || "").trim().toUpperCase()}`;
+    if (key === loadedKey) return;
+
+    loadExistingForShiftMill(shiftId, mill);
+  }, [shiftId, mill]);
 
   async function onSave() {
     setMsg(null);
@@ -415,10 +516,10 @@ export default function BolasPage() {
       });
 
       if (!r?.ok) throw new Error(r?.error || "No se pudo guardar");
+
       setMsg(`OK: guardado ${sid} · Bolas`);
-      setWeight("");
-      setMill("");
-      setSize("");
+      setIsEditingExisting(true);
+      setLoadedKey(`${sid}|${m}`);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando bolas");
     } finally {
@@ -435,7 +536,14 @@ export default function BolasPage() {
           <Button type="button" size="sm" variant="ghost" onClick={loadShifts} disabled={loadingShifts || saving}>
             {loadingShifts ? "Cargando..." : "Refrescar"}
           </Button>
-          <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            onClick={onSave}
+            disabled={!canSave || loadingExisting}
+            title={loadingExisting ? "Cargando datos existentes..." : ""}
+          >
             {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
@@ -494,7 +602,7 @@ export default function BolasPage() {
             label="Tamaño de Bolas (Pulgadas)"
             value={size}
             onChange={(v) => setSize((v as any) || "")}
-            disabled={saving}
+            disabled={saving || loadingExisting || !shiftId || !mill}
             options={[{ value: "", label: "Selecciona..." }, ...BALL_SIZES.map((x) => ({ value: x, label: x }))]}
           />
 
@@ -504,6 +612,16 @@ export default function BolasPage() {
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWeight(e.target.value)}
             hint="Cantidad (kg)"
           />
+
+          {loadingExisting ? (
+            <div className="muted" style={{ fontWeight: 800 }}>
+              Cargando datos existentes…
+            </div>
+          ) : isEditingExisting && shiftId && mill ? (
+            <div className="muted" style={{ fontWeight: 800 }}>
+              Editando registro existente para {String(shiftId).trim().toUpperCase()} · {String(mill).trim().toUpperCase()}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
