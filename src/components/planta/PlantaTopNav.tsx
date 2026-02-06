@@ -11,6 +11,7 @@ const NAV = [
   { href: "/planta/bolas", label: "Bolas" },
   { href: "/planta/relave", label: "Relave" },
   { href: "/planta/duracion", label: "Duración" },
+  { href: "/planta/carbon", label: "Carbones" },
   { href: "/planta/reports", label: "Reportes" },
 ];
 
