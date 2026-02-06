@@ -6,6 +6,10 @@ import { apiGet } from "../../../lib/apiClient";
 import { Button } from "../../../components/ui/Button";
 import { Table } from "../../../components/ui/Table";
 
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
+
 const PBI_PLANTA_REPORTS_URL =
   "https://app.powerbi.com/view?r=eyJrIjoiOTVmMzI2NWQtZDgzNy00ZGI3LWE5MzMtZjllNDcxOWIyZWU2IiwidCI6IjYzNzhiZmNkLWRjYjktNDMwZi05Nzc4LWRiNTk3NGRjMmFkYyIsImMiOjR9";
 
@@ -329,6 +333,59 @@ type Group = {
   rows: (BalRow & { _shift: string })[];
 };
 
+function buildExportMatrix(args: {
+  groups: Group[];
+  cols: ColDef[];
+  mode: "AU" | "AG";
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const { groups, cols, mode, dateFrom, dateTo } = args;
+
+  const headers = ["Fecha", "Guardia", ...cols.map((c) => c.label)];
+  const rows: any[][] = [];
+
+  for (const g of groups) {
+    const dayTotals: Record<string, any> = {};
+    for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
+
+    // Total del día
+    rows.push([
+      fmtDateDdMm(g.dateIso),
+      "Total",
+      ...cols.map((c) => {
+        const v = dayTotals[String(c.key)];
+        return c.fmt ? c.fmt(v) : v ?? "";
+      }),
+    ]);
+
+    // Detalle (siempre desglosado)
+    for (const r of g.rows) {
+      rows.push([
+        fmtDateDdMm(g.dateIso),
+        String((r as any)._shift || "").toUpperCase(),
+        ...cols.map((c) => {
+          const v =
+            c.key === "prod_ratio"
+              ? safeDiv((r as any).tms, (r as any).operation_hr)
+              : c.key === "au_recu"
+              ? safeDiv((r as any).au_prod, (r as any).au_feed_g)
+              : c.key === "ag_recu"
+              ? safeDiv((r as any).ag_prod, (r as any).ag_feed_g)
+              : (r as any)[c.key];
+
+          return c.fmt ? c.fmt(v) : v ?? "";
+        }),
+      ]);
+    }
+  }
+
+  const fileTag = `${mode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
+  const title = `MVD_Planta_Balance_${fileTag}`;
+
+  return { headers, rows, title };
+}
+
 export default function PlantaReportsPage() {
   const [mode, setMode] = useState<"AU" | "AG">("AU");
   const [allRows, setAllRows] = useState<BalRow[]>([]);
@@ -445,6 +502,78 @@ export default function PlantaReportsPage() {
     return (r as any)[key];
   }
 
+  async function exportExcel() {
+    const { headers, rows, title } = buildExportMatrix({ groups, cols, mode, dateFrom, dateTo });
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Balance");
+
+    // Título
+    ws.addRow([title.replaceAll("_", " ")]);
+    ws.mergeCells(1, 1, 1, headers.length);
+    ws.getRow(1).font = { bold: true, size: 14 };
+
+    ws.addRow([]);
+
+    // Header
+    const headerRow = ws.addRow(headers);
+    headerRow.font = { bold: true };
+
+    // Data
+    for (const r of rows) ws.addRow(r);
+
+    // Autosize simple
+    ws.columns = headers.map((h, idx) => {
+      const maxLen = Math.max(
+        h.length,
+        ...ws
+          .getColumn(idx + 1)
+          .values.filter((v) => typeof v === "string" || typeof v === "number")
+          .map((v: any) => String(v).length)
+      );
+      return { width: Math.min(48, Math.max(10, maxLen + 2)) };
+    });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportPdf() {
+    const { headers, rows, title } = buildExportMatrix({ groups, cols, mode, dateFrom, dateTo });
+
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "pt",
+      format: "a4",
+    });
+
+    doc.setFontSize(11);
+    doc.text(title.replaceAll("_", " "), 40, 30);
+
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      startY: 45,
+      styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak" },
+      headStyles: { fontSize: 7 },
+      margin: { left: 20, right: 20 },
+      tableWidth: "auto",
+    });
+
+    doc.save(`${title}.pdf`);
+  }
+
   const headerBg = "rgb(6, 36, 58)";
   const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
@@ -490,18 +619,18 @@ export default function PlantaReportsPage() {
   };
 
   const stickyLeftFechaCell = (bg: string, z = 5): React.CSSProperties => ({
-  position: "sticky",
-  left: 0,
-  zIndex: z,
-  background: bg,
+    position: "sticky",
+    left: 0,
+    zIndex: z,
+    background: bg,
   });
 
   const stickyLeftGuardiaCell = (bg: string, z = 5): React.CSSProperties => ({
-  position: "sticky",
-  left: W_FECHA,
-  zIndex: z,
-  background: bg,
-  boxShadow: "10px 0 16px rgba(0,0,0,.25)",
+    position: "sticky",
+    left: W_FECHA,
+    zIndex: z,
+    background: bg,
+    boxShadow: "10px 0 16px rgba(0,0,0,.25)",
   });
 
   const stickyLeftFechaFoot: React.CSSProperties = {
@@ -555,6 +684,20 @@ export default function PlantaReportsPage() {
           <Button type="button" size="sm" variant="ghost" onClick={onCollapseAll} disabled={loading || !groups.length}>
             Contraer todo
           </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={exportExcel}
+            disabled={loading || !groups.length}
+          >
+            Exportar Excel
+          </Button>
+
+          <Button type="button" size="sm" variant="ghost" onClick={exportPdf} disabled={loading || !groups.length}>
+            Exportar PDF
+          </Button>
         </div>
 
         <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
@@ -581,10 +724,7 @@ export default function PlantaReportsPage() {
           />
           <div className="muted" style={{ fontWeight: 900, fontSize: 12, alignSelf: "center" }}>
             Regla:
-            <span style={{ opacity: 0.9 }}>
-              {" "}
-              (g/t, g/l) ponderado por TMS · (g, m³, l, TMS) suma · (%) promedio simple
-            </span>
+            <span style={{ opacity: 0.9 }}> (g/t, g/l) ponderado por TMS · (g, m³, l, TMS) suma · (%) promedio simple</span>
           </div>
         </div>
       </div>
