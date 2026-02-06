@@ -241,6 +241,20 @@ export default function ProduccionPage() {
   const [phAds, setPhAds] = useState("");
   const [phTail, setPhTail] = useState("");
 
+  const shiftsSorted = useMemo(() => {
+    const list = Array.isArray(shifts) ? [...shifts] : [];
+    list.sort((a, b) => {
+      const ad = String(a.shift_date || "").replaceAll("-", "");
+      const bd = String(b.shift_date || "").replaceAll("-", "");
+      if (ad !== bd) return bd.localeCompare(ad);
+      const ash = String(a.plant_shift || "");
+      const bsh = String(b.plant_shift || "");
+      if (ash !== bsh) return bsh.localeCompare(ash);
+      return String(b.shift_id || "").localeCompare(String(a.shift_id || ""));
+    });
+    return list;
+  }, [shifts]);
+
   const shiftLabel = (s: OpenShift) => {
     const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
     return `${s.shift_id}${sup}`;
@@ -253,7 +267,8 @@ export default function ProduccionPage() {
     okNonNegOrEmpty(agSolidOf) &&
     okNonNegOrEmpty(agSoluOf);
 
-  const validPct = okPct1to100OrEmpty(pct200) && okPct1to100OrEmpty(nacnOf) && okPct1to100OrEmpty(nacnAds) && okPct1to100OrEmpty(nacnTail);
+  const validPct =
+    okPct1to100OrEmpty(pct200) && okPct1to100OrEmpty(nacnOf) && okPct1to100OrEmpty(nacnAds) && okPct1to100OrEmpty(nacnTail);
 
   const validPh = okPh1to14OrEmpty(phOf) && okPh1to14OrEmpty(phAds) && okPh1to14OrEmpty(phTail);
 
@@ -266,6 +281,19 @@ export default function ProduccionPage() {
       const r = (await apiGet("/api/planta/shifts?top=400")) as ShiftsResp;
       const list = Array.isArray(r.shifts) ? r.shifts : [];
       setShifts(list);
+
+      const sorted = [...list];
+      sorted.sort((a, b) => {
+        const ad = String(a.shift_date || "").replaceAll("-", "");
+        const bd = String(b.shift_date || "").replaceAll("-", "");
+        if (ad !== bd) return bd.localeCompare(ad);
+        const ash = String(a.plant_shift || "");
+        const bsh = String(b.plant_shift || "");
+        if (ash !== bsh) return bsh.localeCompare(ash);
+        return String(b.shift_id || "").localeCompare(String(a.shift_id || ""));
+      });
+
+      if (sorted[0]?.shift_id) setShiftId(String(sorted[0].shift_id || "").trim().toUpperCase());
     } catch (e: any) {
       setShifts([]);
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando guardias");
@@ -419,14 +447,14 @@ export default function ProduccionPage() {
             label="Guardia"
             placeholder={loadingShifts ? "Cargando guardias..." : "Busca: 20260205-A, supervisor..."}
             value={shiftId}
-            items={shifts}
+            items={shiftsSorted}
             getKey={(x: OpenShift) => x.shift_id}
             getLabel={(x: OpenShift) => shiftLabel(x)}
             onSelect={(x: OpenShift) => setShiftId(String(x.shift_id || "").trim().toUpperCase())}
             disabled={saving}
           />
 
-          {!shifts.length ? (
+          {!shiftsSorted.length ? (
             <div style={{ display: "grid", gap: 6 }}>
               <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
                 Si no ves guardias aquí, pega el shift_id manual (formato: YYYYMMDD-A o YYYYMMDD-B).
