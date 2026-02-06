@@ -52,8 +52,9 @@ function toNumOrNaN(s: string) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-function getTodayIsoPe(): string {
-  return isoTodayPe();
+function toNumOrNull(s: string) {
+  const n = toNumOrNaN(s);
+  return Number.isFinite(n) ? n : null;
 }
 
 function Select({
@@ -108,17 +109,33 @@ function DatePicker({
   onChangeIso: (iso: string) => void;
   disabled?: boolean;
 }) {
-  const max = useMemo(() => getTodayIsoPe(), []);
+  const max = useMemo(() => isoTodayPe(), []);
   return (
-    <Input
-      placeholder=""
-      value={valueIso}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChangeIso(e.target.value)}
-      hint="Fecha de la Guardia"
-      type="date"
-      max={max}
-      disabled={disabled}
-    />
+    <div style={{ display: "grid", gap: 6 }}>
+      <div style={{ fontWeight: 900, fontSize: 13 }}>Fecha</div>
+      <input
+        type="date"
+        value={valueIso}
+        max={max}
+        disabled={disabled}
+        onChange={(e) => onChangeIso(e.target.value)}
+        style={{
+          width: "100%",
+          background: "rgba(0,0,0,.10)",
+          border: "1px solid var(--border)",
+          color: "var(--text)",
+          borderRadius: 10,
+          padding: "10px 12px",
+          outline: "none",
+          fontWeight: 900,
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.7 : 1,
+        }}
+      />
+      <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+        Fecha de la Guardia
+      </div>
+    </div>
   );
 }
 
@@ -151,18 +168,17 @@ export default function GuardiaPage() {
     const au = toNumOrNaN(form.au_feed);
     const ag = toNumOrNaN(form.ag_feed);
 
-    const okTmh = !Number.isNaN(tmh) && tmh >= 0;
-    const okH2o = !Number.isNaN(h2o) && h2o > 0 && h2o < 1;
-    const okAu = !Number.isNaN(au) && au >= 0;
-    const okAg = !Number.isNaN(ag) && ag >= 0;
+    const okTmh = Number.isFinite(tmh) && tmh >= 0;
+    const okH2o = Number.isFinite(h2o) && h2o > 0 && h2o < 1;
+    const okAu = Number.isFinite(au) && au >= 0;
+    const okAg = Number.isFinite(ag) && ag >= 0;
 
     return okTmh && okH2o && okAu && okAg;
   }, [form.ag_feed, form.au_feed, form.h2o_pct, form.tmh]);
 
   const dateOk = useMemo(() => {
     if (!form.shift_date) return false;
-    const max = getTodayIsoPe();
-    return form.shift_date <= max;
+    return form.shift_date <= isoTodayPe();
   }, [form.shift_date]);
 
   const canSave = useMemo(() => {
@@ -247,10 +263,10 @@ export default function GuardiaPage() {
         shift_date: form.shift_date,
         plant_shift: form.plant_shift,
         plant_supervisor: form.plant_supervisor,
-        tmh: form.tmh,
-        h2o_pct: form.h2o_pct,
-        au_feed: form.au_feed,
-        ag_feed: form.ag_feed,
+        tmh: toNumOrNull(form.tmh),
+        h2o_pct: toNumOrNull(form.h2o_pct),
+        au_feed: toNumOrNull(form.au_feed),
+        ag_feed: toNumOrNull(form.ag_feed),
       };
 
       const r: any = await apiPost("/api/planta/guardia/upsert", payload);
