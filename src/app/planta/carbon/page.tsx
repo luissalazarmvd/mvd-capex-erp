@@ -1,7 +1,7 @@
 // src/app/planta/carbon/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
@@ -199,6 +199,118 @@ function fromApiRow(r: MonthRow): RowState {
   return out as RowState;
 }
 
+function Select({
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const currentLabel =
+    options.find((o) => o.value === value)?.label ?? options.find((o) => o.value === "")?.label ?? "";
+
+  useEffect(() => {
+    function onDocDown(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as any)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, []);
+
+  return (
+    <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((s) => !s)}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          background: "rgba(0,0,0,.10)",
+          border: "1px solid var(--border)",
+          color: "var(--text)",
+          borderRadius: 10,
+          padding: "10px 12px",
+          outline: "none",
+          fontWeight: 900,
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.7 : 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          height: 38,
+          minWidth: 190,
+        }}
+      >
+        <span style={{ opacity: value ? 1 : 0.6 }}>{currentLabel}</span>
+        <span style={{ opacity: 0.8 }}>▾</span>
+      </button>
+
+      {open ? (
+        <div style={{ position: "relative", zIndex: 50 }}>
+          <div
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 0,
+              right: 0,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,.10)",
+              background: "rgba(5, 25, 45, .98)",
+              boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+              overflow: "hidden",
+            }}
+          >
+            {options.map((o) => {
+              const active = o.value === value;
+              const isEmpty = o.value === "";
+              return (
+                <button
+                  key={o.value || "__empty__"}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 900,
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as any).style.background = active
+                      ? "rgba(102,199,255,.18)"
+                      : "rgba(255,255,255,.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as any).style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function CarbonPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -354,13 +466,10 @@ export default function CarbonPage() {
   const agBotBL: React.CSSProperties = { borderBottomLeftRadius: 12 };
   const agBotBR: React.CSSProperties = { borderBottomRightRadius: 12 };
 
-  // ✅ mitad de lo que tenías (28 -> 14)
   const GAP_W = 14;
 
-  // sticky de 2 filas de header (Au/Ag + TKs)
   const HEADER_ROW1_H = 44;
 
-  // ✅ fondo ENTERO (no transparente) para Au/Ag/TKs/Día sticky
   const solidHeaderBg = "rgb(6, 36, 58)";
   const solidHeaderBorder = "1px solid rgba(191, 231, 255, 0.26)";
   const solidHeaderShadow = "0 8px 18px rgba(0,0,0,.18)";
@@ -383,6 +492,11 @@ export default function CarbonPage() {
 
   const stickyDayBg = "rgb(6, 36, 58)";
 
+  const monthOptions = useMemo(
+    () => MONTHS.map((m) => ({ value: String(m.value), label: m.label })),
+    []
+  );
+
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
@@ -392,28 +506,12 @@ export default function CarbonPage() {
           <Input value={year} onChange={(e: any) => setYear(String(e.target.value || "").trim())} hint="Año (YYYY)" />
 
           <div style={{ display: "grid", gap: 4 }}>
-            <select
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-              style={{
-                minWidth: 190,
-                height: 38,
-                borderRadius: 10,
-                padding: "0 12px",
-                background: "rgba(0,0,0,.10)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                fontWeight: 900,
-                outline: "none",
-              }}
+            <Select
+              value={String(month)}
+              onChange={(v) => setMonth(Number(v))}
               disabled={loading || savingAll}
-            >
-              {MONTHS.map((m) => (
-                <option key={m.value} value={m.value} style={{ color: "#000" }}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+              options={monthOptions}
+            />
             <div className="muted" style={{ fontWeight: 900, fontSize: 12, paddingLeft: 2 }}>
               Mes
             </div>
