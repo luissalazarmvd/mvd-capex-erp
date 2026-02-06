@@ -386,6 +386,19 @@ export default function ReactivosPage() {
       const r = (await apiGet("/api/planta/shifts?top=500")) as ShiftsResp;
       const list = Array.isArray(r.shifts) ? r.shifts : [];
       setShifts(list);
+
+      const sorted = [...list];
+      sorted.sort((a, b) => {
+        const ad = String(a.shift_date || "").replaceAll("-", "");
+        const bd = String(b.shift_date || "").replaceAll("-", "");
+        if (ad !== bd) return bd.localeCompare(ad);
+        const ash = String(a.plant_shift || "");
+        const bsh = String(b.plant_shift || "");
+        if (ash !== bsh) return bsh.localeCompare(ash);
+        return String(b.shift_id || "").localeCompare(String(a.shift_id || ""));
+      });
+
+      if (sorted[0]?.shift_id) setShiftId(String(sorted[0].shift_id || "").trim().toUpperCase());
     } catch (e: any) {
       setShifts([]);
       setMsg("No pude cargar guardias. Puedes pegar el shift_id manual (YYYYMMDD-A/B).");
@@ -458,9 +471,9 @@ export default function ReactivosPage() {
   }
 
   const shiftLabel = (s: ShiftRow) => {
-  const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
-  return `${s.shift_id}${sup}`;
-};
+    const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
+    return `${s.shift_id}${sup}`;
+  };
 
   return (
     <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
@@ -523,10 +536,7 @@ export default function ReactivosPage() {
             value={insumo}
             onChange={(v) => setInsumo((v as any) || "")}
             disabled={saving}
-            options={[
-              { value: "", label: "— Selecciona —" },
-              ...INSUMOS.map((x) => ({ value: x.value, label: x.label })),
-            ]}
+            options={[{ value: "", label: "— Selecciona —" }, ...INSUMOS.map((x) => ({ value: x.value, label: x.label }))]}
           />
 
           <Input
