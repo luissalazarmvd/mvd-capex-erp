@@ -1,7 +1,7 @@
 // src/app/(planta)/guardia/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
@@ -25,7 +25,7 @@ type Form = {
   plant_shift: "A" | "B" | "";
   plant_supervisor: string;
   tmh: string;
-  h2o_pct: string;
+  h2o_pct: string; // UI: 1-100 (porcentaje)
   au_feed: string;
   ag_feed: string;
 };
@@ -57,6 +57,15 @@ function toNumOrNull(s: string) {
   return Number.isFinite(n) ? n : null;
 }
 
+function clampStrPctToDecimalOrNull(s: string) {
+  // UI: 1..100  => SQL: 0.01..1.00
+  const pct = toNumOrNull(s);
+  if (pct === null) return null;
+  if (pct < 1 || pct > 100) return null;
+  return pct / 100;
+}
+
+/** Select custom (para que el dropdown se vea con fondo azul oscuro + texto blanco) */
 function Select({
   label,
   value,
@@ -70,15 +79,32 @@ function Select({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const currentLabel =
+    options.find((o) => o.value === value)?.label ?? options.find((o) => o.value === "")?.label ?? "";
+
+  useEffect(() => {
+    function onDocDown(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as any)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, []);
+
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
       <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
-      <select
-        value={value}
+
+      <button
+        type="button"
         disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
+        onClick={() => !disabled && setOpen((s) => !s)}
         style={{
           width: "100%",
+          textAlign: "left",
           background: "rgba(0,0,0,.10)",
           border: "1px solid var(--border)",
           color: "var(--text)",
@@ -88,14 +114,73 @@ function Select({
           fontWeight: 900,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
         }}
       >
-        {options.map((o) => (
-          <option key={o.value || "__empty__"} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        <span style={{ opacity: value ? 1 : 0.6 }}>{currentLabel}</span>
+        <span style={{ opacity: 0.8 }}>▾</span>
+      </button>
+
+      {open ? (
+        <div
+          style={{
+            position: "relative",
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 0,
+              right: 0,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,.10)",
+              background: "rgba(5, 25, 45, .98)", // azul oscuro
+              boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+              overflow: "hidden",
+            }}
+          >
+            {options.map((o) => {
+              const active = o.value === value;
+              const isEmpty = o.value === "";
+              return (
+                <button
+                  key={o.value || "__empty__"}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 900,
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as any).style.background = active
+                      ? "rgba(102,199,255,.18)"
+                      : "rgba(255,255,255,.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as any).style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -132,9 +217,7 @@ function DatePicker({
           opacity: disabled ? 0.7 : 1,
         }}
       />
-      <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
-        Fecha de la Guardia
-      </div>
+      {/* ✅ QUITADO: "Fecha de la Guardia" */}
     </div>
   );
 }
@@ -152,7 +235,7 @@ export default function GuardiaPage() {
     plant_shift: "",
     plant_supervisor: "",
     tmh: "",
-    h2o_pct: "",
+    h2o_pct: "", // UI: 1-100
     au_feed: "",
     ag_feed: "",
   });
@@ -164,12 +247,12 @@ export default function GuardiaPage() {
 
   const metricsOk = useMemo(() => {
     const tmh = toNumOrNaN(form.tmh);
-    const h2o = toNumOrNaN(form.h2o_pct);
+    const h2oPct = toNumOrNaN(form.h2o_pct); // UI: 1..100
     const au = toNumOrNaN(form.au_feed);
     const ag = toNumOrNaN(form.ag_feed);
 
     const okTmh = Number.isFinite(tmh) && tmh >= 0;
-    const okH2o = Number.isFinite(h2o) && h2o > 0 && h2o < 1;
+    const okH2o = Number.isFinite(h2oPct) && h2oPct >= 1 && h2oPct <= 100; // ✅ 1..100
     const okAu = Number.isFinite(au) && au >= 0;
     const okAg = Number.isFinite(ag) && ag >= 0;
 
@@ -220,7 +303,11 @@ export default function GuardiaPage() {
           ...s,
           plant_supervisor: (h.plant_supervisor ?? s.plant_supervisor) as string,
           tmh: h.tmh === null || h.tmh === undefined ? "" : String(h.tmh),
-          h2o_pct: h.h2o_pct === null || h.h2o_pct === undefined ? "" : String(h.h2o_pct),
+          // ✅ SQL guarda decimal (0-1). UI muestra 1-100:
+          h2o_pct:
+            h.h2o_pct === null || h.h2o_pct === undefined
+              ? ""
+              : String(Math.round(Number(h.h2o_pct) * 100 * 1000) / 1000), // 3 dec en %
           au_feed: h.au_feed === null || h.au_feed === undefined ? "" : String(h.au_feed),
           ag_feed: h.ag_feed === null || h.ag_feed === undefined ? "" : String(h.ag_feed),
         }));
@@ -264,7 +351,8 @@ export default function GuardiaPage() {
         plant_shift: form.plant_shift,
         plant_supervisor: form.plant_supervisor,
         tmh: toNumOrNull(form.tmh),
-        h2o_pct: toNumOrNull(form.h2o_pct),
+        // ✅ UI 1..100 => SQL decimal 0..1
+        h2o_pct: clampStrPctToDecimalOrNull(form.h2o_pct),
         au_feed: toNumOrNull(form.au_feed),
         ag_feed: toNumOrNull(form.ag_feed),
       };
@@ -354,7 +442,7 @@ export default function GuardiaPage() {
               placeholder=""
               value={form.h2o_pct}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, h2o_pct: e.target.value }))}
-              hint="%Humedad (Decimal)"
+              hint="%Humedad (1-100)"
             />
           </div>
 
