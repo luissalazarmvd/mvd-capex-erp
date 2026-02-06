@@ -30,20 +30,42 @@ type Form = {
   ag_feed: string;
 };
 
-function isoTodayPe(): string {
-  // Simple: hoy en Perú (-05)
+function getTodayPeParts() {
   const now = new Date();
   const pe = new Date(now.getTime() - 5 * 60 * 60 * 1000);
-  const y = pe.getUTCFullYear();
-  const m = String(pe.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(pe.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return {
+    y: pe.getUTCFullYear(),
+    m: pe.getUTCMonth() + 1,
+    d: pe.getUTCDate(),
+  };
+}
+
+function isoFromParts(y: number, m: number, d: number) {
+  const mm = String(m).padStart(2, "0");
+  const dd = String(d).padStart(2, "0");
+  return `${y}-${mm}-${dd}`;
+}
+
+function isoTodayPe(): string {
+  const t = getTodayPeParts();
+  return isoFromParts(t.y, t.m, t.d);
+}
+
+function daysInMonth(y: number, m: number) {
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
 function buildShiftId(shift_date: string, plant_shift: "A" | "B" | "") {
   if (!shift_date || (plant_shift !== "A" && plant_shift !== "B")) return "";
   const ymd = shift_date.replaceAll("-", "");
   return `${ymd}-${plant_shift}`;
+}
+
+function toNumOrNaN(s: string) {
+  if (!s) return NaN;
+  const t = String(s).trim().replace(",", ".");
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 function Select({
@@ -89,6 +111,173 @@ function Select({
   );
 }
 
+function DateDropdown({
+  valueIso,
+  onChangeIso,
+  disabled,
+}: {
+  valueIso: string;
+  onChangeIso: (iso: string) => void;
+  disabled?: boolean;
+}) {
+  const today = useMemo(() => getTodayPeParts(), []);
+  const parsed = useMemo(() => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valueIso || "");
+    if (!m) return { y: today.y, mo: today.m, d: today.d };
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return { y: today.y, mo: today.m, d: today.d };
+    return { y, mo, d };
+  }, [valueIso, today.d, today.m, today.y]);
+
+  const yearMin = Math.min(2020, today.y);
+  const years = useMemo(() => {
+    const arr: number[] = [];
+    for (let y = yearMin; y <= today.y; y++) arr.push(y);
+    return arr;
+  }, [today.y, yearMin]);
+
+  const months = useMemo(() => {
+    const maxM = parsed.y === today.y ? today.m : 12;
+    const arr: number[] = [];
+    for (let m = 1; m <= maxM; m++) arr.push(m);
+    return arr;
+  }, [parsed.y, today.m, today.y]);
+
+  const maxDay = useMemo(() => {
+    const dim = daysInMonth(parsed.y, parsed.mo);
+    if (parsed.y === today.y && parsed.mo === today.m) return Math.min(dim, today.d);
+    return dim;
+  }, [parsed.mo, parsed.y, today.d, today.m, today.y]);
+
+  const days = useMemo(() => {
+    const arr: number[] = [];
+    for (let d = 1; d <= maxDay; d++) arr.push(d);
+    return arr;
+  }, [maxDay]);
+
+  const safeParts = useMemo(() => {
+    let y = parsed.y;
+    let mo = parsed.mo;
+    let d = parsed.d;
+
+    if (y > today.y) y = today.y;
+    if (y === today.y && mo > today.m) mo = today.m;
+
+    const dim = daysInMonth(y, mo);
+    let maxD = dim;
+    if (y === today.y && mo === today.m) maxD = Math.min(dim, today.d);
+    if (d > maxD) d = maxD;
+    if (d < 1) d = 1;
+
+    return { y, mo, d };
+  }, [parsed.d, parsed.mo, parsed.y, today.d, today.m, today.y]);
+
+  useEffect(() => {
+    const iso = isoFromParts(safeParts.y, safeParts.mo, safeParts.d);
+    if (iso !== valueIso) onChangeIso(iso);
+  }, [safeParts.d, safeParts.mo, safeParts.y, onChangeIso, valueIso]);
+
+  const yVal = String(safeParts.y);
+  const mVal = String(safeParts.mo);
+  const dVal = String(safeParts.d);
+
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <div style={{ fontWeight: 900, fontSize: 13 }}>Fecha</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+        <select
+          value={yVal}
+          disabled={disabled}
+          onChange={(e) => {
+            const y = Number(e.target.value);
+            const iso = isoFromParts(y, safeParts.mo, safeParts.d);
+            onChangeIso(iso);
+          }}
+          style={{
+            width: "100%",
+            background: "rgba(0,0,0,.10)",
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+            borderRadius: 10,
+            padding: "10px 12px",
+            outline: "none",
+            fontWeight: 900,
+            cursor: disabled ? "not-allowed" : "pointer",
+            opacity: disabled ? 0.7 : 1,
+          }}
+        >
+          {years.map((y) => (
+            <option key={y} value={String(y)}>
+              {y}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={mVal}
+          disabled={disabled}
+          onChange={(e) => {
+            const mo = Number(e.target.value);
+            const iso = isoFromParts(safeParts.y, mo, safeParts.d);
+            onChangeIso(iso);
+          }}
+          style={{
+            width: "100%",
+            background: "rgba(0,0,0,.10)",
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+            borderRadius: 10,
+            padding: "10px 12px",
+            outline: "none",
+            fontWeight: 900,
+            cursor: disabled ? "not-allowed" : "pointer",
+            opacity: disabled ? 0.7 : 1,
+          }}
+        >
+          {months.map((m) => (
+            <option key={m} value={String(m)}>
+              {String(m).padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={dVal}
+          disabled={disabled}
+          onChange={(e) => {
+            const d = Number(e.target.value);
+            const iso = isoFromParts(safeParts.y, safeParts.mo, d);
+            onChangeIso(iso);
+          }}
+          style={{
+            width: "100%",
+            background: "rgba(0,0,0,.10)",
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+            borderRadius: 10,
+            padding: "10px 12px",
+            outline: "none",
+            fontWeight: 900,
+            cursor: disabled ? "not-allowed" : "pointer",
+            opacity: disabled ? 0.7 : 1,
+          }}
+        >
+          {days.map((d) => (
+            <option key={d} value={String(d)}>
+              {String(d).padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+        Fecha de la Guardia
+      </div>
+    </div>
+  );
+}
+
 export default function GuardiaPage() {
   const [supervisors, setSupervisors] = useState<string[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -112,14 +301,29 @@ export default function GuardiaPage() {
     [form.shift_date, form.plant_shift]
   );
 
+  const metricsOk = useMemo(() => {
+    const tmh = toNumOrNaN(form.tmh);
+    const h2o = toNumOrNaN(form.h2o_pct);
+    const au = toNumOrNaN(form.au_feed);
+    const ag = toNumOrNaN(form.ag_feed);
+
+    const okTmh = Number.isFinite(tmh) && tmh >= 0;
+    const okH2o = Number.isFinite(h2o) && h2o > 0 && h2o < 1;
+    const okAu = Number.isFinite(au) && au >= 0;
+    const okAg = Number.isFinite(ag) && ag >= 0;
+
+    return okTmh && okH2o && okAu && okAg;
+  }, [form.ag_feed, form.au_feed, form.h2o_pct, form.tmh]);
+
   const canSave = useMemo(() => {
     return (
       !!form.shift_date &&
       (form.plant_shift === "A" || form.plant_shift === "B") &&
       !!form.plant_supervisor.trim() &&
+      metricsOk &&
       !saving
     );
-  }, [form.shift_date, form.plant_shift, form.plant_supervisor, saving]);
+  }, [form.shift_date, form.plant_shift, form.plant_supervisor, metricsOk, saving]);
 
   async function loadLookups() {
     setLoadingLookups(true);
@@ -146,8 +350,6 @@ export default function GuardiaPage() {
       const h = r.header;
 
       if (h) {
-        // Si existe registro: precargar valores.
-        // Ojo: el backend ya está con "null no pisa", así que aquí podemos mandar strings vacíos o mantener.
         setForm((s) => ({
           ...s,
           plant_supervisor: (h.plant_supervisor ?? s.plant_supervisor) as string,
@@ -158,7 +360,6 @@ export default function GuardiaPage() {
         }));
         setMsg(`OK: cargado ${r.shift_id}`);
       } else {
-        // Si no hay: limpiar inputs numéricos pero mantener fecha/guardia
         setForm((s) => ({
           ...s,
           tmh: "",
@@ -169,8 +370,6 @@ export default function GuardiaPage() {
         setMsg(null);
       }
     } catch (e: any) {
-      // Si falla por "no existe", ideal sería que el API devuelva ok=true, header=null (ya lo hace).
-      // Igual, no spamear error si no encontramos.
       const m = String(e?.message || "");
       if (m.includes("400") || m.includes("404")) {
         setMsg(null);
@@ -188,19 +387,15 @@ export default function GuardiaPage() {
 
   useEffect(() => {
     loadExistingIfAny(form.shift_date, form.plant_shift);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.shift_date, form.plant_shift]);
 
   async function onSave() {
     setMsg(null);
     setSaving(true);
     try {
-      // Importante:
-      // - En tu server.js: dec18OrNull("") => null. Eso está perfecto: null NO pisa.
-      // - Si el usuario pone 0, se manda "0" => 0.000... y SÍ pisa.
       const payload = {
         shift_date: form.shift_date,
-        plant_shift: form.plant_shift, // A/B
+        plant_shift: form.plant_shift,
         plant_supervisor: form.plant_supervisor,
         tmh: form.tmh,
         h2o_pct: form.h2o_pct,
@@ -252,13 +447,10 @@ export default function GuardiaPage() {
       <div className="panel-inner" style={{ padding: 14 }}>
         <div style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gridTemplateColumns: "260px 200px 1fr", gap: 12, alignItems: "end" }}>
-            <Input
-              placeholder="YYYY-MM-DD"
-              value={form.shift_date}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setForm((s) => ({ ...s, shift_date: e.target.value }))
-              }
-              hint="Fecha de la Guardia"
+            <DateDropdown
+              valueIso={form.shift_date}
+              onChangeIso={(iso) => setForm((s) => ({ ...s, shift_date: iso }))}
+              disabled={saving}
             />
 
             <Select
