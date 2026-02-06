@@ -312,19 +312,18 @@ function Select({
 }
 
 export default function CarbonPage() {
-  const [msg, setMsg] = useState<string | null>(null);
-
   const init = useMemo(() => defaultYearMonth(), []);
   const [year, setYear] = useState<string>(init.year);
   const [month, setMonth] = useState<number>(init.month);
 
-  const ym = useMemo(() => ymFromInputs(year, month) ?? "", [year, month]);
-
+  const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
 
   const [rows, setRows] = useState<RowState[]>([]);
   const [dirty, setDirty] = useState<Record<string, true>>({});
+
+  const ym = useMemo(() => ymFromInputs(year, month) ?? "", [year, month]);
 
   const isYmValid = useMemo(
     () => /^\d{6}$/.test(String(ym || "").trim()) && daysInMonth(ym.trim()) > 0,
@@ -381,9 +380,12 @@ export default function CarbonPage() {
   }
 
   useEffect(() => {
-    const initialYm = ymFromInputs(init.year, init.month);
-    if (initialYm) loadMonth(initialYm);
-  }, []);
+    if (!isYmValid) return;
+    if (savingAll) return;
+    const hasDirty = Object.keys(dirty).length > 0;
+    if (hasDirty) return;
+    loadMonth(ym);
+  }, [ym, isYmValid]);
 
   function setCell(day: string, key: FieldKey, value: string) {
     setRows((prev) =>
@@ -492,10 +494,7 @@ export default function CarbonPage() {
 
   const stickyDayBg = "rgb(6, 36, 58)";
 
-  const monthOptions = useMemo(
-    () => MONTHS.map((m) => ({ value: String(m.value), label: m.label })),
-    []
-  );
+  const monthOptions = useMemo(() => MONTHS.map((m) => ({ value: String(m.value), label: m.label })), []);
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -503,23 +502,21 @@ export default function CarbonPage() {
         <div style={{ fontWeight: 900 }}>Carbones</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Input value={year} onChange={(e: any) => setYear(String(e.target.value || "").trim())} hint="Año (YYYY)" />
+          <Input
+            value={year}
+            onChange={(e: any) => {
+              const v = String(e.target.value || "").trim();
+              setYear(v);
+            }}
+            hint="Año (YYYY)"
+          />
 
           <div style={{ display: "grid", gap: 4 }}>
-            <Select
-              value={String(month)}
-              onChange={(v) => setMonth(Number(v))}
-              disabled={loading || savingAll}
-              options={monthOptions}
-            />
+            <Select value={String(month)} onChange={(v) => setMonth(Number(v))} disabled={loading || savingAll} options={monthOptions} />
             <div className="muted" style={{ fontWeight: 900, fontSize: 12, paddingLeft: 2 }}>
               Mes
             </div>
           </div>
-
-          <Button type="button" size="sm" variant="ghost" onClick={() => loadMonth(ym)} disabled={loading || savingAll || !isYmValid}>
-            {loading ? "Cargando…" : "Cargar"}
-          </Button>
 
           <Button type="button" size="sm" variant="primary" onClick={saveAll} disabled={!canSaveAll}>
             {savingAll ? "Guardando…" : "Guardar cambios"}
