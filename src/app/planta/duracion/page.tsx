@@ -52,19 +52,19 @@ function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, x));
 }
 
-function fmtMinToHHMM(mins: number) {
-  const m = clampInt(mins, 0, 24 * 60); // o 720 si solo quieres 0..720
-  const hh = String(Math.floor(m / 60)).padStart(2, "0");
-  const mm = String(m % 60).padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-
 function parseIntSafeNonNeg(s: string) {
   const t = String(s ?? "").trim();
   if (!t) return 0;
   const n = Number(t);
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.trunc(n));
+}
+
+function fmtMinToHHMM(mins: number) {
+  const m = clampInt(mins, 0, 24 * 60);
+  const hh = String(Math.floor(m / 60)).padStart(2, "0");
+  const mm = String(m % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 
 function SearchableDropdown({
