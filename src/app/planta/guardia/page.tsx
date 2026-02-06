@@ -57,15 +57,13 @@ function toNumOrNull(s: string) {
   return Number.isFinite(n) ? n : null;
 }
 
-function clampStrPctToDecimalOrNull(s: string) {
-
+function clampStrPct_1to100_OrNull(s: string) {
   const pct = toNumOrNull(s);
   if (pct === null) return null;
   if (pct < 1 || pct > 100) return null;
-  return pct / 100;
+  return pct;
 }
 
-/** Select custom (para que el dropdown se vea con fondo azul oscuro + texto blanco) */
 function Select({
   label,
   value,
@@ -125,12 +123,7 @@ function Select({
       </button>
 
       {open ? (
-        <div
-          style={{
-            position: "relative",
-            zIndex: 50,
-          }}
-        >
+        <div style={{ position: "relative", zIndex: 50 }}>
           <div
             style={{
               position: "absolute",
@@ -217,7 +210,6 @@ function DatePicker({
           opacity: disabled ? 0.7 : 1,
         }}
       />
-      {/* ✅ QUITADO: "Fecha de la Guardia" */}
     </div>
   );
 }
@@ -240,10 +232,7 @@ export default function GuardiaPage() {
     ag_feed: "",
   });
 
-  const shift_id = useMemo(
-    () => buildShiftId(form.shift_date, form.plant_shift),
-    [form.shift_date, form.plant_shift]
-  );
+  const shift_id = useMemo(() => buildShiftId(form.shift_date, form.plant_shift), [form.shift_date, form.plant_shift]);
 
   const metricsOk = useMemo(() => {
     const tmh = toNumOrNaN(form.tmh);
@@ -303,11 +292,7 @@ export default function GuardiaPage() {
           ...s,
           plant_supervisor: (h.plant_supervisor ?? s.plant_supervisor) as string,
           tmh: h.tmh === null || h.tmh === undefined ? "" : String(h.tmh),
-
-          h2o_pct:
-            h.h2o_pct === null || h.h2o_pct === undefined
-              ? ""
-              : String(Math.round(Number(h.h2o_pct) * 100 * 1000) / 1000),
+          h2o_pct: h.h2o_pct === null || h.h2o_pct === undefined ? "" : String(h.h2o_pct),
           au_feed: h.au_feed === null || h.au_feed === undefined ? "" : String(h.au_feed),
           ag_feed: h.ag_feed === null || h.ag_feed === undefined ? "" : String(h.ag_feed),
         }));
@@ -351,8 +336,7 @@ export default function GuardiaPage() {
         plant_shift: form.plant_shift,
         plant_supervisor: form.plant_supervisor,
         tmh: toNumOrNull(form.tmh),
-
-        h2o_pct: clampStrPctToDecimalOrNull(form.h2o_pct),
+        h2o_pct: clampStrPct_1to100_OrNull(form.h2o_pct),
         au_feed: toNumOrNull(form.au_feed),
         ag_feed: toNumOrNull(form.ag_feed),
       };
