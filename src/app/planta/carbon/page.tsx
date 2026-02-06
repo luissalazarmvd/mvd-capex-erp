@@ -355,13 +355,41 @@ export default function CarbonPage() {
   const agBotBL: React.CSSProperties = { borderBottomLeftRadius: 12 };
   const agBotBR: React.CSSProperties = { borderBottomRightRadius: 12 };
 
-  // separación más notoria
+  // separación entre “tablas”
   const GAP_W = 28;
 
   // sticky de 2 filas de header (Au/Ag + TKs)
-  const HEADER_ROW1_H = 44; // ajustable si tu CSS cambia
-  const stickyRow1: React.CSSProperties = { position: "sticky", top: 0, zIndex: 8 };
-  const stickyRow2: React.CSSProperties = { position: "sticky", top: HEADER_ROW1_H, zIndex: 7 };
+  const HEADER_ROW1_H = 44;
+
+  // sticky con “vidrio”: más sólidas pero con blur y un poco de transparencia
+  const stickyGlassBg = "rgba(6, 36, 58, 0.82)"; // menos transparente que antes (pero no sólido)
+  const stickyGlassBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const stickyGlassShadow = "0 8px 18px rgba(0,0,0,.18)";
+  const stickyGlassBlur: React.CSSProperties = {
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+  };
+
+  const stickyRow1: React.CSSProperties = {
+    position: "sticky",
+    top: 0,
+    zIndex: 8,
+    background: stickyGlassBg,
+    boxShadow: stickyGlassShadow,
+    ...stickyGlassBlur,
+  };
+
+  const stickyRow2: React.CSSProperties = {
+    position: "sticky",
+    top: HEADER_ROW1_H,
+    zIndex: 7,
+    background: stickyGlassBg,
+    boxShadow: stickyGlassShadow,
+    ...stickyGlassBlur,
+  };
+
+  // también aplica “vidrio” al sticky de Día (columna izquierda)
+  const stickyDayBg = "rgba(6, 36, 58, 0.86)";
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -439,22 +467,24 @@ export default function CarbonPage() {
                     ...stickyRow1,
                     position: "sticky",
                     left: 0,
-                    zIndex: 12,
+                    zIndex: 14,
                     minWidth: 150,
+                    background: stickyDayBg,
+                    borderRight: "1px solid rgba(255,255,255,.08)",
+                    ...stickyGlassBlur,
                   }}
                 >
                   Día
                 </th>
 
-                {/* Au (bloque) */}
                 <th
                   className="capex-th"
                   colSpan={AU_KEYS.length}
                   style={{
                     ...stickyRow1,
                     textAlign: "center",
-                    background: groupBg,
-                    border: groupBorder,
+                    background: stickyGlassBg,
+                    border: stickyGlassBorder,
                     borderBottom: "0",
                     ...auHeadTL,
                     ...auHeadTR,
@@ -463,7 +493,6 @@ export default function CarbonPage() {
                   Au
                 </th>
 
-                {/* gap */}
                 <th
                   className="capex-th"
                   style={{
@@ -474,18 +503,20 @@ export default function CarbonPage() {
                     padding: 0,
                     background: "transparent",
                     borderBottom: "0",
+                    boxShadow: "none",
+                    backdropFilter: "none",
+                    WebkitBackdropFilter: "none",
                   }}
                 />
 
-                {/* Ag (bloque) */}
                 <th
                   className="capex-th"
                   colSpan={AG_KEYS.length}
                   style={{
                     ...stickyRow1,
                     textAlign: "center",
-                    background: groupBg,
-                    border: groupBorder,
+                    background: stickyGlassBg,
+                    border: stickyGlassBorder,
                     borderBottom: "0",
                     ...agHeadTL,
                     ...agHeadTR,
@@ -503,10 +534,10 @@ export default function CarbonPage() {
                     style={{
                       ...stickyRow2,
                       ...colW,
-                      background: groupBg,
-                      borderLeft: i === 0 ? groupBorder : undefined,
-                      borderRight: i === AU_KEYS.length - 1 ? groupBorder : undefined,
-                      borderBottom: groupBorder,
+                      background: stickyGlassBg,
+                      borderLeft: i === 0 ? stickyGlassBorder : undefined,
+                      borderRight: i === AU_KEYS.length - 1 ? stickyGlassBorder : undefined,
+                      borderBottom: stickyGlassBorder,
                       ...(i === 0 ? auHeadTL : {}),
                       ...(i === AU_KEYS.length - 1 ? auHeadTR : {}),
                     }}
@@ -515,7 +546,6 @@ export default function CarbonPage() {
                   </th>
                 ))}
 
-                {/* gap */}
                 <th
                   className="capex-th"
                   style={{
@@ -526,6 +556,9 @@ export default function CarbonPage() {
                     padding: 0,
                     background: "transparent",
                     borderBottom: "0",
+                    boxShadow: "none",
+                    backdropFilter: "none",
+                    WebkitBackdropFilter: "none",
                   }}
                 />
 
@@ -536,10 +569,10 @@ export default function CarbonPage() {
                     style={{
                       ...stickyRow2,
                       ...colW,
-                      background: groupBg,
-                      borderLeft: i === 0 ? groupBorder : undefined,
-                      borderRight: i === AG_KEYS.length - 1 ? groupBorder : undefined,
-                      borderBottom: groupBorder,
+                      background: stickyGlassBg,
+                      borderLeft: i === 0 ? stickyGlassBorder : undefined,
+                      borderRight: i === AG_KEYS.length - 1 ? stickyGlassBorder : undefined,
+                      borderBottom: stickyGlassBorder,
                       ...(i === 0 ? agHeadTL : {}),
                       ...(i === AG_KEYS.length - 1 ? agHeadTR : {}),
                     }}
@@ -580,7 +613,6 @@ export default function CarbonPage() {
                       </div>
                     </td>
 
-                    {/* AU block */}
                     {AU_KEYS.map((k, i) => {
                       const v = (r as any)[k] as string;
                       const ok = okNonNegOrEmpty(v);
@@ -613,7 +645,6 @@ export default function CarbonPage() {
                       );
                     })}
 
-                    {/* gap */}
                     <td
                       style={{
                         width: GAP_W,
@@ -625,7 +656,6 @@ export default function CarbonPage() {
                       }}
                     />
 
-                    {/* AG block */}
                     {AG_KEYS.map((k, i) => {
                       const v = (r as any)[k] as string;
                       const ok = okNonNegOrEmpty(v);
