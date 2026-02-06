@@ -336,10 +336,19 @@ export default function CarbonPage() {
     textAlign: "center",
   };
 
-  // separador fuerte Au | Ag
-  const groupSepColor = "rgba(191, 231, 255, 0.55)";
-  const groupSepLeft = `4px solid ${groupSepColor}`;
-  const groupSepShadow = `-10px 0 0 rgba(0,0,0,.10) inset`;
+  // “dos tablas” visuales: Au y Ag como bloques con su borde redondeado (sin rayas)
+  const groupBorder = "1px solid rgba(191, 231, 255, 0.22)";
+  const groupBg = "rgba(0,0,0,.08)";
+
+  const auHeadTL: React.CSSProperties = { borderTopLeftRadius: 12 };
+  const auHeadTR: React.CSSProperties = { borderTopRightRadius: 12 };
+  const auBotBL: React.CSSProperties = { borderBottomLeftRadius: 12 };
+  const auBotBR: React.CSSProperties = { borderBottomRightRadius: 12 };
+
+  const agHeadTL: React.CSSProperties = { borderTopLeftRadius: 12 };
+  const agHeadTR: React.CSSProperties = { borderTopRightRadius: 12 };
+  const agBotBL: React.CSSProperties = { borderBottomLeftRadius: 12 };
+  const agBotBR: React.CSSProperties = { borderBottomRightRadius: 12 };
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -423,17 +432,36 @@ export default function CarbonPage() {
                   Día
                 </th>
 
-                <th className="capex-th capex-th-sep" colSpan={AU_KEYS.length} style={{ textAlign: "center" }}>
+                {/* Au (bloque) */}
+                <th
+                  className="capex-th"
+                  colSpan={AU_KEYS.length}
+                  style={{
+                    textAlign: "center",
+                    background: groupBg,
+                    border: groupBorder,
+                    borderBottom: "0",
+                    ...auHeadTL,
+                    ...auHeadTR,
+                  }}
+                >
                   Au
                 </th>
 
+                {/* espacio visual entre “tablas” sin raya */}
+                <th className="capex-th" style={{ width: 14, padding: 0, background: "transparent", borderBottom: "0" }} />
+
+                {/* Ag (bloque) */}
                 <th
-                  className="capex-th capex-th-sep"
+                  className="capex-th"
                   colSpan={AG_KEYS.length}
                   style={{
                     textAlign: "center",
-                    borderLeft: groupSepLeft,
-                    boxShadow: groupSepShadow,
+                    background: groupBg,
+                    border: groupBorder,
+                    borderBottom: "0",
+                    ...agHeadTL,
+                    ...agHeadTR,
                   }}
                 >
                   Ag
@@ -442,23 +470,38 @@ export default function CarbonPage() {
 
               <tr>
                 {AU_KEYS.map((k, i) => (
-                  <th key={k} className={`capex-th ${i === 0 ? "capex-th-sep" : ""}`} style={colW}>
+                  <th
+                    key={k}
+                    className="capex-th"
+                    style={{
+                      ...colW,
+                      background: groupBg,
+                      borderLeft: i === 0 ? groupBorder : undefined,
+                      borderRight: i === AU_KEYS.length - 1 ? groupBorder : undefined,
+                      borderBottom: groupBorder,
+                      ...(i === 0 ? auHeadTL : {}),
+                      ...(i === AU_KEYS.length - 1 ? auHeadTR : {}),
+                    }}
+                  >
                     {`TK${i + 1}`}
                   </th>
                 ))}
 
+                {/* gap */}
+                <th className="capex-th" style={{ width: 14, padding: 0, background: "transparent", borderBottom: "0" }} />
+
                 {AG_KEYS.map((k, i) => (
                   <th
                     key={k}
-                    className={`capex-th ${i === 0 ? "capex-th-sep" : ""}`}
+                    className="capex-th"
                     style={{
                       ...colW,
-                      ...(i === 0
-                        ? {
-                            borderLeft: groupSepLeft,
-                            boxShadow: groupSepShadow,
-                          }
-                        : {}),
+                      background: groupBg,
+                      borderLeft: i === 0 ? groupBorder : undefined,
+                      borderRight: i === AG_KEYS.length - 1 ? groupBorder : undefined,
+                      borderBottom: groupBorder,
+                      ...(i === 0 ? agHeadTL : {}),
+                      ...(i === AG_KEYS.length - 1 ? agHeadTR : {}),
                     }}
                   >
                     {`TK${i + 1}`}
@@ -468,9 +511,10 @@ export default function CarbonPage() {
             </thead>
 
             <tbody>
-              {rows.map((r) => {
+              {rows.map((r, rowIdx) => {
                 const isDirty = !!dirty[r.tank_day];
                 const valid = rowValid(r);
+                const isLastRow = rowIdx === rows.length - 1;
 
                 return (
                   <tr key={r.tank_day} className="capex-tr" style={{ background: isDirty ? "rgba(102,199,255,.05)" : "transparent" }}>
@@ -496,11 +540,24 @@ export default function CarbonPage() {
                       </div>
                     </td>
 
+                    {/* AU block */}
                     {AU_KEYS.map((k, i) => {
                       const v = (r as any)[k] as string;
                       const ok = okNonNegOrEmpty(v);
                       return (
-                        <td key={k} className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`} style={{ padding: "6px 6px" }}>
+                        <td
+                          key={k}
+                          className="capex-td"
+                          style={{
+                            padding: "6px 6px",
+                            background: groupBg,
+                            borderLeft: i === 0 ? groupBorder : undefined,
+                            borderRight: i === AU_KEYS.length - 1 ? groupBorder : undefined,
+                            borderBottom: isLastRow ? groupBorder : undefined,
+                            ...(isLastRow && i === 0 ? auBotBL : {}),
+                            ...(isLastRow && i === AU_KEYS.length - 1 ? auBotBR : {}),
+                          }}
+                        >
                           <input
                             value={v}
                             disabled={savingAll || loading}
@@ -516,22 +573,25 @@ export default function CarbonPage() {
                       );
                     })}
 
+                    {/* gap */}
+                    <td style={{ width: 14, padding: 0, background: "transparent", borderBottom: "0" }} />
+
+                    {/* AG block */}
                     {AG_KEYS.map((k, i) => {
                       const v = (r as any)[k] as string;
                       const ok = okNonNegOrEmpty(v);
-                      const isFirstAg = i === 0;
                       return (
                         <td
                           key={k}
-                          className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`}
+                          className="capex-td"
                           style={{
                             padding: "6px 6px",
-                            ...(isFirstAg
-                              ? {
-                                  borderLeft: groupSepLeft,
-                                  boxShadow: groupSepShadow,
-                                }
-                              : {}),
+                            background: groupBg,
+                            borderLeft: i === 0 ? groupBorder : undefined,
+                            borderRight: i === AG_KEYS.length - 1 ? groupBorder : undefined,
+                            borderBottom: isLastRow ? groupBorder : undefined,
+                            ...(isLastRow && i === 0 ? agBotBL : {}),
+                            ...(isLastRow && i === AG_KEYS.length - 1 ? agBotBR : {}),
                           }}
                         >
                           <input
