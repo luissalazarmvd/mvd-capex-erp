@@ -220,8 +220,6 @@ export default function PlantaDuracionPage() {
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [shiftId, setShiftId] = useState<string>("");
 
-  const [durLocked, setDurLocked] = useState(false);
-
   const [opH, setOpH] = useState<string>("");
   const [opM, setOpM] = useState<string>("");
   const [stopH, setStopH] = useState<string>("");
@@ -283,9 +281,6 @@ export default function PlantaDuracionPage() {
 
       if (!(r as any)?.ok) throw new Error((r as any)?.error || "No se pudo cargar guardia");
 
-      const hasAny = (r.duration || []).some((d) => d.shift_duration !== null && d.shift_duration !== undefined);
-      setDurLocked(hasAny);
-
       let opMinDb: number | null = null;
       let stopMinDb: number | null = null;
 
@@ -314,7 +309,6 @@ export default function PlantaDuracionPage() {
       }
     } catch (e: any) {
       clearFields();
-      setDurLocked(false);
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando duración");
     } finally {
       setLoadingExisting(false);
@@ -328,7 +322,6 @@ export default function PlantaDuracionPage() {
   useEffect(() => {
     if (!shiftId) {
       clearFields();
-      setDurLocked(false);
       return;
     }
     loadExistingForShift(shiftId);
@@ -352,16 +345,15 @@ export default function PlantaDuracionPage() {
     if (saving) return false;
     const sid = String(shiftId || "").trim();
     if (!sid) return false;
-    if (durLocked) return false;
     if (total !== 720) return false;
     return true;
-  }, [shiftId, durLocked, total, saving]);
+  }, [shiftId, total, saving]);
 
   async function onSave() {
     setMsg(null);
 
     if (!canSave) {
-      setMsg("ERROR: Operación + Parada debe sumar 720 min y el turno no debe estar bloqueado.");
+      setMsg("ERROR: Operación + Parada debe sumar 720 min.");
       return;
     }
 
@@ -446,7 +438,7 @@ export default function PlantaDuracionPage() {
                 value={opH}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOpH(e.target.value.replace(/[^\d]/g, ""))}
                 hint=""
-                disabled={durLocked || saving || loadingExisting || !shiftId}
+                disabled={saving || loadingExisting || !shiftId}
               />
             </div>
 
@@ -456,7 +448,7 @@ export default function PlantaDuracionPage() {
                 value={opM}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOpM(e.target.value.replace(/[^\d]/g, ""))}
                 hint=""
-                disabled={durLocked || saving || loadingExisting || !shiftId}
+                disabled={saving || loadingExisting || !shiftId}
               />
             </div>
 
@@ -466,7 +458,7 @@ export default function PlantaDuracionPage() {
                 value={stopH}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStopH(e.target.value.replace(/[^\d]/g, ""))}
                 hint=""
-                disabled={durLocked || saving || loadingExisting || !shiftId}
+                disabled={saving || loadingExisting || !shiftId}
               />
             </div>
 
@@ -476,7 +468,7 @@ export default function PlantaDuracionPage() {
                 value={stopM}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStopM(e.target.value.replace(/[^\d]/g, ""))}
                 hint=""
-                disabled={durLocked || saving || loadingExisting || !shiftId}
+                disabled={saving || loadingExisting || !shiftId}
               />
             </div>
 
@@ -487,10 +479,6 @@ export default function PlantaDuracionPage() {
             {loadingExisting ? (
               <div className="muted" style={{ fontWeight: 800 }}>
                 Cargando datos existentes…
-              </div>
-            ) : durLocked && shiftId ? (
-              <div className="muted" style={{ fontWeight: 800 }}>
-                Este turno ya tiene duración registrada (bloqueado).
               </div>
             ) : null}
           </div>
