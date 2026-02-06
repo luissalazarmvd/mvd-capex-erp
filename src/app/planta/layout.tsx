@@ -23,10 +23,10 @@ export default function PlantaLayout({ children }: { children: React.ReactNode }
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <Link
-                href="/guardia"
+                href="/"
                 prefetch={false}
-                aria-label="MVD"
-                title="MVD"
+                aria-label="Inicio"
+                title="Inicio"
                 style={{
                   width: 130,
                   height: 44,
