@@ -321,7 +321,6 @@ export default function CarbonPage() {
     }
   }
 
-  // más angosto: celdas y columnas
   const colW: React.CSSProperties = { minWidth: 72, maxWidth: 84 };
 
   const inputStyle: React.CSSProperties = {
@@ -337,17 +336,18 @@ export default function CarbonPage() {
     textAlign: "center",
   };
 
+  // separador fuerte Au | Ag
+  const groupSepColor = "rgba(191, 231, 255, 0.55)";
+  const groupSepLeft = `4px solid ${groupSepColor}`;
+  const groupSepShadow = `-10px 0 0 rgba(0,0,0,.10) inset`;
+
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Carbones</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Input
-            value={year}
-            onChange={(e: any) => setYear(String(e.target.value || "").trim())}
-            hint="Año (YYYY)"
-          />
+          <Input value={year} onChange={(e: any) => setYear(String(e.target.value || "").trim())} hint="Año (YYYY)" />
 
           <div style={{ display: "grid", gap: 4 }}>
             <select
@@ -427,7 +427,15 @@ export default function CarbonPage() {
                   Au
                 </th>
 
-                <th className="capex-th capex-th-sep" colSpan={AG_KEYS.length} style={{ textAlign: "center" }}>
+                <th
+                  className="capex-th capex-th-sep"
+                  colSpan={AG_KEYS.length}
+                  style={{
+                    textAlign: "center",
+                    borderLeft: groupSepLeft,
+                    boxShadow: groupSepShadow,
+                  }}
+                >
                   Ag
                 </th>
               </tr>
@@ -440,7 +448,19 @@ export default function CarbonPage() {
                 ))}
 
                 {AG_KEYS.map((k, i) => (
-                  <th key={k} className={`capex-th ${i === 0 ? "capex-th-sep" : ""}`} style={colW}>
+                  <th
+                    key={k}
+                    className={`capex-th ${i === 0 ? "capex-th-sep" : ""}`}
+                    style={{
+                      ...colW,
+                      ...(i === 0
+                        ? {
+                            borderLeft: groupSepLeft,
+                            boxShadow: groupSepShadow,
+                          }
+                        : {}),
+                    }}
+                  >
                     {`TK${i + 1}`}
                   </th>
                 ))}
@@ -453,13 +473,7 @@ export default function CarbonPage() {
                 const valid = rowValid(r);
 
                 return (
-                  <tr
-                    key={r.tank_day}
-                    className="capex-tr"
-                    style={{
-                      background: isDirty ? "rgba(102,199,255,.05)" : "transparent",
-                    }}
-                  >
+                  <tr key={r.tank_day} className="capex-tr" style={{ background: isDirty ? "rgba(102,199,255,.05)" : "transparent" }}>
                     <td
                       className="capex-td capex-td-strong"
                       style={{
@@ -505,8 +519,21 @@ export default function CarbonPage() {
                     {AG_KEYS.map((k, i) => {
                       const v = (r as any)[k] as string;
                       const ok = okNonNegOrEmpty(v);
+                      const isFirstAg = i === 0;
                       return (
-                        <td key={k} className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`} style={{ padding: "6px 6px" }}>
+                        <td
+                          key={k}
+                          className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`}
+                          style={{
+                            padding: "6px 6px",
+                            ...(isFirstAg
+                              ? {
+                                  borderLeft: groupSepLeft,
+                                  boxShadow: groupSepShadow,
+                                }
+                              : {}),
+                          }}
+                        >
                           <input
                             value={v}
                             disabled={savingAll || loading}
