@@ -30,8 +30,8 @@ export default function PlantaTopNav() {
             style={
               active
                 ? {
-                    outline: "2px solid rgba(255,255,255,.35)",
-                    outlineOffset: 2,
+                    outline: "none",
+                    opacity: 0.72,
                   }
                 : undefined
             }
