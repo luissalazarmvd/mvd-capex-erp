@@ -7,8 +7,8 @@ import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 
 type ShiftRow = {
-  shift_id: string; // "YYYYMMDD-A"
-  shift_date?: string; // "YYYY-MM-DD"
+  shift_id: string;
+  shift_date?: string;
   plant_shift?: "A" | "B";
   plant_supervisor?: string | null;
 };
@@ -47,7 +47,6 @@ function parseShiftIdToQuery(shift_id: string): { date: string; shift: "A" | "B"
   return { date, shift };
 }
 
-// Validación tipo back (acepta 1,234.56 y 1.234,56, etc.)
 function toDecimalStrOrNullFront(v: string, scale = 18) {
   const s0 = String(v ?? "").trim();
   if (!s0) return null;
@@ -85,6 +84,120 @@ function toDecimalStrOrNullFront(v: string, scale = 18) {
 
 function qtyOk(v: string) {
   return toDecimalStrOrNullFront(v, 18) !== null;
+}
+
+function Select({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const currentLabel =
+    options.find((o) => o.value === value)?.label ?? options.find((o) => o.value === "")?.label ?? "";
+
+  useEffect(() => {
+    function onDocDown(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as any)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, []);
+
+  return (
+    <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
+      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((s) => !s)}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          background: "rgba(0,0,0,.10)",
+          border: "1px solid var(--border)",
+          color: "var(--text)",
+          borderRadius: 10,
+          padding: "10px 12px",
+          outline: "none",
+          fontWeight: 900,
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.7 : 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <span style={{ opacity: value ? 1 : 0.6 }}>{currentLabel}</span>
+        <span style={{ opacity: 0.8 }}>▾</span>
+      </button>
+
+      {open ? (
+        <div style={{ position: "relative", zIndex: 50 }}>
+          <div
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 0,
+              right: 0,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,.10)",
+              background: "rgba(5, 25, 45, .98)",
+              boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+              overflow: "hidden",
+            }}
+          >
+            {options.map((o) => {
+              const active = o.value === value;
+              const isEmpty = o.value === "";
+              return (
+                <button
+                  key={o.value || "__empty__"}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 900,
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as any).style.background = active
+                      ? "rgba(102,199,255,.18)"
+                      : "rgba(255,255,255,.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as any).style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function SearchableDropdown({
@@ -257,11 +370,11 @@ export default function ReactivosPage() {
     list.sort((a, b) => {
       const ad = String(a.shift_date || "").replaceAll("-", "");
       const bd = String(b.shift_date || "").replaceAll("-", "");
-      if (ad !== bd) return bd.localeCompare(ad); // desc
+      if (ad !== bd) return bd.localeCompare(ad);
       const ash = String(a.plant_shift || "");
       const bsh = String(b.plant_shift || "");
-      if (ash !== bsh) return bsh.localeCompare(ash); // B > A (desc)
-      return String(b.shift_id || "").localeCompare(String(a.shift_id || "")); // desc
+      if (ash !== bsh) return bsh.localeCompare(ash);
+      return String(b.shift_id || "").localeCompare(String(a.shift_id || ""));
     });
     return list;
   }, [shifts]);
@@ -302,7 +415,6 @@ export default function ReactivosPage() {
         }
       }
     } catch {
-      // si no existe aún, normal
     } finally {
       setLoadingExisting(false);
     }
@@ -315,13 +427,11 @@ export default function ReactivosPage() {
   useEffect(() => {
     if (!shiftId) return;
     loadExistingForSelectedShift(shiftId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shiftId]);
 
   useEffect(() => {
     if (!shiftId || !insumo) return;
     loadExistingForSelectedShift(shiftId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [insumo]);
 
   async function onSave() {
@@ -333,7 +443,7 @@ export default function ReactivosPage() {
         items: [
           {
             reagent_name: insumo,
-            qty: qty.trim(), // string, el back lo parsea
+            qty: qty.trim(),
           },
         ],
       };
@@ -409,33 +519,16 @@ export default function ReactivosPage() {
             </div>
           ) : null}
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Insumo</div>
-            <select
-              value={insumo}
-              disabled={saving}
-              onChange={(e) => setInsumo((e.target.value as any) || "")}
-              style={{
-                width: "100%",
-                background: "rgba(0,0,0,.10)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                outline: "none",
-                fontWeight: 900,
-                cursor: saving ? "not-allowed" : "pointer",
-                opacity: saving ? 0.7 : 1,
-              }}
-            >
-              <option value="">— Selecciona —</option>
-              {INSUMOS.map((x) => (
-                <option key={x.value} value={x.value}>
-                  {x.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Insumo"
+            value={insumo}
+            onChange={(v) => setInsumo((v as any) || "")}
+            disabled={saving}
+            options={[
+              { value: "", label: "— Selecciona —" },
+              ...INSUMOS.map((x) => ({ value: x.value, label: x.label })),
+            ]}
+          />
 
           <Input
             placeholder=""
