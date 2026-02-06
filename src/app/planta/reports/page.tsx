@@ -415,6 +415,9 @@ export default function PlantaReportsPage() {
 
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
 
+  // NUEVO: orden por fecha (default: última -> más antigua)
+  const [dateOrder, setDateOrder] = useState<"desc" | "asc">("desc");
+
   async function load() {
     setLoading(true);
     setMsg(null);
@@ -484,13 +487,19 @@ export default function PlantaReportsPage() {
       arr.push({ ...r, _shift: shift });
       m.set(dateIso, arr);
     }
-    return Array.from(m.entries())
-      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-      .map(([dateIso, rows]) => ({
-        dateIso,
-        rows: rows.sort((a, b) => String(a._shift).localeCompare(String(b._shift))),
-      }));
-  }, [filtered]);
+
+    const entries = Array.from(m.entries()).sort((a, b) => {
+      // desc: última -> más antigua (default)
+      if (dateOrder === "desc") return a[0] < b[0] ? 1 : -1;
+      // asc: más antigua -> última
+      return a[0] > b[0] ? 1 : -1;
+    });
+
+    return entries.map(([dateIso, rows]) => ({
+      dateIso,
+      rows: rows.sort((a, b) => String(a._shift).localeCompare(String(b._shift))),
+    }));
+  }, [filtered, dateOrder]);
 
   const overallTotals = useMemo(() => {
     const base = filtered;
@@ -529,29 +538,24 @@ export default function PlantaReportsPage() {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Balance");
 
-    // Título
     ws.addRow([title.replaceAll("_", " ")]);
     ws.mergeCells(1, 1, 1, headers.length);
     ws.getRow(1).font = { bold: true, size: 14 };
 
     ws.addRow([]);
 
-    // Header
     const headerRow = ws.addRow(headers);
     headerRow.font = { bold: true };
 
-    // Data
     const firstDataRow = ws.rowCount + 1;
     for (const r of rows) ws.addRow(r);
 
-    // Totales en negrita (total del día + total general)
     for (const idx of totalRowIdxs) {
-      const excelRowNum = firstDataRow + idx; // 1-based
+      const excelRowNum = firstDataRow + idx;
       const rr = ws.getRow(excelRowNum);
       rr.font = { ...(rr.font ?? {}), bold: true };
     }
 
-    // Autosize simple
     ws.columns = headers.map((h, idx) => {
       const maxLen = Math.max(
         h.length,
@@ -608,7 +612,6 @@ export default function PlantaReportsPage() {
       margin: { left: 20, right: 20 },
       tableWidth: "auto",
       didParseCell: (data) => {
-        // Negrita para filas "Total" (por día) y "Total" general final
         if (data.section === "body" && totalIdxSet.has(data.row.index)) {
           data.cell.styles.fontStyle = "bold";
         }
@@ -690,6 +693,8 @@ export default function PlantaReportsPage() {
     left: W_FECHA,
     zIndex: 11,
   };
+
+  const dateSortIcon = dateOrder === "desc" ? "↓" : "↑";
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -802,8 +807,27 @@ export default function PlantaReportsPage() {
                     fontSize: 12,
                   }}
                 >
-                  Fecha
+                  <button
+                    type="button"
+                    onClick={() => setDateOrder((s) => (s === "desc" ? "asc" : "desc"))}
+                    title="Cambiar orden (fecha)"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      border: "none",
+                      background: "transparent",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                      fontWeight: 900,
+                      padding: 0,
+                    }}
+                  >
+                    <span>Fecha</span>
+                    <span style={{ opacity: 0.9 }}>{dateSortIcon}</span>
+                  </button>
                 </th>
+
                 <th
                   className="capex-th"
                   style={{
