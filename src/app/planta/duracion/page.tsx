@@ -52,6 +52,13 @@ function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, x));
 }
 
+function fmtMinToHHMM(mins: number) {
+  const m = clampInt(mins, 0, 24 * 60); // o 720 si solo quieres 0..720
+  const hh = String(Math.floor(m / 60)).padStart(2, "0");
+  const mm = String(m % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 function parseIntSafeNonNeg(s: string) {
   const t = String(s ?? "").trim();
   if (!t) return 0;
@@ -473,7 +480,7 @@ export default function PlantaDuracionPage() {
             </div>
 
             <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
-              Total: {total} min (debe ser 720)
+              Total: {fmtMinToHHMM(total)} (debe ser {fmtMinToHHMM(720)})
             </div>
 
             {loadingExisting ? (
