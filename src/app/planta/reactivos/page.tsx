@@ -47,11 +47,20 @@ function parseShiftIdToQuery(shift_id: string): { date: string; shift: "A" | "B"
   return { date, shift };
 }
 
-function toCleanQty(v: string) {
+function toNumOrNull(v: string) {
   const s = String(v ?? "").trim();
   if (!s) return null;
-  return s;
+  const t = s.replace(",", ".").replace(/[^0-9.\-]/g, "");
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
 }
+
+function qtyOk(v: string) {
+  const n = toNumOrNull(v);
+  return n !== null && n >= 0;
+}
+
 
 function SearchableDropdown({
   label,
@@ -216,7 +225,7 @@ export default function ReactivosPage() {
   const [insumo, setInsumo] = useState<(typeof INSUMOS)[number]["value"] | "">("");
   const [qty, setQty] = useState<string>("");
 
-  const canSave = useMemo(() => !!shiftId && !!insumo && !saving, [shiftId, insumo, saving]);
+  const canSave = useMemo(() => !!shiftId && !!insumo && qtyOk(qty) && !saving, [shiftId, insumo, qty, saving]);
 
   // asegura orden (por si el server cambia)
   const shiftsSorted = useMemo(() => {
@@ -263,6 +272,7 @@ export default function ReactivosPage() {
       if (insumo) {
         const hit = cons.find((x) => String(x.reagent_name || "").trim() === insumo);
         if (hit && hit.qty !== null && hit.qty !== undefined) setQty(String(hit.qty));
+        else setQty("");
       }
     } catch {
       // si no existe aún, normal
@@ -296,7 +306,7 @@ export default function ReactivosPage() {
         items: [
           {
             reagent_name: insumo,
-            qty: toCleanQty(qty),
+            qty: toNumOrNull(qty),
           },
         ],
       };
