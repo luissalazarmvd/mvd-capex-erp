@@ -339,17 +339,20 @@ function buildExportMatrix(args: {
   mode: "AU" | "AG";
   dateFrom: string;
   dateTo: string;
+  overallTotals: Record<string, any>;
 }) {
-  const { groups, cols, mode, dateFrom, dateTo } = args;
+  const { groups, cols, mode, dateFrom, dateTo, overallTotals } = args;
 
   const headers = ["Fecha", "Guardia", ...cols.map((c) => c.label)];
   const rows: any[][] = [];
+  const totalRowIdxs: number[] = [];
 
   for (const g of groups) {
     const dayTotals: Record<string, any> = {};
     for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
 
     // Total del día
+    totalRowIdxs.push(rows.length);
     rows.push([
       fmtDateDdMm(g.dateIso),
       "Total",
@@ -359,7 +362,7 @@ function buildExportMatrix(args: {
       }),
     ]);
 
-    // Detalle (siempre desglosado)
+    // Detalle
     for (const r of g.rows) {
       rows.push([
         fmtDateDdMm(g.dateIso),
@@ -380,10 +383,21 @@ function buildExportMatrix(args: {
     }
   }
 
+  // Total general (como footer de la web)
+  totalRowIdxs.push(rows.length);
+  rows.push([
+    "Total",
+    "—",
+    ...cols.map((c) => {
+      const v = overallTotals[String(c.key)];
+      return c.fmt ? c.fmt(v) : v ?? "";
+    }),
+  ]);
+
   const fileTag = `${mode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
   const title = `MVD_Planta_Balance_${fileTag}`;
 
-  return { headers, rows, title };
+  return { headers, rows, title, totalRowIdxs };
 }
 
 export default function PlantaReportsPage() {
@@ -503,7 +517,14 @@ export default function PlantaReportsPage() {
   }
 
   async function exportExcel() {
-    const { headers, rows, title } = buildExportMatrix({ groups, cols, mode, dateFrom, dateTo });
+    const { headers, rows, title, totalRowIdxs } = buildExportMatrix({
+      groups,
+      cols,
+      mode,
+      dateFrom,
+      dateTo,
+      overallTotals,
+    });
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Balance");
@@ -520,7 +541,15 @@ export default function PlantaReportsPage() {
     headerRow.font = { bold: true };
 
     // Data
+    const firstDataRow = ws.rowCount + 1;
     for (const r of rows) ws.addRow(r);
+
+    // Totales en negrita (total del día + total general)
+    for (const idx of totalRowIdxs) {
+      const excelRowNum = firstDataRow + idx; // 1-based
+      const rr = ws.getRow(excelRowNum);
+      rr.font = { ...(rr.font ?? {}), bold: true };
+    }
 
     // Autosize simple
     ws.columns = headers.map((h, idx) => {
@@ -550,7 +579,16 @@ export default function PlantaReportsPage() {
   }
 
   function exportPdf() {
-    const { headers, rows, title } = buildExportMatrix({ groups, cols, mode, dateFrom, dateTo });
+    const { headers, rows, title, totalRowIdxs } = buildExportMatrix({
+      groups,
+      cols,
+      mode,
+      dateFrom,
+      dateTo,
+      overallTotals,
+    });
+
+    const totalIdxSet = new Set<number>(totalRowIdxs);
 
     const doc = new jsPDF({
       orientation: "landscape",
@@ -566,9 +604,15 @@ export default function PlantaReportsPage() {
       body: rows,
       startY: 45,
       styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak" },
-      headStyles: { fontSize: 7 },
+      headStyles: { fontSize: 7, fontStyle: "bold" },
       margin: { left: 20, right: 20 },
       tableWidth: "auto",
+      didParseCell: (data) => {
+        // Negrita para filas "Total" (por día) y "Total" general final
+        if (data.section === "body" && totalIdxSet.has(data.row.index)) {
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
     });
 
     doc.save(`${title}.pdf`);
@@ -685,13 +729,7 @@ export default function PlantaReportsPage() {
             Contraer todo
           </Button>
 
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={exportExcel}
-            disabled={loading || !groups.length}
-          >
+          <Button type="button" size="sm" variant="ghost" onClick={exportExcel} disabled={loading || !groups.length}>
             Exportar Excel
           </Button>
 
@@ -724,7 +762,10 @@ export default function PlantaReportsPage() {
           />
           <div className="muted" style={{ fontWeight: 900, fontSize: 12, alignSelf: "center" }}>
             Regla:
-            <span style={{ opacity: 0.9 }}> (g/t, g/l) ponderado por TMS · (g, m³, l, TMS) suma · (%) promedio simple</span>
+            <span style={{ opacity: 0.9 }}>
+              {" "}
+              (g/t, g/l) ponderado por TMS · (g, m³, l, TMS) suma · (%) promedio simple
+            </span>
           </div>
         </div>
       </div>
