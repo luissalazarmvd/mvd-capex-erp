@@ -3,8 +3,15 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MVD – CAPEX ERP",
-  description: "Presupuesto · Forecast · EV · Actuals",
+  title: {
+    default: "MVD – ERP",
+    template: "%s · MVD",
+  },
+  description: "CAPEX · Planta · Reportes",
+  metadataBase: new URL("https://mvd-capex-erp.vercel.app"),
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
