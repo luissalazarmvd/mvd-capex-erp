@@ -97,6 +97,25 @@ type AuKey = (typeof AU_KEYS)[number];
 type AgKey = (typeof AG_KEYS)[number];
 type FieldKey = AuKey | AgKey;
 
+const MONTHS = [
+  { value: 1, label: "Enero" },
+  { value: 2, label: "Febrero" },
+  { value: 3, label: "Marzo" },
+  { value: 4, label: "Abril" },
+  { value: 5, label: "Mayo" },
+  { value: 6, label: "Junio" },
+  { value: 7, label: "Julio" },
+  { value: 8, label: "Agosto" },
+  { value: 9, label: "Septiembre" },
+  { value: 10, label: "Octubre" },
+  { value: 11, label: "Noviembre" },
+  { value: 12, label: "Diciembre" },
+] as const;
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
 function ymdToDate(ymd: string) {
   const m = String(ymd || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return null;
@@ -107,15 +126,11 @@ function ymdToDate(ymd: string) {
   return new Date(y, mo - 1, d);
 }
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function defaultYm() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = d.getMonth() + 1;
-  return `${y}${pad2(m)}`;
+function weekdayShort(ymd: string) {
+  const dt = ymdToDate(ymd);
+  if (!dt) return "";
+  const w = dt.getDay();
+  return ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][w] || "";
 }
 
 function daysInMonth(ym: string) {
@@ -156,15 +171,23 @@ function okNonNegOrEmpty(s: string) {
   return Number.isFinite(n) && n >= 0;
 }
 
+function defaultYearMonth() {
+  const d = new Date();
+  return { year: String(d.getFullYear()), month: d.getMonth() + 1 };
+}
+
+function ymFromInputs(year: string, month: number) {
+  const y = String(year || "").trim();
+  if (!/^\d{4}$/.test(y)) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  return `${y}${pad2(month)}`;
+}
+
 function makeBlankRow(tank_day: string): RowState {
   const z: any = { tank_day };
-  for (const k of AU_KEYS) triggered(z, k);
-  for (const k of AG_KEYS) triggered(z, k);
+  for (const k of AU_KEYS) z[k] = "";
+  for (const k of AG_KEYS) z[k] = "";
   return z as RowState;
-
-  function triggered(obj: any, key: string) {
-    obj[key] = "";
-  }
 }
 
 function fromApiRow(r: MonthRow): RowState {
@@ -174,16 +197,14 @@ function fromApiRow(r: MonthRow): RowState {
   return out as RowState;
 }
 
-function weekdayShort(ymd: string) {
-  const dt = ymdToDate(ymd);
-  if (!dt) return "";
-  const w = dt.getDay();
-  return ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][w] || "";
-}
-
 export default function CarbonPage() {
   const [msg, setMsg] = useState<string | null>(null);
-  const [ym, setYm] = useState(defaultYm());
+
+  const init = useMemo(() => defaultYearMonth(), []);
+  const [year, setYear] = useState<string>(init.year);
+  const [month, setMonth] = useState<number>(init.month);
+
+  const ym = useMemo(() => ymFromInputs(year, month) ?? "", [year, month]);
 
   const [loading, setLoading] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
@@ -213,7 +234,7 @@ export default function CarbonPage() {
     if (!/^\d{6}$/.test(ym0) || daysInMonth(ym0) <= 0) {
       setRows([]);
       setDirty({});
-      setMsg("ERROR: ym inválido (YYYYMM)");
+      setMsg("ERROR: mes inválido");
       return;
     }
 
@@ -243,7 +264,8 @@ export default function CarbonPage() {
   }
 
   useEffect(() => {
-    loadMonth(ym);
+    const initialYm = ymFromInputs(init.year, init.month);
+    if (initialYm) loadMonth(initialYm);
   }, []);
 
   function setCell(day: string, key: FieldKey, value: string) {
@@ -299,7 +321,8 @@ export default function CarbonPage() {
     }
   }
 
-  const colW: React.CSSProperties = { minWidth: 92, maxWidth: 110 };
+  // más angosto: celdas y columnas
+  const colW: React.CSSProperties = { minWidth: 72, maxWidth: 84 };
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
@@ -311,6 +334,7 @@ export default function CarbonPage() {
     outline: "none",
     fontWeight: 900,
     fontSize: 12,
+    textAlign: "center",
   };
 
   return (
@@ -319,7 +343,39 @@ export default function CarbonPage() {
         <div style={{ fontWeight: 900 }}>Carbones</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Input value={ym} onChange={(e: any) => setYm(String(e.target.value || "").trim())} hint="Mes (YYYYMM)" />
+          <Input
+            value={year}
+            onChange={(e: any) => setYear(String(e.target.value || "").trim())}
+            hint="Año (YYYY)"
+          />
+
+          <div style={{ display: "grid", gap: 4 }}>
+            <select
+              value={month}
+              onChange={(e) => setMonth(Number(e.target.value))}
+              style={{
+                minWidth: 190,
+                height: 38,
+                borderRadius: 10,
+                padding: "0 12px",
+                background: "rgba(0,0,0,.10)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                fontWeight: 900,
+                outline: "none",
+              }}
+              disabled={loading || savingAll}
+            >
+              {MONTHS.map((m) => (
+                <option key={m.value} value={m.value} style={{ color: "#000" }}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <div className="muted" style={{ fontWeight: 900, fontSize: 12, paddingLeft: 2 }}>
+              Mes
+            </div>
+          </div>
 
           <Button type="button" size="sm" variant="ghost" onClick={() => loadMonth(ym)} disabled={loading || savingAll || !isYmValid}>
             {loading ? "Cargando…" : "Cargar"}
@@ -348,7 +404,7 @@ export default function CarbonPage() {
       <div style={{ minWidth: 0 }}>
         {!isYmValid ? (
           <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
-            Ingresa un mes válido en formato YYYYMM.
+            Año debe ser YYYY y mes válido.
           </div>
         ) : rows.length ? (
           <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
@@ -356,6 +412,7 @@ export default function CarbonPage() {
               <tr>
                 <th
                   className="capex-th"
+                  rowSpan={2}
                   style={{
                     position: "sticky",
                     left: 0,
@@ -366,15 +423,25 @@ export default function CarbonPage() {
                   Día
                 </th>
 
+                <th className="capex-th capex-th-sep" colSpan={AU_KEYS.length} style={{ textAlign: "center" }}>
+                  Au
+                </th>
+
+                <th className="capex-th capex-th-sep" colSpan={AG_KEYS.length} style={{ textAlign: "center" }}>
+                  Ag
+                </th>
+              </tr>
+
+              <tr>
                 {AU_KEYS.map((k, i) => (
                   <th key={k} className={`capex-th ${i === 0 ? "capex-th-sep" : ""}`} style={colW}>
-                    {k.toUpperCase()}
+                    {`TK${i + 1}`}
                   </th>
                 ))}
 
                 {AG_KEYS.map((k, i) => (
                   <th key={k} className={`capex-th ${i === 0 ? "capex-th-sep" : ""}`} style={colW}>
-                    {k.toUpperCase()}
+                    {`TK${i + 1}`}
                   </th>
                 ))}
               </tr>
@@ -386,7 +453,13 @@ export default function CarbonPage() {
                 const valid = rowValid(r);
 
                 return (
-                  <tr key={r.tank_day} className="capex-tr" style={{ background: isDirty ? "rgba(102,199,255,.05)" : "transparent" }}>
+                  <tr
+                    key={r.tank_day}
+                    className="capex-tr"
+                    style={{
+                      background: isDirty ? "rgba(102,199,255,.05)" : "transparent",
+                    }}
+                  >
                     <td
                       className="capex-td capex-td-strong"
                       style={{
@@ -413,7 +486,7 @@ export default function CarbonPage() {
                       const v = (r as any)[k] as string;
                       const ok = okNonNegOrEmpty(v);
                       return (
-                        <td key={k} className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`} style={{ padding: "6px 8px" }}>
+                        <td key={k} className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`} style={{ padding: "6px 6px" }}>
                           <input
                             value={v}
                             disabled={savingAll || loading}
@@ -433,7 +506,7 @@ export default function CarbonPage() {
                       const v = (r as any)[k] as string;
                       const ok = okNonNegOrEmpty(v);
                       return (
-                        <td key={k} className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`} style={{ padding: "6px 8px" }}>
+                        <td key={k} className={`capex-td ${i === 0 ? "capex-td-sep" : ""}`} style={{ padding: "6px 6px" }}>
                           <input
                             value={v}
                             disabled={savingAll || loading}
