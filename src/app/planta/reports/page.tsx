@@ -1,7 +1,7 @@
 // src/app/planta/reports/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../../lib/apiClient";
 import { Button } from "../../../components/ui/Button";
 import { Table } from "../../../components/ui/Table";
@@ -95,6 +95,13 @@ function toNum(v: any) {
   return Number.isFinite(n) ? n : null;
 }
 
+function safeDiv(a: any, b: any) {
+  const na = toNum(a);
+  const nb = toNum(b);
+  if (na === null || nb === null || nb === 0) return null;
+  return na / nb;
+}
+
 function fmtFixed(v: any, digits: number) {
   const n = toNum(v);
   if (n === null) return "";
@@ -177,7 +184,7 @@ function DatePicker({
   );
 }
 
-type Agg = "sum" | "wavg_tms" | "avg";
+type Agg = "sum" | "wavg_tms" | "avg" | "ratio_tms_op" | "ratio_au_recu" | "ratio_ag_recu";
 
 type ColDef = {
   key: keyof BalRow;
@@ -198,7 +205,7 @@ function buildColumns(mode: "AU" | "AG"): ColDef[] {
     { key: "ag_feed_g", label: "Ag (g) Feed", w: 100, agg: "sum", fmt: (v) => fmtInt(v) },
 
     { key: "operation_hr", label: "Operación (h)", w: 102, agg: "sum", fmt: (v) => fmtFixed(v, 1) },
-    { key: "prod_ratio", label: "Ratio (t/h)", w: 96, agg: "avg", fmt: (v) => fmtFixed(v, 1) },
+    { key: "prod_ratio", label: "Ratio (t/h)", w: 96, agg: "ratio_tms_op", fmt: (v) => fmtFixed(v, 1) },
 
     { key: "density_of", label: "Den (g/l)", w: 90, agg: "wavg_tms", fmt: (v) => fmtInt(v) },
     { key: "pct_200", label: "%m-200", w: 86, agg: "avg", fmt: (v) => fmtPct200(v) },
@@ -237,9 +244,9 @@ function buildColumns(mode: "AU" | "AG"): ColDef[] {
 
   const end: ColDef[] = [
     { key: "au_prod", label: "Au Prod (g)", w: 104, agg: "sum", fmt: (v) => fmtInt(v) },
-    { key: "au_recu", label: "Au Rec (%)", w: 96, agg: "avg", fmt: (v) => fmtPctFromFrac(v, 2) },
+    { key: "au_recu", label: "Au Rec (%)", w: 96, agg: "ratio_au_recu", fmt: (v) => fmtPctFromFrac(v, 2) },
     { key: "ag_prod", label: "Ag Prod (g)", w: 104, agg: "sum", fmt: (v) => fmtInt(v) },
-    { key: "ag_recu", label: "Ag Rec (%)", w: 96, agg: "avg", fmt: (v) => fmtPctFromFrac(v, 2) },
+    { key: "ag_recu", label: "Ag Rec (%)", w: 96, agg: "ratio_ag_recu", fmt: (v) => fmtPctFromFrac(v, 2) },
 
     { key: "nacn_ratio", label: "NaCN (kg/t)", w: 110, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
     { key: "naoh_ratio", label: "NaOH (kg/t)", w: 110, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
@@ -279,18 +286,42 @@ function aggValue(rows: BalRow[], key: keyof BalRow, agg: Agg) {
     return c ? s / c : null;
   }
 
-  // wavg_tms
-  if (tmsSum <= 0) return null;
-  let num = 0;
-  let used = false;
-  for (const r of rows) {
-    const w = toNum(r.tms);
-    const v = toNum((r as any)[key]);
-    if (w === null || v === null) continue;
-    num += v * w;
-    used = true;
+  if (agg === "wavg_tms") {
+    if (tmsSum <= 0) return null;
+    let num = 0;
+    let used = false;
+    for (const r of rows) {
+      const w = toNum(r.tms);
+      const v = toNum((r as any)[key]);
+      if (w === null || v === null) continue;
+      num += v * w;
+      used = true;
+    }
+    return used ? num / tmsSum : null;
   }
-  return used ? num / tmsSum : null;
+
+  if (agg === "ratio_tms_op") {
+    const tms = rows.reduce((acc, r) => acc + (toNum(r.tms) ?? 0), 0);
+    const op = rows.reduce((acc, r) => acc + (toNum(r.operation_hr) ?? 0), 0);
+    if (!op) return null;
+    return tms / op;
+  }
+
+  if (agg === "ratio_au_recu") {
+    const prod = rows.reduce((acc, r) => acc + (toNum(r.au_prod) ?? 0), 0);
+    const feed = rows.reduce((acc, r) => acc + (toNum(r.au_feed_g) ?? 0), 0);
+    if (!feed) return null;
+    return prod / feed;
+  }
+
+  if (agg === "ratio_ag_recu") {
+    const prod = rows.reduce((acc, r) => acc + (toNum(r.ag_prod) ?? 0), 0);
+    const feed = rows.reduce((acc, r) => acc + (toNum(r.ag_feed_g) ?? 0), 0);
+    if (!feed) return null;
+    return prod / feed;
+  }
+
+  return null;
 }
 
 type Group = {
@@ -307,12 +338,10 @@ export default function PlantaReportsPage() {
   const today = useMemo(() => isoTodayPe(), []);
   const cols = useMemo(() => buildColumns(mode), [mode]);
 
-  // rango por defecto (se setea cuando llega data)
   const [dateFrom, setDateFrom] = useState<string>(() => monthStartIso(today));
   const [dateTo, setDateTo] = useState<string>(() => today);
   const [rangeInit, setRangeInit] = useState(false);
 
-  // expand/collapse por día
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
 
   async function load() {
@@ -333,7 +362,6 @@ export default function PlantaReportsPage() {
     load();
   }, []);
 
-  // set defaults según última fecha disponible en la data (una sola vez)
   useEffect(() => {
     if (rangeInit) return;
     if (!allRows.length) return;
@@ -349,13 +377,10 @@ export default function PlantaReportsPage() {
 
     setDateTo(end);
     setDateFrom(start);
-
-    // por defecto: contraído, solo el día más reciente abierto
     setOpenDays({ [end]: true });
     setRangeInit(true);
   }, [allRows, rangeInit, today]);
 
-  // normaliza rango (from <= to) + clamp a hoy
   useEffect(() => {
     const max = today;
     let f = dateFrom ? dateFrom : max;
@@ -367,7 +392,6 @@ export default function PlantaReportsPage() {
 
     if (f !== dateFrom) setDateFrom(f);
     if (t !== dateTo) setDateTo(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo, today]);
 
   const filtered = useMemo(() => {
@@ -390,7 +414,7 @@ export default function PlantaReportsPage() {
       m.set(dateIso, arr);
     }
     return Array.from(m.entries())
-      .sort((a, b) => (a[0] < b[0] ? 1 : -1)) // desc
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
       .map(([dateIso, rows]) => ({
         dateIso,
         rows: rows.sort((a, b) => String(a._shift).localeCompare(String(b._shift))),
@@ -400,9 +424,7 @@ export default function PlantaReportsPage() {
   const overallTotals = useMemo(() => {
     const base = filtered;
     const obj: Record<string, any> = {};
-    for (const c of cols) {
-      obj[String(c.key)] = aggValue(base, c.key, c.agg);
-    }
+    for (const c of cols) obj[String(c.key)] = aggValue(base, c.key, c.agg);
     return obj;
   }, [filtered, cols]);
 
@@ -414,6 +436,13 @@ export default function PlantaReportsPage() {
 
   function onCollapseAll() {
     setOpenDays({});
+  }
+
+  function displayValueForRow(r: any, key: keyof BalRow) {
+    if (key === "prod_ratio") return safeDiv(r.tms, r.operation_hr);
+    if (key === "au_recu") return safeDiv(r.au_prod, r.au_feed_g);
+    if (key === "ag_recu") return safeDiv(r.ag_prod, r.ag_feed_g);
+    return (r as any)[key];
   }
 
   const headerBg = "rgb(6, 36, 58)";
@@ -444,6 +473,49 @@ export default function PlantaReportsPage() {
   };
 
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
+
+  const W_FECHA = 120;
+  const W_GUARDIA = 80;
+
+  const stickyLeftFechaHead: React.CSSProperties = {
+    ...stickyHead,
+    left: 0,
+    zIndex: 12,
+  };
+
+  const stickyLeftGuardiaHead: React.CSSProperties = {
+    ...stickyHead,
+    left: W_FECHA,
+    zIndex: 11,
+  };
+
+  const stickyLeftFechaCell = (bg: string, z = 5): React.CSSProperties => ({
+    position: "sticky",
+    left: 0,
+    zIndex: z,
+    background: bg,
+  });
+
+  const stickyLeftGuardiaCell = (bg: string, z = 5): React.CSSProperties => ({
+    position: "sticky",
+    left: W_FECHA,
+    zIndex: z,
+    background: bg,
+  });
+
+  const stickyLeftFechaFoot: React.CSSProperties = {
+    ...stickyFoot,
+    position: "sticky",
+    left: 0,
+    zIndex: 12,
+  };
+
+  const stickyLeftGuardiaFoot: React.CSSProperties = {
+    ...stickyFoot,
+    position: "sticky",
+    left: W_FECHA,
+    zIndex: 11,
+  };
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -538,9 +610,9 @@ export default function PlantaReportsPage() {
                 <th
                   className="capex-th"
                   style={{
-                    ...stickyHead,
-                    minWidth: 120,
-                    maxWidth: 120,
+                    ...stickyLeftFechaHead,
+                    minWidth: W_FECHA,
+                    maxWidth: W_FECHA,
                     border: headerBorder,
                     borderBottom: headerBorder,
                     textAlign: "left",
@@ -553,9 +625,9 @@ export default function PlantaReportsPage() {
                 <th
                   className="capex-th"
                   style={{
-                    ...stickyHead,
-                    minWidth: 80,
-                    maxWidth: 80,
+                    ...stickyLeftGuardiaHead,
+                    minWidth: W_GUARDIA,
+                    maxWidth: W_GUARDIA,
                     border: headerBorder,
                     borderBottom: headerBorder,
                     textAlign: "left",
@@ -594,6 +666,11 @@ export default function PlantaReportsPage() {
                 const dayTotals: Record<string, any> = {};
                 for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
 
+                const dayBg = "rgba(0,0,0,.22)";
+                const rowBg = "rgba(0,0,0,.10)";
+                const dayBorder = "1px solid rgba(191, 231, 255, 0.18)";
+                const rowBorder = "1px solid rgba(255,255,255,.06)";
+
                 return (
                   <React.Fragment key={g.dateIso}>
                     <tr className="capex-tr">
@@ -601,9 +678,9 @@ export default function PlantaReportsPage() {
                         className="capex-td capex-td-strong"
                         style={{
                           ...cellBase,
+                          ...stickyLeftFechaCell(dayBg, 7),
                           fontWeight: 900,
-                          background: "rgba(0,0,0,.22)",
-                          borderBottom: "1px solid rgba(191, 231, 255, 0.18)",
+                          borderBottom: dayBorder,
                         }}
                       >
                         <button
@@ -630,10 +707,10 @@ export default function PlantaReportsPage() {
                         className="capex-td"
                         style={{
                           ...cellBase,
+                          ...stickyLeftGuardiaCell(dayBg, 7),
                           fontWeight: 900,
                           opacity: 0.9,
-                          background: "rgba(0,0,0,.22)",
-                          borderBottom: "1px solid rgba(191, 231, 255, 0.18)",
+                          borderBottom: dayBorder,
                         }}
                       >
                         Total
@@ -649,8 +726,8 @@ export default function PlantaReportsPage() {
                             style={{
                               ...numCell,
                               fontWeight: 900,
-                              background: "rgba(0,0,0,.22)",
-                              borderBottom: "1px solid rgba(191, 231, 255, 0.18)",
+                              background: dayBg,
+                              borderBottom: dayBorder,
                             }}
                           >
                             {text}
@@ -666,24 +743,24 @@ export default function PlantaReportsPage() {
                               className="capex-td"
                               style={{
                                 ...cellBase,
-                                background: "rgba(0,0,0,.10)",
-                                borderBottom: "1px solid rgba(255,255,255,.06)",
+                                ...stickyLeftFechaCell(rowBg, 5),
+                                borderBottom: rowBorder,
                               }}
                             />
                             <td
                               className="capex-td capex-td-strong"
                               style={{
                                 ...cellBase,
+                                ...stickyLeftGuardiaCell(rowBg, 5),
                                 fontWeight: 900,
-                                background: "rgba(0,0,0,.10)",
-                                borderBottom: "1px solid rgba(255,255,255,.06)",
+                                borderBottom: rowBorder,
                               }}
                             >
                               {String((r as any)._shift || "").toUpperCase()}
                             </td>
 
                             {cols.map((c) => {
-                              const v = (r as any)[c.key];
+                              const v = displayValueForRow(r, c.key);
                               const text = c.fmt ? c.fmt(v) : v ?? "";
                               return (
                                 <td
@@ -691,8 +768,8 @@ export default function PlantaReportsPage() {
                                   className="capex-td"
                                   style={{
                                     ...numCell,
-                                    background: "rgba(0,0,0,.10)",
-                                    borderBottom: "1px solid rgba(255,255,255,.06)",
+                                    background: rowBg,
+                                    borderBottom: rowBorder,
                                   }}
                                 >
                                   {text}
@@ -712,7 +789,7 @@ export default function PlantaReportsPage() {
                 <td
                   className="capex-td capex-td-strong"
                   style={{
-                    ...stickyFoot,
+                    ...stickyLeftFechaFoot,
                     ...cellBase,
                     fontWeight: 900,
                     borderTop: "1px solid rgba(191, 231, 255, 0.20)",
@@ -723,7 +800,7 @@ export default function PlantaReportsPage() {
                 <td
                   className="capex-td"
                   style={{
-                    ...stickyFoot,
+                    ...stickyLeftGuardiaFoot,
                     ...cellBase,
                     fontWeight: 900,
                     opacity: 0.9,
