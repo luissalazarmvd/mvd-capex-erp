@@ -448,7 +448,7 @@ export default function PlantaReportsPage() {
 
     setDateTo(end);
     setDateFrom(start);
-    setOpenDays({ [end]: true });
+    setOpenDays({});
     setRangeInit(true);
   }, [allRows, rangeInit, today]);
 
