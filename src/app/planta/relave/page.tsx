@@ -393,7 +393,7 @@ export default function RelavePage() {
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
           <Button type="button" size="sm" variant="ghost" onClick={loadShifts} disabled={loadingShifts || saving}>
-            {loadingShifts ? "Cargando..." : "Recargar"}
+            {loadingShifts ? "Cargando..." : "Refrescar"}
           </Button>
           <Button
             type="button"
