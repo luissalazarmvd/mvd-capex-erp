@@ -311,6 +311,62 @@ function Select({
   );
 }
 
+function isIsoDate(s: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim());
+}
+
+const TANKS = ["TK1", "TK2", "TK3", "TK4", "TK5", "TK6", "TK7", "TK8", "TK9", "TK10", "TK11"] as const;
+type Tank = (typeof TANKS)[number];
+
+type TankQtyRow = {
+  tank: Tank;
+  entry_date: string;
+  carbon_kg: string;
+  eff_pct_ui: string;
+  cycles: string;
+};
+
+function blankQtyRow(tank: Tank): TankQtyRow {
+  return { tank, entry_date: "", carbon_kg: "", eff_pct_ui: "", cycles: "" };
+}
+
+function toEff01OrNull(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return null;
+  const n = toNumOrNaN(t);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+  const v = n / 100;
+  return Number.isFinite(v) ? v : null;
+}
+
+function okEff0to100OrEmpty(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  const n = toNumOrNaN(t);
+  return Number.isFinite(n) && n >= 0 && n <= 100;
+}
+
+function okIntNonNegOrEmpty(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  const n = Number(t);
+  return Number.isInteger(n) && n >= 0;
+}
+
+function rowHasAnyValue(r: TankQtyRow) {
+  return !!String(r.entry_date || "").trim() || !!String(r.carbon_kg || "").trim() || !!String(r.eff_pct_ui || "").trim() || !!String(r.cycles || "").trim();
+}
+
+function qtyRowCompleteAndValid(r: TankQtyRow) {
+  if (!isIsoDate(r.entry_date)) return false;
+  if (!okNonNegOrEmpty(r.carbon_kg) || String(r.carbon_kg || "").trim() === "") return false;
+  if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
+  if (!okIntNonNegOrEmpty(r.cycles) || String(r.cycles || "").trim() === "") return false;
+  const eff01 = toEff01OrNull(r.eff_pct_ui);
+  if (eff01 === null) return false;
+  return true;
+}
+
 export default function CarbonPage() {
   const originalByDayRef = useRef<Record<string, RowState>>({});
   const init = useMemo(() => defaultYearMonth(), []);
@@ -326,10 +382,7 @@ export default function CarbonPage() {
 
   const ym = useMemo(() => ymFromInputs(year, month) ?? "", [year, month]);
 
-  const isYmValid = useMemo(
-    () => /^\d{6}$/.test(String(ym || "").trim()) && daysInMonth(ym.trim()) > 0,
-    [ym]
-  );
+  const isYmValid = useMemo(() => /^\d{6}$/.test(String(ym || "").trim()) && daysInMonth(ym.trim()) > 0, [ym]);
 
   const canSaveAll = useMemo(() => {
     const hasDirty = Object.keys(dirty).length > 0;
@@ -384,7 +437,7 @@ export default function CarbonPage() {
     }
   }
 
-    useEffect(() => {
+  useEffect(() => {
     if (!isYmValid) {
       setRows([]);
       setDirty({});
@@ -400,15 +453,14 @@ export default function CarbonPage() {
 
     loadMonth(ym);
   }, [ym, isYmValid, savingAll]);
-  
-  function isRowDirty(nextRow: RowState) {
-  const orig = originalByDayRef.current[nextRow.tank_day];
-  if (!orig) return true;
-  for (const k of AU_KEYS) if (String((nextRow as any)[k] ?? "") !== String((orig as any)[k] ?? "")) return true;
-  for (const k of AG_KEYS) if (String((nextRow as any)[k] ?? "") !== String((orig as any)[k] ?? "")) return true;
-  return false;
-  }
 
+  function isRowDirty(nextRow: RowState) {
+    const orig = originalByDayRef.current[nextRow.tank_day];
+    if (!orig) return true;
+    for (const k of AU_KEYS) if (String((nextRow as any)[k] ?? "") !== String((orig as any)[k] ?? "")) return true;
+    for (const k of AG_KEYS) if (String((nextRow as any)[k] ?? "") !== String((orig as any)[k] ?? "")) return true;
+    return false;
+  }
 
   function setCell(day: string, key: FieldKey, value: string) {
     setRows((prev) => {
@@ -527,6 +579,131 @@ export default function CarbonPage() {
 
   const monthOptions = useMemo(() => MONTHS.map((m) => ({ value: String(m.value), label: m.label })), []);
 
+  const originalQtyRef = useRef<Record<string, TankQtyRow>>({});
+  const [qtyMsg, setQtyMsg] = useState<string | null>(null);
+  const [qtySaving, setQtySaving] = useState(false);
+  const [qtyRows, setQtyRows] = useState<TankQtyRow[]>(() => TANKS.map((t) => blankQtyRow(t)));
+  const [qtyDirty, setQtyDirty] = useState<Record<string, true>>({});
+
+  useEffect(() => {
+    const orig: Record<string, TankQtyRow> = {};
+    for (const r of qtyRows) orig[r.tank] = { ...r };
+    originalQtyRef.current = orig;
+    setQtyDirty({});
+    setQtyMsg(null);
+  }, []);
+
+  function isQtyRowDirty(nextRow: TankQtyRow) {
+    const orig = originalQtyRef.current[nextRow.tank];
+    if (!orig) return true;
+    if (String(nextRow.entry_date ?? "") !== String(orig.entry_date ?? "")) return true;
+    if (String(nextRow.carbon_kg ?? "") !== String(orig.carbon_kg ?? "")) return true;
+    if (String(nextRow.eff_pct_ui ?? "") !== String(orig.eff_pct_ui ?? "")) return true;
+    if (String(nextRow.cycles ?? "") !== String(orig.cycles ?? "")) return true;
+    return false;
+  }
+
+  function setQtyCell(tank: Tank, key: keyof Omit<TankQtyRow, "tank">, value: string) {
+    setQtyRows((prev) => {
+      const next = prev.map((r) => (r.tank === tank ? ({ ...r, [key]: value } as TankQtyRow) : r));
+      const changed = next.find((x) => x.tank === tank);
+      if (changed) {
+        setQtyDirty((d) => {
+          const nd: any = { ...d };
+          if (isQtyRowDirty(changed)) nd[tank] = true;
+          else delete nd[tank];
+          return nd;
+        });
+      }
+      return next;
+    });
+  }
+
+  const canSaveQty = useMemo(() => {
+    if (qtySaving || loading || savingAll) return false;
+    if (!Object.keys(qtyDirty).length) return false;
+
+    for (const r of qtyRows) {
+      if (!qtyDirty[r.tank]) continue;
+      const any = rowHasAnyValue(r);
+      if (!any) continue;
+
+      if (!isIsoDate(r.entry_date)) return false;
+      if (!okNonNegOrEmpty(r.carbon_kg) || String(r.carbon_kg || "").trim() === "") return false;
+      if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
+      if (!okIntNonNegOrEmpty(r.cycles) || String(r.cycles || "").trim() === "") return false;
+
+      const eff01 = toEff01OrNull(r.eff_pct_ui);
+      if (eff01 === null) return false;
+    }
+
+    return true;
+  }, [qtyDirty, qtySaving, qtyRows, loading, savingAll]);
+
+  async function saveQty() {
+    const tanks = Object.keys(qtyDirty) as Tank[];
+    if (!tanks.length) return;
+
+    for (const t of tanks) {
+      const r = qtyRows.find((x) => x.tank === t);
+      if (!r) continue;
+      const any = rowHasAnyValue(r);
+      if (!any) continue;
+      if (!qtyRowCompleteAndValid(r)) {
+        setQtyMsg(`ERROR: valores inválidos en ${t}`);
+        return;
+      }
+    }
+
+    setQtySaving(true);
+    setQtyMsg(null);
+
+    try {
+      for (const t of tanks) {
+        const r = qtyRows.find((x) => x.tank === t);
+        if (!r) continue;
+        const any = rowHasAnyValue(r);
+        if (!any) continue;
+
+        const eff01 = toEff01OrNull(r.eff_pct_ui);
+        if (eff01 === null) throw new Error(`eff inválida en ${t}`);
+
+        const payload: any = {
+          tank: t,
+          entry_date: r.entry_date,
+          carbon_kg: toNumOrNull(r.carbon_kg),
+          eff_pct: eff01,
+          cycles: Number(String(r.cycles || "").trim()),
+        };
+
+        await apiPost("/api/planta/carbones/qty/upsert", payload);
+      }
+
+      const orig: Record<string, TankQtyRow> = {};
+      for (const r of qtyRows) orig[r.tank] = { ...r };
+      originalQtyRef.current = orig;
+
+      setQtyDirty({});
+      setQtyMsg("OK: carbón por tanque guardado");
+    } catch (e: any) {
+      setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando carbón por tanque");
+    } finally {
+      setQtySaving(false);
+    }
+  }
+
+  const qtyInputStyle: React.CSSProperties = {
+    width: "100%",
+    background: "rgba(0,0,0,.10)",
+    border: "1px solid var(--border)",
+    color: "var(--text)",
+    borderRadius: 8,
+    padding: "8px 10px",
+    outline: "none",
+    fontWeight: 900,
+    fontSize: 12,
+  };
+
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
@@ -575,7 +752,7 @@ export default function CarbonPage() {
             Año debe ser YYYY y mes válido.
           </div>
         ) : rows.length ? (
-          <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
+          <Table stickyHeader maxHeight={"calc(100vh - 340px)"}>
             <thead>
               <tr>
                 <th
@@ -811,6 +988,142 @@ export default function CarbonPage() {
           </div>
         )}
       </div>
+
+      <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ fontWeight: 900 }}>Ingreso de carbón</div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+          <Button type="button" size="sm" variant="primary" onClick={saveQty} disabled={!canSaveQty}>
+            {qtySaving ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+      </div>
+
+      {qtyMsg ? (
+        <div
+          className="panel-inner"
+          style={{
+            padding: 10,
+            border: qtyMsg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
+            background: qtyMsg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            fontWeight: 800,
+          }}
+        >
+          {qtyMsg}
+        </div>
+      ) : null}
+
+      <Table>
+        <thead>
+          <tr>
+            <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
+              Tanque
+            </th>
+            <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
+              Fecha de Ingreso
+            </th>
+            <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
+              Carbón (kg)
+            </th>
+            <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
+              Eficiencia (%)
+            </th>
+            <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
+              # Vueltas
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {qtyRows.map((r) => {
+            const isD = !!qtyDirty[r.tank];
+            const any = rowHasAnyValue(r);
+            const valid =
+              !any ||
+              (isIsoDate(r.entry_date) &&
+                okNonNegOrEmpty(r.carbon_kg) &&
+                String(r.carbon_kg || "").trim() !== "" &&
+                okEff0to100OrEmpty(r.eff_pct_ui) &&
+                String(r.eff_pct_ui || "").trim() !== "" &&
+                okIntNonNegOrEmpty(r.cycles) &&
+                String(r.cycles || "").trim() !== "" &&
+                toEff01OrNull(r.eff_pct_ui) !== null);
+
+            const okDate = !any || isIsoDate(r.entry_date);
+            const okKg = !any || (okNonNegOrEmpty(r.carbon_kg) && String(r.carbon_kg || "").trim() !== "");
+            const okEff = !any || (okEff0to100OrEmpty(r.eff_pct_ui) && String(r.eff_pct_ui || "").trim() !== "");
+            const okCy = !any || (okIntNonNegOrEmpty(r.cycles) && String(r.cycles || "").trim() !== "");
+
+            return (
+              <tr key={r.tank} className="capex-tr" style={{ background: isD ? "rgba(102,199,255,.05)" : "transparent" }}>
+                <td className="capex-td capex-td-strong" style={{ fontWeight: 900 }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <div>{r.tank}</div>
+                    {!valid ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Inválido</div> : null}
+                  </div>
+                </td>
+                <td className="capex-td">
+                  <input
+                    type="date"
+                    value={r.entry_date}
+                    disabled={qtySaving || loading || savingAll}
+                    onChange={(e) => setQtyCell(r.tank, "entry_date", e.target.value)}
+                    style={{
+                      ...qtyInputStyle,
+                      border: okDate ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                      background: okDate ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                      opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                    }}
+                  />
+                </td>
+                <td className="capex-td">
+                  <input
+                    value={r.carbon_kg}
+                    disabled={qtySaving || loading || savingAll}
+                    onChange={(e) => setQtyCell(r.tank, "carbon_kg", e.target.value)}
+                    style={{
+                      ...qtyInputStyle,
+                      textAlign: "right",
+                      border: okKg ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                      background: okKg ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                      opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                    }}
+                    placeholder="0.000"
+                  />
+                </td>
+                <td className="capex-td">
+                  <input
+                    value={r.eff_pct_ui}
+                    disabled={qtySaving || loading || savingAll}
+                    onChange={(e) => setQtyCell(r.tank, "eff_pct_ui", e.target.value)}
+                    style={{
+                      ...qtyInputStyle,
+                      textAlign: "right",
+                      border: okEff ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                      background: okEff ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                      opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                    }}
+                    placeholder="0-100"
+                  />
+                </td>
+                <td className="capex-td">
+                  <input
+                    value={r.cycles}
+                    disabled={qtySaving || loading || savingAll}
+                    onChange={(e) => setQtyCell(r.tank, "cycles", e.target.value)}
+                    style={{
+                      ...qtyInputStyle,
+                      textAlign: "right",
+                      border: okCy ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                      background: okCy ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                      opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                    }}
+                    placeholder="0"
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
     </div>
   );
 }
