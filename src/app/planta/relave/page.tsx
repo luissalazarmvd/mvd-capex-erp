@@ -301,7 +301,6 @@ export default function RelavePage() {
     if (!q) return;
 
     setLoadingExisting(true);
-    setMsg(null);
 
     try {
       const r = (await apiGet(
@@ -326,6 +325,8 @@ export default function RelavePage() {
   }, []);
 
   useEffect(() => {
+    setMsg(null);
+
     if (!shiftId) {
       clearEntryFields();
       return;
