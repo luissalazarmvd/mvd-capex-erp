@@ -419,7 +419,7 @@ export default function PlantaReportsPage() {
     setLoading(true);
     setMsg(null);
     try {
-      const r = (await apiGet(`/api/planta/balance?top=200`)) as BalResp;
+      const r = (await apiGet(`/api/planta/balance?from=${dateFrom}&to=${dateTo}`)) as BalResp;
       setAllRows(Array.isArray(r?.rows) ? r.rows : []);
     } catch (e: any) {
       setAllRows([]);
