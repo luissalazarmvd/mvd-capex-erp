@@ -312,6 +312,7 @@ function Select({
 }
 
 export default function CarbonPage() {
+  const originalByDayRef = useRef<Record<string, RowState>>({});
   const init = useMemo(() => defaultYearMonth(), []);
   const [year, setYear] = useState<string>(init.year);
   const [month, setMonth] = useState<number>(init.month);
@@ -368,6 +369,10 @@ export default function CarbonPage() {
       const days = buildMonthDates(ym0);
       const merged = days.map((d) => (byDay.has(d) ? fromApiRow(byDay.get(d)!) : makeBlankRow(d)));
 
+      const orig: Record<string, RowState> = {};
+      for (const r of merged) orig[r.tank_day] = r;
+      originalByDayRef.current = orig;
+
       setRows(merged);
       setDirty({});
     } catch (e: any) {
@@ -379,22 +384,48 @@ export default function CarbonPage() {
     }
   }
 
-  useEffect(() => {
-    if (!isYmValid) return;
+    useEffect(() => {
+    if (!isYmValid) {
+      setRows([]);
+      setDirty({});
+      originalByDayRef.current = {};
+      return;
+    }
     if (savingAll) return;
-    const hasDirty = Object.keys(dirty).length > 0;
-    if (hasDirty) return;
+
+    setMsg(null);
+    setRows([]);
+    setDirty({});
+    originalByDayRef.current = {};
+
     loadMonth(ym);
-  }, [ym, isYmValid]);
+  }, [ym, isYmValid, savingAll]);
+  
+  function isRowDirty(nextRow: RowState) {
+  const orig = originalByDayRef.current[nextRow.tank_day];
+  if (!orig) return true;
+  for (const k of AU_KEYS) if (String((nextRow as any)[k] ?? "") !== String((orig as any)[k] ?? "")) return true;
+  for (const k of AG_KEYS) if (String((nextRow as any)[k] ?? "") !== String((orig as any)[k] ?? "")) return true;
+  return false;
+  }
+
 
   function setCell(day: string, key: FieldKey, value: string) {
-    setRows((prev) =>
-      prev.map((r) => {
-        if (r.tank_day !== day) return r;
-        return { ...r, [key]: value } as any;
-      })
-    );
-    setDirty((d) => ({ ...d, [day]: true }));
+    setRows((prev) => {
+      const next = prev.map((r) => (r.tank_day === day ? ({ ...r, [key]: value } as any) : r));
+      const changed = next.find((x) => x.tank_day === day);
+
+      if (changed) {
+        setDirty((d) => {
+          const nd: any = { ...d };
+          if (isRowDirty(changed)) nd[day] = true;
+          else delete nd[day];
+          return nd;
+        });
+      }
+
+      return next;
+    });
   }
 
   function rowValid(r: RowState) {
