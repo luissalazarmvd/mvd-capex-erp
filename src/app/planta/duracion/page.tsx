@@ -279,7 +279,7 @@ export default function PlantaDuracionPage() {
     if (!q) return;
 
     setLoadingExisting(true);
-    setMsg(null);
+    // OJO: NO borres msg acá, si no se “come” el OK después de guardar.
 
     try {
       const r = (await apiGet(
