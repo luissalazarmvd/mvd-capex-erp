@@ -402,7 +402,7 @@ export default function BolasPage() {
     const sid = String(shiftId || "").trim();
     const m = String(mill || "").trim();
     const sz = String(size || "").trim();
-    const okW = qtyOkNonNeg(weight) && Number(toDecimalStrOrNullFront(weight, 18) || "0") > 0;
+    const okW = qtyOkNonNeg(weight);
     return !!sid && !!m && !!sz && okW && !saving;
   }, [shiftId, mill, size, weight, saving]);
 
@@ -519,7 +519,7 @@ export default function BolasPage() {
     const m = String(mill || "").trim().toUpperCase();
     const sz = String(size || "").trim();
     const wStr = toDecimalStrOrNullFront(weight, 18);
-    const w = wStr ? Number(wStr) : NaN;
+    const w = wStr !== null ? Number(wStr) : NaN;
 
     setSaving(true);
     try {
@@ -642,7 +642,7 @@ export default function BolasPage() {
           </div>
 
           <div style={{ flex: "1 1 auto" }}>
-            <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 8 }}>Datos cargados (feedback)</div>
+            <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 8 }}>Datos cargados</div>
 
             <div
               style={{
@@ -706,10 +706,6 @@ export default function BolasPage() {
                   {shiftId ? "No hay bolas registradas para esta guardia." : "Selecciona una guardia."}
                 </div>
               )}
-            </div>
-
-            <div className="muted" style={{ marginTop: 8, fontWeight: 800, fontSize: 12, opacity: 0.8 }}>
-              Tip: cambia el tamaño para autocompletar la cantidad si ya existe ese (Molino + Tamaño).
             </div>
           </div>
         </div>
