@@ -321,13 +321,17 @@ type Tank = (typeof TANKS)[number];
 type TankQtyRow = {
   tank: Tank;
   entry_date: string;
+  campaign_mm: string;
+  campaign_seq: string;
   carbon_kg: string;
   eff_pct_ui: string;
   cycles: string;
+  tank_comment: string;
 };
 
+
 function blankQtyRow(tank: Tank): TankQtyRow {
-  return { tank, entry_date: "", carbon_kg: "", eff_pct_ui: "", cycles: "" };
+  return { tank, entry_date: "", campaign_mm: "", campaign_seq: "", carbon_kg: "", eff_pct_ui: "", cycles: "", tank_comment: "" };
 }
 
 function toEff01OrNull(s: string) {
@@ -353,19 +357,54 @@ function okIntNonNegOrEmpty(s: string) {
   return Number.isInteger(n) && n >= 0;
 }
 
-function rowHasAnyValue(r: TankQtyRow) {
-  return !!String(r.entry_date || "").trim() || !!String(r.carbon_kg || "").trim() || !!String(r.eff_pct_ui || "").trim() || !!String(r.cycles || "").trim();
+function only2Digits(s: string) {
+  const x = String(s || "").replace(/\D/g, "").slice(0, 2);
+  return x;
 }
+
+function ok2DigitsOrEmpty(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  return /^\d{2}$/.test(t);
+}
+
+function campaignCode(mm: string, seq: string) {
+  const a = String(mm || "").trim();
+  const b = String(seq || "").trim();
+  if (!/^\d{2}$/.test(a) || !/^\d{2}$/.test(b)) return null;
+  return `C-${a}-${b}`;
+}
+
+function rowHasAnyValue(r: TankQtyRow) {
+  return (
+    !!String(r.entry_date || "").trim() ||
+    !!String(r.campaign_mm || "").trim() ||
+    !!String(r.campaign_seq || "").trim() ||
+    !!String(r.carbon_kg || "").trim() ||
+    !!String(r.eff_pct_ui || "").trim() ||
+    !!String(r.cycles || "").trim() ||
+    !!String(r.tank_comment || "").trim()
+  );
+}
+
 
 function qtyRowCompleteAndValid(r: TankQtyRow) {
   if (!isIsoDate(r.entry_date)) return false;
+
+  if (!ok2DigitsOrEmpty(r.campaign_mm) || String(r.campaign_mm || "").trim() === "") return false;
+  if (!ok2DigitsOrEmpty(r.campaign_seq) || String(r.campaign_seq || "").trim() === "") return false;
+  if (campaignCode(r.campaign_mm, r.campaign_seq) === null) return false;
+
   if (!okNonNegOrEmpty(r.carbon_kg) || String(r.carbon_kg || "").trim() === "") return false;
   if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
   if (!okIntNonNegOrEmpty(r.cycles) || String(r.cycles || "").trim() === "") return false;
+
   const eff01 = toEff01OrNull(r.eff_pct_ui);
   if (eff01 === null) return false;
+
   return true;
 }
+
 
 export default function CarbonPage() {
   const originalByDayRef = useRef<Record<string, RowState>>({});
@@ -599,6 +638,9 @@ export default function CarbonPage() {
     if (String(nextRow.entry_date ?? "") !== String(orig.entry_date ?? "")) return true;
     if (String(nextRow.carbon_kg ?? "") !== String(orig.carbon_kg ?? "")) return true;
     if (String(nextRow.eff_pct_ui ?? "") !== String(orig.eff_pct_ui ?? "")) return true;
+    if (String(nextRow.campaign_mm ?? "") !== String(orig.campaign_mm ?? "")) return true;
+    if (String(nextRow.campaign_seq ?? "") !== String(orig.campaign_seq ?? "")) return true;
+    if (String(nextRow.tank_comment ?? "") !== String(orig.tank_comment ?? "")) return true;
     if (String(nextRow.cycles ?? "") !== String(orig.cycles ?? "")) return true;
     return false;
   }
@@ -629,6 +671,9 @@ export default function CarbonPage() {
       if (!any) continue;
 
       if (!isIsoDate(r.entry_date)) return false;
+      if (!ok2DigitsOrEmpty(r.campaign_mm) || String(r.campaign_mm || "").trim() === "") return false;
+      if (!ok2DigitsOrEmpty(r.campaign_seq) || String(r.campaign_seq || "").trim() === "") return false;
+      if (campaignCode(r.campaign_mm, r.campaign_seq) === null) return false;
       if (!okNonNegOrEmpty(r.carbon_kg) || String(r.carbon_kg || "").trim() === "") return false;
       if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
       if (!okIntNonNegOrEmpty(r.cycles) || String(r.cycles || "").trim() === "") return false;
@@ -667,14 +712,19 @@ export default function CarbonPage() {
 
         const eff01 = toEff01OrNull(r.eff_pct_ui);
         if (eff01 === null) throw new Error(`eff inválida en ${t}`);
+        const camp = campaignCode(r.campaign_mm, r.campaign_seq);
+        if (!camp) throw new Error(`campaña inválida en ${t}`);
 
-        const payload: any = {
-          tank: t,
-          entry_date: r.entry_date,
-          carbon_kg: toNumOrNull(r.carbon_kg),
-          eff_pct: eff01,
-          cycles: Number(String(r.cycles || "").trim()),
-        };
+const payload: any = {
+  tank: t,
+  entry_date: r.entry_date,
+  campaign: camp,
+  carbon_kg: toNumOrNull(r.carbon_kg),
+  eff_pct: eff01,
+  cycles: Number(String(r.cycles || "").trim()),
+  tank_comment: String(r.tank_comment ?? "").trim() || null,
+};
+
 
         await apiPost("/api/planta/carbones/qty/upsert", payload);
       }
@@ -1022,6 +1072,9 @@ export default function CarbonPage() {
               Fecha de Ingreso
             </th>
             <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
+              Campaña
+            </th>
+            <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
               Carbón (kg)
             </th>
             <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
@@ -1030,6 +1083,10 @@ export default function CarbonPage() {
             <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
               # Vueltas
             </th>
+            <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
+              Comentario
+            </th>
+
           </tr>
         </thead>
         <tbody>
@@ -1039,6 +1096,12 @@ export default function CarbonPage() {
             const valid =
               !any ||
               (isIsoDate(r.entry_date) &&
+              ok2DigitsOrEmpty(r.campaign_mm) &&
+                String(r.campaign_mm || "").trim() !== "" &&
+                ok2DigitsOrEmpty(r.campaign_seq) &&
+                String(r.campaign_seq || "").trim() !== "" &&
+                campaignCode(r.campaign_mm, r.campaign_seq) !== null &&
+
                 okNonNegOrEmpty(r.carbon_kg) &&
                 String(r.carbon_kg || "").trim() !== "" &&
                 okEff0to100OrEmpty(r.eff_pct_ui) &&
@@ -1048,6 +1111,8 @@ export default function CarbonPage() {
                 toEff01OrNull(r.eff_pct_ui) !== null);
 
             const okDate = !any || isIsoDate(r.entry_date);
+            const okCampMm = !any || (ok2DigitsOrEmpty(r.campaign_mm) && String(r.campaign_mm || "").trim() !== "");
+            const okCampSeq = !any || (ok2DigitsOrEmpty(r.campaign_seq) && String(r.campaign_seq || "").trim() !== "");
             const okKg = !any || (okNonNegOrEmpty(r.carbon_kg) && String(r.carbon_kg || "").trim() !== "");
             const okEff = !any || (okEff0to100OrEmpty(r.eff_pct_ui) && String(r.eff_pct_ui || "").trim() !== "");
             const okCy = !any || (okIntNonNegOrEmpty(r.cycles) && String(r.cycles || "").trim() !== "");
@@ -1074,6 +1139,46 @@ export default function CarbonPage() {
                     }}
                   />
                 </td>
+                <td className="capex-td">
+  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ fontWeight: 900, opacity: 0.85 }}>C-</div>
+
+    <input
+      value={r.campaign_mm}
+      disabled={qtySaving || loading || savingAll}
+      onChange={(e) => setQtyCell(r.tank, "campaign_mm", only2Digits(e.target.value))}
+      style={{
+        ...qtyInputStyle,
+        width: 54,
+        textAlign: "center",
+        border: ok2DigitsOrEmpty(r.campaign_mm) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+        background: ok2DigitsOrEmpty(r.campaign_mm) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+        opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+      }}
+      placeholder="MM"
+      inputMode="numeric"
+    />
+
+    <div style={{ fontWeight: 900, opacity: 0.85 }}>-</div>
+
+    <input
+      value={r.campaign_seq}
+      disabled={qtySaving || loading || savingAll}
+      onChange={(e) => setQtyCell(r.tank, "campaign_seq", only2Digits(e.target.value))}
+      style={{
+        ...qtyInputStyle,
+        width: 54,
+        textAlign: "center",
+        border: ok2DigitsOrEmpty(r.campaign_seq) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+        background: ok2DigitsOrEmpty(r.campaign_seq) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+        opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+      }}
+      placeholder="##"
+      inputMode="numeric"
+    />
+  </div>
+</td>
+
                 <td className="capex-td">
                   <input
                     value={r.carbon_kg}
@@ -1119,6 +1224,20 @@ export default function CarbonPage() {
                     placeholder="0"
                   />
                 </td>
+                <td className="capex-td">
+  <input
+    value={r.tank_comment}
+    disabled={qtySaving || loading || savingAll}
+    onChange={(e) => setQtyCell(r.tank, "tank_comment", e.target.value)}
+    style={{
+      ...qtyInputStyle,
+      opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+    }}
+    placeholder="(opcional)"
+    maxLength={255}
+  />
+</td>
+
               </tr>
             );
           })}
