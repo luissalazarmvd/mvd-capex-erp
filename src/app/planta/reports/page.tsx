@@ -415,14 +415,31 @@ export default function PlantaReportsPage() {
 
   const [dateOrder, setDateOrder] = useState<"desc" | "asc">("desc");
 
-  async function load() {
-    setRangeInit(false);
-    setOpenDays({});
+async function load(forceDefault = false) {
     setLoading(true);
     setMsg(null);
+
     try {
       const r = (await apiGet(`/api/planta/balance?top=200`)) as BalResp;
-      setAllRows(Array.isArray(r?.rows) ? r.rows : []);
+      const rows = Array.isArray(r?.rows) ? r.rows : [];
+      setAllRows(rows);
+
+      if (forceDefault) {
+        let maxIso = "";
+        for (const rr of rows) {
+          const { dateIso } = parseShiftId(rr.shift_id);
+          if (!dateIso) continue;
+          if (!maxIso || dateIso > maxIso) maxIso = dateIso;
+        }
+
+        const end = maxIso || today;
+        const start = monthStartIso(end);
+
+        setDateTo(end);
+        setDateFrom(start);
+        setOpenDays({});
+        setRangeInit(true);
+      }
     } catch (e: any) {
       setAllRows([]);
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando balance metalúrgico");
@@ -432,7 +449,7 @@ export default function PlantaReportsPage() {
   }
 
   useEffect(() => {
-    load();
+    load(true);
   }, []);
 
   useEffect(() => {
@@ -720,7 +737,7 @@ export default function PlantaReportsPage() {
             Ag
           </Button>
 
-          <Button type="button" size="sm" variant="default" onClick={load} disabled={loading}>
+          <Button type="button" size="sm" variant="default" onClick={() => load(true)} disabled={loading}>
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
 
