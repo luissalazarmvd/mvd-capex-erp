@@ -376,7 +376,7 @@ export default function BolasPage() {
   const [size, setSize] = useState<string>("");
   const [weight, setWeight] = useState<string>("");
 
-  const [loadedKey, setLoadedKey] = useState<string>("");
+  const [existingBalls, setExistingBalls] = useState<GuardiaGetResp["balls"]>([]);
   const [isEditingExisting, setIsEditingExisting] = useState(false);
 
   const shiftsSorted = useMemo(() => {
@@ -406,6 +406,27 @@ export default function BolasPage() {
     return !!sid && !!m && !!sz && okW && !saving;
   }, [shiftId, mill, size, weight, saving]);
 
+  const existingMap = useMemo(() => {
+    const map = new Map<string, { mill: string; size: string; qty: number }>();
+    for (const b of existingBalls || []) {
+      const mm = String(b?.mill || "").trim().toUpperCase();
+      const sz = b?.reagent_name === null || b?.reagent_name === undefined ? "" : String(b.reagent_name).trim();
+      if (!mm || !sz) continue;
+      const qtyNum = b?.balls_weight === null || b?.balls_weight === undefined ? NaN : Number(b.balls_weight);
+      if (!Number.isFinite(qtyNum)) continue;
+      map.set(`${mm}|${sz}`, { mill: mm, size: sz, qty: qtyNum });
+    }
+    return map;
+  }, [existingBalls]);
+
+  const feedbackSizes = useMemo(() => {
+    const set = new Set<string>();
+    for (const v of existingMap.values()) set.add(v.size);
+    const raw = Array.from(set.values());
+    raw.sort((a, b) => String(a).localeCompare(String(b)));
+    return raw;
+  }, [existingMap]);
+
   async function loadShifts() {
     setLoadingShifts(true);
     setMsg(null);
@@ -426,12 +447,14 @@ export default function BolasPage() {
     setSize("");
     setWeight("");
     setIsEditingExisting(false);
-    setLoadedKey("");
   }
 
-  async function loadExistingForShiftMill(sid: string, m: string) {
+  async function loadExistingForShift(sid: string) {
     const q = parseShiftIdToQuery(sid);
-    if (!q) return;
+    if (!q) {
+      setExistingBalls([]);
+      return;
+    }
 
     setLoadingExisting(true);
     setMsg(null);
@@ -441,35 +464,31 @@ export default function BolasPage() {
         `/api/planta/guardia/get?date=${encodeURIComponent(q.date)}&shift=${encodeURIComponent(q.shift)}`
       )) as GuardiaGetResp;
 
-      const mm = String(m || "").trim().toUpperCase();
-      const hit = (r.balls || []).find((x) => String(x.mill || "").trim().toUpperCase() === mm);
-
-      if (hit) {
-        const rn = hit.reagent_name === null || hit.reagent_name === undefined ? "" : String(hit.reagent_name);
-        setSize(rn);
-
-        if (hit.balls_weight !== null && hit.balls_weight !== undefined) {
-          const s = String(hit.balls_weight);
-          setWeight(s.includes("e") || s.includes("E") ? Number(hit.balls_weight).toFixed(18) : s);
-        } else {
-          setWeight("");
-        }
-
-        setIsEditingExisting(true);
-      } else {
-        setIsEditingExisting(false);
-        setSize("");
-        setWeight("");
-      }
-
-      setLoadedKey(`${String(sid || "").trim().toUpperCase()}|${mm}`);
+      setExistingBalls(Array.isArray(r?.balls) ? r.balls : []);
     } catch {
-      setIsEditingExisting(false);
-      setSize("");
-      setWeight("");
-      setLoadedKey(`${String(sid || "").trim().toUpperCase()}|${String(m || "").trim().toUpperCase()}`);
+      setExistingBalls([]);
     } finally {
       setLoadingExisting(false);
+    }
+  }
+
+  function syncWeightFromSelection(nextShiftId: string, nextMill: string, nextSize: string) {
+    const sid = String(nextShiftId || "").trim().toUpperCase();
+    const mm = String(nextMill || "").trim().toUpperCase();
+    const sz = String(nextSize || "").trim();
+    if (!sid || !mm || !sz) {
+      setIsEditingExisting(false);
+      return;
+    }
+
+    const hit = existingMap.get(`${mm}|${sz}`);
+    if (hit) {
+      const s = String(hit.qty);
+      setWeight(s.includes("e") || s.includes("E") ? Number(hit.qty).toFixed(18) : s);
+      setIsEditingExisting(true);
+    } else {
+      setWeight("");
+      setIsEditingExisting(false);
     }
   }
 
@@ -479,22 +498,18 @@ export default function BolasPage() {
 
   useEffect(() => {
     clearEntryFields();
+    setMill("");
+    setExistingBalls([]);
+    if (shiftId) loadExistingForShift(shiftId);
   }, [shiftId]);
 
   useEffect(() => {
-    if (!shiftId || !mill) {
-      setIsEditingExisting(false);
-      setLoadedKey("");
-      setSize("");
-      setWeight("");
-      return;
-    }
+    clearEntryFields();
+  }, [mill]);
 
-    const key = `${String(shiftId || "").trim().toUpperCase()}|${String(mill || "").trim().toUpperCase()}`;
-    if (key === loadedKey) return;
-
-    loadExistingForShiftMill(shiftId, mill);
-  }, [shiftId, mill]);
+  useEffect(() => {
+    syncWeightFromSelection(shiftId, mill, size);
+  }, [size, shiftId, mill, existingMap]);
 
   async function onSave() {
     setMsg(null);
@@ -518,8 +533,8 @@ export default function BolasPage() {
       if (!r?.ok) throw new Error(r?.error || "No se pudo guardar");
 
       setMsg(`OK: guardado ${sid} · Bolas`);
-      setIsEditingExisting(true);
-      setLoadedKey(`${sid}|${m}`);
+      await loadExistingForShift(sid);
+      syncWeightFromSelection(sid, m, sz);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando bolas");
     } finally {
@@ -528,7 +543,7 @@ export default function BolasPage() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
+    <div style={{ display: "grid", gap: 12, maxWidth: 1100 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Bolas</div>
 
@@ -564,64 +579,139 @@ export default function BolasPage() {
       ) : null}
 
       <div className="panel-inner" style={{ padding: 14 }}>
-        <div style={{ display: "grid", gap: 12 }}>
-          <SearchableDropdown
-            label="Guardia"
-            placeholder={loadingShifts ? "Cargando guardias..." : "Busca: 20260205-A, supervisor..."}
-            value={shiftId}
-            items={shiftsSorted}
-            getKey={(x: ShiftRow) => x.shift_id}
-            getLabel={(x: ShiftRow) => shiftLabel(x)}
-            onSelect={(x: ShiftRow) => setShiftId(String(x.shift_id || "").trim().toUpperCase())}
-            disabled={saving}
-          />
+        <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+          <div style={{ flex: "0 0 520px", display: "grid", gap: 12 }}>
+            <SearchableDropdown
+              label="Guardia"
+              placeholder={loadingShifts ? "Cargando guardias..." : "Busca: 20260205-A, supervisor..."}
+              value={shiftId}
+              items={shiftsSorted}
+              getKey={(x: ShiftRow) => x.shift_id}
+              getLabel={(x: ShiftRow) => shiftLabel(x)}
+              onSelect={(x: ShiftRow) => setShiftId(String(x.shift_id || "").trim().toUpperCase())}
+              disabled={saving}
+            />
 
-          {!shiftsSorted.length ? (
-            <div style={{ display: "grid", gap: 6 }}>
-              <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
-                Pega el shift_id manual (formato: YYYYMMDD-A o YYYYMMDD-B).
+            {!shiftsSorted.length ? (
+              <div style={{ display: "grid", gap: 6 }}>
+                <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+                  Pega el shift_id manual (formato: YYYYMMDD-A o YYYYMMDD-B).
+                </div>
+                <Input
+                  placeholder="Ej: 20260205-A"
+                  value={shiftId}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShiftId(e.target.value.trim().toUpperCase())}
+                  hint="shift_id"
+                />
               </div>
-              <Input
-                placeholder="Ej: 20260205-A"
-                value={shiftId}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShiftId(e.target.value.trim().toUpperCase())}
-                hint="shift_id"
-              />
+            ) : null}
+
+            <Select
+              label="Molino"
+              value={mill}
+              onChange={(v) => setMill((v as any) || "")}
+              disabled={saving}
+              options={[{ value: "", label: "Selecciona..." }, ...MILLS.map((x) => ({ value: x, label: x }))]}
+            />
+
+            <Select
+              label="Tamaño de Bolas (Pulgadas)"
+              value={size}
+              onChange={(v) => setSize((v as any) || "")}
+              disabled={saving || loadingExisting || !shiftId || !mill}
+              options={[{ value: "", label: "Selecciona..." }, ...BALL_SIZES.map((x) => ({ value: x, label: x }))]}
+            />
+
+            <Input
+              placeholder=""
+              value={weight}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWeight(e.target.value)}
+              hint="Cantidad (kg)"
+            />
+
+            {loadingExisting ? (
+              <div className="muted" style={{ fontWeight: 800 }}>
+                Cargando datos existentes…
+              </div>
+            ) : isEditingExisting && shiftId && mill && size ? (
+              <div className="muted" style={{ fontWeight: 800 }}>
+                Editando registro existente para {String(shiftId).trim().toUpperCase()} · {String(mill).trim().toUpperCase()} ·{" "}
+                {String(size).trim()}
+              </div>
+            ) : null}
+          </div>
+
+          <div style={{ flex: "1 1 auto" }}>
+            <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 8 }}>Datos cargados (feedback)</div>
+
+            <div
+              style={{
+                border: "1px solid rgba(255,255,255,.10)",
+                borderRadius: 12,
+                overflow: "hidden",
+                background: "rgba(0,0,0,.06)",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 120px 120px 120px",
+                  gap: 0,
+                  borderBottom: "1px solid rgba(255,255,255,.08)",
+                  background: "rgba(0,0,0,.10)",
+                }}
+              >
+                <div style={{ padding: "10px 12px", fontWeight: 900, opacity: 0.85 }}>Tamaño</div>
+                <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right" }}>M1</div>
+                <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right" }}>M2</div>
+                <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right" }}>M3</div>
+              </div>
+
+              {feedbackSizes.length ? (
+                feedbackSizes.map((sz) => {
+                  const v1 = existingMap.get(`M1|${sz}`)?.qty ?? null;
+                  const v2 = existingMap.get(`M2|${sz}`)?.qty ?? null;
+                  const v3 = existingMap.get(`M3|${sz}`)?.qty ?? null;
+
+                  const fmt = (x: number | null) => {
+                    if (x === null) return "";
+                    const s = String(x);
+                    return s.includes("e") || s.includes("E") ? Number(x).toFixed(6) : s;
+                  };
+
+                  return (
+                    <div
+                      key={sz}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 120px 120px 120px",
+                        borderBottom: "1px solid rgba(255,255,255,.06)",
+                      }}
+                    >
+                      <div style={{ padding: "10px 12px", fontWeight: 900 }}>{sz}</div>
+                      <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right", opacity: v1 === null ? 0.45 : 1 }}>
+                        {fmt(v1)}
+                      </div>
+                      <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right", opacity: v2 === null ? 0.45 : 1 }}>
+                        {fmt(v2)}
+                      </div>
+                      <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right", opacity: v3 === null ? 0.45 : 1 }}>
+                        {fmt(v3)}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="muted" style={{ padding: 12, fontWeight: 800 }}>
+                  {shiftId ? "No hay bolas registradas para esta guardia." : "Selecciona una guardia."}
+                </div>
+              )}
             </div>
-          ) : null}
 
-          <Select
-            label="Molino"
-            value={mill}
-            onChange={(v) => setMill((v as any) || "")}
-            disabled={saving}
-            options={[{ value: "", label: "Selecciona..." }, ...MILLS.map((x) => ({ value: x, label: x }))]}
-          />
-
-          <Select
-            label="Tamaño de Bolas (Pulgadas)"
-            value={size}
-            onChange={(v) => setSize((v as any) || "")}
-            disabled={saving || loadingExisting || !shiftId || !mill}
-            options={[{ value: "", label: "Selecciona..." }, ...BALL_SIZES.map((x) => ({ value: x, label: x }))]}
-          />
-
-          <Input
-            placeholder=""
-            value={weight}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWeight(e.target.value)}
-            hint="Cantidad (kg)"
-          />
-
-          {loadingExisting ? (
-            <div className="muted" style={{ fontWeight: 800 }}>
-              Cargando datos existentes…
+            <div className="muted" style={{ marginTop: 8, fontWeight: 800, fontSize: 12, opacity: 0.8 }}>
+              Tip: cambia el tamaño para autocompletar la cantidad si ya existe ese (Molino + Tamaño).
             </div>
-          ) : isEditingExisting && shiftId && mill ? (
-            <div className="muted" style={{ fontWeight: 800 }}>
-              Editando registro existente para {String(shiftId).trim().toUpperCase()} · {String(mill).trim().toUpperCase()}
-            </div>
-          ) : null}
+          </div>
         </div>
       </div>
     </div>
