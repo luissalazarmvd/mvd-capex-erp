@@ -416,6 +416,8 @@ export default function PlantaReportsPage() {
   const [dateOrder, setDateOrder] = useState<"desc" | "asc">("desc");
 
   async function load() {
+    setRangeInit(false);
+    setOpenDays({});
     setLoading(true);
     setMsg(null);
     try {
