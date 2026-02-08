@@ -327,6 +327,7 @@ export default function PlantaDuracionPage() {
   }, []);
 
   useEffect(() => {
+    setMsg(null);
     if (!shiftId) {
       clearFields();
       return;
