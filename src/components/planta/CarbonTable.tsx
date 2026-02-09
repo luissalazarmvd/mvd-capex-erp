@@ -333,22 +333,22 @@ export default function CarbonTable(props: {
           <thead>
             <tr>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 58 }}>
-                Tanque
+                # Tanque
               </th>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 108 }}>
-                Fecha
+                Fecha de Ingreso
               </th>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 92 }}>
                 Campaña
               </th>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 110 }}>
-                Carbón
+                Carbón (kg)
               </th>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 90 }}>
                 Ef. %
               </th>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 72 }}>
-                Vueltas
+                # Vueltas
               </th>
 
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 82 }}>
@@ -368,7 +368,7 @@ export default function CarbonTable(props: {
               </th>
 
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 92 }}>
-                Var.
+                Variación (%)
               </th>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 110 }}>
                 g Total
