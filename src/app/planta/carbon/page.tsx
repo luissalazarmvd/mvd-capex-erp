@@ -497,12 +497,15 @@ function qtyRowCompleteAndValid(r: TankQtyRow) {
 type QtyViewRow = {
   tank: string;
   entry_date: string;
-  campaign_id: string | null;
+  campaign_id?: string | null;
+  campaign?: string | null;
   carbon_kg: any;
   eff_pct: any;
   cycles: any;
-  tank_comment: string | null;
+  tank_comment?: string | null;
+  comment?: string | null;
 };
+
 
 type QtyViewResp = {
   ok: boolean;
@@ -542,8 +545,19 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
     ...x,
     tank: String(x.tank || "").trim().toUpperCase(),
     entry_date: String(x.entry_date || "").trim(),
-    campaign_id: x.campaign_id === null || x.campaign_id === undefined ? null : String(x.campaign_id).trim().toUpperCase(),
-    tank_comment: x.tank_comment === null || x.tank_comment === undefined ? null : String(x.tank_comment),
+    campaign_id:
+     x.campaign_id === null || x.campaign_id === undefined
+    ? (x as any).campaign == null
+      ? null
+      : String((x as any).campaign).trim().toUpperCase()
+    : String(x.campaign_id).trim().toUpperCase(),
+
+    tank_comment:
+    x.tank_comment === null || x.tank_comment === undefined
+    ? (x as any).comment == null
+      ? null
+      : String((x as any).comment)
+    : String(x.tank_comment),
   }));
 
   if (items.length === 2) {
