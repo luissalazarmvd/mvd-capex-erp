@@ -457,7 +457,7 @@ export default function GuardiaPage() {
           <div style={{ display: "grid", gap: 6 }}>
             <div style={{ fontWeight: 900, fontSize: 13 }}>Comentario</div>
 
-            <input
+              <textarea
               value={form.shift_comment}
               disabled={saving}
               onChange={(e) =>
@@ -466,6 +466,11 @@ export default function GuardiaPage() {
                   shift_comment: String(e.target.value || "").slice(0, COMMENT_MAX),
                 }))
               }
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = `${el.scrollHeight}px`;
+              }}
               style={{
                 width: "100%",
                 background: "rgba(0,0,0,.10)",
@@ -474,12 +479,16 @@ export default function GuardiaPage() {
                 borderRadius: 10,
                 padding: "10px 12px",
                 outline: "none",
-                fontWeight: 900,
+                fontWeight: 400,
                 opacity: saving ? 0.7 : 1,
+                resize: "none",
+                overflow: "hidden",
+                minHeight: 44,
               }}
               placeholder="(opcional)"
               maxLength={COMMENT_MAX}
             />
+
 
             <div className="muted" style={{ fontWeight: 900, fontSize: 11, textAlign: "right", opacity: 0.8 }}>
               {String(form.shift_comment || "").length}/{COMMENT_MAX}
