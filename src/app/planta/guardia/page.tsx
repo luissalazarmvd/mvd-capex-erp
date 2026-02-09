@@ -20,6 +20,8 @@ type GuardiaGetResp = {
   duration: any[];
 };
 
+const COMMENT_MAX = 255;
+
 type Form = {
   shift_date: string;
   plant_shift: "A" | "B" | "";
@@ -28,6 +30,7 @@ type Form = {
   h2o_pct: string;
   au_feed: string;
   ag_feed: string;
+  shift_comment: string;
 };
 
 function isoTodayPe(): string {
@@ -230,6 +233,7 @@ export default function GuardiaPage() {
     h2o_pct: "",
     au_feed: "",
     ag_feed: "",
+    shift_comment: "",
   });
 
   const shift_id = useMemo(() => buildShiftId(form.shift_date, form.plant_shift), [form.shift_date, form.plant_shift]);
@@ -259,9 +263,10 @@ export default function GuardiaPage() {
       (form.plant_shift === "A" || form.plant_shift === "B") &&
       !!form.plant_supervisor.trim() &&
       metricsOk &&
+      form.shift_comment.length <= COMMENT_MAX &&
       !saving
     );
-  }, [dateOk, form.plant_shift, form.plant_supervisor, metricsOk, saving]);
+  }, [dateOk, form.plant_shift, form.plant_supervisor, metricsOk, form.shift_comment, saving]);
 
   async function loadLookups() {
     setLoadingLookups(true);
@@ -295,6 +300,7 @@ export default function GuardiaPage() {
           h2o_pct: h.h2o_pct === null || h.h2o_pct === undefined ? "" : String(h.h2o_pct),
           au_feed: h.au_feed === null || h.au_feed === undefined ? "" : String(h.au_feed),
           ag_feed: h.ag_feed === null || h.ag_feed === undefined ? "" : String(h.ag_feed),
+          shift_comment: h.shift_comment === null || h.shift_comment === undefined ? "" : String(h.shift_comment).slice(0, COMMENT_MAX),
         }));
         setMsg(`OK: cargado ${r.shift_id}`);
       } else {
@@ -304,6 +310,7 @@ export default function GuardiaPage() {
           h2o_pct: "",
           au_feed: "",
           ag_feed: "",
+          shift_comment: "",
         }));
         setMsg(null);
       }
@@ -339,6 +346,7 @@ export default function GuardiaPage() {
         h2o_pct: clampStrPct_1to100_OrNull(form.h2o_pct),
         au_feed: toNumOrNull(form.au_feed),
         ag_feed: toNumOrNull(form.ag_feed),
+        shift_comment: String(form.shift_comment || "").slice(0, COMMENT_MAX),
       };
 
       const r: any = await apiPost("/api/planta/guardia/upsert", payload);
@@ -445,6 +453,39 @@ export default function GuardiaPage() {
             />
           </div>
 
+                    <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Comentario</div>
+
+            <input
+              value={form.shift_comment}
+              disabled={saving}
+              onChange={(e) =>
+                setForm((s) => ({
+                  ...s,
+                  shift_comment: String(e.target.value || "").slice(0, COMMENT_MAX),
+                }))
+              }
+              style={{
+                width: "100%",
+                background: "rgba(0,0,0,.10)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                outline: "none",
+                fontWeight: 900,
+                opacity: saving ? 0.7 : 1,
+              }}
+              placeholder="(opcional)"
+              maxLength={COMMENT_MAX}
+            />
+
+            <div className="muted" style={{ fontWeight: 900, fontSize: 11, textAlign: "right", opacity: 0.8 }}>
+              {String(form.shift_comment || "").length}/{COMMENT_MAX}
+            </div>
+          </div>
+
+          
           {loadingExisting ? (
             <div className="muted" style={{ fontWeight: 800 }}>
               Cargando datos existentes…
