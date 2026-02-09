@@ -311,6 +311,31 @@ function Select({
   );
 }
 
+function normalizeIsoDateForInput(v: any): string {
+  if (v === null || v === undefined) return "";
+
+  // Si viene como Date (por mssql a veces)
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    const y = v.getFullYear();
+    const m = pad2(v.getMonth() + 1);
+    const d = pad2(v.getDate());
+    return `${y}-${m}-${d}`;
+  }
+
+  const s = String(v).trim();
+  if (!s) return "";
+
+  // Ya viene perfecto
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // Viene con hora (ISO o SQL): 2026-02-07T... o 2026-02-07 ...
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+
+  return "";
+}
+
+
 function isIsoDate(s: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim());
 }
@@ -544,7 +569,7 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
   const items = (two || []).slice(0, 2).map((x) => ({
     ...x,
     tank: String(x.tank || "").trim().toUpperCase(),
-    entry_date: String(x.entry_date || "").trim(),
+    entry_date: normalizeIsoDateForInput(x.entry_date),
     campaign_id:
      x.campaign_id === null || x.campaign_id === undefined
     ? (x as any).campaign == null
@@ -571,7 +596,7 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
   const ref = items.find((x) => x && (x.campaign_id || x.entry_date || x.eff_pct !== null || x.cycles !== null)) || items[0];
 
   if (ref) {
-    base.entry_date = isIsoDate(ref.entry_date) ? ref.entry_date : "";
+    base.entry_date = normalizeIsoDateForInput(ref.entry_date);
     base.eff_pct_ui = effToUiPct(ref.eff_pct);
     base.cycles = (() => {
       const n = Number(ref.cycles);
