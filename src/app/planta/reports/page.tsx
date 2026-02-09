@@ -71,8 +71,6 @@ export default function PlantaReportsPage() {
         tankMsg={tankMsg}
         tankRowsAu={tankRowsAu}
         tankRowsAg={tankRowsAg}
-        tankDatesAu={tankDatesAu}
-        tankDatesAg={tankDatesAg}
       />
 
       <div style={{ height: 6 }} />
