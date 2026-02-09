@@ -426,6 +426,15 @@ function qtyRowCompleteAndValid(r: TankQtyRow) {
   const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
   const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
 
+  if (l1.active && l2.active) {
+    const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
+    const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+
+    if (c1.complete && c2.complete && c1.code && c2.code && c1.code === c2.code) {
+      return false;
+    }
+  }
+
   if (!(l1.active || l2.active)) return false;
 
   if (!isIsoDate(r.entry_date)) return false;
@@ -770,6 +779,10 @@ export default function CarbonPage() {
 
         const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
         const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
+
+                if (l1.active && l2.active && c1.complete && c2.complete && c1.code === c2.code) {
+          throw new Error(`ERROR: campaña repetida en ${t} (${c1.code})`);
+        }
 
         if (l1.active) {
           if (!c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
