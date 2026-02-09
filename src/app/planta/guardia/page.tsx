@@ -300,7 +300,8 @@ export default function GuardiaPage() {
           h2o_pct: h.h2o_pct === null || h.h2o_pct === undefined ? "" : String(h.h2o_pct),
           au_feed: h.au_feed === null || h.au_feed === undefined ? "" : String(h.au_feed),
           ag_feed: h.ag_feed === null || h.ag_feed === undefined ? "" : String(h.ag_feed),
-          shift_comment: h.shift_comment === null || h.shift_comment === undefined ? "" : String(h.shift_comment).slice(0, COMMENT_MAX),
+          shift_comment:
+            h.shift_comment === null || h.shift_comment === undefined ? "" : String(h.shift_comment).slice(0, COMMENT_MAX),
         }));
         setMsg(`OK: cargado ${r.shift_id}`);
       } else {
@@ -453,7 +454,7 @@ export default function GuardiaPage() {
             />
           </div>
 
-                    <div style={{ display: "grid", gap: 6 }}>
+          <div style={{ display: "grid", gap: 6 }}>
             <div style={{ fontWeight: 900, fontSize: 13 }}>Comentario</div>
 
             <input
@@ -485,7 +486,6 @@ export default function GuardiaPage() {
             </div>
           </div>
 
-          
           {loadingExisting ? (
             <div className="muted" style={{ fontWeight: 800 }}>
               Cargando datos existentes…
