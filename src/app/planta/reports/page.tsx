@@ -64,24 +64,18 @@ type BalResp = { ok: boolean; rows: BalRow[] };
 
 type TankSumRow = {
   tank: string;
-  entry_date: string;
+  entry_date: any;
   campaign: any;
   carbon_kg: any;
   eff_pct: any;
   cycles: any;
   tank_comment: any;
 
-  au_d1?: any;
-  au_d2?: any;
-  au_d3?: any;
-  au_d4?: any;
-  au_d5?: any;
-
-  ag_d1?: any;
-  ag_d2?: any;
-  ag_d3?: any;
-  ag_d4?: any;
-  ag_d5?: any;
+  d1?: any;
+  d2?: any;
+  d3?: any;
+  d4?: any;
+  d5?: any;
 
   variation?: any;
   total_gr?: any;
@@ -171,6 +165,21 @@ function fmtDateDdMm(iso: string) {
   const mm = iso.slice(5, 7);
   const yy = iso.slice(0, 4);
   return `${dd}/${mm}/${yy}`;
+}
+
+function pickIsoDateOnly(v: any): string {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m?.[1]) return m[1];
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function fmtDateAnyToDdMm(v: any) {
+  const iso = pickIsoDateOnly(v);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return fmtDateDdMm(iso);
+  return iso || "";
 }
 
 function DatePicker({
@@ -430,18 +439,13 @@ function tankOrderKey(t: string) {
   return Number.isFinite(n) ? n : 999;
 }
 
-function fmtMaybeDate(isoOrAny: any) {
-  const s = String(isoOrAny ?? "").trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return fmtDateDdMm(s);
-  return s;
-}
-
 export default function PlantaReportsPage() {
-  const [mode, setMode] = useState<"AU" | "AG">("AU");
+  const [balMode, setBalMode] = useState<"AU" | "AG">("AU");
   const [allRows, setAllRows] = useState<BalRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const [tankMode, setTankMode] = useState<"AU" | "AG">("AU");
   const [tankRowsAu, setTankRowsAu] = useState<TankSumRow[]>([]);
   const [tankRowsAg, setTankRowsAg] = useState<TankSumRow[]>([]);
   const [tankDatesAu, setTankDatesAu] = useState<string[]>([]);
@@ -450,7 +454,7 @@ export default function PlantaReportsPage() {
   const [tankMsg, setTankMsg] = useState<string | null>(null);
 
   const today = useMemo(() => isoTodayPe(), []);
-  const cols = useMemo(() => buildColumns(mode), [mode]);
+  const cols = useMemo(() => buildColumns(balMode), [balMode]);
 
   const [dateFrom, setDateFrom] = useState<string>(() => monthStartIso(today));
   const [dateTo, setDateTo] = useState<string>(() => today);
@@ -617,7 +621,7 @@ export default function PlantaReportsPage() {
     const { headers, rows, title, totalRowIdxs } = buildExportMatrix({
       groups,
       cols,
-      mode,
+      mode: balMode,
       dateFrom,
       dateTo,
       overallTotals,
@@ -674,7 +678,7 @@ export default function PlantaReportsPage() {
     const { headers, rows, title, totalRowIdxs } = buildExportMatrix({
       groups,
       cols,
-      mode,
+      mode: balMode,
       dateFrom,
       dateTo,
       overallTotals,
@@ -787,50 +791,35 @@ export default function PlantaReportsPage() {
   const upGreen = "#00965E";
   const downRed = "#b23934";
 
-  const tanksList = useMemo(
-    () => Array.from({ length: 11 }, (_, i) => `TK${i + 1}`),
-    []
-  );
-
-  const tankRows = mode === "AU" ? tankRowsAu : tankRowsAg;
-  const tankDates = mode === "AU" ? tankDatesAu : tankDatesAg;
+  const tankRows = tankMode === "AU" ? tankRowsAu : tankRowsAg;
+  const tankDates = tankMode === "AU" ? tankDatesAu : tankDatesAg;
 
   const tankDatesLabels = useMemo(() => {
-    const d = tankDates.map((x) => String(x)).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x));
-    const pick = (idx: number) => (d[idx] ? fmtDateDdMm(d[idx]) : "");
-    const d5 = pick(0);
-    const d4 = pick(1);
-    const d3 = pick(2);
-    const d2 = pick(3);
-    const d1 = pick(4);
-    return {
-      d1: d1 || "D1",
-      d2: d2 || "D2",
-      d3: d3 || "D3",
-      d4: d4 || "D4",
-      d5: d5 || "D5",
-    };
+    const d = tankDates.map((x) => pickIsoDateOnly(x)).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x));
+    const d5 = d[0] ? fmtDateDdMm(d[0]) : "D5";
+    const d4 = d[1] ? fmtDateDdMm(d[1]) : "D4";
+    const d3 = d[2] ? fmtDateDdMm(d[2]) : "D3";
+    const d2 = d[3] ? fmtDateDdMm(d[3]) : "D2";
+    const d1 = d[4] ? fmtDateDdMm(d[4]) : "D1";
+    return { d1, d2, d3, d4, d5 };
   }, [tankDates]);
 
-  const tankGrouped = useMemo(() => {
-    const byTank = new Map<string, TankSumRow[]>();
-    for (const r of tankRows) {
-      const tk = String(r.tank || "").toUpperCase();
-      if (!tk) continue;
-      const arr = byTank.get(tk) ?? [];
-      arr.push(r);
-      byTank.set(tk, arr);
-    }
-    for (const [k, arr] of byTank.entries()) {
-      arr.sort((a, b) => {
-        const ea = String(a.entry_date || "");
-        const eb = String(b.entry_date || "");
-        if (ea !== eb) return ea < eb ? 1 : -1;
-        return String(a.campaign || "").localeCompare(String(b.campaign || ""));
-      });
-      byTank.set(k, arr);
-    }
-    return byTank;
+  const tankFlat = useMemo(() => {
+    const rows = Array.isArray(tankRows) ? tankRows.slice() : [];
+    rows.sort((a, b) => {
+      const ta = tankOrderKey(String(a.tank || ""));
+      const tb = tankOrderKey(String(b.tank || ""));
+      if (ta !== tb) return ta - tb;
+
+      const ea = pickIsoDateOnly(a.entry_date);
+      const eb = pickIsoDateOnly(b.entry_date);
+      if (ea !== eb) return ea < eb ? 1 : -1;
+
+      const ca = String(a.campaign ?? "");
+      const cb = String(b.campaign ?? "");
+      return ca.localeCompare(cb);
+    });
+    return rows;
   }, [tankRows]);
 
   function renderVariation(v: any) {
@@ -862,11 +851,6 @@ export default function PlantaReportsPage() {
     return {};
   }
 
-  function dVal(r: TankSumRow, idx: 1 | 2 | 3 | 4 | 5) {
-    const k = (mode === "AU" ? `au_d${idx}` : `ag_d${idx}`) as keyof TankSumRow;
-    return (r as any)[k];
-  }
-
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
@@ -876,8 +860,8 @@ export default function PlantaReportsPage() {
           <Button
             type="button"
             size="sm"
-            variant={mode === "AU" ? "primary" : "ghost"}
-            onClick={() => setMode("AU")}
+            variant={balMode === "AU" ? "primary" : "ghost"}
+            onClick={() => setBalMode("AU")}
             disabled={loading}
           >
             Au
@@ -885,8 +869,8 @@ export default function PlantaReportsPage() {
           <Button
             type="button"
             size="sm"
-            variant={mode === "AG" ? "primary" : "ghost"}
-            onClick={() => setMode("AG")}
+            variant={balMode === "AG" ? "primary" : "ghost"}
+            onClick={() => setBalMode("AG")}
             disabled={loading}
           >
             Ag
@@ -921,21 +905,8 @@ export default function PlantaReportsPage() {
 
       <div className="panel-inner" style={{ padding: 14 }}>
         <div style={{ display: "grid", gridTemplateColumns: "240px 240px", gap: 12, alignItems: "end" }}>
-          <DatePicker
-            label="Fecha inicio"
-            valueIso={dateFrom}
-            onChangeIso={(iso) => setDateFrom(iso)}
-            disabled={loading}
-            max={today}
-          />
-          <DatePicker
-            label="Fecha fin"
-            valueIso={dateTo}
-            onChangeIso={(iso) => setDateTo(iso)}
-            disabled={loading}
-            max={today}
-            min={dateFrom || undefined}
-          />
+          <DatePicker label="Fecha inicio" valueIso={dateFrom} onChangeIso={(iso) => setDateFrom(iso)} disabled={loading} max={today} />
+          <DatePicker label="Fecha fin" valueIso={dateTo} onChangeIso={(iso) => setDateTo(iso)} disabled={loading} max={today} min={dateFrom || undefined} />
         </div>
       </div>
 
@@ -1219,26 +1190,29 @@ export default function PlantaReportsPage() {
           <Button
             type="button"
             size="sm"
-            variant="ghost"
-            onClick={() => setMode((m) => (m === "AU" ? "AG" : "AU"))}
+            variant={tankMode === "AU" ? "primary" : "ghost"}
+            onClick={() => setTankMode("AU")}
             disabled={tankLoading}
           >
-            {mode === "AU" ? "Oro" : "Plata"}
+            Au
           </Button>
-
           <Button
             type="button"
             size="sm"
-            variant="default"
-            onClick={() => loadTankSummary(mode)}
+            variant={tankMode === "AG" ? "primary" : "ghost"}
+            onClick={() => setTankMode("AG")}
             disabled={tankLoading}
           >
+            Ag
+          </Button>
+
+          <Button type="button" size="sm" variant="default" onClick={() => loadTankSummary(tankMode)} disabled={tankLoading}>
             {tankLoading ? "Cargando…" : "Refrescar"}
           </Button>
         </div>
 
         <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
-          {mode === "AU" ? "Au" : "Ag"} · dw.v_tank_summary_{mode === "AU" ? "au" : "ag"}
+          {tankMode === "AU" ? "Au" : "Ag"} · dw.v_tank_summary_{tankMode === "AU" ? "au" : "ag"}
         </div>
       </div>
 
@@ -1442,7 +1416,7 @@ export default function PlantaReportsPage() {
                   minWidth: 150,
                 }}
               >
-                g Totales en TKs
+                g Totales
               </th>
 
               <th
@@ -1454,7 +1428,7 @@ export default function PlantaReportsPage() {
                   textAlign: "left",
                   padding: "10px 10px",
                   fontSize: 12,
-                  minWidth: 220,
+                  minWidth: 260,
                 }}
               >
                 Comentario
@@ -1463,250 +1437,149 @@ export default function PlantaReportsPage() {
           </thead>
 
           <tbody>
-            {tanksList
-              .slice()
-              .sort((a, b) => tankOrderKey(a) - tankOrderKey(b))
-              .map((tk) => {
-                const rowsForTank = tankGrouped.get(tk) ?? [];
-                const r1 = rowsForTank[0] || null;
-                const r2 = rowsForTank[1] || null;
-
-                const entry = r1?.entry_date ?? r2?.entry_date ?? "";
-                const comment = r1?.tank_comment ?? r2?.tank_comment ?? "";
-                const variation = r1?.variation ?? r2?.variation ?? null;
-                const totalGr = r1?.total_gr ?? r2?.total_gr ?? null;
-
-                const d1 = r1 ? dVal(r1, 1) : r2 ? dVal(r2, 1) : null;
-                const d2 = r1 ? dVal(r1, 2) : r2 ? dVal(r2, 2) : null;
-                const d3 = r1 ? dVal(r1, 3) : r2 ? dVal(r2, 3) : null;
-                const d4 = r1 ? dVal(r1, 4) : r2 ? dVal(r2, 4) : null;
-                const d5 = r1 ? dVal(r1, 5) : r2 ? dVal(r2, 5) : null;
-
+            {tankFlat.length ? (
+              tankFlat.map((r, i) => {
                 const rowBorder = "1px solid rgba(255,255,255,.06)";
                 const rowBg = "rgba(0,0,0,.10)";
-
-                const span = r1 && r2 ? 2 : 1;
-
-                const sharedCells = r1 || r2;
-
-                function renderCampaignRow(rr: TankSumRow | null, idx: number) {
-                  return (
-                    <tr key={`${tk}-${idx}`} className="capex-tr">
-                      {idx === 1 ? (
-                        <>
-                          <td
-                            className="capex-td capex-td-strong"
-                            rowSpan={span}
-                            style={{
-                              ...cellBase,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                            }}
-                          >
-                            {tk}
-                          </td>
-                          <td
-                            className="capex-td"
-                            rowSpan={span}
-                            style={{
-                              ...cellBase,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                            }}
-                          >
-                            {fmtMaybeDate(entry)}
-                          </td>
-                        </>
-                      ) : null}
-
-                      <td
-                        className="capex-td"
-                        style={{
-                          ...cellBase,
-                          fontWeight: 900,
-                          borderBottom: rowBorder,
-                          background: rowBg,
-                        }}
-                      >
-                        {rr?.campaign ? String(rr.campaign) : ""}
-                      </td>
-
-                      <td
-                        className="capex-td"
-                        style={{
-                          ...numCell,
-                          borderBottom: rowBorder,
-                          background: rowBg,
-                        }}
-                      >
-                        {rr ? fmtFixed(rr.carbon_kg, 3) : ""}
-                      </td>
-
-                      <td
-                        className="capex-td"
-                        style={{
-                          ...numCell,
-                          borderBottom: rowBorder,
-                          background: rowBg,
-                        }}
-                      >
-                        {rr ? fmtFixed(rr.eff_pct, 1) : ""}
-                      </td>
-
-                      <td
-                        className="capex-td"
-                        style={{
-                          ...numCell,
-                          borderBottom: rowBorder,
-                          background: rowBg,
-                        }}
-                      >
-                        {rr ? fmtInt(rr.cycles) : ""}
-                      </td>
-
-                      {idx === 1 ? (
-                        <>
-                          <td
-                            className="capex-td"
-                            rowSpan={span}
-                            style={{
-                              ...numCell,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                            }}
-                          >
-                            {sharedCells ? fmtFixed(d1, 3) : ""}
-                          </td>
-                          <td
-                            className="capex-td"
-                            rowSpan={span}
-                            style={{
-                              ...numCell,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                            }}
-                          >
-                            {sharedCells ? fmtFixed(d2, 3) : ""}
-                          </td>
-                          <td
-                            className="capex-td"
-                            rowSpan={span}
-                            style={{
-                              ...numCell,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                            }}
-                          >
-                            {sharedCells ? fmtFixed(d3, 3) : ""}
-                          </td>
-                          <td
-                            className="capex-td"
-                            rowSpan={span}
-                            style={{
-                              ...numCell,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                            }}
-                          >
-                            {sharedCells ? fmtFixed(d4, 3) : ""}
-                          </td>
-                          <td
-                            className="capex-td"
-                            rowSpan={span}
-                            style={{
-                              ...numCell,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                            }}
-                          >
-                            {sharedCells ? fmtFixed(d5, 3) : ""}
-                          </td>
-
-                          <td
-                            className="capex-td"
-                            rowSpan={span}
-                            style={{
-                              ...numCell,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                            }}
-                          >
-                            {renderVariation(variation)}
-                          </td>
-
-                          <td
-                            className="capex-td"
-                            rowSpan={span}
-                            style={{
-                              ...numCell,
-                              borderBottom: rowBorder,
-                              ...(totalGrStyle(totalGr) as any),
-                            }}
-                          >
-                            {fmtFixed(totalGr, 3)}
-                          </td>
-
-                          <td
-                            className="capex-td"
-                            rowSpan={span}
-                            style={{
-                              ...cellBase,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              maxWidth: 360,
-                            }}
-                            title={String(comment || "")}
-                          >
-                            {String(comment || "")}
-                          </td>
-                        </>
-                      ) : null}
-                    </tr>
-                  );
-                }
+                const comment = r.tank_comment ?? "";
+                const totalGr = r.total_gr ?? null;
 
                 return (
-                  <React.Fragment key={tk}>
-                    {renderCampaignRow(r1, 1)}
-                    {r1 && r2 ? renderCampaignRow(r2, 2) : null}
-                    {!r1 && !r2 ? (
-                      <tr key={`${tk}-empty`} className="capex-tr">
-                        <td
-                          className="capex-td capex-td-strong"
-                          style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}
-                        >
-                          {tk}
-                        </td>
-                        <td className="capex-td" style={{ ...cellBase, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...cellBase, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
-                        <td className="capex-td" style={{ ...cellBase, borderBottom: rowBorder, background: rowBg }} />
-                      </tr>
-                    ) : null}
-                  </React.Fragment>
+                  <tr key={`${String(r.tank || "")}-${String(r.entry_date || "")}-${String(r.campaign || "")}-${i}`} className="capex-tr">
+                    <td
+                      className="capex-td capex-td-strong"
+                      style={{
+                        ...cellBase,
+                        fontWeight: 900,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
+                      {String(r.tank || "").toUpperCase()}
+                    </td>
+
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...cellBase,
+                        fontWeight: 900,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
+                      {fmtDateAnyToDdMm(r.entry_date)}
+                    </td>
+
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...cellBase,
+                        fontWeight: 900,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
+                      {r.campaign ? String(r.campaign) : ""}
+                    </td>
+
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...numCell,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
+                      {fmtFixed(r.carbon_kg, 2)}
+                    </td>
+
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...numCell,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
+                      {fmtFixed(r.eff_pct, 1)}
+                    </td>
+
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...numCell,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
+                      {fmtInt(r.cycles)}
+                    </td>
+
+                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+                      {fmtFixed(r.d1, 3)}
+                    </td>
+                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+                      {fmtFixed(r.d2, 3)}
+                    </td>
+                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+                      {fmtFixed(r.d3, 3)}
+                    </td>
+                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+                      {fmtFixed(r.d4, 3)}
+                    </td>
+                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+                      {fmtFixed(r.d5, 3)}
+                    </td>
+
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...numCell,
+                        fontWeight: 900,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
+                      {renderVariation(r.variation)}
+                    </td>
+
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...numCell,
+                        borderBottom: rowBorder,
+                        ...(totalGrStyle(totalGr) as any),
+                      }}
+                    >
+                      {fmtFixed(totalGr, 3)}
+                    </td>
+
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...cellBase,
+                        fontWeight: 900,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: 420,
+                      }}
+                      title={String(comment || "")}
+                    >
+                      {String(comment || "")}
+                    </td>
+                  </tr>
                 );
-              })}
+              })
+            ) : (
+              <tr className="capex-tr">
+                <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={14}>
+                  {tankLoading ? "Cargando…" : "Sin datos."}
+                </td>
+              </tr>
+            )}
           </tbody>
         </Table>
       </div>
