@@ -1,9 +1,12 @@
 // src/components/planta/CarbonTable.tsx
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { apiGet } from "../../lib/apiClient";
+
+type Top5DRow = { d: string; tank_date: string };
 
 export type TankSumRow = {
   tank: string;
@@ -143,20 +146,8 @@ export default function CarbonTable(props: {
 
   tankRowsAu: TankSumRow[];
   tankRowsAg: TankSumRow[];
-  tankDatesAu: string[];
-  tankDatesAg: string[];
 }) {
-  const {
-    tankMode,
-    setTankMode,
-    tankLoading,
-    onRefresh,
-    tankMsg,
-    tankRowsAu,
-    tankRowsAg,
-    tankDatesAu,
-    tankDatesAg,
-  } = props;
+  const { tankMode, setTankMode, tankLoading, onRefresh, tankMsg, tankRowsAu, tankRowsAg } = props;
 
   const headerBg = "rgb(6, 36, 58)";
   const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
@@ -183,20 +174,46 @@ export default function CarbonTable(props: {
   const downRed = "#b23934";
 
   const rawRows = tankMode === "AU" ? tankRowsAu : tankRowsAg;
-  const tankDates = tankMode === "AU" ? tankDatesAu : tankDatesAg;
+
+  const [top5dRows, setTop5dRows] = useState<Top5DRow[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const r = await apiGet("/api/planta/carbones/top5d");
+        const rows = Array.isArray(r?.rows) ? (r.rows as Top5DRow[]) : [];
+        if (mounted) setTop5dRows(rows);
+      } catch {
+        if (mounted) setTop5dRows([]);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const tankDatesLabels = useMemo(() => {
-    const d = (Array.isArray(tankDates) ? tankDates : [])
-      .map((x) => pickIsoDateOnly(x))
-      .filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x));
+    const map = new Map<string, string>();
 
-    const d5 = d[0] ? fmtDateDdMm(d[0]) : "D5";
-    const d4 = d[1] ? fmtDateDdMm(d[1]) : "D4";
-    const d3 = d[2] ? fmtDateDdMm(d[2]) : "D3";
-    const d2 = d[3] ? fmtDateDdMm(d[3]) : "D2";
-    const d1 = d[4] ? fmtDateDdMm(d[4]) : "D1";
-    return { d1, d2, d3, d4, d5 };
-  }, [tankDates]);
+    for (const r of Array.isArray(top5dRows) ? top5dRows : []) {
+      const key = String(r?.d || "").trim().toUpperCase();
+      const iso = pickIsoDateOnly(r?.tank_date);
+      if (/^D[1-5]$/.test(key) && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+        map.set(key, fmtDateDdMm(iso));
+      }
+    }
+
+    return {
+      d1: map.get("D1") ?? "D1",
+      d2: map.get("D2") ?? "D2",
+      d3: map.get("D3") ?? "D3",
+      d4: map.get("D4") ?? "D4",
+      d5: map.get("D5") ?? "D5",
+    };
+  }, [top5dRows]);
 
   const tankGroups = useMemo(() => {
     const src = Array.isArray(rawRows) ? rawRows : [];
@@ -377,9 +394,9 @@ export default function CarbonTable(props: {
                       const campaignStr = hasCampaign ? String(r.campaign).trim() : "";
                       const commentSpan = String(
                         g.rows.find((x) => isCampaignPresent(x.campaign) && String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
-                        g.rows.find((x) => String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
-                        ""
-                         ).trim();
+                          g.rows.find((x) => String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
+                          ""
+                      ).trim();
 
                       const totalGr = hasCampaign ? (r.total_gr ?? null) : null;
 
@@ -438,26 +455,25 @@ export default function CarbonTable(props: {
                           </td>
 
                           {idx === 0 ? (
-  <td
-    className="capex-td"
-    rowSpan={span}
-    style={{
-      ...cellBase,
-      fontWeight: 900,
-      borderBottom: rowBorder,
-      background: rowBg,
-      whiteSpace: "nowrap",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      maxWidth: 260,
-      verticalAlign: "middle",
-    }}
-    title={commentSpan}
-  >
-    {commentSpan}
-  </td>
-) : null}
-
+                            <td
+                              className="capex-td"
+                              rowSpan={span}
+                              style={{
+                                ...cellBase,
+                                fontWeight: 900,
+                                borderBottom: rowBorder,
+                                background: rowBg,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                maxWidth: 260,
+                                verticalAlign: "middle",
+                              }}
+                              title={commentSpan}
+                            >
+                              {commentSpan}
+                            </td>
+                          ) : null}
                         </tr>
                       );
                     })}
