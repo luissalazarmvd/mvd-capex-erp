@@ -340,80 +340,85 @@ export default function CarbonTable(props: {
           <tbody>
             {tankFlat.length ? (
               tankFlat.map((r, i) => {
-                const rowBorder = "1px solid rgba(255,255,255,.06)";
-                const rowBg = "rgba(0,0,0,.10)";
-                const comment = r.tank_comment ?? "";
-                const totalGr = r.total_gr ?? null;
+  const rowBorder = "1px solid rgba(255,255,255,.06)";
+  const rowBg = "rgba(0,0,0,.10)";
 
-                return (
-                  <tr key={`${String(r.tank || "")}-${String(r.entry_date || "")}-${String(r.campaign || "")}-${i}`} className="capex-tr">
-                    <td className="capex-td capex-td-strong" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                      {String(r.tank || "").toUpperCase()}
-                    </td>
+  const campaignStr = String(r.campaign ?? "").trim();
+  const hasCampaign = campaignStr.length > 0;
 
-                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                      {fmtDateAnyToDdMm(r.entry_date)}
-                    </td>
+  const comment = hasCampaign ? String(r.tank_comment ?? "") : "";
+  const totalGr = hasCampaign ? (r.total_gr ?? null) : null;
 
-                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                      {r.campaign ? String(r.campaign) : ""}
-                    </td>
+  return (
+    <tr key={`${String(r.tank || "")}-${String(r.entry_date || "")}-${String(r.campaign || "")}-${i}`} className="capex-tr">
+      <td className="capex-td capex-td-strong" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+        {String(r.tank || "").toUpperCase()}
+      </td>
 
-                    <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
-                      {fmtFixed(r.carbon_kg, 2)}
-                    </td>
+      <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+        {fmtDateAnyToDdMm(r.entry_date)}
+      </td>
 
-                    <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
-                      {fmtFixed(r.eff_pct, 1)}
-                    </td>
+      <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? campaignStr : ""}
+      </td>
 
-                    <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
-                      {fmtInt(r.cycles)}
-                    </td>
+      <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? fmtFixed(r.carbon_kg, 2) : ""}
+      </td>
 
-                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                      {fmtFixed(r.d1, 3)}
-                    </td>
-                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                      {fmtFixed(r.d2, 3)}
-                    </td>
-                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                      {fmtFixed(r.d3, 3)}
-                    </td>
-                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                      {fmtFixed(r.d4, 3)}
-                    </td>
-                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                      {fmtFixed(r.d5, 3)}
-                    </td>
+      <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? fmtFixed(r.eff_pct, 1) : ""}
+      </td>
 
-                    <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                      {renderVariation(r.variation)}
-                    </td>
+      <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? fmtInt(r.cycles) : ""}
+      </td>
 
-                    <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, ...(totalGrStyle(totalGr) as any) }}>
-                      {fmtFixed(totalGr, 3)}
-                    </td>
+      <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? fmtFixed(r.d1, 3) : ""}
+      </td>
+      <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? fmtFixed(r.d2, 3) : ""}
+      </td>
+      <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? fmtFixed(r.d3, 3) : ""}
+      </td>
+      <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? fmtFixed(r.d4, 3) : ""}
+      </td>
+      <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? fmtFixed(r.d5, 3) : ""}
+      </td>
 
-                    <td
-                      className="capex-td"
-                      style={{
-                        ...cellBase,
-                        fontWeight: 900,
-                        borderBottom: rowBorder,
-                        background: rowBg,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        maxWidth: 420,
-                      }}
-                      title={String(comment || "")}
-                    >
-                      {String(comment || "")}
-                    </td>
-                  </tr>
-                );
-              })
+      <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+        {hasCampaign ? renderVariation(r.variation) : ""}
+      </td>
+
+      <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, ...(hasCampaign ? (totalGrStyle(totalGr) as any) : {}) }}>
+        {hasCampaign ? fmtFixed(totalGr, 3) : ""}
+      </td>
+
+      <td
+        className="capex-td"
+        style={{
+          ...cellBase,
+          fontWeight: 900,
+          borderBottom: rowBorder,
+          background: rowBg,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          maxWidth: 420,
+        }}
+        title={comment}
+      >
+        {comment}
+      </td>
+    </tr>
+  );
+})
+
             ) : (
               <tr className="capex-tr">
                 <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={14}>
