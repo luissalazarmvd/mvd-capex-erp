@@ -372,14 +372,47 @@ function okIntNonNegOrEmpty(s: string) {
 }
 
 function only2Digits(s: string) {
-  const x = String(s || "").replace(/\D/g, "").slice(0, 2);
-  return x;
+  return String(s || "").replace(/\D/g, "").slice(0, 2);
 }
 
 function ok2DigitsOrEmpty(s: string) {
   const t = String(s ?? "").trim();
   if (!t) return true;
   return /^\d{2}$/.test(t);
+}
+
+function normalize2Digits(s: string) {
+  const t = only2Digits(s);
+  if (!t) return "";
+  if (t.length === 1) return t.padStart(2, "0");
+  return t;
+}
+
+function normalizeMonthMm(s: string) {
+  const t0 = normalize2Digits(s);
+  if (!t0) return "";
+  const n = Number(t0);
+  if (!Number.isInteger(n) || n < 1 || n > 12) return "";
+  return pad2(n);
+}
+
+function allowMonthTyping(nextRaw: string, prev: string) {
+  const t = only2Digits(nextRaw);
+  if (!t) return "";
+  if (t.length === 1) {
+    if (t === "0") return "0";
+    const n = Number(t);
+    if (Number.isInteger(n) && n >= 1 && n <= 9) return t;
+    return prev;
+  }
+  if (t === "00") return prev;
+  const n = Number(t);
+  if (!Number.isInteger(n) || n < 1 || n > 12) return prev;
+  return t;
+}
+
+function allowSeqTyping(nextRaw: string) {
+  return only2Digits(nextRaw);
 }
 
 function campaignCode(mm: string, seq: string) {
@@ -727,6 +760,26 @@ export default function CarbonPage() {
     });
   }
 
+  function setQtyCellFromPrev(tank: Tank, key: keyof Omit<TankQtyRow, "tank">, nextValue: string, compute: (prevVal: string) => string) {
+    setQtyRows((prev) => {
+      const prevRow = prev.find((x) => x.tank === tank);
+      const prevVal = prevRow ? String((prevRow as any)[key] ?? "") : "";
+      const computed = compute(prevVal);
+
+      const next = prev.map((r) => (r.tank === tank ? ({ ...r, [key]: computed } as TankQtyRow) : r));
+      const changed = next.find((x) => x.tank === tank);
+      if (changed) {
+        setQtyDirty((d) => {
+          const nd: any = { ...d };
+          if (isQtyRowDirty(changed)) nd[tank] = true;
+          else delete nd[tank];
+          return nd;
+        });
+      }
+      return next;
+    });
+  }
+
   const canSaveQty = useMemo(() => {
     if (qtySaving || loading || savingAll) return false;
 
@@ -750,97 +803,95 @@ export default function CarbonPage() {
   }, [qtyDirty, qtySaving, qtyRows, loading, savingAll]);
 
   async function saveQty() {
-  const tanks = Object.keys(qtyDirty) as Tank[];
-  if (!tanks.length) return;
+    const tanks = Object.keys(qtyDirty) as Tank[];
+    if (!tanks.length) return;
 
-  for (const t of tanks) {
-    const r = qtyRows.find((x) => x.tank === t);
-    if (!r) continue;
-    if (!rowHasMeaningfulQty(r)) continue;
-    if (!qtyRowCompleteAndValid(r)) {
-      setQtyMsg(`ERROR: valores inválidos en ${t}`);
-      return;
-    }
-  }
-
-  setQtySaving(true);
-  setQtyMsg(null);
-
-  try {
     for (const t of tanks) {
       const r = qtyRows.find((x) => x.tank === t);
       if (!r) continue;
-
       if (!rowHasMeaningfulQty(r)) continue;
-
-      const eff01 = toEff01OrNull(r.eff_pct_ui);
-      if (eff01 === null) throw new Error(`eff inválida en ${t}`);
-
-      const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
-      const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
-
-      const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
-      const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
-
-      if (l1.active && l2.active && c1.complete && c2.complete && c1.code === c2.code) {
-        throw new Error(`ERROR: campaña repetida en ${t} (${c1.code})`);
-      }
-
-      const baseCommon: any = {
-        tank: t,
-        entry_date: r.entry_date,
-        eff_pct: eff01,
-        cycles: Number(String(r.cycles || "").trim()),
-        tank_comment: String(r.tank_comment ?? "").trim() || null,
-      };
-
-      const activeCount = (l1.active ? 1 : 0) + (l2.active ? 1 : 0);
-
-      // 1) Enviar campañas activas
-      if (l1.active) {
-        if (!c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
-        if (!l1.kgAny || !l1.kgOk) throw new Error(`carbón 1 inválido en ${t}`);
-
-        await apiPost("/api/planta/carbones/qty/upsert", {
-          ...baseCommon,
-          campaign: c1.code,
-          carbon_kg: toNumOrNull(r.carbon_kg_1),
-        });
-      }
-
-      if (l2.active) {
-        if (!c2.complete) throw new Error(`campaña 2 inválida en ${t}`);
-        if (!l2.kgAny || !l2.kgOk) throw new Error(`carbón 2 inválido en ${t}`);
-
-        await apiPost("/api/planta/carbones/qty/upsert", {
-          ...baseCommon,
-          campaign: c2.code,
-          carbon_kg: toNumOrNull(r.carbon_kg_2),
-        });
-      }
-
-      if (activeCount === 1) {
-        await apiPost("/api/planta/carbones/qty/upsert", {
-          ...baseCommon,
-          campaign: null,
-          carbon_kg: null,
-        });
+      if (!qtyRowCompleteAndValid(r)) {
+        setQtyMsg(`ERROR: valores inválidos en ${t}`);
+        return;
       }
     }
 
-    const orig: Record<string, TankQtyRow> = {};
-    for (const r of qtyRows) orig[r.tank] = { ...r };
-    originalQtyRef.current = orig;
+    setQtySaving(true);
+    setQtyMsg(null);
 
-    setQtyDirty({});
-    setQtyMsg("OK: carbón por tanque guardado");
-  } catch (e: any) {
-    setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando carbón por tanque");
-  } finally {
-    setQtySaving(false);
+    try {
+      for (const t of tanks) {
+        const r = qtyRows.find((x) => x.tank === t);
+        if (!r) continue;
+
+        if (!rowHasMeaningfulQty(r)) continue;
+
+        const eff01 = toEff01OrNull(r.eff_pct_ui);
+        if (eff01 === null) throw new Error(`eff inválida en ${t}`);
+
+        const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
+        const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+
+        const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
+        const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
+
+        if (l1.active && l2.active && c1.complete && c2.complete && c1.code === c2.code) {
+          throw new Error(`ERROR: campaña repetida en ${t} (${c1.code})`);
+        }
+
+        const baseCommon: any = {
+          tank: t,
+          entry_date: r.entry_date,
+          eff_pct: eff01,
+          cycles: Number(String(r.cycles || "").trim()),
+          tank_comment: String(r.tank_comment ?? "").trim() || null,
+        };
+
+        const activeCount = (l1.active ? 1 : 0) + (l2.active ? 1 : 0);
+
+        if (l1.active) {
+          if (!c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
+          if (!l1.kgAny || !l1.kgOk) throw new Error(`carbón 1 inválido en ${t}`);
+
+          await apiPost("/api/planta/carbones/qty/upsert", {
+            ...baseCommon,
+            campaign: c1.code,
+            carbon_kg: toNumOrNull(r.carbon_kg_1),
+          });
+        }
+
+        if (l2.active) {
+          if (!c2.complete) throw new Error(`campaña 2 inválida en ${t}`);
+          if (!l2.kgAny || !l2.kgOk) throw new Error(`carbón 2 inválido en ${t}`);
+
+          await apiPost("/api/planta/carbones/qty/upsert", {
+            ...baseCommon,
+            campaign: c2.code,
+            carbon_kg: toNumOrNull(r.carbon_kg_2),
+          });
+        }
+
+        if (activeCount === 1) {
+          await apiPost("/api/planta/carbones/qty/upsert", {
+            ...baseCommon,
+            campaign: null,
+            carbon_kg: null,
+          });
+        }
+      }
+
+      const orig: Record<string, TankQtyRow> = {};
+      for (const r of qtyRows) orig[r.tank] = { ...r };
+      originalQtyRef.current = orig;
+
+      setQtyDirty({});
+      setQtyMsg("OK: carbón por tanque guardado");
+    } catch (e: any) {
+      setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando carbón por tanque");
+    } finally {
+      setQtySaving(false);
+    }
   }
-}
-
 
   const qtyInputStyle: React.CSSProperties = {
     width: "100%",
@@ -1241,7 +1292,12 @@ export default function CarbonPage() {
                       <input
                         value={r.campaign1_mm}
                         disabled={qtySaving || loading || savingAll}
-                        onChange={(e) => setQtyCell(r.tank, "campaign1_mm", only2Digits(e.target.value))}
+                        onChange={(e) =>
+                          setQtyCellFromPrev(r.tank, "campaign1_mm", e.target.value, (prevVal) =>
+                            allowMonthTyping(e.target.value, prevVal)
+                          )
+                        }
+                        onBlur={() => setQtyCell(r.tank, "campaign1_mm", normalizeMonthMm(r.campaign1_mm))}
                         style={{
                           ...qtyInputStyle,
                           width: 54,
@@ -1259,7 +1315,8 @@ export default function CarbonPage() {
                       <input
                         value={r.campaign1_seq}
                         disabled={qtySaving || loading || savingAll}
-                        onChange={(e) => setQtyCell(r.tank, "campaign1_seq", only2Digits(e.target.value))}
+                        onChange={(e) => setQtyCell(r.tank, "campaign1_seq", allowSeqTyping(e.target.value))}
+                        onBlur={() => setQtyCell(r.tank, "campaign1_seq", normalize2Digits(r.campaign1_seq))}
                         style={{
                           ...qtyInputStyle,
                           width: 54,
@@ -1279,7 +1336,12 @@ export default function CarbonPage() {
                       <input
                         value={r.campaign2_mm}
                         disabled={qtySaving || loading || savingAll}
-                        onChange={(e) => setQtyCell(r.tank, "campaign2_mm", only2Digits(e.target.value))}
+                        onChange={(e) =>
+                          setQtyCellFromPrev(r.tank, "campaign2_mm", e.target.value, (prevVal) =>
+                            allowMonthTyping(e.target.value, prevVal)
+                          )
+                        }
+                        onBlur={() => setQtyCell(r.tank, "campaign2_mm", normalizeMonthMm(r.campaign2_mm))}
                         style={{
                           ...qtyInputStyle,
                           width: 54,
@@ -1297,7 +1359,8 @@ export default function CarbonPage() {
                       <input
                         value={r.campaign2_seq}
                         disabled={qtySaving || loading || savingAll}
-                        onChange={(e) => setQtyCell(r.tank, "campaign2_seq", only2Digits(e.target.value))}
+                        onChange={(e) => setQtyCell(r.tank, "campaign2_seq", allowSeqTyping(e.target.value))}
+                        onBlur={() => setQtyCell(r.tank, "campaign2_seq", normalize2Digits(r.campaign2_seq))}
                         style={{
                           ...qtyInputStyle,
                           width: 54,
@@ -1381,33 +1444,32 @@ export default function CarbonPage() {
                 </td>
 
                 <td className="capex-td">
-  <div style={{ display: "grid", gap: 6 }}>
-    <input
-      value={r.tank_comment}
-      disabled={qtySaving || loading || savingAll}
-      onChange={(e) => setQtyCell(r.tank, "tank_comment", String(e.target.value || "").slice(0, COMMENT_MAX))}
-      style={{
-        ...qtyInputStyle,
-        opacity: qtySaving || loading || savingAll ? 0.7 : 1,
-      }}
-      placeholder="(opcional)"
-      maxLength={COMMENT_MAX}
-    />
+                  <div style={{ display: "grid", gap: 6 }}>
+                    <input
+                      value={r.tank_comment}
+                      disabled={qtySaving || loading || savingAll}
+                      onChange={(e) => setQtyCell(r.tank, "tank_comment", String(e.target.value || "").slice(0, COMMENT_MAX))}
+                      style={{
+                        ...qtyInputStyle,
+                        opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                      }}
+                      placeholder="(opcional)"
+                      maxLength={COMMENT_MAX}
+                    />
 
-    <div
-      className="muted"
-      style={{
-        fontSize: 11,
-        fontWeight: 900,
-        textAlign: "right",
-        opacity: 0.75,
-      }}
-    >
-      {String(r.tank_comment ?? "").length}/{COMMENT_MAX}
-    </div>
-  </div>
-</td>
-
+                    <div
+                      className="muted"
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 900,
+                        textAlign: "right",
+                        opacity: 0.75,
+                      }}
+                    >
+                      {String(r.tank_comment ?? "").length}/{COMMENT_MAX}
+                    </div>
+                  </div>
+                </td>
               </tr>
             );
           })}
