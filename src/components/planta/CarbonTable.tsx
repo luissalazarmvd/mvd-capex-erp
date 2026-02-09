@@ -171,9 +171,9 @@ export default function CarbonTable(props: {
   };
 
   const cellBase: React.CSSProperties = {
-    padding: "6px 8px",
+    padding: "5px 6px",
     fontSize: 12,
-    lineHeight: "16px",
+    lineHeight: "14px",
     whiteSpace: "nowrap",
   };
 
@@ -251,14 +251,14 @@ export default function CarbonTable(props: {
     const txt = fmtFixed(n, 3);
     if (n > 0)
       return (
-        <span style={{ display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
+        <span style={{ display: "inline-flex", gap: 5, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
           <span>{txt}</span>
           <span style={{ color: upGreen, fontWeight: 900, lineHeight: "12px" }}>↗</span>
         </span>
       );
     if (n < 0)
       return (
-        <span style={{ display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
+        <span style={{ display: "inline-flex", gap: 5, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
           <span>{txt}</span>
           <span style={{ color: downRed, fontWeight: 900, lineHeight: "12px" }}>↘</span>
         </span>
@@ -279,7 +279,7 @@ export default function CarbonTable(props: {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+    <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Resumen por tanques</div>
 
@@ -316,52 +316,52 @@ export default function CarbonTable(props: {
       ) : null}
 
       <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
-        <Table stickyHeader maxHeight={"calc(100vh - 320px)"}>
+        <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
           <thead>
             <tr>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 80 }}>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 58 }}>
                 Tanque
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 140 }}>
-                Fecha de ingreso
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 108 }}>
+                Fecha
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 110 }}>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 92 }}>
                 Campaña
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 130 }}>
-                Carbón (kg)
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 110 }}>
+                Carbón
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 120 }}>
-                Eficiencia (%)
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 90 }}>
+                Ef. %
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 95 }}>
-                # Vueltas
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 72 }}>
+                Vueltas
               </th>
 
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 82 }}>
                 {tankDatesLabels.d1}
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 82 }}>
                 {tankDatesLabels.d2}
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 82 }}>
                 {tankDatesLabels.d3}
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 82 }}>
                 {tankDatesLabels.d4}
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 82 }}>
                 {tankDatesLabels.d5}
               </th>
 
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 120 }}>
-                Variación
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 92 }}>
+                Var.
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 150 }}>
-                g Totales
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 110 }}>
+                g Total
               </th>
 
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 260 }}>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 160 }}>
                 Comentario
               </th>
             </tr>
@@ -386,11 +386,7 @@ export default function CarbonTable(props: {
                         <tr key={`${g.key}-${idx}`} className="capex-tr">
                           {idx === 0 ? (
                             <>
-                              <td
-                                className="capex-td capex-td-strong"
-                                rowSpan={span}
-                                style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "top" }}
-                              >
+                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "top" }}>
                                 {String(r.tank || "").toUpperCase()}
                               </td>
 
@@ -450,7 +446,7 @@ export default function CarbonTable(props: {
                               whiteSpace: "nowrap",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
-                              maxWidth: 420,
+                              maxWidth: 260,
                             }}
                             title={comment}
                           >
