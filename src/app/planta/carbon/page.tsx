@@ -750,86 +750,101 @@ export default function CarbonPage() {
   }, [qtyDirty, qtySaving, qtyRows, loading, savingAll]);
 
   async function saveQty() {
-    const tanks = Object.keys(qtyDirty) as Tank[];
-    if (!tanks.length) return;
+  const tanks = Object.keys(qtyDirty) as Tank[];
+  if (!tanks.length) return;
 
+  for (const t of tanks) {
+    const r = qtyRows.find((x) => x.tank === t);
+    if (!r) continue;
+    if (!rowHasMeaningfulQty(r)) continue;
+    if (!qtyRowCompleteAndValid(r)) {
+      setQtyMsg(`ERROR: valores inválidos en ${t}`);
+      return;
+    }
+  }
+
+  setQtySaving(true);
+  setQtyMsg(null);
+
+  try {
     for (const t of tanks) {
       const r = qtyRows.find((x) => x.tank === t);
       if (!r) continue;
+
       if (!rowHasMeaningfulQty(r)) continue;
-      if (!qtyRowCompleteAndValid(r)) {
-        setQtyMsg(`ERROR: valores inválidos en ${t}`);
-        return;
+
+      const eff01 = toEff01OrNull(r.eff_pct_ui);
+      if (eff01 === null) throw new Error(`eff inválida en ${t}`);
+
+      const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
+      const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+
+      const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
+      const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
+
+      if (l1.active && l2.active && c1.complete && c2.complete && c1.code === c2.code) {
+        throw new Error(`ERROR: campaña repetida en ${t} (${c1.code})`);
+      }
+
+      const baseCommon: any = {
+        tank: t,
+        entry_date: r.entry_date,
+        eff_pct: eff01,
+        cycles: Number(String(r.cycles || "").trim()),
+        tank_comment: String(r.tank_comment ?? "").trim() || null,
+      };
+
+      const activeCount = (l1.active ? 1 : 0) + (l2.active ? 1 : 0);
+
+      // 1) Enviar campañas activas
+      if (l1.active) {
+        if (!c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
+        if (!l1.kgAny || !l1.kgOk) throw new Error(`carbón 1 inválido en ${t}`);
+
+        await apiPost("/api/planta/carbones/qty/upsert", {
+          ...baseCommon,
+          campaign: c1.code,
+          carbon_kg: toNumOrNull(r.carbon_kg_1),
+        });
+      }
+
+      if (l2.active) {
+        if (!c2.complete) throw new Error(`campaña 2 inválida en ${t}`);
+        if (!l2.kgAny || !l2.kgOk) throw new Error(`carbón 2 inválido en ${t}`);
+
+        await apiPost("/api/planta/carbones/qty/upsert", {
+          ...baseCommon,
+          campaign: c2.code,
+          carbon_kg: toNumOrNull(r.carbon_kg_2),
+        });
+      }
+
+      // 2) Si SOLO hay 1 campaña activa => enviar "fila" extra con campaña vacía (snapshot)
+      //    OJO: tu server acepta campaign_id obligatorio, así que mandamos campaign: null
+      //    y el server debe aceptar campaign_id NULL para crear el snapshot.
+      //    Si tu server NO acepta null, abajo te digo qué cambiar.
+      if (activeCount === 1) {
+        await apiPost("/api/planta/carbones/qty/upsert", {
+          ...baseCommon,
+          campaign: null,
+          carbon_kg: null,
+        });
       }
     }
 
-    setQtySaving(true);
-    setQtyMsg(null);
+    const orig: Record<string, TankQtyRow> = {};
+    for (const r of qtyRows) orig[r.tank] = { ...r };
+    originalQtyRef.current = orig;
 
-    try {
-      for (const t of tanks) {
-        const r = qtyRows.find((x) => x.tank === t);
-        if (!r) continue;
-
-        if (!rowHasMeaningfulQty(r)) continue;
-
-        const eff01 = toEff01OrNull(r.eff_pct_ui);
-        if (eff01 === null) throw new Error(`eff inválida en ${t}`);
-
-        const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
-        const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
-
-        const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
-        const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
-
-        if (l1.active && l2.active && c1.complete && c2.complete && c1.code === c2.code) {
-          throw new Error(`ERROR: campaña repetida en ${t} (${c1.code})`);
-        }
-
-
-        if (l1.active) {
-          if (!c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
-          if (!l1.kgAny || !l1.kgOk) throw new Error(`carbón 1 inválido en ${t}`);
-          const payload: any = {
-            tank: t,
-            entry_date: r.entry_date,
-            campaign: c1.code,
-            carbon_kg: toNumOrNull(r.carbon_kg_1),
-            eff_pct: eff01,
-            cycles: Number(String(r.cycles || "").trim()),
-            tank_comment: String(r.tank_comment ?? "").trim() || null,
-          };
-          await apiPost("/api/planta/carbones/qty/upsert", payload);
-        }
-
-        if (l2.active) {
-          if (!c2.complete) throw new Error(`campaña 2 inválida en ${t}`);
-          if (!l2.kgAny || !l2.kgOk) throw new Error(`carbón 2 inválido en ${t}`);
-          const payload: any = {
-            tank: t,
-            entry_date: r.entry_date,
-            campaign: c2.code,
-            carbon_kg: toNumOrNull(r.carbon_kg_2),
-            eff_pct: eff01,
-            cycles: Number(String(r.cycles || "").trim()),
-            tank_comment: String(r.tank_comment ?? "").trim() || null,
-          };
-          await apiPost("/api/planta/carbones/qty/upsert", payload);
-        }
-      }
-
-      const orig: Record<string, TankQtyRow> = {};
-      for (const r of qtyRows) orig[r.tank] = { ...r };
-      originalQtyRef.current = orig;
-
-      setQtyDirty({});
-      setQtyMsg("OK: carbón por tanque guardado");
-    } catch (e: any) {
-      setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando carbón por tanque");
-    } finally {
-      setQtySaving(false);
-    }
+    setQtyDirty({});
+    setQtyMsg("OK: carbón por tanque guardado");
+  } catch (e: any) {
+    setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando carbón por tanque");
+  } finally {
+    setQtySaving(false);
   }
+}
+
 
   const qtyInputStyle: React.CSSProperties = {
     width: "100%",
