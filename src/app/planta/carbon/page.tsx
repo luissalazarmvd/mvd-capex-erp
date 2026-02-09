@@ -327,13 +327,13 @@ type TankQtyRow = {
   campaign2_mm: string;
   campaign2_seq: string;
 
-  carbon_kg: string;
+  carbon_kg_1: string;
+  carbon_kg_2: string;
+
   eff_pct_ui: string;
   cycles: string;
   tank_comment: string;
 };
-
-
 
 function blankQtyRow(tank: Tank): TankQtyRow {
   return {
@@ -343,13 +343,13 @@ function blankQtyRow(tank: Tank): TankQtyRow {
     campaign1_seq: "",
     campaign2_mm: "",
     campaign2_seq: "",
-    carbon_kg: "",
+    carbon_kg_1: "",
+    carbon_kg_2: "",
     eff_pct_ui: "",
     cycles: "",
     tank_comment: "",
   };
 }
-
 
 function toEff01OrNull(s: string) {
   const t = String(s ?? "").trim();
@@ -399,14 +399,13 @@ function rowHasAnyValue(r: TankQtyRow) {
     !!String(r.campaign1_seq || "").trim() ||
     !!String(r.campaign2_mm || "").trim() ||
     !!String(r.campaign2_seq || "").trim() ||
-    !!String(r.carbon_kg || "").trim() ||
+    !!String(r.carbon_kg_1 || "").trim() ||
+    !!String(r.carbon_kg_2 || "").trim() ||
     !!String(r.eff_pct_ui || "").trim() ||
     !!String(r.cycles || "").trim() ||
     !!String(r.tank_comment || "").trim()
   );
 }
-
-
 
 function campaignFilled(mm: string, seq: string) {
   const a = String(mm ?? "").trim();
@@ -421,15 +420,12 @@ function campaignFilled(mm: string, seq: string) {
 function qtyRowCompleteAndValid(r: TankQtyRow) {
   if (!isIsoDate(r.entry_date)) return false;
 
-  // Campos comunes obligatorios si hay data
-  if (!okNonNegOrEmpty(r.carbon_kg) || String(r.carbon_kg || "").trim() === "") return false;
   if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
   if (!okIntNonNegOrEmpty(r.cycles) || String(r.cycles || "").trim() === "") return false;
 
   const eff01 = toEff01OrNull(r.eff_pct_ui);
   if (eff01 === null) return false;
 
-  // Campañas: al menos 1 completa. Si se toca una, debe estar completa.
   const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
   const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
 
@@ -439,10 +435,15 @@ function qtyRowCompleteAndValid(r: TankQtyRow) {
   const hasAtLeastOne = c1.complete || c2.complete;
   if (!hasAtLeastOne) return false;
 
+  if (c1.complete) {
+    if (!okNonNegOrEmpty(r.carbon_kg_1) || String(r.carbon_kg_1 || "").trim() === "") return false;
+  }
+  if (c2.complete) {
+    if (!okNonNegOrEmpty(r.carbon_kg_2) || String(r.carbon_kg_2 || "").trim() === "") return false;
+  }
+
   return true;
 }
-
-
 
 export default function CarbonPage() {
   const originalByDayRef = useRef<Record<string, RowState>>({});
@@ -458,7 +459,6 @@ export default function CarbonPage() {
   const [dirty, setDirty] = useState<Record<string, true>>({});
 
   const ym = useMemo(() => ymFromInputs(year, month) ?? "", [year, month]);
-
   const isYmValid = useMemo(() => /^\d{6}$/.test(String(ym || "").trim()) && daysInMonth(ym.trim()) > 0, [ym]);
 
   const canSaveAll = useMemo(() => {
@@ -500,7 +500,7 @@ export default function CarbonPage() {
       const merged = days.map((d) => (byDay.has(d) ? fromApiRow(byDay.get(d)!) : makeBlankRow(d)));
 
       const orig: Record<string, RowState> = {};
-      for (const r of merged) orig[r.tank_day] = r;
+      for (const rr of merged) orig[rr.tank_day] = rr;
       originalByDayRef.current = orig;
 
       setRows(merged);
@@ -568,9 +568,9 @@ export default function CarbonPage() {
     if (!days.length) return;
 
     for (const d of days) {
-      const r = rows.find((x) => x.tank_day === d);
-      if (!r) continue;
-      if (!rowValid(r)) {
+      const rr = rows.find((x) => x.tank_day === d);
+      if (!rr) continue;
+      if (!rowValid(rr)) {
         setMsg(`ERROR: valores inválidos en ${d}`);
         return;
       }
@@ -581,12 +581,12 @@ export default function CarbonPage() {
 
     try {
       for (const d of days) {
-        const r = rows.find((x) => x.tank_day === d);
-        if (!r) continue;
+        const rr = rows.find((x) => x.tank_day === d);
+        if (!rr) continue;
 
         const payload: any = { tank_day: d };
-        for (const k of AU_KEYS) payload[k] = toNumOrNull((r as any)[k]);
-        for (const k of AG_KEYS) payload[k] = toNumOrNull((r as any)[k]);
+        for (const k of AU_KEYS) payload[k] = toNumOrNull((rr as any)[k]);
+        for (const k of AG_KEYS) payload[k] = toNumOrNull((rr as any)[k]);
 
         await apiPost("/api/planta/carbones/upsert", payload);
       }
@@ -629,7 +629,6 @@ export default function CarbonPage() {
   const agBotBR: React.CSSProperties = { borderBottomRightRadius: 12 };
 
   const GAP_W = 14;
-
   const HEADER_ROW1_H = 44;
 
   const solidHeaderBg = "rgb(6, 36, 58)";
@@ -670,28 +669,28 @@ export default function CarbonPage() {
     setQtyMsg(null);
   }, []);
 
-function isQtyRowDirty(nextRow: TankQtyRow) {
-  const orig = originalQtyRef.current[nextRow.tank];
-  if (!orig) return true;
+  function isQtyRowDirty(nextRow: TankQtyRow) {
+    const orig = originalQtyRef.current[nextRow.tank];
+    if (!orig) return true;
 
-  const keys: (keyof TankQtyRow)[] = [
-    "entry_date",
-    "campaign1_mm",
-    "campaign1_seq",
-    "campaign2_mm",
-    "campaign2_seq",
-    "carbon_kg",
-    "eff_pct_ui",
-    "cycles",
-    "tank_comment",
-  ];
+    const keys: (keyof TankQtyRow)[] = [
+      "entry_date",
+      "campaign1_mm",
+      "campaign1_seq",
+      "campaign2_mm",
+      "campaign2_seq",
+      "carbon_kg_1",
+      "carbon_kg_2",
+      "eff_pct_ui",
+      "cycles",
+      "tank_comment",
+    ];
 
-  for (const k of keys) {
-    if (String(nextRow[k] ?? "") !== String(orig[k] ?? "")) return true;
+    for (const k of keys) {
+      if (String(nextRow[k] ?? "") !== String(orig[k] ?? "")) return true;
+    }
+    return false;
   }
-  return false;
-}
-
 
   function setQtyCell(tank: Tank, key: keyof Omit<TankQtyRow, "tank">, value: string) {
     setQtyRows((prev) => {
@@ -719,12 +718,21 @@ function isQtyRowDirty(nextRow: TankQtyRow) {
       if (!any) continue;
 
       if (!isIsoDate(r.entry_date)) return false;
+
       const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
       const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+
       if (c1.any && !c1.complete) return false;
       if (c2.any && !c2.complete) return false;
       if (!(c1.complete || c2.complete)) return false;
-      if (!okNonNegOrEmpty(r.carbon_kg) || String(r.carbon_kg || "").trim() === "") return false;
+
+      if (c1.complete) {
+        if (!okNonNegOrEmpty(r.carbon_kg_1) || String(r.carbon_kg_1 || "").trim() === "") return false;
+      }
+      if (c2.complete) {
+        if (!okNonNegOrEmpty(r.carbon_kg_2) || String(r.carbon_kg_2 || "").trim() === "") return false;
+      }
+
       if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
       if (!okIntNonNegOrEmpty(r.cycles) || String(r.cycles || "").trim() === "") return false;
 
@@ -753,47 +761,56 @@ function isQtyRowDirty(nextRow: TankQtyRow) {
     setQtySaving(true);
     setQtyMsg(null);
 
-try {
-  for (const t of tanks) {
-    const r = qtyRows.find((x) => x.tank === t);
-    if (!r) continue;
-    const any = rowHasAnyValue(r);
-    if (!any) continue;
+    try {
+      for (const t of tanks) {
+        const r = qtyRows.find((x) => x.tank === t);
+        if (!r) continue;
+        const any = rowHasAnyValue(r);
+        if (!any) continue;
 
-    const eff01 = toEff01OrNull(r.eff_pct_ui);
-    if (eff01 === null) throw new Error(`eff inválida en ${t}`);
+        const eff01 = toEff01OrNull(r.eff_pct_ui);
+        if (eff01 === null) throw new Error(`eff inválida en ${t}`);
 
-    const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
-    const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+        const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
+        const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
 
-    if (c1.any && !c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
-    if (c2.any && !c2.complete) throw new Error(`campaña 2 inválida en ${t}`);
+        if (c1.any && !c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
+        if (c2.any && !c2.complete) throw new Error(`campaña 2 inválida en ${t}`);
 
-    const campaigns = [c1.code, c2.code].filter((x): x is string => !!x);
-    if (!campaigns.length) throw new Error(`sin campaña en ${t}`);
+        if (c1.complete) {
+          const payload: any = {
+            tank: t,
+            entry_date: r.entry_date,
+            campaign: c1.code,
+            carbon_kg: toNumOrNull(r.carbon_kg_1),
+            eff_pct: eff01,
+            cycles: Number(String(r.cycles || "").trim()),
+            tank_comment: String(r.tank_comment ?? "").trim() || null,
+          };
+          await apiPost("/api/planta/carbones/qty/upsert", payload);
+        }
 
-    for (const camp of campaigns) {
-      const payload: any = {
-        tank: t,
-        entry_date: r.entry_date,
-        campaign: camp,
-        carbon_kg: toNumOrNull(r.carbon_kg),
-        eff_pct: eff01,
-        cycles: Number(String(r.cycles || "").trim()),
-        tank_comment: String(r.tank_comment ?? "").trim() || null,
-      };
+        if (c2.complete) {
+          const payload: any = {
+            tank: t,
+            entry_date: r.entry_date,
+            campaign: c2.code,
+            carbon_kg: toNumOrNull(r.carbon_kg_2),
+            eff_pct: eff01,
+            cycles: Number(String(r.cycles || "").trim()),
+            tank_comment: String(r.tank_comment ?? "").trim() || null,
+          };
+          await apiPost("/api/planta/carbones/qty/upsert", payload);
+        }
+      }
 
-      await apiPost("/api/planta/carbones/qty/upsert", payload);
-    }
-  }
+      const orig: Record<string, TankQtyRow> = {};
+      for (const r of qtyRows) orig[r.tank] = { ...r };
+      originalQtyRef.current = orig;
 
-  const orig: Record<string, TankQtyRow> = {};
-  for (const r of qtyRows) orig[r.tank] = { ...r };
-  originalQtyRef.current = orig;
-
-  setQtyDirty({});
-  setQtyMsg("OK: carbón por tanque guardado");
-} catch (e: any) {
+      setQtyDirty({});
+      setQtyMsg("OK: carbón por tanque guardado");
+    } catch (e: any) {
       setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando carbón por tanque");
     } finally {
       setQtySaving(false);
@@ -1144,7 +1161,6 @@ try {
             <th className="capex-th" style={{ background: solidHeaderBg, border: solidHeaderBorder }}>
               Comentario
             </th>
-
           </tr>
         </thead>
         <tbody>
@@ -1154,6 +1170,7 @@ try {
             const valid = !any || qtyRowCompleteAndValid(r);
 
             const okDate = !any || isIsoDate(r.entry_date);
+
             const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
             const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
 
@@ -1161,7 +1178,9 @@ try {
             const okCamp2 = !any || (!c2.any || c2.complete);
             const okCampAny = !any || (c1.complete || c2.complete);
 
-            const okKg = !any || (okNonNegOrEmpty(r.carbon_kg) && String(r.carbon_kg || "").trim() !== "");
+            const okKg1 = !any || !c1.complete || (okNonNegOrEmpty(r.carbon_kg_1) && String(r.carbon_kg_1 || "").trim() !== "");
+            const okKg2 = !any || !c2.complete || (okNonNegOrEmpty(r.carbon_kg_2) && String(r.carbon_kg_2 || "").trim() !== "");
+
             const okEff = !any || (okEff0to100OrEmpty(r.eff_pct_ui) && String(r.eff_pct_ui || "").trim() !== "");
             const okCy = !any || (okIntNonNegOrEmpty(r.cycles) && String(r.cycles || "").trim() !== "");
 
@@ -1173,6 +1192,7 @@ try {
                     {!valid ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Inválido</div> : null}
                   </div>
                 </td>
+
                 <td className="capex-td">
                   <input
                     type="date"
@@ -1187,104 +1207,122 @@ try {
                     }}
                   />
                 </td>
-                <td className="capex-td">
-  <div style={{ display: "grid", gap: 8 }}>
-    {/* Campaña 1 */}
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <div style={{ fontWeight: 900, opacity: 0.85 }}>C-</div>
-
-      <input
-        value={r.campaign1_mm}
-        disabled={qtySaving || loading || savingAll}
-        onChange={(e) => setQtyCell(r.tank, "campaign1_mm", only2Digits(e.target.value))}
-        style={{
-          ...qtyInputStyle,
-          width: 54,
-          textAlign: "center",
-          border: ok2DigitsOrEmpty(r.campaign1_mm) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-          background: ok2DigitsOrEmpty(r.campaign1_mm) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-          opacity: qtySaving || loading || savingAll ? 0.7 : 1,
-        }}
-        placeholder="MM"
-        inputMode="numeric"
-      />
-
-      <div style={{ fontWeight: 900, opacity: 0.85 }}>-</div>
-
-      <input
-        value={r.campaign1_seq}
-        disabled={qtySaving || loading || savingAll}
-        onChange={(e) => setQtyCell(r.tank, "campaign1_seq", only2Digits(e.target.value))}
-        style={{
-          ...qtyInputStyle,
-          width: 54,
-          textAlign: "center",
-          border: ok2DigitsOrEmpty(r.campaign1_seq) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-          background: ok2DigitsOrEmpty(r.campaign1_seq) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-          opacity: qtySaving || loading || savingAll ? 0.7 : 1,
-        }}
-        placeholder="##"
-        inputMode="numeric"
-      />
-    </div>
-
-    {/* Campaña 2 (opcional) */}
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <div style={{ fontWeight: 900, opacity: 0.55 }}>C-</div>
-
-      <input
-        value={r.campaign2_mm}
-        disabled={qtySaving || loading || savingAll}
-        onChange={(e) => setQtyCell(r.tank, "campaign2_mm", only2Digits(e.target.value))}
-        style={{
-          ...qtyInputStyle,
-          width: 54,
-          textAlign: "center",
-          border: ok2DigitsOrEmpty(r.campaign2_mm) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-          background: ok2DigitsOrEmpty(r.campaign2_mm) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-          opacity: qtySaving || loading || savingAll ? 0.7 : 1,
-        }}
-        placeholder="MM"
-        inputMode="numeric"
-      />
-
-      <div style={{ fontWeight: 900, opacity: 0.55 }}>-</div>
-
-      <input
-        value={r.campaign2_seq}
-        disabled={qtySaving || loading || savingAll}
-        onChange={(e) => setQtyCell(r.tank, "campaign2_seq", only2Digits(e.target.value))}
-        style={{
-          ...qtyInputStyle,
-          width: 54,
-          textAlign: "center",
-          border: ok2DigitsOrEmpty(r.campaign2_seq) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-          background: ok2DigitsOrEmpty(r.campaign2_seq) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-          opacity: qtySaving || loading || savingAll ? 0.7 : 1,
-        }}
-        placeholder="##"
-        inputMode="numeric"
-      />
-    </div>
-  </div>
-</td>
-
 
                 <td className="capex-td">
-                  <input
-                    value={r.carbon_kg}
-                    disabled={qtySaving || loading || savingAll}
-                    onChange={(e) => setQtyCell(r.tank, "carbon_kg", e.target.value)}
-                    style={{
-                      ...qtyInputStyle,
-                      textAlign: "right",
-                      border: okKg ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                      background: okKg ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-                      opacity: qtySaving || loading || savingAll ? 0.7 : 1,
-                    }}
-                    placeholder="0.000"
-                  />
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ fontWeight: 900, opacity: 0.85, width: 22 }}>C-</div>
+
+                      <input
+                        value={r.campaign1_mm}
+                        disabled={qtySaving || loading || savingAll}
+                        onChange={(e) => setQtyCell(r.tank, "campaign1_mm", only2Digits(e.target.value))}
+                        style={{
+                          ...qtyInputStyle,
+                          width: 54,
+                          textAlign: "center",
+                          border: ok2DigitsOrEmpty(r.campaign1_mm) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign1_mm) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                        }}
+                        placeholder="MM"
+                        inputMode="numeric"
+                      />
+
+                      <div style={{ fontWeight: 900, opacity: 0.85 }}>-</div>
+
+                      <input
+                        value={r.campaign1_seq}
+                        disabled={qtySaving || loading || savingAll}
+                        onChange={(e) => setQtyCell(r.tank, "campaign1_seq", only2Digits(e.target.value))}
+                        style={{
+                          ...qtyInputStyle,
+                          width: 54,
+                          textAlign: "center",
+                          border: ok2DigitsOrEmpty(r.campaign1_seq) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign1_seq) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                        }}
+                        placeholder="##"
+                        inputMode="numeric"
+                      />
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ fontWeight: 900, opacity: 0.55, width: 22 }}>C-</div>
+
+                      <input
+                        value={r.campaign2_mm}
+                        disabled={qtySaving || loading || savingAll}
+                        onChange={(e) => setQtyCell(r.tank, "campaign2_mm", only2Digits(e.target.value))}
+                        style={{
+                          ...qtyInputStyle,
+                          width: 54,
+                          textAlign: "center",
+                          border: ok2DigitsOrEmpty(r.campaign2_mm) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign2_mm) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                        }}
+                        placeholder="MM"
+                        inputMode="numeric"
+                      />
+
+                      <div style={{ fontWeight: 900, opacity: 0.55 }}>-</div>
+
+                      <input
+                        value={r.campaign2_seq}
+                        disabled={qtySaving || loading || savingAll}
+                        onChange={(e) => setQtyCell(r.tank, "campaign2_seq", only2Digits(e.target.value))}
+                        style={{
+                          ...qtyInputStyle,
+                          width: 54,
+                          textAlign: "center",
+                          border: ok2DigitsOrEmpty(r.campaign2_seq) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign2_seq) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                        }}
+                        placeholder="##"
+                        inputMode="numeric"
+                      />
+                    </div>
+
+                    {!okCampAny ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Mínimo 1 campaña completa</div> : null}
+                    {!okCamp1 ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Campaña 1 incompleta</div> : null}
+                    {!okCamp2 ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Campaña 2 incompleta</div> : null}
+                  </div>
                 </td>
+
+                <td className="capex-td">
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <input
+                      value={r.carbon_kg_1}
+                      disabled={qtySaving || loading || savingAll}
+                      onChange={(e) => setQtyCell(r.tank, "carbon_kg_1", e.target.value)}
+                      style={{
+                        ...qtyInputStyle,
+                        textAlign: "right",
+                        border: okKg1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                        background: okKg1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                      }}
+                      placeholder="0.000"
+                    />
+                    <input
+                      value={r.carbon_kg_2}
+                      disabled={qtySaving || loading || savingAll}
+                      onChange={(e) => setQtyCell(r.tank, "carbon_kg_2", e.target.value)}
+                      style={{
+                        ...qtyInputStyle,
+                        textAlign: "right",
+                        border: okKg2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                        background: okKg2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                      }}
+                      placeholder="0.000"
+                    />
+                  </div>
+                </td>
+
                 <td className="capex-td">
                   <input
                     value={r.eff_pct_ui}
@@ -1300,6 +1338,7 @@ try {
                     placeholder="0-100"
                   />
                 </td>
+
                 <td className="capex-td">
                   <input
                     value={r.cycles}
@@ -1315,20 +1354,20 @@ try {
                     placeholder="0"
                   />
                 </td>
-                <td className="capex-td">
-  <input
-    value={r.tank_comment}
-    disabled={qtySaving || loading || savingAll}
-    onChange={(e) => setQtyCell(r.tank, "tank_comment", e.target.value)}
-    style={{
-      ...qtyInputStyle,
-      opacity: qtySaving || loading || savingAll ? 0.7 : 1,
-    }}
-    placeholder="(opcional)"
-    maxLength={255}
-  />
-</td>
 
+                <td className="capex-td">
+                  <input
+                    value={r.tank_comment}
+                    disabled={qtySaving || loading || savingAll}
+                    onChange={(e) => setQtyCell(r.tank, "tank_comment", e.target.value)}
+                    style={{
+                      ...qtyInputStyle,
+                      opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+                    }}
+                    placeholder="(opcional)"
+                    maxLength={255}
+                  />
+                </td>
               </tr>
             );
           })}
