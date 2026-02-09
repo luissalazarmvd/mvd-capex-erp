@@ -353,8 +353,10 @@ type TankQtyRow = {
   campaign2_seq: string;
   carbon_kg_1: string;
   carbon_kg_2: string;
-  eff_pct_ui: string;
-  cycles: string;
+  eff_pct_ui_1: string;
+  eff_pct_ui_2: string;
+  cycles_1: string;
+  cycles_2: string;
   tank_comment: string;
 };
 
@@ -368,8 +370,10 @@ function blankQtyRow(tank: Tank): TankQtyRow {
     campaign2_seq: "",
     carbon_kg_1: "",
     carbon_kg_2: "",
-    eff_pct_ui: "",
-    cycles: "",
+    eff_pct_ui_1: "",
+    eff_pct_ui_2: "",
+    cycles_1: "",
+    cycles_2: "",
     tank_comment: "",
   };
 }
@@ -496,11 +500,31 @@ function qtyRowCompleteAndValid(r: TankQtyRow) {
   if (!(l1.active || l2.active)) return false;
   if (!isIsoDate(r.entry_date)) return false;
 
-  if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
-  if (!okIntNonNegOrEmpty(r.cycles) || String(r.cycles || "").trim() === "") return false;
 
-  const eff01 = toEff01OrNull(r.eff_pct_ui);
-  if (eff01 === null) return false;
+  const eff1 = toEff01OrNull(r.eff_pct_ui_1);
+  const eff2 = toEff01OrNull(r.eff_pct_ui_2);
+
+  const cy1 = Number(String(r.cycles_1 || "").trim());
+  const cy2 = Number(String(r.cycles_2 || "").trim());
+
+  const cy1Ok = Number.isInteger(cy1) && cy1 >= 0;
+  const cy2Ok = Number.isInteger(cy2) && cy2 >= 0;
+
+
+  if (l1.active) {
+    if (!okEff0to100OrEmpty(r.eff_pct_ui_1) || String(r.eff_pct_ui_1 || "").trim() === "") return false;
+    if (eff1 === null) return false;
+    if (!okIntNonNegOrEmpty(r.cycles_1) || String(r.cycles_1 || "").trim() === "") return false;
+    if (!cy1Ok) return false;
+  }
+
+  if (l2.active) {
+    if (!okEff0to100OrEmpty(r.eff_pct_ui_2) || String(r.eff_pct_ui_2 || "").trim() === "") return false;
+    if (eff2 === null) return false;
+    if (!okIntNonNegOrEmpty(r.cycles_2) || String(r.cycles_2 || "").trim() === "") return false;
+    if (!cy2Ok) return false;
+  }
+
 
   const checkLine = (ln: ReturnType<typeof lineState>) => {
     if (!ln.active) return true;
@@ -566,24 +590,38 @@ function effToUiPct(v: any) {
 function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
   const base = blankQtyRow(tank);
 
-  const items = (two || []).slice(0, 2).map((x) => ({
-    ...x,
-    tank: String(x.tank || "").trim().toUpperCase(),
-    entry_date: normalizeIsoDateForInput(x.entry_date),
-    campaign_id:
-     x.campaign_id === null || x.campaign_id === undefined
-    ? (x as any).campaign == null
-      ? null
-      : String((x as any).campaign).trim().toUpperCase()
-    : String(x.campaign_id).trim().toUpperCase(),
+  const items = (two || [])
+    .slice()
+    .sort((p, q) => {
+      // 1) primero filas con campaña (campaign_id o campaign)
+      const pc = !!((p as any)?.campaign_id ?? (p as any)?.campaign);
+      const qc = !!((q as any)?.campaign_id ?? (q as any)?.campaign);
+      if (pc !== qc) return pc ? -1 : 1;
 
-    tank_comment:
-    x.tank_comment === null || x.tank_comment === undefined
-    ? (x as any).comment == null
-      ? null
-      : String((x as any).comment)
-    : String(x.tank_comment),
-  }));
+      // 2) dentro del mismo grupo, más reciente primero por entry_date
+      const pd = normalizeIsoDateForInput((p as any)?.entry_date);
+      const qd = normalizeIsoDateForInput((q as any)?.entry_date);
+      return String(qd).localeCompare(String(pd));
+    })
+    .slice(0, 2)
+    .map((x) => ({
+      ...x,
+      tank: String((x as any).tank || "").trim().toUpperCase(),
+      entry_date: normalizeIsoDateForInput((x as any).entry_date),
+      campaign_id:
+        (x as any).campaign_id === null || (x as any).campaign_id === undefined
+          ? (x as any).campaign == null
+            ? null
+            : String((x as any).campaign).trim().toUpperCase()
+          : String((x as any).campaign_id).trim().toUpperCase(),
+      tank_comment:
+        (x as any).tank_comment === null || (x as any).tank_comment === undefined
+          ? (x as any).comment == null
+            ? null
+            : String((x as any).comment)
+          : String((x as any).tank_comment),
+    }));
+
 
   if (items.length === 2) {
     if (!items[0].campaign_id && items[1].campaign_id) {
@@ -597,13 +635,9 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
 
   if (ref) {
     base.entry_date = normalizeIsoDateForInput(ref.entry_date);
-    base.eff_pct_ui = effToUiPct(ref.eff_pct);
-    base.cycles = (() => {
-      const n = Number(ref.cycles);
-      return Number.isInteger(n) && n >= 0 ? String(n) : "";
-    })();
     base.tank_comment = ref.tank_comment ? String(ref.tank_comment).slice(0, COMMENT_MAX) : "";
   }
+
 
   const a = items[0];
   const b = items[1];
@@ -614,6 +648,12 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
       base.campaign1_mm = c.mm;
       base.campaign1_seq = c.seq;
       base.carbon_kg_1 = numToUi(a.carbon_kg, 3);
+      base.eff_pct_ui_1 = effToUiPct(a.eff_pct);
+      base.cycles_1 = (() => {
+      const n = Number(a.cycles);
+      return Number.isInteger(n) && n >= 0 ? String(n) : "";
+      })();
+
     }
   }
 
@@ -623,6 +663,12 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
       base.campaign2_mm = c.mm;
       base.campaign2_seq = c.seq;
       base.carbon_kg_2 = numToUi(b.carbon_kg, 3);
+      base.eff_pct_ui_2 = effToUiPct(b.eff_pct);
+      base.cycles_2 = (() => {
+      const n = Number(b.cycles);
+      return Number.isInteger(n) && n >= 0 ? String(n) : "";
+      })();
+
     }
   }
 
@@ -851,18 +897,21 @@ export default function CarbonPage() {
     const orig = originalQtyRef.current[nextRow.tank];
     if (!orig) return true;
 
-    const keys: (keyof TankQtyRow)[] = [
-      "entry_date",
-      "campaign1_mm",
-      "campaign1_seq",
-      "campaign2_mm",
-      "campaign2_seq",
-      "carbon_kg_1",
-      "carbon_kg_2",
-      "eff_pct_ui",
-      "cycles",
-      "tank_comment",
-    ];
+const keys: (keyof TankQtyRow)[] = [
+  "entry_date",
+  "campaign1_mm",
+  "campaign1_seq",
+  "campaign2_mm",
+  "campaign2_seq",
+  "carbon_kg_1",
+  "carbon_kg_2",
+  "eff_pct_ui_1",
+  "eff_pct_ui_2",
+  "cycles_1",
+  "cycles_2",
+  "tank_comment",
+];
+
 
     for (const k of keys) {
       if (String(nextRow[k] ?? "") !== String(orig[k] ?? "")) return true;
@@ -1008,12 +1057,6 @@ export default function CarbonPage() {
         if (!r) continue;
         if (!rowHasMeaningfulQty(r)) continue;
 
-        const eff01 = toEff01OrNull(r.eff_pct_ui);
-        if (eff01 === null) throw new Error(`eff inválida en ${t}`);
-
-        const cyclesNum = Number(String(r.cycles || "").trim());
-        if (!Number.isInteger(cyclesNum) || cyclesNum < 0) throw new Error(`vueltas inválidas en ${t}`);
-
         const cmt = String(r.tank_comment ?? "").trim();
         const tank_comment = cmt ? cmt.slice(0, COMMENT_MAX) : null;
 
@@ -1027,13 +1070,12 @@ export default function CarbonPage() {
           throw new Error(`ERROR: campaña repetida en ${t} (${c1.code})`);
         }
 
-        const baseCommon: any = {
+        const baseCommon0: any = {
           tank: t,
           entry_date: r.entry_date,
-          eff_pct: eff01,
-          cycles: cyclesNum,
           tank_comment,
         };
+
 
         const activeCount = (l1.active ? 1 : 0) + (l2.active ? 1 : 0);
 
@@ -1041,31 +1083,58 @@ export default function CarbonPage() {
           if (!c1.complete || !c1.code) throw new Error(`campaña 1 inválida en ${t}`);
           if (!l1.kgAny || !l1.kgOk) throw new Error(`carbón 1 inválido en ${t}`);
 
+          const eff01_1 = toEff01OrNull(r.eff_pct_ui_1);
+          if (eff01_1 === null) throw new Error(`eff 1 inválida en ${t}`);
+
+          const cyclesNum1 = Number(String(r.cycles_1 || "").trim());
+          if (!Number.isInteger(cyclesNum1) || cyclesNum1 < 0) throw new Error(`vueltas 1 inválidas en ${t}`);
+
           items.push({
-            ...baseCommon,
+            ...baseCommon0,
+            eff_pct: eff01_1,
+            cycles: cyclesNum1,
             campaign_id: c1.code,
             carbon_kg: toNumOrNull(r.carbon_kg_1),
           });
         }
 
+
         if (l2.active) {
           if (!c2.complete || !c2.code) throw new Error(`campaña 2 inválida en ${t}`);
           if (!l2.kgAny || !l2.kgOk) throw new Error(`carbón 2 inválido en ${t}`);
 
+          const eff01_2 = toEff01OrNull(r.eff_pct_ui_2);
+          if (eff01_2 === null) throw new Error(`eff 2 inválida en ${t}`);
+
+          const cyclesNum2 = Number(String(r.cycles_2 || "").trim());
+          if (!Number.isInteger(cyclesNum2) || cyclesNum2 < 0) throw new Error(`vueltas 2 inválidas en ${t}`);
+
           items.push({
-            ...baseCommon,
+            ...baseCommon0,
+            eff_pct: eff01_2,
+            cycles: cyclesNum2,
             campaign_id: c2.code,
             carbon_kg: toNumOrNull(r.carbon_kg_2),
           });
         }
 
+
         if (activeCount === 1) {
+          const useEff = l1.active ? toEff01OrNull(r.eff_pct_ui_1) : toEff01OrNull(r.eff_pct_ui_2);
+          const useCy = l1.active ? Number(String(r.cycles_1 || "").trim()) : Number(String(r.cycles_2 || "").trim());
+
+          if (useEff === null) throw new Error(`eff inválida en ${t}`);
+          if (!Number.isInteger(useCy) || useCy < 0) throw new Error(`vueltas inválidas en ${t}`);
+
           items.push({
-            ...baseCommon,
+            ...baseCommon0,
+            eff_pct: useEff,
+            cycles: useCy,
             campaign_id: null,
             carbon_kg: null,
           });
         }
+
       }
 
       if (!items.length) {
@@ -1454,8 +1523,12 @@ export default function CarbonPage() {
             const okKg1 = !meaningful || !l1.active || (l1.kgAny && l1.kgOk);
             const okKg2 = !meaningful || !l2.active || (l2.kgAny && l2.kgOk);
 
-            const okEff = !meaningful || (okEff0to100OrEmpty(r.eff_pct_ui) && String(r.eff_pct_ui || "").trim() !== "");
-            const okCy = !meaningful || (okIntNonNegOrEmpty(r.cycles) && String(r.cycles || "").trim() !== "");
+            const okEff1 = !meaningful || !l1.active || (okEff0to100OrEmpty(r.eff_pct_ui_1) && String(r.eff_pct_ui_1 || "").trim() !== "");
+            const okEff2 = !meaningful || !l2.active || (okEff0to100OrEmpty(r.eff_pct_ui_2) && String(r.eff_pct_ui_2 || "").trim() !== "");
+
+            const okCy1 = !meaningful || !l1.active || (okIntNonNegOrEmpty(r.cycles_1) && String(r.cycles_1 || "").trim() !== "");
+            const okCy2 = !meaningful || !l2.active || (okIntNonNegOrEmpty(r.cycles_2) && String(r.cycles_2 || "").trim() !== "");
+
 
             return (
               <tr key={r.tank} className="capex-tr" style={{ background: isD ? "rgba(102,199,255,.05)" : "transparent" }}>
@@ -1600,37 +1673,69 @@ export default function CarbonPage() {
                   </div>
                 </td>
 
-                <td className="capex-td">
-                  <input
-                    value={r.eff_pct_ui}
-                    disabled={qtySaving || qtyLoading || loading || savingAll}
-                    onChange={(e) => setQtyCell(r.tank, "eff_pct_ui", e.target.value)}
-                    style={{
-                      ...qtyInputStyle,
-                      textAlign: "right",
-                      border: okEff ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                      background: okEff ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-                      opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
-                    }}
-                    placeholder="0-100"
-                  />
-                </td>
+<td className="capex-td">
+  <div style={{ display: "grid", gap: 8 }}>
+    <input
+      value={r.eff_pct_ui_1}
+      disabled={qtySaving || qtyLoading || loading || savingAll}
+      onChange={(e) => setQtyCell(r.tank, "eff_pct_ui_1", e.target.value)}
+      style={{
+        ...qtyInputStyle,
+        textAlign: "right",
+        border: okEff1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+        background: okEff1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
+      }}
+      placeholder="0-100"
+    />
+    <input
+      value={r.eff_pct_ui_2}
+      disabled={qtySaving || qtyLoading || loading || savingAll}
+      onChange={(e) => setQtyCell(r.tank, "eff_pct_ui_2", e.target.value)}
+      style={{
+        ...qtyInputStyle,
+        textAlign: "right",
+        border: okEff2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+        background: okEff2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
+      }}
+      placeholder="0-100"
+    />
+  </div>
+</td>
 
-                <td className="capex-td">
-                  <input
-                    value={r.cycles}
-                    disabled={qtySaving || qtyLoading || loading || savingAll}
-                    onChange={(e) => setQtyCell(r.tank, "cycles", e.target.value)}
-                    style={{
-                      ...qtyInputStyle,
-                      textAlign: "right",
-                      border: okCy ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                      background: okCy ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-                      opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
-                    }}
-                    placeholder="0"
-                  />
-                </td>
+
+<td className="capex-td">
+  <div style={{ display: "grid", gap: 8 }}>
+    <input
+      value={r.cycles_1}
+      disabled={qtySaving || qtyLoading || loading || savingAll}
+      onChange={(e) => setQtyCell(r.tank, "cycles_1", e.target.value)}
+      style={{
+        ...qtyInputStyle,
+        textAlign: "right",
+        border: okCy1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+        background: okCy1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
+      }}
+      placeholder="0"
+    />
+    <input
+      value={r.cycles_2}
+      disabled={qtySaving || qtyLoading || loading || savingAll}
+      onChange={(e) => setQtyCell(r.tank, "cycles_2", e.target.value)}
+      style={{
+        ...qtyInputStyle,
+        textAlign: "right",
+        border: okCy2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+        background: okCy2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
+      }}
+      placeholder="0"
+    />
+  </div>
+</td>
+
 
                 <td className="capex-td">
                   <div style={{ display: "grid", gap: 6 }}>
