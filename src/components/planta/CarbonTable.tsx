@@ -1,16 +1,11 @@
-// src/app/planta/reports/page.tsx
+// src/components/planta/CarbonTable.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { apiGet } from "../../../lib/apiClient";
-import { Button } from "../../../components/ui/Button";
-import { Table } from "../../../components/ui/Table";
-import BalanceTable from "../../../components/planta/BalanceTable";
+import React, { useMemo } from "react";
+import { Button } from "../ui/Button";
+import { Table } from "../ui/Table";
 
-const PBI_PLANTA_REPORTS_URL =
-  "https://app.powerbi.com/view?r=eyJrIjoiOTVmMzI2NWQtZDgzNy00ZGI3LWE5MzMtZjllNDcxOWIyZWU2IiwidCI6IjYzNzhiZmNkLWRjYjktNDMwZi05Nzc4LWRiNTk3NGRjMmFkYyIsImMiOjR9";
-
-type TankSumRow = {
+export type TankSumRow = {
   tank: string;
   entry_date: any;
   campaign: any;
@@ -29,17 +24,6 @@ type TankSumRow = {
   total_gr?: any;
 };
 
-type TankSumResp = { ok: boolean; rows: TankSumRow[] };
-
-function isoTodayPe(): string {
-  const now = new Date();
-  const pe = new Date(now.getTime() - 5 * 60 * 60 * 1000);
-  const y = pe.getUTCFullYear();
-  const m = String(pe.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(pe.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 function toNum(v: any) {
   if (v === null || v === undefined || v === "") return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -52,7 +36,10 @@ function toNum(v: any) {
 function fmtFixed(v: any, digits: number) {
   const n = toNum(v);
   if (n === null) return "";
-  return n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return n.toLocaleString("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 }
 
 function fmtInt(v: any) {
@@ -90,51 +77,31 @@ function tankOrderKey(t: string) {
   return Number.isFinite(n) ? n : 999;
 }
 
-export default function PlantaReportsPage() {
-  // Balance: TODO lo de exportar/filtrar/tabla está dentro del componente
-  // (tu BalanceTable.tsx)
+type Mode = "AU" | "AG";
 
-  // Tanques
-  const [tankMode, setTankMode] = useState<"AU" | "AG">("AU");
-  const [tankRowsAu, setTankRowsAu] = useState<TankSumRow[]>([]);
-  const [tankRowsAg, setTankRowsAg] = useState<TankSumRow[]>([]);
-  const [tankDatesAu, setTankDatesAu] = useState<string[]>([]);
-  const [tankDatesAg, setTankDatesAg] = useState<string[]>([]);
-  const [tankLoading, setTankLoading] = useState(false);
-  const [tankMsg, setTankMsg] = useState<string | null>(null);
+export default function CarbonTable(props: {
+  tankMode: Mode;
+  setTankMode: (m: Mode) => void;
+  tankLoading: boolean;
+  onRefresh: (which: Mode) => void;
+  tankMsg?: string | null;
 
-  async function loadTankSummary(which: "AU" | "AG") {
-    setTankLoading(true);
-    setTankMsg(null);
-
-    try {
-      const r = (await apiGet(`/api/planta/tanks/summary/${which.toLowerCase()}?top=400`)) as TankSumResp;
-      const rows = Array.isArray(r?.rows) ? r.rows : [];
-      if (which === "AU") setTankRowsAu(rows);
-      else setTankRowsAg(rows);
-
-      try {
-        const d = (await apiGet(`/api/planta/carbones/assays/last5?metal=${which}`)) as any;
-        const dates = Array.isArray(d?.dates) ? d.dates.map((x: any) => String(x)) : [];
-        if (which === "AU") setTankDatesAu(dates);
-        else setTankDatesAg(dates);
-      } catch {
-        if (which === "AU") setTankDatesAu([]);
-        else setTankDatesAg([]);
-      }
-    } catch (e: any) {
-      if (which === "AU") setTankRowsAu([]);
-      else setTankRowsAg([]);
-      setTankMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando resumen por tanque");
-    } finally {
-      setTankLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadTankSummary("AU");
-    loadTankSummary("AG");
-  }, []);
+  tankRowsAu: TankSumRow[];
+  tankRowsAg: TankSumRow[];
+  tankDatesAu: string[];
+  tankDatesAg: string[];
+}) {
+  const {
+    tankMode,
+    setTankMode,
+    tankLoading,
+    onRefresh,
+    tankMsg,
+    tankRowsAu,
+    tankRowsAg,
+    tankDatesAu,
+    tankDatesAg,
+  } = props;
 
   const headerBg = "rgb(6, 36, 58)";
   const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
@@ -222,24 +189,30 @@ export default function PlantaReportsPage() {
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
-      {/* BALANCE (con export Excel/PDF dentro del componente) */}
-      <BalanceTable />
-
-      <div style={{ height: 6 }} />
-
-      {/* TANQUES */}
       <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Resumen por tanques</div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 8 }}>
-          <Button type="button" size="sm" variant={tankMode === "AU" ? "primary" : "ghost"} onClick={() => setTankMode("AU")} disabled={tankLoading}>
+          <Button
+            type="button"
+            size="sm"
+            variant={tankMode === "AU" ? "primary" : "ghost"}
+            onClick={() => setTankMode("AU")}
+            disabled={tankLoading}
+          >
             Au
           </Button>
-          <Button type="button" size="sm" variant={tankMode === "AG" ? "primary" : "ghost"} onClick={() => setTankMode("AG")} disabled={tankLoading}>
+          <Button
+            type="button"
+            size="sm"
+            variant={tankMode === "AG" ? "primary" : "ghost"}
+            onClick={() => setTankMode("AG")}
+            disabled={tankLoading}
+          >
             Ag
           </Button>
 
-          <Button type="button" size="sm" variant="default" onClick={() => loadTankSummary(tankMode)} disabled={tankLoading}>
+          <Button type="button" size="sm" variant="default" onClick={() => onRefresh(tankMode)} disabled={tankLoading}>
             {tankLoading ? "Cargando…" : "Refrescar"}
           </Button>
         </div>
@@ -267,49 +240,203 @@ export default function PlantaReportsPage() {
         <Table stickyHeader maxHeight={"calc(100vh - 320px)"}>
           <thead>
             <tr>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 80 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "left",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 80,
+                }}
+              >
                 Tanque
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 140 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "left",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 140,
+                }}
+              >
                 Fecha de ingreso
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 110 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "left",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 110,
+                }}
+              >
                 Campaña
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 130 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 130,
+                }}
+              >
                 Carbón (kg)
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 120 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 120,
+                }}
+              >
                 Eficiencia (%)
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 95 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 95,
+                }}
+              >
                 # Vueltas
               </th>
 
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
                 {tankDatesLabels.d1}
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
                 {tankDatesLabels.d2}
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
                 {tankDatesLabels.d3}
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
                 {tankDatesLabels.d4}
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
                 {tankDatesLabels.d5}
               </th>
 
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 120 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 120,
+                }}
+              >
                 Variación
               </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 150 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 150,
+                }}
+              >
                 g Totales
               </th>
 
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 260 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "left",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 260,
+                }}
+              >
                 Comentario
               </th>
             </tr>
@@ -325,15 +452,39 @@ export default function PlantaReportsPage() {
 
                 return (
                   <tr key={`${String(r.tank || "")}-${String(r.entry_date || "")}-${String(r.campaign || "")}-${i}`} className="capex-tr">
-                    <td className="capex-td capex-td-strong" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+                    <td
+                      className="capex-td capex-td-strong"
+                      style={{
+                        ...cellBase,
+                        fontWeight: 900,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
                       {String(r.tank || "").toUpperCase()}
                     </td>
 
-                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...cellBase,
+                        fontWeight: 900,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
                       {fmtDateAnyToDdMm(r.entry_date)}
                     </td>
 
-                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...cellBase,
+                        fontWeight: 900,
+                        borderBottom: rowBorder,
+                        background: rowBg,
+                      }}
+                    >
                       {r.campaign ? String(r.campaign) : ""}
                     </td>
 
@@ -369,7 +520,14 @@ export default function PlantaReportsPage() {
                       {renderVariation(r.variation)}
                     </td>
 
-                    <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, ...(totalGrStyle(totalGr) as any) }}>
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...numCell,
+                        borderBottom: rowBorder,
+                        ...(totalGrStyle(totalGr) as any),
+                      }}
+                    >
                       {fmtFixed(totalGr, 3)}
                     </td>
 
@@ -401,24 +559,6 @@ export default function PlantaReportsPage() {
             )}
           </tbody>
         </Table>
-      </div>
-
-      <div style={{ height: 6 }} />
-
-      {/* POWER BI */}
-      <div className="panel-inner" style={{ padding: "10px 12px" }}>
-        <div style={{ fontWeight: 900 }}>Dashboard - Power BI</div>
-      </div>
-
-      <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ position: "relative", width: "100%", height: "calc(100vh - 180px)" }}>
-          <iframe
-            title="MVD - Planta - Reportes"
-            src={PBI_PLANTA_REPORTS_URL}
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
-            allowFullScreen
-          />
-        </div>
       </div>
     </div>
   );
