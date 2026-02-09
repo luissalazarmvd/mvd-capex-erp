@@ -887,37 +887,50 @@ export default function CarbonPage() {
   }
 
   async function loadQtyLatest() {
-    setQtyMsg(null);
-    setQtyLoading(true);
-    try {
-      const r = (await apiGet(`/api/planta/carbones/qty/latest`)) as QtyViewResp;
-      const list = Array.isArray(r.rows) ? r.rows : [];
+  setQtyMsg(null);
+  setQtyLoading(true);
 
-      const byTank = new Map<string, QtyViewRow[]>();
-      for (const it of list) {
-        const t = String(it?.tank || "").trim().toUpperCase();
-        if (!t) continue;
-        if (!byTank.has(t)) byTank.set(t, []);
-        byTank.get(t)!.push(it);
-      }
+  try {
+    const r = (await apiGet(`/api/planta/tanks/summary/au?top=2000`)) as any;
 
-      const next = (TANKS as readonly Tank[]).map((t) => {
-        const two = byTank.get(t) || [];
-        return normalizeQtyFromView(t, two);
-      });
+    // Soporta respuestas tipo { rows: [] } o directo array o recordset
+    const list: QtyViewRow[] = Array.isArray(r?.rows)
+      ? r.rows
+      : Array.isArray(r?.recordset)
+      ? r.recordset
+      : Array.isArray(r)
+      ? r
+      : [];
 
-      const orig: Record<string, TankQtyRow> = {};
-      for (const rr of next) orig[rr.tank] = { ...rr };
-      originalQtyRef.current = orig;
-
-      setQtyRows(next);
-      setQtyDirty({});
-    } catch (e: any) {
-      setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando carbón por tanque");
-    } finally {
-      setQtyLoading(false);
+    // Arma 1 fila editable por tanque usando LAS 2 filas que ya trae el view
+    // (si viene 1 campaña + 1 null, igual entra tal cual)
+    const byTank = new Map<string, QtyViewRow[]>();
+    for (const it of list) {
+      const t = String(it?.tank || "").trim().toUpperCase();
+      if (!t) continue;
+      if (!byTank.has(t)) byTank.set(t, []);
+      byTank.get(t)!.push(it);
     }
+
+    const next = (TANKS as readonly Tank[]).map((t) => {
+      const rowsForTank = byTank.get(t) || [];
+      // sin lógica: usa lo que venga (máx 2)
+      return normalizeQtyFromView(t, rowsForTank.slice(0, 2));
+    });
+
+    const orig: Record<string, TankQtyRow> = {};
+    for (const rr of next) orig[rr.tank] = { ...rr };
+    originalQtyRef.current = orig;
+
+    setQtyRows(next);
+    setQtyDirty({});
+  } catch (e: any) {
+    setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando carbón por tanque");
+  } finally {
+    setQtyLoading(false);
   }
+}
+
 
   useEffect(() => {
     loadQtyLatest();
