@@ -8,17 +8,25 @@ import { Table } from "../ui/Table";
 export type TankSumRow = {
   tank: string;
   entry_date: any;
-  campaign: any;
+  campaign?: any;
+  campaign_id?: any;
   carbon_kg: any;
   eff_pct: any;
   cycles: any;
-  tank_comment: any;
+  comment?: any;
+  tank_comment?: any;
 
-  d1?: any;
-  d2?: any;
-  d3?: any;
-  d4?: any;
-  d5?: any;
+  au_d1?: any;
+  au_d2?: any;
+  au_d3?: any;
+  au_d4?: any;
+  au_d5?: any;
+
+  ag_d1?: any;
+  ag_d2?: any;
+  ag_d3?: any;
+  ag_d4?: any;
+  ag_d5?: any;
 
   variation?: any;
   total_gr?: any;
@@ -72,12 +80,59 @@ function fmtDateAnyToDdMm(v: any) {
 }
 
 function tankOrderKey(t: string) {
-  const m = String(t || "").toUpperCase().match(/^TK(\d{1,2})$/);
+  const m = String(t || "")
+    .toUpperCase()
+    .match(/^TK(\d{1,2})$/);
   const n = m ? Number(m[1]) : 999;
   return Number.isFinite(n) ? n : 999;
 }
 
 type Mode = "AU" | "AG";
+
+type NormRow = {
+  tank: string;
+  entry_date: any;
+  campaign: any;
+  carbon_kg: any;
+  eff_pct: any;
+  cycles: any;
+  tank_comment: any;
+  d1: any;
+  d2: any;
+  d3: any;
+  d4: any;
+  d5: any;
+  variation: any;
+  total_gr: any;
+};
+
+function normalizeRow(r: TankSumRow, mode: Mode): NormRow {
+  const campaign = r.campaign ?? r.campaign_id ?? null;
+  const tank_comment = r.tank_comment ?? r.comment ?? null;
+
+  const d1 = mode === "AU" ? r.au_d1 : r.ag_d1;
+  const d2 = mode === "AU" ? r.au_d2 : r.ag_d2;
+  const d3 = mode === "AU" ? r.au_d3 : r.ag_d3;
+  const d4 = mode === "AU" ? r.au_d4 : r.ag_d4;
+  const d5 = mode === "AU" ? r.au_d5 : r.ag_d5;
+
+  return {
+    tank: r.tank,
+    entry_date: r.entry_date,
+    campaign,
+    carbon_kg: r.carbon_kg,
+    eff_pct: r.eff_pct,
+    cycles: r.cycles,
+    tank_comment,
+    d1,
+    d2,
+    d3,
+    d4,
+    d5,
+    variation: r.variation,
+    total_gr: r.total_gr,
+  };
+}
 
 export default function CarbonTable(props: {
   tankMode: Mode;
@@ -127,11 +182,14 @@ export default function CarbonTable(props: {
   const upGreen = "#00965E";
   const downRed = "#b23934";
 
-  const tankRows = tankMode === "AU" ? tankRowsAu : tankRowsAg;
+  const rawRows = tankMode === "AU" ? tankRowsAu : tankRowsAg;
   const tankDates = tankMode === "AU" ? tankDatesAu : tankDatesAg;
 
   const tankDatesLabels = useMemo(() => {
-    const d = tankDates.map((x) => pickIsoDateOnly(x)).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x));
+    const d = (Array.isArray(tankDates) ? tankDates : [])
+      .map((x) => pickIsoDateOnly(x))
+      .filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x));
+
     const d5 = d[0] ? fmtDateDdMm(d[0]) : "D5";
     const d4 = d[1] ? fmtDateDdMm(d[1]) : "D4";
     const d3 = d[2] ? fmtDateDdMm(d[2]) : "D3";
@@ -141,7 +199,9 @@ export default function CarbonTable(props: {
   }, [tankDates]);
 
   const tankFlat = useMemo(() => {
-    const rows = Array.isArray(tankRows) ? tankRows.slice() : [];
+    const src = Array.isArray(rawRows) ? rawRows : [];
+    const rows = src.map((r) => normalizeRow(r, tankMode));
+
     rows.sort((a, b) => {
       const ta = tankOrderKey(String(a.tank || ""));
       const tb = tankOrderKey(String(b.tank || ""));
@@ -155,8 +215,9 @@ export default function CarbonTable(props: {
       const cb = String(b.campaign ?? "");
       return ca.localeCompare(cb);
     });
+
     return rows;
-  }, [tankRows]);
+  }, [rawRows, tankMode]);
 
   function renderVariation(v: any) {
     const n = toNum(v);
@@ -193,22 +254,10 @@ export default function CarbonTable(props: {
         <div style={{ fontWeight: 900 }}>Resumen por tanques</div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 8 }}>
-          <Button
-            type="button"
-            size="sm"
-            variant={tankMode === "AU" ? "primary" : "ghost"}
-            onClick={() => setTankMode("AU")}
-            disabled={tankLoading}
-          >
+          <Button type="button" size="sm" variant={tankMode === "AU" ? "primary" : "ghost"} onClick={() => setTankMode("AU")} disabled={tankLoading}>
             Au
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={tankMode === "AG" ? "primary" : "ghost"}
-            onClick={() => setTankMode("AG")}
-            disabled={tankLoading}
-          >
+          <Button type="button" size="sm" variant={tankMode === "AG" ? "primary" : "ghost"} onClick={() => setTankMode("AG")} disabled={tankLoading}>
             Ag
           </Button>
 
@@ -240,203 +289,49 @@ export default function CarbonTable(props: {
         <Table stickyHeader maxHeight={"calc(100vh - 320px)"}>
           <thead>
             <tr>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "left",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 80,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 80 }}>
                 Tanque
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "left",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 140,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 140 }}>
                 Fecha de ingreso
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "left",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 110,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 110 }}>
                 Campaña
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 130,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 130 }}>
                 Carbón (kg)
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 120,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 120 }}>
                 Eficiencia (%)
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 95,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 95 }}>
                 # Vueltas
               </th>
 
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 105,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
                 {tankDatesLabels.d1}
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 105,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
                 {tankDatesLabels.d2}
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 105,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
                 {tankDatesLabels.d3}
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 105,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
                 {tankDatesLabels.d4}
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 105,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 105 }}>
                 {tankDatesLabels.d5}
               </th>
 
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 120,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 120 }}>
                 Variación
               </th>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "right",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 150,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "10px 10px", fontSize: 12, minWidth: 150 }}>
                 g Totales
               </th>
 
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "left",
-                  padding: "10px 10px",
-                  fontSize: 12,
-                  minWidth: 260,
-                }}
-              >
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "10px 10px", fontSize: 12, minWidth: 260 }}>
                 Comentario
               </th>
             </tr>
@@ -452,39 +347,15 @@ export default function CarbonTable(props: {
 
                 return (
                   <tr key={`${String(r.tank || "")}-${String(r.entry_date || "")}-${String(r.campaign || "")}-${i}`} className="capex-tr">
-                    <td
-                      className="capex-td capex-td-strong"
-                      style={{
-                        ...cellBase,
-                        fontWeight: 900,
-                        borderBottom: rowBorder,
-                        background: rowBg,
-                      }}
-                    >
+                    <td className="capex-td capex-td-strong" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
                       {String(r.tank || "").toUpperCase()}
                     </td>
 
-                    <td
-                      className="capex-td"
-                      style={{
-                        ...cellBase,
-                        fontWeight: 900,
-                        borderBottom: rowBorder,
-                        background: rowBg,
-                      }}
-                    >
+                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
                       {fmtDateAnyToDdMm(r.entry_date)}
                     </td>
 
-                    <td
-                      className="capex-td"
-                      style={{
-                        ...cellBase,
-                        fontWeight: 900,
-                        borderBottom: rowBorder,
-                        background: rowBg,
-                      }}
-                    >
+                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
                       {r.campaign ? String(r.campaign) : ""}
                     </td>
 
@@ -520,14 +391,7 @@ export default function CarbonTable(props: {
                       {renderVariation(r.variation)}
                     </td>
 
-                    <td
-                      className="capex-td"
-                      style={{
-                        ...numCell,
-                        borderBottom: rowBorder,
-                        ...(totalGrStyle(totalGr) as any),
-                      }}
-                    >
+                    <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, ...(totalGrStyle(totalGr) as any) }}>
                       {fmtFixed(totalGr, 3)}
                     </td>
 
