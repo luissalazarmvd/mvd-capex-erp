@@ -55,6 +55,7 @@ type BalRow = {
   nacn_ratio: any;
   naoh_ratio: any;
   balls_ratio: any;
+  shift_comment?: any;
 };
 
 type BalResp = { ok: boolean; rows: BalRow[] };
@@ -185,7 +186,7 @@ function DatePicker({
   );
 }
 
-type Agg = "sum" | "wavg_tms" | "avg" | "ratio_tms_op" | "ratio_au_recu" | "ratio_ag_recu";
+type Agg = "sum" | "wavg_tms" | "avg" | "ratio_tms_op" | "ratio_au_recu" | "ratio_ag_recu" | "none";
 
 type ColDef = {
   key: keyof BalRow;
@@ -252,6 +253,7 @@ function buildColumns(mode: "AU" | "AG"): ColDef[] {
     { key: "nacn_ratio", label: "NaCN (kg/t)", w: 110, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
     { key: "naoh_ratio", label: "NaOH (kg/t)", w: 110, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
     { key: "balls_ratio", label: "Bolas (kg/t)", w: 110, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
+    { key: "shift_comment", label: "Comentario", w: 260, agg: "none", fmt: (v) => String(v ?? "") },
   ];
 
   return [...base, ...(mode === "AU" ? auBlock : agBlock), ...end];
@@ -259,6 +261,7 @@ function buildColumns(mode: "AU" | "AG"): ColDef[] {
 
 function aggValue(rows: BalRow[], key: keyof BalRow, agg: Agg) {
   if (!rows.length) return null;
+  if (agg === "none") return null;
 
   const tmsList = rows.map((r) => toNum(r.tms)).filter((x): x is number => x !== null);
   const tmsSum = tmsList.reduce((a, b) => a + b, 0);
