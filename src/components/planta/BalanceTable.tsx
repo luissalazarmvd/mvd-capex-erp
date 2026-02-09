@@ -662,6 +662,13 @@ export default function BalanceTable() {
 
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
 
+  const commentCell: React.CSSProperties = {
+  ...cellBase,
+  textAlign: "left",
+  verticalAlign: "top",
+  whiteSpace: "normal",
+  };
+
   const W_FECHA = 120;
   const W_GUARDIA = 80;
 
@@ -859,7 +866,7 @@ export default function BalanceTable() {
                       maxWidth: c.w ?? 90,
                       border: headerBorder,
                       borderBottom: headerBorder,
-                      textAlign: "center",
+                      textAlign: c.key === "shift_comment" ? "left" : "center",
                       padding: "10px 6px",
                       fontSize: 12,
                     }}
@@ -937,7 +944,7 @@ export default function BalanceTable() {
                             key={`day-${g.dateIso}-${String(c.key)}`}
                             className="capex-td"
                             style={{
-                              ...numCell,
+                              ...(c.key === "shift_comment" ? commentCell : numCell),
                               fontWeight: 900,
                               background: dayBg,
                               borderBottom: dayBorder,
@@ -980,7 +987,7 @@ export default function BalanceTable() {
                                   key={`row-${String(r.shift_id)}-${String(c.key)}`}
                                   className="capex-td"
                                   style={{
-                                    ...numCell,
+                                    ...(c.key === "shift_comment" ? commentCell : numCell),
                                     background: rowBg,
                                     borderBottom: rowBorder,
                                   }}
