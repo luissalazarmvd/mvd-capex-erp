@@ -423,7 +423,7 @@ export default function CarbonTable(props: {
                           </td>
 
                           <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
-                            {hasCampaign ? fmtFixed(r.eff_pct, 1) : ""}
+                            {hasCampaign ? (toNum(r.eff_pct) === null ? "" : fmtFixed(toNum(r.eff_pct)! * 100, 1)) : ""}
                           </td>
 
                           <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
