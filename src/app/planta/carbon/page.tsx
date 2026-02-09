@@ -819,10 +819,6 @@ export default function CarbonPage() {
         });
       }
 
-      // 2) Si SOLO hay 1 campaña activa => enviar "fila" extra con campaña vacía (snapshot)
-      //    OJO: tu server acepta campaign_id obligatorio, así que mandamos campaign: null
-      //    y el server debe aceptar campaign_id NULL para crear el snapshot.
-      //    Si tu server NO acepta null, abajo te digo qué cambiar.
       if (activeCount === 1) {
         await apiPost("/api/planta/carbones/qty/upsert", {
           ...baseCommon,
