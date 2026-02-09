@@ -317,7 +317,7 @@ function isIsoDate(s: string) {
 
 const TANKS = ["TK1", "TK2", "TK3", "TK4", "TK5", "TK6", "TK7", "TK8", "TK9", "TK10", "TK11"] as const;
 type Tank = (typeof TANKS)[number];
-
+const COMMENT_MAX = 255;
 type TankQtyRow = {
   tank: Tank;
   entry_date: string;
@@ -425,6 +425,8 @@ function rowHasMeaningfulQty(r: TankQtyRow) {
 function qtyRowCompleteAndValid(r: TankQtyRow) {
   const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
   const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
+  const cmtLen = String(r.tank_comment ?? "").length;
+  if (cmtLen > COMMENT_MAX) return false;
 
   if (l1.active && l2.active) {
     const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
@@ -1367,18 +1369,33 @@ export default function CarbonPage() {
                 </td>
 
                 <td className="capex-td">
-                  <input
-                    value={r.tank_comment}
-                    disabled={qtySaving || loading || savingAll}
-                    onChange={(e) => setQtyCell(r.tank, "tank_comment", e.target.value)}
-                    style={{
-                      ...qtyInputStyle,
-                      opacity: qtySaving || loading || savingAll ? 0.7 : 1,
-                    }}
-                    placeholder="(opcional)"
-                    maxLength={255}
-                  />
-                </td>
+  <div style={{ display: "grid", gap: 6 }}>
+    <input
+      value={r.tank_comment}
+      disabled={qtySaving || loading || savingAll}
+      onChange={(e) => setQtyCell(r.tank, "tank_comment", String(e.target.value || "").slice(0, COMMENT_MAX))}
+      style={{
+        ...qtyInputStyle,
+        opacity: qtySaving || loading || savingAll ? 0.7 : 1,
+      }}
+      placeholder="(opcional)"
+      maxLength={COMMENT_MAX}
+    />
+
+    <div
+      className="muted"
+      style={{
+        fontSize: 11,
+        fontWeight: 900,
+        textAlign: "right",
+        opacity: 0.75,
+      }}
+    >
+      {String(r.tank_comment ?? "").length}/{COMMENT_MAX}
+    </div>
+  </div>
+</td>
+
               </tr>
             );
           })}
