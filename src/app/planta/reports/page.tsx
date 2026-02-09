@@ -62,6 +62,33 @@ type BalRow = {
 
 type BalResp = { ok: boolean; rows: BalRow[] };
 
+type TankSumRow = {
+  tank: string;
+  entry_date: string;
+  campaign: any;
+  carbon_kg: any;
+  eff_pct: any;
+  cycles: any;
+  tank_comment: any;
+
+  au_d1?: any;
+  au_d2?: any;
+  au_d3?: any;
+  au_d4?: any;
+  au_d5?: any;
+
+  ag_d1?: any;
+  ag_d2?: any;
+  ag_d3?: any;
+  ag_d4?: any;
+  ag_d5?: any;
+
+  variation?: any;
+  total_gr?: any;
+};
+
+type TankSumResp = { ok: boolean; rows: TankSumRow[] };
+
 function isoTodayPe(): string {
   const now = new Date();
   const pe = new Date(now.getTime() - 5 * 60 * 60 * 1000);
@@ -381,7 +408,6 @@ function buildExportMatrix(args: {
     }
   }
 
-
   totalRowIdxs.push(rows.length);
   rows.push([
     "Total",
@@ -398,11 +424,30 @@ function buildExportMatrix(args: {
   return { headers, rows, title, totalRowIdxs };
 }
 
+function tankOrderKey(t: string) {
+  const m = String(t || "").toUpperCase().match(/^TK(\d{1,2})$/);
+  const n = m ? Number(m[1]) : 999;
+  return Number.isFinite(n) ? n : 999;
+}
+
+function fmtMaybeDate(isoOrAny: any) {
+  const s = String(isoOrAny ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return fmtDateDdMm(s);
+  return s;
+}
+
 export default function PlantaReportsPage() {
   const [mode, setMode] = useState<"AU" | "AG">("AU");
   const [allRows, setAllRows] = useState<BalRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  const [tankRowsAu, setTankRowsAu] = useState<TankSumRow[]>([]);
+  const [tankRowsAg, setTankRowsAg] = useState<TankSumRow[]>([]);
+  const [tankDatesAu, setTankDatesAu] = useState<string[]>([]);
+  const [tankDatesAg, setTankDatesAg] = useState<string[]>([]);
+  const [tankLoading, setTankLoading] = useState(false);
+  const [tankMsg, setTankMsg] = useState<string | null>(null);
 
   const today = useMemo(() => isoTodayPe(), []);
   const cols = useMemo(() => buildColumns(mode), [mode]);
@@ -412,10 +457,9 @@ export default function PlantaReportsPage() {
   const [rangeInit, setRangeInit] = useState(false);
 
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({});
-
   const [dateOrder, setDateOrder] = useState<"desc" | "asc">("desc");
 
-async function load(forceDefault = false) {
+  async function load(forceDefault = false) {
     setLoading(true);
     setMsg(null);
 
@@ -448,8 +492,38 @@ async function load(forceDefault = false) {
     }
   }
 
+  async function loadTankSummary(which: "AU" | "AG") {
+    setTankLoading(true);
+    setTankMsg(null);
+
+    try {
+      const r = (await apiGet(`/api/planta/tanks/summary/${which.toLowerCase()}?top=400`)) as TankSumResp;
+      const rows = Array.isArray(r?.rows) ? r.rows : [];
+      if (which === "AU") setTankRowsAu(rows);
+      else setTankRowsAg(rows);
+
+      try {
+        const d = (await apiGet(`/api/planta/carbones/assays/last5?metal=${which}`)) as any;
+        const dates = Array.isArray(d?.dates) ? d.dates.map((x: any) => String(x)) : [];
+        if (which === "AU") setTankDatesAu(dates);
+        else setTankDatesAg(dates);
+      } catch {
+        if (which === "AU") setTankDatesAu([]);
+        else setTankDatesAg([]);
+      }
+    } catch (e: any) {
+      if (which === "AU") setTankRowsAu([]);
+      else setTankRowsAg([]);
+      setTankMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando resumen por tanque");
+    } finally {
+      setTankLoading(false);
+    }
+  }
+
   useEffect(() => {
     load(true);
+    loadTankSummary("AU");
+    loadTankSummary("AG");
   }, []);
 
   useEffect(() => {
@@ -505,9 +579,7 @@ async function load(forceDefault = false) {
     }
 
     const entries = Array.from(m.entries()).sort((a, b) => {
-
       if (dateOrder === "desc") return a[0] < b[0] ? 1 : -1;
-
       return a[0] > b[0] ? 1 : -1;
     });
 
@@ -711,6 +783,89 @@ async function load(forceDefault = false) {
   };
 
   const dateSortIcon = dateOrder === "desc" ? "↓" : "↑";
+
+  const upGreen = "#00965E";
+  const downRed = "#b23934";
+
+  const tanksList = useMemo(
+    () => Array.from({ length: 11 }, (_, i) => `TK${i + 1}`),
+    []
+  );
+
+  const tankRows = mode === "AU" ? tankRowsAu : tankRowsAg;
+  const tankDates = mode === "AU" ? tankDatesAu : tankDatesAg;
+
+  const tankDatesLabels = useMemo(() => {
+    const d = tankDates.map((x) => String(x)).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x));
+    const pick = (idx: number) => (d[idx] ? fmtDateDdMm(d[idx]) : "");
+    const d5 = pick(0);
+    const d4 = pick(1);
+    const d3 = pick(2);
+    const d2 = pick(3);
+    const d1 = pick(4);
+    return {
+      d1: d1 || "D1",
+      d2: d2 || "D2",
+      d3: d3 || "D3",
+      d4: d4 || "D4",
+      d5: d5 || "D5",
+    };
+  }, [tankDates]);
+
+  const tankGrouped = useMemo(() => {
+    const byTank = new Map<string, TankSumRow[]>();
+    for (const r of tankRows) {
+      const tk = String(r.tank || "").toUpperCase();
+      if (!tk) continue;
+      const arr = byTank.get(tk) ?? [];
+      arr.push(r);
+      byTank.set(tk, arr);
+    }
+    for (const [k, arr] of byTank.entries()) {
+      arr.sort((a, b) => {
+        const ea = String(a.entry_date || "");
+        const eb = String(b.entry_date || "");
+        if (ea !== eb) return ea < eb ? 1 : -1;
+        return String(a.campaign || "").localeCompare(String(b.campaign || ""));
+      });
+      byTank.set(k, arr);
+    }
+    return byTank;
+  }, [tankRows]);
+
+  function renderVariation(v: any) {
+    const n = toNum(v);
+    if (n === null) return "";
+    const txt = fmtFixed(n, 3);
+    if (n > 0)
+      return (
+        <span style={{ display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
+          <span>{txt}</span>
+          <span style={{ color: upGreen, fontWeight: 900, lineHeight: "12px" }}>↗</span>
+        </span>
+      );
+    if (n < 0)
+      return (
+        <span style={{ display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
+          <span>{txt}</span>
+          <span style={{ color: downRed, fontWeight: 900, lineHeight: "12px" }}>↘</span>
+        </span>
+      );
+    return txt;
+  }
+
+  function totalGrStyle(v: any): React.CSSProperties {
+    const n = toNum(v);
+    if (n === null) return {};
+    if (n > 0) return { background: upGreen, color: "white", fontWeight: 900 };
+    if (n < 0) return { background: downRed, color: "white", fontWeight: 900 };
+    return {};
+  }
+
+  function dVal(r: TankSumRow, idx: 1 | 2 | 3 | 4 | 5) {
+    const k = (mode === "AU" ? `au_d${idx}` : `ag_d${idx}`) as keyof TankSumRow;
+    return (r as any)[k];
+  }
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -1053,6 +1208,507 @@ async function load(forceDefault = false) {
             {loading ? "Cargando…" : "Sin datos en el rango."}
           </div>
         )}
+      </div>
+
+      <div style={{ height: 6 }} />
+
+      <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ fontWeight: 900 }}>Resumen por tanques</div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 8 }}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setMode((m) => (m === "AU" ? "AG" : "AU"))}
+            disabled={tankLoading}
+          >
+            {mode === "AU" ? "Oro" : "Plata"}
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            onClick={() => loadTankSummary(mode)}
+            disabled={tankLoading}
+          >
+            {tankLoading ? "Cargando…" : "Refrescar"}
+          </Button>
+        </div>
+
+        <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
+          {mode === "AU" ? "Au" : "Ag"} · dw.v_tank_summary_{mode === "AU" ? "au" : "ag"}
+        </div>
+      </div>
+
+      {tankMsg ? (
+        <div
+          className="panel-inner"
+          style={{
+            padding: 10,
+            border: "1px solid rgba(255,80,80,.45)",
+            background: "rgba(255,80,80,.10)",
+            fontWeight: 800,
+          }}
+        >
+          {tankMsg}
+        </div>
+      ) : null}
+
+      <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
+        <Table stickyHeader maxHeight={"calc(100vh - 320px)"}>
+          <thead>
+            <tr>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "left",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 80,
+                }}
+              >
+                Tanque
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "left",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 140,
+                }}
+              >
+                Fecha de ingreso
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "left",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 110,
+                }}
+              >
+                Campaña
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 130,
+                }}
+              >
+                Carbón (kg)
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 120,
+                }}
+              >
+                Eficiencia (%)
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 95,
+                }}
+              >
+                # Vueltas
+              </th>
+
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
+                {tankDatesLabels.d1}
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
+                {tankDatesLabels.d2}
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
+                {tankDatesLabels.d3}
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
+                {tankDatesLabels.d4}
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 105,
+                }}
+              >
+                {tankDatesLabels.d5}
+              </th>
+
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 120,
+                }}
+              >
+                Variación
+              </th>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "right",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 150,
+                }}
+              >
+                g Totales en TKs
+              </th>
+
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "left",
+                  padding: "10px 10px",
+                  fontSize: 12,
+                  minWidth: 220,
+                }}
+              >
+                Comentario
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {tanksList
+              .slice()
+              .sort((a, b) => tankOrderKey(a) - tankOrderKey(b))
+              .map((tk) => {
+                const rowsForTank = tankGrouped.get(tk) ?? [];
+                const r1 = rowsForTank[0] || null;
+                const r2 = rowsForTank[1] || null;
+
+                const entry = r1?.entry_date ?? r2?.entry_date ?? "";
+                const comment = r1?.tank_comment ?? r2?.tank_comment ?? "";
+                const variation = r1?.variation ?? r2?.variation ?? null;
+                const totalGr = r1?.total_gr ?? r2?.total_gr ?? null;
+
+                const d1 = r1 ? dVal(r1, 1) : r2 ? dVal(r2, 1) : null;
+                const d2 = r1 ? dVal(r1, 2) : r2 ? dVal(r2, 2) : null;
+                const d3 = r1 ? dVal(r1, 3) : r2 ? dVal(r2, 3) : null;
+                const d4 = r1 ? dVal(r1, 4) : r2 ? dVal(r2, 4) : null;
+                const d5 = r1 ? dVal(r1, 5) : r2 ? dVal(r2, 5) : null;
+
+                const rowBorder = "1px solid rgba(255,255,255,.06)";
+                const rowBg = "rgba(0,0,0,.10)";
+
+                const span = r1 && r2 ? 2 : 1;
+
+                const sharedCells = r1 || r2;
+
+                function renderCampaignRow(rr: TankSumRow | null, idx: number) {
+                  return (
+                    <tr key={`${tk}-${idx}`} className="capex-tr">
+                      {idx === 1 ? (
+                        <>
+                          <td
+                            className="capex-td capex-td-strong"
+                            rowSpan={span}
+                            style={{
+                              ...cellBase,
+                              fontWeight: 900,
+                              borderBottom: rowBorder,
+                              background: rowBg,
+                            }}
+                          >
+                            {tk}
+                          </td>
+                          <td
+                            className="capex-td"
+                            rowSpan={span}
+                            style={{
+                              ...cellBase,
+                              fontWeight: 900,
+                              borderBottom: rowBorder,
+                              background: rowBg,
+                            }}
+                          >
+                            {fmtMaybeDate(entry)}
+                          </td>
+                        </>
+                      ) : null}
+
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellBase,
+                          fontWeight: 900,
+                          borderBottom: rowBorder,
+                          background: rowBg,
+                        }}
+                      >
+                        {rr?.campaign ? String(rr.campaign) : ""}
+                      </td>
+
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...numCell,
+                          borderBottom: rowBorder,
+                          background: rowBg,
+                        }}
+                      >
+                        {rr ? fmtFixed(rr.carbon_kg, 3) : ""}
+                      </td>
+
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...numCell,
+                          borderBottom: rowBorder,
+                          background: rowBg,
+                        }}
+                      >
+                        {rr ? fmtFixed(rr.eff_pct, 1) : ""}
+                      </td>
+
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...numCell,
+                          borderBottom: rowBorder,
+                          background: rowBg,
+                        }}
+                      >
+                        {rr ? fmtInt(rr.cycles) : ""}
+                      </td>
+
+                      {idx === 1 ? (
+                        <>
+                          <td
+                            className="capex-td"
+                            rowSpan={span}
+                            style={{
+                              ...numCell,
+                              fontWeight: 900,
+                              borderBottom: rowBorder,
+                              background: rowBg,
+                            }}
+                          >
+                            {sharedCells ? fmtFixed(d1, 3) : ""}
+                          </td>
+                          <td
+                            className="capex-td"
+                            rowSpan={span}
+                            style={{
+                              ...numCell,
+                              fontWeight: 900,
+                              borderBottom: rowBorder,
+                              background: rowBg,
+                            }}
+                          >
+                            {sharedCells ? fmtFixed(d2, 3) : ""}
+                          </td>
+                          <td
+                            className="capex-td"
+                            rowSpan={span}
+                            style={{
+                              ...numCell,
+                              fontWeight: 900,
+                              borderBottom: rowBorder,
+                              background: rowBg,
+                            }}
+                          >
+                            {sharedCells ? fmtFixed(d3, 3) : ""}
+                          </td>
+                          <td
+                            className="capex-td"
+                            rowSpan={span}
+                            style={{
+                              ...numCell,
+                              fontWeight: 900,
+                              borderBottom: rowBorder,
+                              background: rowBg,
+                            }}
+                          >
+                            {sharedCells ? fmtFixed(d4, 3) : ""}
+                          </td>
+                          <td
+                            className="capex-td"
+                            rowSpan={span}
+                            style={{
+                              ...numCell,
+                              fontWeight: 900,
+                              borderBottom: rowBorder,
+                              background: rowBg,
+                            }}
+                          >
+                            {sharedCells ? fmtFixed(d5, 3) : ""}
+                          </td>
+
+                          <td
+                            className="capex-td"
+                            rowSpan={span}
+                            style={{
+                              ...numCell,
+                              fontWeight: 900,
+                              borderBottom: rowBorder,
+                              background: rowBg,
+                            }}
+                          >
+                            {renderVariation(variation)}
+                          </td>
+
+                          <td
+                            className="capex-td"
+                            rowSpan={span}
+                            style={{
+                              ...numCell,
+                              borderBottom: rowBorder,
+                              ...(totalGrStyle(totalGr) as any),
+                            }}
+                          >
+                            {fmtFixed(totalGr, 3)}
+                          </td>
+
+                          <td
+                            className="capex-td"
+                            rowSpan={span}
+                            style={{
+                              ...cellBase,
+                              fontWeight: 900,
+                              borderBottom: rowBorder,
+                              background: rowBg,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: 360,
+                            }}
+                            title={String(comment || "")}
+                          >
+                            {String(comment || "")}
+                          </td>
+                        </>
+                      ) : null}
+                    </tr>
+                  );
+                }
+
+                return (
+                  <React.Fragment key={tk}>
+                    {renderCampaignRow(r1, 1)}
+                    {r1 && r2 ? renderCampaignRow(r2, 2) : null}
+                    {!r1 && !r2 ? (
+                      <tr key={`${tk}-empty`} className="capex-tr">
+                        <td
+                          className="capex-td capex-td-strong"
+                          style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}
+                        >
+                          {tk}
+                        </td>
+                        <td className="capex-td" style={{ ...cellBase, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...cellBase, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }} />
+                        <td className="capex-td" style={{ ...cellBase, borderBottom: rowBorder, background: rowBg }} />
+                      </tr>
+                    ) : null}
+                  </React.Fragment>
+                );
+              })}
+          </tbody>
+        </Table>
       </div>
 
       <div style={{ height: 6 }} />
