@@ -321,15 +321,12 @@ type Tank = (typeof TANKS)[number];
 type TankQtyRow = {
   tank: Tank;
   entry_date: string;
-
   campaign1_mm: string;
   campaign1_seq: string;
   campaign2_mm: string;
   campaign2_seq: string;
-
   carbon_kg_1: string;
   carbon_kg_2: string;
-
   eff_pct_ui: string;
   cycles: string;
   tank_comment: string;
@@ -392,21 +389,6 @@ function campaignCode(mm: string, seq: string) {
   return `C-${a}-${b}`;
 }
 
-function rowHasAnyValue(r: TankQtyRow) {
-  return (
-    !!String(r.entry_date || "").trim() ||
-    !!String(r.campaign1_mm || "").trim() ||
-    !!String(r.campaign1_seq || "").trim() ||
-    !!String(r.campaign2_mm || "").trim() ||
-    !!String(r.campaign2_seq || "").trim() ||
-    !!String(r.carbon_kg_1 || "").trim() ||
-    !!String(r.carbon_kg_2 || "").trim() ||
-    !!String(r.eff_pct_ui || "").trim() ||
-    !!String(r.cycles || "").trim() ||
-    !!String(r.tank_comment || "").trim()
-  );
-}
-
 function campaignFilled(mm: string, seq: string) {
   const a = String(mm ?? "").trim();
   const b = String(seq ?? "").trim();
@@ -417,7 +399,35 @@ function campaignFilled(mm: string, seq: string) {
   return { any: true, complete: true, code: campaignCode(a, b) };
 }
 
+function lineState(mm: string, seq: string, kg: string) {
+  const c = campaignFilled(mm, seq);
+  const kgTrim = String(kg ?? "").trim();
+  const kgAny = !!kgTrim;
+  const kgOk = okNonNegOrEmpty(kgTrim) && kgTrim !== "";
+  const active = c.any || kgAny;
+  return {
+    active,
+    campAny: c.any,
+    campComplete: c.complete,
+    campCode: c.code,
+    kgAny,
+    kgOk,
+    kgRequiredOk: kgAny && kgOk,
+  };
+}
+
+function rowHasMeaningfulQty(r: TankQtyRow) {
+  const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
+  const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
+  return l1.active || l2.active;
+}
+
 function qtyRowCompleteAndValid(r: TankQtyRow) {
+  const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
+  const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
+
+  if (!(l1.active || l2.active)) return false;
+
   if (!isIsoDate(r.entry_date)) return false;
 
   if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
@@ -426,21 +436,19 @@ function qtyRowCompleteAndValid(r: TankQtyRow) {
   const eff01 = toEff01OrNull(r.eff_pct_ui);
   if (eff01 === null) return false;
 
-  const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
-  const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+  const checkLine = (ln: ReturnType<typeof lineState>) => {
+    if (!ln.active) return true;
+    if (!ln.campAny && ln.kgAny) return false;
+    if (ln.campAny && !ln.campComplete) return false;
+    if (ln.campComplete && !ln.kgAny) return false;
+    if (ln.kgAny && !ln.kgOk) return false;
+    return true;
+  };
 
-  if (c1.any && !c1.complete) return false;
-  if (c2.any && !c2.complete) return false;
+  if (!checkLine(l1)) return false;
+  if (!checkLine(l2)) return false;
 
-  const hasAtLeastOne = c1.complete || c2.complete;
-  if (!hasAtLeastOne) return false;
-
-  if (c1.complete) {
-    if (!okNonNegOrEmpty(r.carbon_kg_1) || String(r.carbon_kg_1 || "").trim() === "") return false;
-  }
-  if (c2.complete) {
-    if (!okNonNegOrEmpty(r.carbon_kg_2) || String(r.carbon_kg_2 || "").trim() === "") return false;
-  }
+  if (!(l1.campComplete || l2.campComplete)) return false;
 
   return true;
 }
@@ -710,37 +718,24 @@ export default function CarbonPage() {
 
   const canSaveQty = useMemo(() => {
     if (qtySaving || loading || savingAll) return false;
-    if (!Object.keys(qtyDirty).length) return false;
 
-    for (const r of qtyRows) {
-      if (!qtyDirty[r.tank]) continue;
-      const any = rowHasAnyValue(r);
-      if (!any) continue;
+    const dirtyTanks = Object.keys(qtyDirty) as Tank[];
+    if (!dirtyTanks.length) return false;
 
-      if (!isIsoDate(r.entry_date)) return false;
+    let hasMeaningful = false;
 
-      const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
-      const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+    for (const t of dirtyTanks) {
+      const r = qtyRows.find((x) => x.tank === t);
+      if (!r) continue;
 
-      if (c1.any && !c1.complete) return false;
-      if (c2.any && !c2.complete) return false;
-      if (!(c1.complete || c2.complete)) return false;
+      const meaningful = rowHasMeaningfulQty(r);
+      if (!meaningful) continue;
 
-      if (c1.complete) {
-        if (!okNonNegOrEmpty(r.carbon_kg_1) || String(r.carbon_kg_1 || "").trim() === "") return false;
-      }
-      if (c2.complete) {
-        if (!okNonNegOrEmpty(r.carbon_kg_2) || String(r.carbon_kg_2 || "").trim() === "") return false;
-      }
-
-      if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
-      if (!okIntNonNegOrEmpty(r.cycles) || String(r.cycles || "").trim() === "") return false;
-
-      const eff01 = toEff01OrNull(r.eff_pct_ui);
-      if (eff01 === null) return false;
+      hasMeaningful = true;
+      if (!qtyRowCompleteAndValid(r)) return false;
     }
 
-    return true;
+    return hasMeaningful;
   }, [qtyDirty, qtySaving, qtyRows, loading, savingAll]);
 
   async function saveQty() {
@@ -750,8 +745,7 @@ export default function CarbonPage() {
     for (const t of tanks) {
       const r = qtyRows.find((x) => x.tank === t);
       if (!r) continue;
-      const any = rowHasAnyValue(r);
-      if (!any) continue;
+      if (!rowHasMeaningfulQty(r)) continue;
       if (!qtyRowCompleteAndValid(r)) {
         setQtyMsg(`ERROR: valores inválidos en ${t}`);
         return;
@@ -765,8 +759,8 @@ export default function CarbonPage() {
       for (const t of tanks) {
         const r = qtyRows.find((x) => x.tank === t);
         if (!r) continue;
-        const any = rowHasAnyValue(r);
-        if (!any) continue;
+
+        if (!rowHasMeaningfulQty(r)) continue;
 
         const eff01 = toEff01OrNull(r.eff_pct_ui);
         if (eff01 === null) throw new Error(`eff inválida en ${t}`);
@@ -774,10 +768,12 @@ export default function CarbonPage() {
         const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
         const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
 
-        if (c1.any && !c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
-        if (c2.any && !c2.complete) throw new Error(`campaña 2 inválida en ${t}`);
+        const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
+        const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
 
-        if (c1.complete) {
+        if (l1.active) {
+          if (!c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
+          if (!l1.kgAny || !l1.kgOk) throw new Error(`carbón 1 inválido en ${t}`);
           const payload: any = {
             tank: t,
             entry_date: r.entry_date,
@@ -790,7 +786,9 @@ export default function CarbonPage() {
           await apiPost("/api/planta/carbones/qty/upsert", payload);
         }
 
-        if (c2.complete) {
+        if (l2.active) {
+          if (!c2.complete) throw new Error(`campaña 2 inválida en ${t}`);
+          if (!l2.kgAny || !l2.kgOk) throw new Error(`carbón 2 inválido en ${t}`);
           const payload: any = {
             tank: t,
             entry_date: r.entry_date,
@@ -1166,23 +1164,23 @@ export default function CarbonPage() {
         <tbody>
           {qtyRows.map((r) => {
             const isD = !!qtyDirty[r.tank];
-            const any = rowHasAnyValue(r);
-            const valid = !any || qtyRowCompleteAndValid(r);
 
-            const okDate = !any || isIsoDate(r.entry_date);
+            const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
+            const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
 
-            const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
-            const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+            const meaningful = l1.active || l2.active;
+            const valid = !meaningful || qtyRowCompleteAndValid(r);
 
-            const okCamp1 = !any || (!c1.any || c1.complete);
-            const okCamp2 = !any || (!c2.any || c2.complete);
-            const okCampAny = !any || (c1.complete || c2.complete);
+            const okDate = !meaningful || isIsoDate(r.entry_date);
 
-            const okKg1 = !any || !c1.complete || (okNonNegOrEmpty(r.carbon_kg_1) && String(r.carbon_kg_1 || "").trim() !== "");
-            const okKg2 = !any || !c2.complete || (okNonNegOrEmpty(r.carbon_kg_2) && String(r.carbon_kg_2 || "").trim() !== "");
+            const okCamp1 = !meaningful || !l1.active || l1.campComplete;
+            const okCamp2 = !meaningful || !l2.active || l2.campComplete;
 
-            const okEff = !any || (okEff0to100OrEmpty(r.eff_pct_ui) && String(r.eff_pct_ui || "").trim() !== "");
-            const okCy = !any || (okIntNonNegOrEmpty(r.cycles) && String(r.cycles || "").trim() !== "");
+            const okKg1 = !meaningful || !l1.active || (l1.kgAny && l1.kgOk);
+            const okKg2 = !meaningful || !l2.active || (l2.kgAny && l2.kgOk);
+
+            const okEff = !meaningful || (okEff0to100OrEmpty(r.eff_pct_ui) && String(r.eff_pct_ui || "").trim() !== "");
+            const okCy = !meaningful || (okIntNonNegOrEmpty(r.cycles) && String(r.cycles || "").trim() !== "");
 
             return (
               <tr key={r.tank} className="capex-tr" style={{ background: isD ? "rgba(102,199,255,.05)" : "transparent" }}>
@@ -1221,8 +1219,8 @@ export default function CarbonPage() {
                           ...qtyInputStyle,
                           width: 54,
                           textAlign: "center",
-                          border: ok2DigitsOrEmpty(r.campaign1_mm) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                          background: ok2DigitsOrEmpty(r.campaign1_mm) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          border: ok2DigitsOrEmpty(r.campaign1_mm) && okCamp1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign1_mm) && okCamp1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
                           opacity: qtySaving || loading || savingAll ? 0.7 : 1,
                         }}
                         placeholder="MM"
@@ -1239,8 +1237,8 @@ export default function CarbonPage() {
                           ...qtyInputStyle,
                           width: 54,
                           textAlign: "center",
-                          border: ok2DigitsOrEmpty(r.campaign1_seq) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                          background: ok2DigitsOrEmpty(r.campaign1_seq) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          border: ok2DigitsOrEmpty(r.campaign1_seq) && okCamp1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign1_seq) && okCamp1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
                           opacity: qtySaving || loading || savingAll ? 0.7 : 1,
                         }}
                         placeholder="##"
@@ -1259,8 +1257,8 @@ export default function CarbonPage() {
                           ...qtyInputStyle,
                           width: 54,
                           textAlign: "center",
-                          border: ok2DigitsOrEmpty(r.campaign2_mm) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                          background: ok2DigitsOrEmpty(r.campaign2_mm) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          border: ok2DigitsOrEmpty(r.campaign2_mm) && okCamp2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign2_mm) && okCamp2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
                           opacity: qtySaving || loading || savingAll ? 0.7 : 1,
                         }}
                         placeholder="MM"
@@ -1277,8 +1275,8 @@ export default function CarbonPage() {
                           ...qtyInputStyle,
                           width: 54,
                           textAlign: "center",
-                          border: ok2DigitsOrEmpty(r.campaign2_seq) ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                          background: ok2DigitsOrEmpty(r.campaign2_seq) ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          border: ok2DigitsOrEmpty(r.campaign2_seq) && okCamp2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign2_seq) && okCamp2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
                           opacity: qtySaving || loading || savingAll ? 0.7 : 1,
                         }}
                         placeholder="##"
@@ -1286,9 +1284,9 @@ export default function CarbonPage() {
                       />
                     </div>
 
-                    {!okCampAny ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Mínimo 1 campaña completa</div> : null}
-                    {!okCamp1 ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Campaña 1 incompleta</div> : null}
-                    {!okCamp2 ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Campaña 2 incompleta</div> : null}
+                    {meaningful && !(l1.campComplete || l2.campComplete) ? (
+                      <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Mínimo 1 campaña completa</div>
+                    ) : null}
                   </div>
                 </td>
 
