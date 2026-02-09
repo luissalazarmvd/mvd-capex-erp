@@ -295,10 +295,6 @@ export default function CarbonTable(props: {
             {tankLoading ? "Cargando…" : "Refrescar"}
           </Button>
         </div>
-
-        <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
-          {tankMode === "AU" ? "Au" : "Ag"} · dw.v_tank_summary_{tankMode === "AU" ? "au" : "ag"}
-        </div>
       </div>
 
       {tankMsg ? (
@@ -379,18 +375,23 @@ export default function CarbonTable(props: {
                     {g.rows.map((r, idx) => {
                       const hasCampaign = isCampaignPresent(r.campaign);
                       const campaignStr = hasCampaign ? String(r.campaign).trim() : "";
-                      const comment = hasCampaign ? String(r.tank_comment ?? "") : "";
+                      const commentSpan = String(
+                        g.rows.find((x) => isCampaignPresent(x.campaign) && String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
+                        g.rows.find((x) => String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
+                        ""
+                         ).trim();
+
                       const totalGr = hasCampaign ? (r.total_gr ?? null) : null;
 
                       return (
                         <tr key={`${g.key}-${idx}`} className="capex-tr">
                           {idx === 0 ? (
                             <>
-                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "top" }}>
+                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "middle" }}>
                                 {String(r.tank || "").toUpperCase()}
                               </td>
 
-                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "top" }}>
+                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "middle" }}>
                                 {fmtDateAnyToDdMm(r.entry_date)}
                               </td>
                             </>
@@ -436,22 +437,27 @@ export default function CarbonTable(props: {
                             {hasCampaign ? fmtFixed(totalGr, 2) : ""}
                           </td>
 
-                          <td
-                            className="capex-td"
-                            style={{
-                              ...cellBase,
-                              fontWeight: 900,
-                              borderBottom: rowBorder,
-                              background: rowBg,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              maxWidth: 260,
-                            }}
-                            title={comment}
-                          >
-                            {comment}
-                          </td>
+                          {idx === 0 ? (
+  <td
+    className="capex-td"
+    rowSpan={span}
+    style={{
+      ...cellBase,
+      fontWeight: 900,
+      borderBottom: rowBorder,
+      background: rowBg,
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      maxWidth: 260,
+      verticalAlign: "middle",
+    }}
+    title={commentSpan}
+  >
+    {commentSpan}
+  </td>
+) : null}
+
                         </tr>
                       );
                     })}
