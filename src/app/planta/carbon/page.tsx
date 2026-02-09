@@ -318,6 +318,7 @@ function isIsoDate(s: string) {
 const TANKS = ["TK1", "TK2", "TK3", "TK4", "TK5", "TK6", "TK7", "TK8", "TK9", "TK10", "TK11"] as const;
 type Tank = (typeof TANKS)[number];
 const COMMENT_MAX = 255;
+
 type TankQtyRow = {
   tank: Tank;
   entry_date: string;
@@ -464,14 +465,10 @@ function qtyRowCompleteAndValid(r: TankQtyRow) {
   if (l1.active && l2.active) {
     const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
     const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
-
-    if (c1.complete && c2.complete && c1.code && c2.code && c1.code === c2.code) {
-      return false;
-    }
+    if (c1.complete && c2.complete && c1.code && c2.code && c1.code === c2.code) return false;
   }
 
   if (!(l1.active || l2.active)) return false;
-
   if (!isIsoDate(r.entry_date)) return false;
 
   if (!okEff0to100OrEmpty(r.eff_pct_ui) || String(r.eff_pct_ui || "").trim() === "") return false;
@@ -807,6 +804,8 @@ export default function CarbonPage() {
     if (!tanks.length) return;
 
     for (const t of tanks) {
+      visible: {
+      }
       const r = qtyRows.find((x) => x.tank === t);
       if (!r) continue;
       if (!rowHasMeaningfulQty(r)) continue;
@@ -820,22 +819,29 @@ export default function CarbonPage() {
     setQtyMsg(null);
 
     try {
+      const items: any[] = [];
+
       for (const t of tanks) {
         const r = qtyRows.find((x) => x.tank === t);
         if (!r) continue;
-
         if (!rowHasMeaningfulQty(r)) continue;
 
         const eff01 = toEff01OrNull(r.eff_pct_ui);
         if (eff01 === null) throw new Error(`eff inválida en ${t}`);
 
-        const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
-        const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+        const cyclesNum = Number(String(r.cycles || "").trim());
+        if (!Number.isInteger(cyclesNum) || cyclesNum < 0) throw new Error(`vueltas inválidas en ${t}`);
+
+        const cmt = String(r.tank_comment ?? "").trim();
+        const tank_comment = cmt ? cmt.slice(0, COMMENT_MAX) : null;
 
         const l1 = lineState(r.campaign1_mm, r.campaign1_seq, r.carbon_kg_1);
         const l2 = lineState(r.campaign2_mm, r.campaign2_seq, r.carbon_kg_2);
 
-        if (l1.active && l2.active && c1.complete && c2.complete && c1.code === c2.code) {
+        const c1 = campaignFilled(r.campaign1_mm, r.campaign1_seq);
+        const c2 = campaignFilled(r.campaign2_mm, r.campaign2_seq);
+
+        if (l1.active && l2.active && c1.complete && c2.complete && c1.code && c2.code && c1.code === c2.code) {
           throw new Error(`ERROR: campaña repetida en ${t} (${c1.code})`);
         }
 
@@ -843,41 +849,51 @@ export default function CarbonPage() {
           tank: t,
           entry_date: r.entry_date,
           eff_pct: eff01,
-          cycles: Number(String(r.cycles || "").trim()),
-          tank_comment: String(r.tank_comment ?? "").trim() || null,
+          cycles: cyclesNum,
+          tank_comment,
         };
 
         const activeCount = (l1.active ? 1 : 0) + (l2.active ? 1 : 0);
 
         if (l1.active) {
-          if (!c1.complete) throw new Error(`campaña 1 inválida en ${t}`);
+          if (!c1.complete || !c1.code) throw new Error(`campaña 1 inválida en ${t}`);
           if (!l1.kgAny || !l1.kgOk) throw new Error(`carbón 1 inválido en ${t}`);
 
-          await apiPost("/api/planta/carbones/qty/upsert", {
+          items.push({
             ...baseCommon,
-            campaign: c1.code,
+            campaign_id: c1.code,
             carbon_kg: toNumOrNull(r.carbon_kg_1),
           });
         }
 
         if (l2.active) {
-          if (!c2.complete) throw new Error(`campaña 2 inválida en ${t}`);
+          if (!c2.complete || !c2.code) throw new Error(`campaña 2 inválida en ${t}`);
           if (!l2.kgAny || !l2.kgOk) throw new Error(`carbón 2 inválido en ${t}`);
 
-          await apiPost("/api/planta/carbones/qty/upsert", {
+          items.push({
             ...baseCommon,
-            campaign: c2.code,
+            campaign_id: c2.code,
             carbon_kg: toNumOrNull(r.carbon_kg_2),
           });
         }
 
         if (activeCount === 1) {
-          await apiPost("/api/planta/carbones/qty/upsert", {
+          items.push({
             ...baseCommon,
-            campaign: null,
+            campaign_id: null,
             carbon_kg: null,
           });
         }
+      }
+
+      if (!items.length) {
+        setQtyMsg("ERROR: no hay filas para guardar");
+        return;
+      }
+
+      const resp: any = await apiPost("/api/planta/carbones/qty/upsert", { items });
+      if (resp && resp.ok === false) {
+        throw new Error(resp.error || "ERROR guardando carbón por tanque");
       }
 
       const orig: Record<string, TankQtyRow> = {};
@@ -1293,9 +1309,7 @@ export default function CarbonPage() {
                         value={r.campaign1_mm}
                         disabled={qtySaving || loading || savingAll}
                         onChange={(e) =>
-                          setQtyCellFromPrev(r.tank, "campaign1_mm", e.target.value, (prevVal) =>
-                            allowMonthTyping(e.target.value, prevVal)
-                          )
+                          setQtyCellFromPrev(r.tank, "campaign1_mm", e.target.value, (prevVal) => allowMonthTyping(e.target.value, prevVal))
                         }
                         onBlur={() => setQtyCell(r.tank, "campaign1_mm", normalizeMonthMm(r.campaign1_mm))}
                         style={{
@@ -1337,9 +1351,7 @@ export default function CarbonPage() {
                         value={r.campaign2_mm}
                         disabled={qtySaving || loading || savingAll}
                         onChange={(e) =>
-                          setQtyCellFromPrev(r.tank, "campaign2_mm", e.target.value, (prevVal) =>
-                            allowMonthTyping(e.target.value, prevVal)
-                          )
+                          setQtyCellFromPrev(r.tank, "campaign2_mm", e.target.value, (prevVal) => allowMonthTyping(e.target.value, prevVal))
                         }
                         onBlur={() => setQtyCell(r.tank, "campaign2_mm", normalizeMonthMm(r.campaign2_mm))}
                         style={{
