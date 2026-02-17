@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui/Button";
 
-type Area = "capex" | "planta";
+type Area = "capex" | "planta" | "ti";
 
 export default function PortalClient() {
   const router = useRouter();
@@ -52,7 +52,9 @@ export default function PortalClient() {
         return;
       }
 
-      router.push(area === "capex" ? "/projects" : "/planta/guardia");
+      router.push(
+        area === "capex" ? "/projects" : area === "planta" ? "/planta/guardia" : "/ti"
+      );
     } catch (e: any) {
       setErr(String(e?.message || "Clave incorrecta"));
     } finally {
@@ -109,11 +111,20 @@ export default function PortalClient() {
             >
               Planta
             </Button>
+
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("ti")}
+            >
+              Tickets TI
+            </Button>
           </div>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ fontWeight: 800, opacity: 0.9 }}>
-              {area === "capex" ? "Clave CAPEX" : "Clave Planta"}
+              {area === "capex" ? "Clave CAPEX" : area === "planta" ? "Clave Planta" : "Clave Tickets TI"}
             </div>
 
             <input
