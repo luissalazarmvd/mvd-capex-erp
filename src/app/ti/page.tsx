@@ -1,4 +1,4 @@
-// app/page.tsx
+// /app/ti/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -27,7 +27,7 @@ type Insight = {
   confianza: number;
 };
 
-export default function Home() {
+export default function TiPage() {
   const [authorized, setAuthorized] = useState(false);
   const [role, setRole] = useState<"ti" | "jefes" | null>(null);
 
@@ -47,10 +47,10 @@ export default function Home() {
   const [insightError, setInsightError] = useState<string>("");
 
   // FEEDBACK
-const [rating, setRating] = useState<number | null>(null);
-const [comment, setComment] = useState("");
-const [sendingFeedback, setSendingFeedback] = useState(false);
-const [feedbackSent, setFeedbackSent] = useState(false);
+  const [rating, setRating] = useState<number | null>(null);
+  const [comment, setComment] = useState("");
+  const [sendingFeedback, setSendingFeedback] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(false);
 
   const pbiUrl = useMemo(() => {
     if (role === "ti") return PBI_TI;
@@ -58,11 +58,11 @@ const [feedbackSent, setFeedbackSent] = useState(false);
     return null;
   }, [role]);
 
-  // ✅ Mantener sesión (AHORA por cookie httpOnly vía /api/auth/me)
+  // Mantener sesión (cookie httpOnly vía /api/ti/auth/me)
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch("/api/auth/me", { method: "GET" });
+        const res = await fetch("/api/ti/auth/me", { method: "GET" });
         if (!res.ok) return;
         const js = await res.json();
         if (!js?.ok) return;
@@ -77,12 +77,12 @@ const [feedbackSent, setFeedbackSent] = useState(false);
     check();
   }, []);
 
-  // ✅ Login ahora valida en backend: /api/auth/login (y backend setea cookie)
+  // Login: /api/ti/auth/login
   const login = async () => {
     const pass = input.trim();
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/ti/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pass }),
@@ -102,9 +102,10 @@ const [feedbackSent, setFeedbackSent] = useState(false);
     }
   };
 
+  // Logout: /api/ti/auth/logout
   const logout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/ti/auth/logout", { method: "POST" });
     } catch {}
 
     setAuthorized(false);
@@ -115,20 +116,23 @@ const [feedbackSent, setFeedbackSent] = useState(false);
     setOptions([]);
     setInsight(null);
     setInsightError("");
+    setRating(null);
+    setComment("");
+    setFeedbackSent(false);
+    setSendingFeedback(false);
   };
 
-  // Buscar tickets (debounce simple)
+  // Buscar tickets (debounce simple) -> /api/ti-tickets
   useEffect(() => {
     if (!authorized) return;
     const handle = setTimeout(async () => {
       setLoadingTickets(true);
       try {
-        const res = await fetch(`/api/tickets?q=${encodeURIComponent(q)}`);
+        const res = await fetch(`/api/ti-tickets?q=${encodeURIComponent(q)}`);
         const js = await res.json();
         if (!js.ok) throw new Error(js.error ?? "Error");
         setOptions(js.data ?? []);
-      } catch (e: any) {
-        // no mates la UI por esto
+      } catch {
         setOptions([]);
       } finally {
         setLoadingTickets(false);
@@ -162,61 +166,92 @@ const [feedbackSent, setFeedbackSent] = useState(false);
     }
   };
 
-  // FEEDBACK – envío
-const sendFeedback = async () => {
-  if (!rating) return;
+  // FEEDBACK – envío -> /api/ti-feedback
+  const sendFeedback = async () => {
+    if (!rating) return;
 
-  setSendingFeedback(true);
-  try {
-    const res = await fetch("/api/feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating, comment }),
-    });
+    setSendingFeedback(true);
+    try {
+      const res = await fetch("/api/ti-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating, comment }),
+      });
 
-    const js = await res.json();
-    if (!js.ok) throw new Error(js.error);
+      const js = await res.json();
+      if (!js.ok) throw new Error(js.error);
 
-    setFeedbackSent(true);
-  } catch {
-    alert("Error enviando feedback");
-  } finally {
+      setFeedbackSent(true);
+    } catch {
+      alert("Error enviando feedback");
+    } finally {
+      setSendingFeedback(false);
+    }
+  };
+
+  const resetFeedbackForm = () => {
+    setRating(null);
+    setComment("");
+    setFeedbackSent(false);
     setSendingFeedback(false);
-  }
-};
-
-// FEEDBACK – reset
-const resetFeedbackForm = () => {
-  setRating(null);
-  setComment("");
-  setFeedbackSent(false);
-  setSendingFeedback(false);
-};
-
+  };
 
   if (!authorized) {
     return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-        <div style={{ width: 420, maxWidth: "100%", padding: 24, borderRadius: 16, border: "1px solid #2a2a2a" }}>
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          padding: 24,
+        }}
+      >
+        <div
+          style={{
+            width: 420,
+            maxWidth: "100%",
+            padding: 24,
+            borderRadius: 16,
+            border: "1px solid #2a2a2a",
+          }}
+        >
           <h1 style={{ margin: 0, fontSize: 22 }}>MVD TI</h1>
-          <p style={{ marginTop: 8, opacity: 0.8 }}>Ingresa la clave para ver el dashboard.</p>
+          <p style={{ marginTop: 8, opacity: 0.8 }}>
+            Ingresa la clave para ver el dashboard.
+          </p>
 
           <input
             type="password"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Clave"
-            style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #333", background: "transparent", color: "inherit" }}
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #333",
+              background: "transparent",
+              color: "inherit",
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") login();
             }}
           />
 
-          {error ? <div style={{ marginTop: 10, color: "#ff6b6b" }}>{error}</div> : null}
+          {error ? (
+            <div style={{ marginTop: 10, color: "#ff6b6b" }}>{error}</div>
+          ) : null}
 
           <button
             onClick={login}
-            style={{ marginTop: 14, width: "100%", padding: 12, borderRadius: 10, border: "1px solid #333", cursor: "pointer" }}
+            style={{
+              marginTop: 14,
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #333",
+              cursor: "pointer",
+            }}
           >
             Entrar
           </button>
@@ -227,46 +262,120 @@ const resetFeedbackForm = () => {
 
   return (
     <main style={{ padding: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
         <div>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>Seguimiento Tickets TI</div>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>
+            Seguimiento Tickets TI
+          </div>
           <div style={{ opacity: 0.75, fontSize: 12 }}>
-            Rol: {role === "ti" ? "Responsable TI" : "Jefatura"} · Power BI + Copiloto
+            Rol: {role === "ti" ? "Responsable TI" : "Jefatura"} · Power BI +
+            Copiloto
           </div>
         </div>
 
-        <button onClick={logout} style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #333", cursor: "pointer" }}>
+        <button
+          onClick={logout}
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #333",
+            cursor: "pointer",
+          }}
+        >
           Salir
         </button>
       </div>
 
       {/* Power BI */}
       {pbiUrl ? (
-        <div style={{ width: "100%", height: "72vh", borderRadius: 16, overflow: "hidden", border: "1px solid #2a2a2a" }}>
-          <iframe title="Power BI" src={pbiUrl} width="100%" height="100%" style={{ border: "none" }} allowFullScreen />
+        <div
+          style={{
+            width: "100%",
+            height: "72vh",
+            borderRadius: 16,
+            overflow: "hidden",
+            border: "1px solid #2a2a2a",
+          }}
+        >
+          <iframe
+            title="Power BI"
+            src={pbiUrl}
+            width="100%"
+            height="100%"
+            style={{ border: "none" }}
+            allowFullScreen
+          />
         </div>
       ) : null}
 
       {/* Copiloto TI */}
-      <div style={{ marginTop: 14, padding: 16, borderRadius: 16, border: "1px solid #2a2a2a" }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Copiloto TI (gpt 5 mini)</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "start" }}>
+      <div
+        style={{
+          marginTop: 14,
+          padding: 16,
+          borderRadius: 16,
+          border: "1px solid #2a2a2a",
+        }}
+      >
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+          Copiloto TI (gpt 5 mini)
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: 10,
+            alignItems: "start",
+          }}
+        >
           <div>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar ticket por ID o título..."
-              style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #333", background: "transparent", color: "inherit" }}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 10,
+                border: "1px solid #333",
+                background: "transparent",
+                color: "inherit",
+              }}
             />
 
-            <div style={{ marginTop: 10, border: "1px solid #333", borderRadius: 10, overflow: "hidden" }}>
-              <div style={{ padding: "8px 10px", fontSize: 12, opacity: 0.8, borderBottom: "1px solid #333" }}>
+            <div
+              style={{
+                marginTop: 10,
+                border: "1px solid #333",
+                borderRadius: 10,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: "8px 10px",
+                  fontSize: 12,
+                  opacity: 0.8,
+                  borderBottom: "1px solid #333",
+                }}
+              >
                 {loadingTickets ? "Buscando..." : "Resultados (elige uno)"}
               </div>
 
               <div style={{ maxHeight: 220, overflow: "auto" }}>
                 {options.length === 0 ? (
-                  <div style={{ padding: 10, opacity: 0.7, fontSize: 12 }}>No hay resultados.</div>
+                  <div style={{ padding: 10, opacity: 0.7, fontSize: 12 }}>
+                    No hay resultados.
+                  </div>
                 ) : (
                   options.map((t) => {
                     const active = selected?.id_ticket === t.id_ticket;
@@ -280,16 +389,25 @@ const resetFeedbackForm = () => {
                           padding: 10,
                           border: "none",
                           borderTop: "1px solid #2a2a2a",
-                          background: active ? "rgba(255,255,255,0.06)" : "transparent",
+                          background: active
+                            ? "rgba(255,255,255,0.06)"
+                            : "transparent",
                           color: "inherit",
                           cursor: "pointer",
                         }}
                       >
                         <div style={{ fontWeight: 600, fontSize: 13 }}>
-                          {t.id_ticket} <span style={{ opacity: 0.7, fontWeight: 400 }}>· {t.status_name ?? "—"}</span>
+                          {t.id_ticket}{" "}
+                          <span style={{ opacity: 0.7, fontWeight: 400 }}>
+                            · {t.status_name ?? "—"}
+                          </span>
                         </div>
-                        <div style={{ opacity: 0.75, fontSize: 12 }}>{t.ticket_title ?? ""}</div>
-                        <div style={{ opacity: 0.6, fontSize: 11 }}>{t.category_name ?? ""}</div>
+                        <div style={{ opacity: 0.75, fontSize: 12 }}>
+                          {t.ticket_title ?? ""}
+                        </div>
+                        <div style={{ opacity: 0.6, fontSize: 11 }}>
+                          {t.category_name ?? ""}
+                        </div>
                       </button>
                     );
                   })
@@ -298,8 +416,18 @@ const resetFeedbackForm = () => {
             </div>
 
             {selected ? (
-              <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: "1px dashed #333", fontSize: 12, opacity: 0.85 }}>
-                Seleccionado: <b>{selected.id_ticket}</b> — {selected.ticket_title ?? ""}
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: 10,
+                  borderRadius: 10,
+                  border: "1px dashed #333",
+                  fontSize: 12,
+                  opacity: 0.85,
+                }}
+              >
+                Seleccionado: <b>{selected.id_ticket}</b> —{" "}
+                {selected.ticket_title ?? ""}
               </div>
             ) : null}
           </div>
@@ -320,18 +448,37 @@ const resetFeedbackForm = () => {
             </button>
 
             <div style={{ fontSize: 12, opacity: 0.7, width: 260 }}>
-              La respuesta usa el ticket actual + históricos resueltos (misma categoría) para sugerir pasos y riesgos.
+              La respuesta usa el ticket actual + históricos resueltos (misma
+              categoría) para sugerir pasos y riesgos.
             </div>
           </div>
         </div>
 
-        {insightError ? <div style={{ marginTop: 12, color: "#ff6b6b" }}>{insightError}</div> : null}
+        {insightError ? (
+          <div style={{ marginTop: 12, color: "#ff6b6b" }}>{insightError}</div>
+        ) : null}
 
         {insight ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #333" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 12,
+              border: "1px solid #333",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "center",
+              }}
+            >
               <div style={{ fontWeight: 700 }}>Insight</div>
-              <div style={{ fontSize: 12, opacity: 0.75 }}>Confianza: {(insight.confianza * 100).toFixed(0)}%</div>
+              <div style={{ fontSize: 12, opacity: 0.75 }}>
+                Confianza: {(insight.confianza * 100).toFixed(0)}%
+              </div>
             </div>
 
             <div style={{ marginTop: 8 }}>
@@ -340,12 +487,16 @@ const resetFeedbackForm = () => {
             </div>
 
             <div style={{ marginTop: 10 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>Diagnóstico probable</div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                Diagnóstico probable
+              </div>
               <div style={{ opacity: 0.9 }}>{insight.diagnostico_probable}</div>
             </div>
 
             <div style={{ marginTop: 10 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Pasos sugeridos</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                Pasos sugeridos
+              </div>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {insight.pasos_sugeridos.map((x, i) => (
                   <li key={i} style={{ marginBottom: 6, opacity: 0.95 }}>
@@ -357,7 +508,9 @@ const resetFeedbackForm = () => {
 
             {insight.preguntas_para_aclarar?.length ? (
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Preguntas para aclarar</div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                  Preguntas para aclarar
+                </div>
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {insight.preguntas_para_aclarar.map((x, i) => (
                     <li key={i} style={{ marginBottom: 6, opacity: 0.95 }}>
@@ -370,7 +523,9 @@ const resetFeedbackForm = () => {
 
             {insight.riesgos_y_precauciones?.length ? (
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Riesgos y precauciones</div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                  Riesgos y precauciones
+                </div>
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {insight.riesgos_y_precauciones.map((x, i) => (
                     <li key={i} style={{ marginBottom: 6, opacity: 0.95 }}>
@@ -391,83 +546,89 @@ const resetFeedbackForm = () => {
       </div>
 
       {/* FEEDBACK */}
-<div style={{ marginTop: 16, padding: 16, borderRadius: 16, border: "1px solid #2a2a2a" }}>
-  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
-    Valora el Copiloto TI
-  </div>
-
-  {feedbackSent ? (
-  <div>
-    <div style={{ color: "#6bff95", fontSize: 13, marginBottom: 8 }}>
-      Gracias por tu feedback 🙌
-    </div>
-
-    <button
-      onClick={resetFeedbackForm}
-      style={{
-        padding: "8px 12px",
-        borderRadius: 10,
-        border: "1px solid #333",
-        cursor: "pointer",
-      }}
-    >
-      Ingresar nueva valoración
-    </button>
-  </div>
-) : (
-
-    <>
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-          <button
-            key={n}
-            onClick={() => setRating(n)}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid #333",
-              background: rating === n ? "#fff" : "transparent",
-              color: rating === n ? "#000" : "inherit",
-              cursor: "pointer",
-            }}
-          >
-            {n}
-          </button>
-        ))}
-      </div>
-
-      <textarea
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        placeholder="Comentario opcional..."
-        rows={3}
+      <div
         style={{
-          width: "100%",
-          padding: 10,
-          borderRadius: 10,
-          border: "1px solid #333",
-          background: "transparent",
-          color: "inherit",
-        }}
-      />
-
-      <button
-        onClick={sendFeedback}
-        disabled={!rating || sendingFeedback}
-        style={{
-          marginTop: 10,
-          padding: "10px 14px",
-          borderRadius: 10,
-          border: "1px solid #333",
-          cursor: "pointer",
-          opacity: !rating || sendingFeedback ? 0.6 : 1,
+          marginTop: 16,
+          padding: 16,
+          borderRadius: 16,
+          border: "1px solid #2a2a2a",
         }}
       >
-        {sendingFeedback ? "Enviando..." : "Enviar feedback"}
-      </button>
-    </>
-  )}
-</div>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
+          Valora el Copiloto TI
+        </div>
+
+        {feedbackSent ? (
+          <div>
+            <div style={{ color: "#6bff95", fontSize: 13, marginBottom: 8 }}>
+              Gracias por tu feedback 🙌
+            </div>
+
+            <button
+              onClick={resetFeedbackForm}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: "1px solid #333",
+                cursor: "pointer",
+              }}
+            >
+              Ingresar nueva valoración
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setRating(n)}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #333",
+                    background: rating === n ? "#fff" : "transparent",
+                    color: rating === n ? "#000" : "inherit",
+                    cursor: "pointer",
+                  }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Comentario opcional..."
+              rows={3}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 10,
+                border: "1px solid #333",
+                background: "transparent",
+                color: "inherit",
+              }}
+            />
+
+            <button
+              onClick={sendFeedback}
+              disabled={!rating || sendingFeedback}
+              style={{
+                marginTop: 10,
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid #333",
+                cursor: "pointer",
+                opacity: !rating || sendingFeedback ? 0.6 : 1,
+              }}
+            >
+              {sendingFeedback ? "Enviando..." : "Enviar feedback"}
+            </button>
+          </>
+        )}
+      </div>
     </main>
   );
 }
