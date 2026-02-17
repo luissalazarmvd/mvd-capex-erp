@@ -5,6 +5,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 import { apiGet } from "../../lib/apiClient";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
 
 type Top5DRow = { d: string; tank_date: string };
 
@@ -262,27 +265,6 @@ export default function CarbonTable(props: {
     return out;
   }, [rawRows, tankMode]);
 
-  function renderVariation(v: any) {
-    const n = toNum(v);
-    if (n === null) return "";
-    const txt = fmtFixed(n, 3);
-    if (n > 0)
-      return (
-        <span style={{ display: "inline-flex", gap: 5, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
-          <span>{txt}</span>
-          <span style={{ color: upGreen, fontWeight: 900, lineHeight: "12px" }}>↗</span>
-        </span>
-      );
-    if (n < 0)
-      return (
-        <span style={{ display: "inline-flex", gap: 5, alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
-          <span>{txt}</span>
-          <span style={{ color: downRed, fontWeight: 900, lineHeight: "12px" }}>↘</span>
-        </span>
-      );
-    return txt;
-  }
-
   function totalGrStyle(v: any): React.CSSProperties {
     const n = toNum(v);
     if (n === null) return {};
@@ -294,6 +276,145 @@ export default function CarbonTable(props: {
   function isCampaignPresent(v: any) {
     return String(v ?? "").trim().length > 0;
   }
+
+  function buildExportMatrixForTanks(args: {
+  mode: Mode;
+  labels: { d1: string; d2: string; d3: string; d4: string; d5: string };
+  groups: { tank: string; entryIso: string; rows: NormRow[] }[];
+}) {
+  const { mode, labels, groups } = args;
+
+  const headers = [
+    "# Tanque",
+    "Fecha de Ingreso",
+    "Campaña",
+    "Carbón (kg)",
+    "Ef. %",
+    "# Vueltas",
+    labels.d1,
+    labels.d2,
+    labels.d3,
+    labels.d4,
+    labels.d5,
+    "Variación (%)",
+    "g Total",
+    "Comentario",
+  ];
+
+  const rows: any[][] = [];
+
+  for (const g of groups) {
+    const span = Math.max(1, g.rows.length);
+    const assayRow = g.rows.find((x) => isCampaignPresent(x.campaign)) ?? g.rows[0];
+
+    const commentSpan = String(
+      g.rows.find((x) => isCampaignPresent(x.campaign) && String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
+        g.rows.find((x) => String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
+        ""
+    ).trim();
+
+    for (let i = 0; i < span; i++) {
+      const r = g.rows[i];
+      const hasCampaign = isCampaignPresent(r.campaign);
+
+      rows.push([
+        i === 0 ? String(g.tank || "").toUpperCase() : "",
+        i === 0 ? fmtDateAnyToDdMm(g.entryIso) : "",
+        hasCampaign ? String(r.campaign || "").trim() : "",
+        hasCampaign ? fmtFixed(r.carbon_kg, 2) : "",
+        hasCampaign ? (toNum(r.eff_pct) === null ? "" : fmtFixed(toNum(r.eff_pct)! * 100, 1)) : "",
+        hasCampaign ? fmtInt(r.cycles) : "",
+        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d1, 3) : "",
+        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d2, 3) : "",
+        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d3, 3) : "",
+        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d4, 3) : "",
+        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d5, 3) : "",
+        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.variation ?? null, 3) : "",
+        hasCampaign ? fmtFixed(r.total_gr ?? null, 2) : "",
+        i === 0 ? commentSpan : "",
+      ]);
+    }
+  }
+
+  const title = `MVD_Planta_Tanques_${mode}_${(labels.d1 || "D1").replaceAll("/", "-")}`;
+  return { headers, rows, title };
+}
+
+async function exportExcelTanks() {
+  const { headers, rows, title } = buildExportMatrixForTanks({
+    mode: tankMode,
+    labels: tankDatesLabels,
+    groups: tankGroups.map((g) => ({ tank: g.tank, entryIso: g.entryIso, rows: g.rows })),
+  });
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Tanques");
+
+  ws.addRow([title.replaceAll("_", " ")]);
+  ws.mergeCells(1, 1, 1, headers.length);
+  ws.getRow(1).font = { bold: true, size: 14 };
+
+  ws.addRow([]);
+
+  const headerRow = ws.addRow(headers);
+  headerRow.font = { bold: true };
+
+  for (const r of rows) ws.addRow(r);
+
+  ws.columns = headers.map((h, idx) => {
+    const maxLen = Math.max(
+      h.length,
+      ...ws
+        .getColumn(idx + 1)
+        .values.filter((v) => typeof v === "string" || typeof v === "number")
+        .map((v: any) => String(v).length)
+    );
+    return { width: Math.min(48, Math.max(10, maxLen + 2)) };
+  });
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${title}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportPdfTanks() {
+  const { headers, rows, title } = buildExportMatrixForTanks({
+    mode: tankMode,
+    labels: tankDatesLabels,
+    groups: tankGroups.map((g) => ({ tank: g.tank, entryIso: g.entryIso, rows: g.rows })),
+  });
+
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "pt",
+    format: "a4",
+  });
+
+  doc.setFontSize(11);
+  doc.text(title.replaceAll("_", " "), 40, 30);
+
+  autoTable(doc, {
+    head: [headers],
+    body: rows,
+    startY: 45,
+    styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak" },
+    headStyles: { fontSize: 7, fontStyle: "bold" },
+    margin: { left: 20, right: 20 },
+    tableWidth: "auto",
+  });
+
+  doc.save(`${title}.pdf`);
+}
 
   return (
     <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
@@ -310,6 +431,15 @@ export default function CarbonTable(props: {
 
           <Button type="button" size="sm" variant="default" onClick={() => onRefresh(tankMode)} disabled={tankLoading}>
             {tankLoading ? "Cargando…" : "Refrescar"}
+          </Button>
+          <div style={{ width: 10 }} />
+
+          <Button type="button" size="sm" variant="ghost" onClick={exportExcelTanks} disabled={tankLoading || !tankGroups.length}>
+            Exportar Excel
+          </Button>
+
+          <Button type="button" size="sm" variant="ghost" onClick={exportPdfTanks} disabled={tankLoading || !tankGroups.length}>
+            Exportar PDF
           </Button>
         </div>
       </div>
@@ -511,10 +641,28 @@ export default function CarbonTable(props: {
                             })()
                           ) : null}
 
+                          {idx === 0 ? (
+                            (() => {
+                              const assayRow = g.rows.find((x) => isCampaignPresent(x.campaign)) ?? g.rows[0];
+                              const varVal = isCampaignPresent(assayRow.campaign) ? (assayRow.variation ?? null) : null;
 
-                          <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                            {hasCampaign ? renderVariation(r.variation) : ""}
-                          </td>
+                              return (
+                                <td
+                                  className="capex-td"
+                                  rowSpan={span}
+                                  style={{
+                                    ...numCell,
+                                    borderBottom: rowBorder,
+                                    ...(isCampaignPresent(assayRow.campaign) ? (totalGrStyle(varVal) as any) : {}),
+                                    verticalAlign: "middle",
+                                    fontWeight: 900,
+                                  }}
+                                >
+                                  {isCampaignPresent(assayRow.campaign) ? fmtFixed(varVal, 3) : ""}
+                                </td>
+                              );
+                            })()
+                          ) : null}
 
                           <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, ...(hasCampaign ? (totalGrStyle(totalGr) as any) : {}) }}>
                             {hasCampaign ? fmtFixed(totalGr, 2) : ""}
