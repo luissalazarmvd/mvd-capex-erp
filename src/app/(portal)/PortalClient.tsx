@@ -30,18 +30,23 @@ export default function PortalClient() {
   async function login() {
     setErr("");
     if (!area) return;
-    if (!pw.trim()) {
+
+    const pass = pw.trim();
+    if (!pass) {
       setErr("Ingresa la clave");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const url = area === "ti" ? "/api/ti/auth/login" : "/api/auth/login";
+      const body = area === "ti" ? { pass } : { area, password: pass };
+
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
-        body: JSON.stringify({ area, password: pw }),
+        body: JSON.stringify(body),
       });
 
       const j = await res.json().catch(() => ({}));
@@ -53,7 +58,11 @@ export default function PortalClient() {
       }
 
       router.push(
-        area === "capex" ? "/projects" : area === "planta" ? "/planta/guardia" : "/ti"
+        area === "capex"
+          ? "/projects"
+          : area === "planta"
+          ? "/planta/guardia"
+          : "/ti"
       );
     } catch (e: any) {
       setErr(String(e?.message || "Clave incorrecta"));
@@ -124,7 +133,11 @@ export default function PortalClient() {
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ fontWeight: 800, opacity: 0.9 }}>
-              {area === "capex" ? "Clave CAPEX" : area === "planta" ? "Clave Planta" : "Clave Tickets TI"}
+              {area === "capex"
+                ? "Clave CAPEX"
+                : area === "planta"
+                ? "Clave Planta"
+                : "Clave Tickets TI"}
             </div>
 
             <input

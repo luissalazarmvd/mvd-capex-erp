@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const cookieStore = await cookies();
-  const role = cookieStore.get("mvdti_session")?.value;
+  const role = cookieStore.get("mvd_ti_session")?.value;
 
   if (role !== "ti" && role !== "jefes") {
     return NextResponse.json({ ok: false }, { status: 401 });
