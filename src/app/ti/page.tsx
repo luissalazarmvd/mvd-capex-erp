@@ -1,7 +1,8 @@
-// /app/ti/page.tsx
+// src/app/ti/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const PBI_TI =
   "https://app.powerbi.com/view?r=eyJrIjoiZWZiNzE2YzctNDA4Ni00M2UyLWExNzktM2Q4ZTAxMTk2OTdjIiwidCI6IjYzNzhiZmNkLWRjYjktNDMwZi05Nzc4LWRiNTk3NGRjMmFkYyIsImMiOjR9";
@@ -28,11 +29,10 @@ type Insight = {
 };
 
 export default function TiPage() {
+  const router = useRouter();
+
   const [authorized, setAuthorized] = useState(false);
   const [role, setRole] = useState<"ti" | "jefes" | null>(null);
-
-  const [input, setInput] = useState("");
-  const [error, setError] = useState("");
 
   // Selector tickets
   const [q, setQ] = useState("");
@@ -59,50 +59,37 @@ export default function TiPage() {
   }, [role]);
 
   // Mantener sesión (cookie httpOnly vía /api/ti/auth/me)
+  // Si no está autorizado, lo mandamos al portal (no mostramos login aquí).
   useEffect(() => {
     const check = async () => {
       try {
         const res = await fetch("/api/ti/auth/me", { method: "GET" });
-        if (!res.ok) return;
+        if (!res.ok) {
+          router.replace("/?next=/ti");
+          return;
+        }
         const js = await res.json();
-        if (!js?.ok) return;
+        if (!js?.ok) {
+          router.replace("/?next=/ti");
+          return;
+        }
 
         const r = js?.role;
-        if (r !== "ti" && r !== "jefes") return;
+        if (r !== "ti" && r !== "jefes") {
+          router.replace("/?next=/ti");
+          return;
+        }
 
         setAuthorized(true);
         setRole(r);
-      } catch {}
+      } catch {
+        router.replace("/?next=/ti");
+      }
     };
     check();
-  }, []);
+  }, [router]);
 
-  // Login: /api/ti/auth/login
-  const login = async () => {
-    const pass = input.trim();
-
-    try {
-      const res = await fetch("/api/ti/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pass }),
-      });
-
-      const js = await res.json();
-      if (!js?.ok) throw new Error(js?.error ?? "Clave incorrecta.");
-
-      const r = js?.role;
-      if (r !== "ti" && r !== "jefes") throw new Error("Rol inválido.");
-
-      setAuthorized(true);
-      setRole(r);
-      setError("");
-    } catch (e: any) {
-      setError(e?.message ?? "Error");
-    }
-  };
-
-  // Logout: /api/ti/auth/logout
+  // Logout: /api/ti/auth/logout -> luego volver al portal
   const logout = async () => {
     try {
       await fetch("/api/ti/auth/logout", { method: "POST" });
@@ -110,8 +97,6 @@ export default function TiPage() {
 
     setAuthorized(false);
     setRole(null);
-    setInput("");
-    setError("");
     setSelected(null);
     setOptions([]);
     setInsight(null);
@@ -120,6 +105,8 @@ export default function TiPage() {
     setComment("");
     setFeedbackSent(false);
     setSendingFeedback(false);
+
+    router.push("/"); // portal
   };
 
   // Buscar tickets (debounce simple) -> /api/ti-tickets
@@ -196,6 +183,7 @@ export default function TiPage() {
     setSendingFeedback(false);
   };
 
+  // Mientras validas sesión, no muestres el login de TI (evita la 2da pantalla).
   if (!authorized) {
     return (
       <main
@@ -206,56 +194,7 @@ export default function TiPage() {
           padding: 24,
         }}
       >
-        <div
-          style={{
-            width: 420,
-            maxWidth: "100%",
-            padding: 24,
-            borderRadius: 16,
-            border: "1px solid #2a2a2a",
-          }}
-        >
-          <h1 style={{ margin: 0, fontSize: 22 }}>MVD TI</h1>
-          <p style={{ marginTop: 8, opacity: 0.8 }}>
-            Ingresa la clave para ver el dashboard.
-          </p>
-
-          <input
-            type="password"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Clave"
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 10,
-              border: "1px solid #333",
-              background: "transparent",
-              color: "inherit",
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") login();
-            }}
-          />
-
-          {error ? (
-            <div style={{ marginTop: 10, color: "#ff6b6b" }}>{error}</div>
-          ) : null}
-
-          <button
-            onClick={login}
-            style={{
-              marginTop: 14,
-              width: "100%",
-              padding: 12,
-              borderRadius: 10,
-              border: "1px solid #333",
-              cursor: "pointer",
-            }}
-          >
-            Entrar
-          </button>
-        </div>
+        <div style={{ opacity: 0.75 }}>Redirigiendo…</div>
       </main>
     );
   }
