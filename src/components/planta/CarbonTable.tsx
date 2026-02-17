@@ -430,21 +430,87 @@ export default function CarbonTable(props: {
                             {hasCampaign ? fmtInt(r.cycles) : ""}
                           </td>
 
-                          <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                            {hasCampaign ? fmtFixed(r.d1, 3) : ""}
-                          </td>
-                          <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                            {hasCampaign ? fmtFixed(r.d2, 3) : ""}
-                          </td>
-                          <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                            {hasCampaign ? fmtFixed(r.d3, 3) : ""}
-                          </td>
-                          <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                            {hasCampaign ? fmtFixed(r.d4, 3) : ""}
-                          </td>
-                          <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
-                            {hasCampaign ? fmtFixed(r.d5, 3) : ""}
-                          </td>
+                          {idx === 0 ? (
+                            (() => {
+                              const assayRow =
+                                g.rows.find((x) => isCampaignPresent(x.campaign)) ?? g.rows[0];
+
+                              return (
+                                <>
+                                  <td
+                                    className="capex-td"
+                                    rowSpan={span}
+                                    style={{
+                                      ...numCell,
+                                      fontWeight: 900,
+                                      borderBottom: rowBorder,
+                                      background: rowBg,
+                                      verticalAlign: "middle",
+                                    }}
+                                  >
+                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d1, 3) : ""}
+                                  </td>
+
+                                  <td
+                                    className="capex-td"
+                                    rowSpan={span}
+                                    style={{
+                                      ...numCell,
+                                      fontWeight: 900,
+                                      borderBottom: rowBorder,
+                                      background: rowBg,
+                                      verticalAlign: "middle",
+                                    }}
+                                  >
+                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d2, 3) : ""}
+                                  </td>
+
+                                  <td
+                                    className="capex-td"
+                                    rowSpan={span}
+                                    style={{
+                                      ...numCell,
+                                      fontWeight: 900,
+                                      borderBottom: rowBorder,
+                                      background: rowBg,
+                                      verticalAlign: "middle",
+                                    }}
+                                  >
+                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d3, 3) : ""}
+                                  </td>
+
+                                  <td
+                                    className="capex-td"
+                                    rowSpan={span}
+                                    style={{
+                                      ...numCell,
+                                      fontWeight: 900,
+                                      borderBottom: rowBorder,
+                                      background: rowBg,
+                                      verticalAlign: "middle",
+                                    }}
+                                  >
+                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d4, 3) : ""}
+                                  </td>
+
+                                  <td
+                                    className="capex-td"
+                                    rowSpan={span}
+                                    style={{
+                                      ...numCell,
+                                      fontWeight: 900,
+                                      borderBottom: rowBorder,
+                                      background: rowBg,
+                                      verticalAlign: "middle",
+                                    }}
+                                  >
+                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d5, 3) : ""}
+                                  </td>
+                                </>
+                              );
+                            })()
+                          ) : null}
+
 
                           <td className="capex-td" style={{ ...numCell, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
                             {hasCampaign ? renderVariation(r.variation) : ""}
