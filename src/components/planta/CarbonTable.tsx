@@ -6,8 +6,8 @@ import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 import { apiGet } from "../../lib/apiClient";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
+import html2canvas from "html2canvas";
 
 type Top5DRow = { d: string; tank_date: string };
 
@@ -140,6 +140,41 @@ function normalizeRow(r: TankSumRow, mode: Mode): NormRow {
   };
 }
 
+function rgbToHex(r: number, g: number, b: number) {
+  const toHex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+
+function hexToARGB(hex: string) {
+  const h = hex.replace("#", "").trim();
+  if (h.length === 6) return ("FF" + h).toUpperCase();
+  return h.toUpperCase();
+}
+
+function setCellBorder(cell: ExcelJS.Cell) {
+  cell.border = {
+    top: { style: "thin", color: { argb: "33BFE7FF" } },
+    left: { style: "thin", color: { argb: "33BFE7FF" } },
+    bottom: { style: "thin", color: { argb: "33BFE7FF" } },
+    right: { style: "thin", color: { argb: "33BFE7FF" } },
+  };
+}
+
+function setFill(cell: ExcelJS.Cell, cssColor: string) {
+  let hex = "#0A2E48";
+  const s = String(cssColor || "").trim();
+
+  if (s.startsWith("#")) {
+    hex = s;
+  } else {
+    const m = s.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+    if (m) hex = rgbToHex(Number(m[1]), Number(m[2]), Number(m[3]));
+  }
+
+  const argb = hexToARGB(hex);
+  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb } };
+}
+
 export default function CarbonTable(props: {
   tankMode: Mode;
   setTankMode: (m: Mode) => void;
@@ -151,7 +186,7 @@ export default function CarbonTable(props: {
   tankRowsAg: TankSumRow[];
 }) {
   const { tankMode, setTankMode, tankLoading, onRefresh, tankMsg, tankRowsAu, tankRowsAg } = props;
-
+  const tableWrapRef = React.useRef<HTMLDivElement | null>(null);
   const headerBg = "rgb(6, 36, 58)";
   const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
   const gridV = "2px solid rgba(191, 231, 255, 0.16)";
@@ -279,144 +314,235 @@ export default function CarbonTable(props: {
     return String(v ?? "").trim().length > 0;
   }
 
-  function buildExportMatrixForTanks(args: {
-  mode: Mode;
-  labels: { d1: string; d2: string; d3: string; d4: string; d5: string };
-  groups: { tank: string; entryIso: string; rows: NormRow[] }[];
-}) {
-  const { mode, labels, groups } = args;
+  async function exportExcelTanks() {
+    const title = `MVD_Planta_Tanques_${tankMode}_${(tankDatesLabels.d1 || "D1").replaceAll("/", "-")}`;
 
-  const headers = [
-    "# Tanque",
-    "Fecha de Ingreso",
-    "Campaña",
-    "Carbón (kg)",
-    "Ef. %",
-    "# Vueltas",
-    labels.d1,
-    labels.d2,
-    labels.d3,
-    labels.d4,
-    labels.d5,
-    "Variación (%)",
-    "g Total",
-    "Comentario",
-  ];
+    const headers = [
+      "# Tanque",
+      "Fecha de Ingreso",
+      "Campaña",
+      "Carbón (kg)",
+      "Ef. %",
+      "# Vueltas",
+      tankDatesLabels.d1,
+      tankDatesLabels.d2,
+      tankDatesLabels.d3,
+      tankDatesLabels.d4,
+      tankDatesLabels.d5,
+      "Variación (%)",
+      "g Total",
+      "Comentario",
+    ];
 
-  const rows: any[][] = [];
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Tanques");
 
-  for (const g of groups) {
-    const span = Math.max(1, g.rows.length);
-    const assayRow = g.rows.find((x) => isCampaignPresent(x.campaign)) ?? g.rows[0];
+    ws.addRow([title.replaceAll("_", " ")]);
+    ws.mergeCells(1, 1, 1, headers.length);
+    ws.getRow(1).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+    ws.getRow(1).alignment = { vertical: "middle", horizontal: "left" };
+    ws.getRow(1).height = 22;
+    setFill(ws.getCell(1, 1), "#06243A");
 
-    const commentSpan = String(
-      g.rows.find((x) => isCampaignPresent(x.campaign) && String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
-        g.rows.find((x) => String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
-        ""
-    ).trim();
+    ws.addRow([]);
 
-    for (let i = 0; i < span; i++) {
-      const r = g.rows[i];
-      const hasCampaign = isCampaignPresent(r.campaign);
+    const headerRow = ws.addRow(headers);
+    headerRow.height = 20;
 
-      rows.push([
-        i === 0 ? String(g.tank || "").toUpperCase() : "",
-        i === 0 ? fmtDateAnyToDdMm(g.entryIso) : "",
-        hasCampaign ? String(r.campaign || "").trim() : "",
-        hasCampaign ? fmtFixed(r.carbon_kg, 2) : "",
-        hasCampaign ? (toNum(r.eff_pct) === null ? "" : fmtFixed(toNum(r.eff_pct)! * 100, 1)) : "",
-        hasCampaign ? fmtInt(r.cycles) : "",
-        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d1, 3) : "",
-        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d2, 3) : "",
-        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d3, 3) : "",
-        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d4, 3) : "",
-        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d5, 3) : "",
-        i === 0 && isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.variation ?? null, 3) : "",
-        hasCampaign ? fmtFixed(r.total_gr ?? null, 2) : "",
-        i === 0 ? commentSpan : "",
-      ]);
+    for (let c = 1; c <= headers.length; c++) {
+      const cell = headerRow.getCell(c);
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.alignment = { vertical: "middle", horizontal: c <= 3 ? "left" : "right" };
+      setFill(cell, "#06243A");
+      setCellBorder(cell);
     }
+
+    for (const g of tankGroups) {
+      const campaignRows = g.rows.filter((x) => isCampaignPresent(x.campaign));
+      const showRows = campaignRows.length ? campaignRows : [g.rows[0]];
+      const span = showRows.length;
+
+      const startRow = ws.rowCount + 1;
+
+      const assayRow = g.rows.find((x) => isCampaignPresent(x.campaign)) ?? g.rows[0];
+      const varVal = isCampaignPresent(assayRow.campaign) ? (assayRow.variation ?? null) : null;
+
+      const commentSpan = String(
+        g.rows.find((x) => isCampaignPresent(x.campaign) && String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
+          g.rows.find((x) => String(x.tank_comment ?? "").trim().length > 0)?.tank_comment ??
+          ""
+      ).trim();
+
+      for (let i = 0; i < span; i++) {
+        const r = showRows[i];
+        const hasCampaign = isCampaignPresent(r.campaign);
+
+        const rowVals = [
+          i === 0 ? String(g.tank || "").toUpperCase() : "",
+          i === 0 ? fmtDateAnyToDdMm(g.entryIso) : "",
+          hasCampaign ? String(r.campaign || "").trim() : "",
+          hasCampaign ? toNum(r.carbon_kg) ?? "" : "",
+          hasCampaign ? (toNum(r.eff_pct) === null ? "" : toNum(r.eff_pct)! * 100) : "",
+          hasCampaign ? toNum(r.cycles) ?? "" : "",
+          i === 0 && isCampaignPresent(assayRow.campaign) ? toNum(assayRow.d1) ?? "" : "",
+          i === 0 && isCampaignPresent(assayRow.campaign) ? toNum(assayRow.d2) ?? "" : "",
+          i === 0 && isCampaignPresent(assayRow.campaign) ? toNum(assayRow.d3) ?? "" : "",
+          i === 0 && isCampaignPresent(assayRow.campaign) ? toNum(assayRow.d4) ?? "" : "",
+          i === 0 && isCampaignPresent(assayRow.campaign) ? toNum(assayRow.d5) ?? "" : "",
+          i === 0 && isCampaignPresent(assayRow.campaign) ? toNum(varVal) ?? "" : "",
+          hasCampaign ? toNum(r.total_gr) ?? "" : "",
+          i === 0 ? commentSpan : "",
+        ];
+
+        const rr = ws.addRow(rowVals);
+        rr.height = 18;
+
+        for (let c = 1; c <= headers.length; c++) {
+          const cell = rr.getCell(c);
+
+          cell.alignment = { vertical: "middle", horizontal: c <= 3 || c === 14 ? "left" : "right" };
+          cell.font = { bold: c === 1 || c === 2 || c === 3 || c === 14, color: { argb: "FFFFFFFF" } };
+
+          setFill(cell, "#0A2E48");
+          setCellBorder(cell);
+
+          if (c === 4) cell.numFmt = "#,##0.00";
+          if (c === 5) cell.numFmt = "0.0";
+          if (c === 6) cell.numFmt = "0";
+          if (c >= 7 && c <= 11) cell.numFmt = "0.000";
+          if (c === 12) cell.numFmt = "0.000";
+          if (c === 13) cell.numFmt = "#,##0.00";
+
+          if (c === 12 && i === 0 && isCampaignPresent(assayRow.campaign)) {
+            const n = toNum(varVal);
+            if (n !== null) {
+              setFill(cell, n >= 0 ? upGreen : downRed);
+              cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+            }
+          }
+
+          if (c === 13 && hasCampaign) {
+            const n = toNum(r.total_gr);
+            if (n !== null) {
+              if (n > 0) setFill(cell, upGreen);
+              else if (n < 0) setFill(cell, downRed);
+              if (n !== 0) cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+            }
+          }
+        }
+      }
+
+      if (span > 1) {
+        const endRow = startRow + span - 1;
+
+        ws.mergeCells(startRow, 1, endRow, 1);
+        ws.mergeCells(startRow, 2, endRow, 2);
+
+        for (const col of [7, 8, 9, 10, 11, 12, 14]) {
+          ws.mergeCells(startRow, col, endRow, col);
+        }
+      }
+    }
+
+    ws.columns = headers.map((h, idx) => {
+      const maxLen = Math.max(
+        h.length,
+        ...ws
+          .getColumn(idx + 1)
+          .values.filter((v) => typeof v === "string" || typeof v === "number")
+          .map((v: any) => String(v).length)
+      );
+      return { width: Math.min(48, Math.max(10, maxLen + 2)) };
+    });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
-  const title = `MVD_Planta_Tanques_${mode}_${(labels.d1 || "D1").replaceAll("/", "-")}`;
-  return { headers, rows, title };
-}
+  async function exportPdfTanks() {
+    if (!tableWrapRef.current) return;
 
-async function exportExcelTanks() {
-  const { headers, rows, title } = buildExportMatrixForTanks({
-    mode: tankMode,
-    labels: tankDatesLabels,
-    groups: tankGroups.map((g) => ({ tank: g.tank, entryIso: g.entryIso, rows: g.rows })),
-  });
+    const src = tableWrapRef.current;
 
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Tanques");
+    const clone = src.cloneNode(true) as HTMLElement;
+    clone.style.maxHeight = "none";
+    clone.style.overflow = "visible";
+    clone.style.width = `${src.scrollWidth}px`;
 
-  ws.addRow([title.replaceAll("_", " ")]);
-  ws.mergeCells(1, 1, 1, headers.length);
-  ws.getRow(1).font = { bold: true, size: 14 };
+    const wrappers = clone.querySelectorAll<HTMLElement>("[style*='max-height'],[style*='overflow']");
+    wrappers.forEach((el) => {
+      if (String(el.style.maxHeight || "").length) el.style.maxHeight = "none";
+      if (String(el.style.overflow || "").length) el.style.overflow = "visible";
+    });
 
-  ws.addRow([]);
+    const holder = document.createElement("div");
+    holder.style.position = "fixed";
+    holder.style.left = "-100000px";
+    holder.style.top = "0";
+    holder.style.background = "#06243A";
+    holder.appendChild(clone);
+    document.body.appendChild(holder);
 
-  const headerRow = ws.addRow(headers);
-  headerRow.font = { bold: true };
+    const canvas = await html2canvas(clone, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#06243A",
+      windowWidth: clone.scrollWidth,
+      windowHeight: clone.scrollHeight,
+    });
 
-  for (const r of rows) ws.addRow(r);
+    document.body.removeChild(holder);
 
-  ws.columns = headers.map((h, idx) => {
-    const maxLen = Math.max(
-      h.length,
-      ...ws
-        .getColumn(idx + 1)
-        .values.filter((v) => typeof v === "string" || typeof v === "number")
-        .map((v: any) => String(v).length)
-    );
-    return { width: Math.min(48, Math.max(10, maxLen + 2)) };
-  });
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 18;
 
-  const buf = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buf], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
+    const usableW = pageW - margin * 2;
+    const usableH = pageH - margin * 2;
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${title}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+    const scale = usableW / canvas.width;
+    const pageCanvasPxH = Math.floor(usableH / scale);
 
-function exportPdfTanks() {
-  const { headers, rows, title } = buildExportMatrixForTanks({
-    mode: tankMode,
-    labels: tankDatesLabels,
-    groups: tankGroups.map((g) => ({ tank: g.tank, entryIso: g.entryIso, rows: g.rows })),
-  });
+    let yPx = 0;
+    let page = 0;
 
-  const doc = new jsPDF({
-    orientation: "landscape",
-    unit: "pt",
-    format: "a4",
-  });
+    while (yPx < canvas.height) {
+      page++;
 
-  doc.setFontSize(11);
-  doc.text(title.replaceAll("_", " "), 40, 30);
+      const sliceH = Math.min(pageCanvasPxH, canvas.height - yPx);
 
-  autoTable(doc, {
-    head: [headers],
-    body: rows,
-    startY: 45,
-    styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak" },
-    headStyles: { fontSize: 7, fontStyle: "bold" },
-    margin: { left: 20, right: 20 },
-    tableWidth: "auto",
-  });
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceH;
 
-  doc.save(`${title}.pdf`);
-}
+      const ctx = pageCanvas.getContext("2d");
+      if (!ctx) break;
+
+      ctx.drawImage(canvas, 0, yPx, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+
+      const imgData = pageCanvas.toDataURL("image/png");
+
+      if (page > 1) doc.addPage();
+      doc.addImage(imgData, "PNG", margin, margin, usableW, sliceH * scale);
+
+      yPx += sliceH;
+    }
+
+    const title = `MVD_Planta_Tanques_${tankMode}_${(tankDatesLabels.d1 || "D1").replaceAll("/", "-")}`;
+    doc.save(`${title}.pdf`);
+  }
 
   return (
     <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
@@ -460,7 +586,7 @@ function exportPdfTanks() {
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
+      <div ref={tableWrapRef} className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
         <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
           <thead>
             <tr>
@@ -515,11 +641,11 @@ function exportPdfTanks() {
           <tbody>
             {tankGroups.length ? (
               tankGroups.map((g) => {
-              const rowBorder = gridH;
-              const rowBg = "rgba(0,0,0,.10)";
-              const campaignRows = g.rows.filter((x) => isCampaignPresent(x.campaign));
-              const showRows = campaignRows.length ? campaignRows : [g.rows[0]];
-              const span = showRows.length;
+                const rowBorder = gridH;
+                const rowBg = "rgba(0,0,0,.10)";
+                const campaignRows = g.rows.filter((x) => isCampaignPresent(x.campaign));
+                const showRows = campaignRows.length ? campaignRows : [g.rows[0]];
+                const span = showRows.length;
 
                 return (
                   <React.Fragment key={g.key}>
@@ -538,17 +664,17 @@ function exportPdfTanks() {
                         <tr key={`${g.key}-${idx}`} className="capex-tr">
                           {idx === 0 ? (
                             <>
-                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase,borderTop: rowBorder, fontWeight: 900, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
+                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase, borderTop: rowBorder, fontWeight: 900, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
                                 {String(r.tank || "").toUpperCase()}
                               </td>
 
-                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 900,borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
+                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
                                 {fmtDateAnyToDdMm(r.entry_date)}
                               </td>
                             </>
                           ) : null}
 
-                          <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder,borderTop: rowBorder, borderRight: gridV, background: rowBg }}>
+                          <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, borderTop: rowBorder, borderRight: gridV, background: rowBg }}>
                             {campaignStr}
                           </td>
 
@@ -564,115 +690,59 @@ function exportPdfTanks() {
                             {hasCampaign ? fmtInt(r.cycles) : ""}
                           </td>
 
-                          {idx === 0 ? (
-                            (() => {
-                              const assayRow =
-                                g.rows.find((x) => isCampaignPresent(x.campaign)) ?? g.rows[0];
+                          {idx === 0
+                            ? (() => {
+                                const assayRow = g.rows.find((x) => isCampaignPresent(x.campaign)) ?? g.rows[0];
 
-                              return (
-                                <>
+                                return (
+                                  <>
+                                    <td className="capex-td" rowSpan={span} style={{ ...numCell, borderRight: gridV, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "middle" }}>
+                                      {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d1, 3) : ""}
+                                    </td>
+
+                                    <td className="capex-td" rowSpan={span} style={{ ...numCell, fontWeight: 900, borderRight: gridV, borderBottom: rowBorder, background: rowBg, verticalAlign: "middle" }}>
+                                      {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d2, 3) : ""}
+                                    </td>
+
+                                    <td className="capex-td" rowSpan={span} style={{ ...numCell, fontWeight: 900, borderRight: gridV, borderBottom: rowBorder, background: rowBg, verticalAlign: "middle" }}>
+                                      {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d3, 3) : ""}
+                                    </td>
+
+                                    <td className="capex-td" rowSpan={span} style={{ ...numCell, borderRight: gridV, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "middle" }}>
+                                      {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d4, 3) : ""}
+                                    </td>
+
+                                    <td className="capex-td" rowSpan={span} style={{ ...numCell, fontWeight: 900, borderRight: gridV, borderBottom: rowBorder, background: rowBg, verticalAlign: "middle" }}>
+                                      {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d5, 3) : ""}
+                                    </td>
+                                  </>
+                                );
+                              })()
+                            : null}
+
+                          {idx === 0
+                            ? (() => {
+                                const assayRow = g.rows.find((x) => isCampaignPresent(x.campaign)) ?? g.rows[0];
+                                const varVal = isCampaignPresent(assayRow.campaign) ? (assayRow.variation ?? null) : null;
+
+                                return (
                                   <td
                                     className="capex-td"
                                     rowSpan={span}
                                     style={{
                                       ...numCell,
                                       borderRight: gridV,
-                                      fontWeight: 900,
                                       borderBottom: rowBorder,
-                                      background: rowBg,
+                                      ...(isCampaignPresent(assayRow.campaign) ? (totalGrStyle(varVal) as any) : {}),
                                       verticalAlign: "middle",
+                                      fontWeight: 900,
                                     }}
                                   >
-                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d1, 3) : ""}
+                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(varVal, 3) : ""}
                                   </td>
-
-                                  <td
-                                    className="capex-td"
-                                    rowSpan={span}
-                                    style={{
-                                      ...numCell,
-                                      fontWeight: 900,
-                                      borderRight: gridV,
-                                      borderBottom: rowBorder,
-                                      background: rowBg,
-                                      verticalAlign: "middle",
-                                    }}
-                                  >
-                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d2, 3) : ""}
-                                  </td>
-
-                                  <td
-                                    className="capex-td"
-                                    rowSpan={span}
-                                    style={{
-                                      ...numCell,
-                                      fontWeight: 900,
-                                      borderRight: gridV,
-                                      borderBottom: rowBorder,
-                                      background: rowBg,
-                                      verticalAlign: "middle",
-                                    }}
-                                  >
-                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d3, 3) : ""}
-                                  </td>
-
-                                  <td
-                                    className="capex-td"
-                                    rowSpan={span}
-                                    style={{
-                                      ...numCell,
-                                      borderRight: gridV,
-                                      fontWeight: 900,
-                                      borderBottom: rowBorder,
-                                      background: rowBg,
-                                      verticalAlign: "middle",
-                                    }}
-                                  >
-                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d4, 3) : ""}
-                                  </td>
-
-                                  <td
-                                    className="capex-td"
-                                    rowSpan={span}
-                                    style={{
-                                      ...numCell,
-                                      fontWeight: 900,
-                                      borderRight: gridV,
-                                      borderBottom: rowBorder,
-                                      background: rowBg,
-                                      verticalAlign: "middle",
-                                    }}
-                                  >
-                                    {isCampaignPresent(assayRow.campaign) ? fmtFixed(assayRow.d5, 3) : ""}
-                                  </td>
-                                </>
-                              );
-                            })()
-                          ) : null}
-
-                          {idx === 0 ? (
-                            (() => {
-                              const assayRow = g.rows.find((x) => isCampaignPresent(x.campaign)) ?? g.rows[0];
-                              const varVal = isCampaignPresent(assayRow.campaign) ? (assayRow.variation ?? null) : null;
-
-                              return (
-                                <td
-                                  className="capex-td"
-                                  rowSpan={span}
-                                  style={{
-                                    ...numCell,
-                                    borderRight: gridV,
-                                    borderBottom: rowBorder,
-                                    ...(isCampaignPresent(assayRow.campaign) ? (totalGrStyle(varVal) as any) : {}),
-                                    verticalAlign: "middle",
-                                    fontWeight: 900,
-                                  }}
-                                >
-                                  {isCampaignPresent(assayRow.campaign) ? fmtFixed(varVal, 3) : ""}
-                                </td>
-                              );
-                            })()
-                          ) : null}
+                                );
+                              })()
+                            : null}
 
                           <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, borderRight: gridV, ...(hasCampaign ? (totalGrStyle(totalGr) as any) : {}) }}>
                             {hasCampaign ? fmtFixed(totalGr, 2) : ""}
