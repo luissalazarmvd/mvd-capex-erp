@@ -515,13 +515,15 @@ function exportPdfTanks() {
           <tbody>
             {tankGroups.length ? (
               tankGroups.map((g) => {
-                const rowBorder = gridH;
-                const rowBg = "rgba(0,0,0,.10)";
-                const span = Math.max(1, g.rows.length);
+              const rowBorder = gridH;
+              const rowBg = "rgba(0,0,0,.10)";
+              const campaignRows = g.rows.filter((x) => isCampaignPresent(x.campaign));
+              const showRows = campaignRows.length ? campaignRows : [g.rows[0]];
+              const span = showRows.length;
 
                 return (
                   <React.Fragment key={g.key}>
-                    {g.rows.map((r, idx) => {
+                    {showRows.map((r, idx) => {
                       const hasCampaign = isCampaignPresent(r.campaign);
                       const campaignStr = hasCampaign ? String(r.campaign).trim() : "";
                       const commentSpan = String(
