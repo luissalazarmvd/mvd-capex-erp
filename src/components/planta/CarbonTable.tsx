@@ -154,6 +154,8 @@ export default function CarbonTable(props: {
 
   const headerBg = "rgb(6, 36, 58)";
   const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const gridV = "2px solid rgba(191, 231, 255, 0.16)";
+  const gridH = "2px solid rgba(191, 231, 255, 0.10)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyHead: React.CSSProperties = {
@@ -513,7 +515,7 @@ function exportPdfTanks() {
           <tbody>
             {tankGroups.length ? (
               tankGroups.map((g) => {
-                const rowBorder = "1px solid rgba(255,255,255,.06)";
+                const rowBorder = gridH;
                 const rowBg = "rgba(0,0,0,.10)";
                 const span = Math.max(1, g.rows.length);
 
@@ -534,29 +536,29 @@ function exportPdfTanks() {
                         <tr key={`${g.key}-${idx}`} className="capex-tr">
                           {idx === 0 ? (
                             <>
-                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "middle" }}>
+                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase,borderTop: rowBorder, fontWeight: 900, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
                                 {String(r.tank || "").toUpperCase()}
                               </td>
 
-                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg, verticalAlign: "middle" }}>
+                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 900,borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
                                 {fmtDateAnyToDdMm(r.entry_date)}
                               </td>
                             </>
                           ) : null}
 
-                          <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder, background: rowBg }}>
+                          <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderBottom: rowBorder,borderTop: rowBorder, borderRight: gridV, background: rowBg }}>
                             {campaignStr}
                           </td>
 
-                          <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
+                          <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, borderRight: gridV, background: rowBg }}>
                             {hasCampaign ? fmtFixed(r.carbon_kg, 2) : ""}
                           </td>
 
-                          <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
+                          <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, borderRight: gridV, background: rowBg }}>
                             {hasCampaign ? (toNum(r.eff_pct) === null ? "" : fmtFixed(toNum(r.eff_pct)! * 100, 1)) : ""}
                           </td>
 
-                          <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, background: rowBg }}>
+                          <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, borderRight: gridV, background: rowBg }}>
                             {hasCampaign ? fmtInt(r.cycles) : ""}
                           </td>
 
@@ -572,6 +574,7 @@ function exportPdfTanks() {
                                     rowSpan={span}
                                     style={{
                                       ...numCell,
+                                      borderRight: gridV,
                                       fontWeight: 900,
                                       borderBottom: rowBorder,
                                       background: rowBg,
@@ -587,6 +590,7 @@ function exportPdfTanks() {
                                     style={{
                                       ...numCell,
                                       fontWeight: 900,
+                                      borderRight: gridV,
                                       borderBottom: rowBorder,
                                       background: rowBg,
                                       verticalAlign: "middle",
@@ -601,6 +605,7 @@ function exportPdfTanks() {
                                     style={{
                                       ...numCell,
                                       fontWeight: 900,
+                                      borderRight: gridV,
                                       borderBottom: rowBorder,
                                       background: rowBg,
                                       verticalAlign: "middle",
@@ -614,6 +619,7 @@ function exportPdfTanks() {
                                     rowSpan={span}
                                     style={{
                                       ...numCell,
+                                      borderRight: gridV,
                                       fontWeight: 900,
                                       borderBottom: rowBorder,
                                       background: rowBg,
@@ -629,6 +635,7 @@ function exportPdfTanks() {
                                     style={{
                                       ...numCell,
                                       fontWeight: 900,
+                                      borderRight: gridV,
                                       borderBottom: rowBorder,
                                       background: rowBg,
                                       verticalAlign: "middle",
@@ -652,6 +659,7 @@ function exportPdfTanks() {
                                   rowSpan={span}
                                   style={{
                                     ...numCell,
+                                    borderRight: gridV,
                                     borderBottom: rowBorder,
                                     ...(isCampaignPresent(assayRow.campaign) ? (totalGrStyle(varVal) as any) : {}),
                                     verticalAlign: "middle",
@@ -664,7 +672,7 @@ function exportPdfTanks() {
                             })()
                           ) : null}
 
-                          <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, ...(hasCampaign ? (totalGrStyle(totalGr) as any) : {}) }}>
+                          <td className="capex-td" style={{ ...numCell, borderBottom: rowBorder, borderRight: gridV, ...(hasCampaign ? (totalGrStyle(totalGr) as any) : {}) }}>
                             {hasCampaign ? fmtFixed(totalGr, 2) : ""}
                           </td>
 
@@ -676,6 +684,7 @@ function exportPdfTanks() {
                                 ...cellBase,
                                 fontWeight: 900,
                                 borderBottom: rowBorder,
+                                borderRight: gridV,
                                 background: rowBg,
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
