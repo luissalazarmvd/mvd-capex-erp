@@ -8,6 +8,7 @@ import { Button } from "../../../components/ui/Button";
 
 type CampaignRow = { campaign_id: string };
 type CampaignsResp = { ok: boolean; rows: CampaignRow[] };
+type LatestResp = { ok: boolean; campaign_id: string | null };
 
 type MapRow = { reagent_name: string; subprocess_name: string };
 type MappingResp = { ok: boolean; rows: MapRow[] };
@@ -424,9 +425,19 @@ export default function RefineryConsumptionPage() {
     return !!campaignId && !!reagent && !!subprocess && dateOk && qtyOkGt0(qty) && !saving;
   }, [campaignId, reagent, subprocess, dateOk, qty, saving]);
 
-  async function loadMeta() {
+  async function loadLatestCampaignId() {
+    try {
+      const r = (await apiGet("/api/refineria/campaigns/latest")) as LatestResp;
+      const latest = String(r?.campaign_id || "").trim().toUpperCase();
+      if (latest) setCampaignId(latest);
+    } catch {
+    }
+  }
+
+  async function loadMeta(opts?: { keepMsg?: boolean }) {
     setLoading(true);
-    setMsg(null);
+    if (!opts?.keepMsg) setMsg(null);
+
     try {
       const [c, m] = await Promise.all([
         apiGet("/api/refineria/campaigns") as Promise<CampaignsResp>,
@@ -438,10 +449,6 @@ export default function RefineryConsumptionPage() {
 
       setCampaigns(cRows);
       setMapping(mRows);
-
-      if (!campaignId && cRows[0]?.campaign_id) {
-        setCampaignId(String(cRows[0].campaign_id || "").trim().toUpperCase());
-      }
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando datos");
     } finally {
@@ -456,9 +463,7 @@ export default function RefineryConsumptionPage() {
       return;
     }
     try {
-      const r = (await apiGet(
-        `/api/refineria/consumption?campaign_id=${encodeURIComponent(id)}`
-      )) as ConsumptionResp;
+      const r = (await apiGet(`/api/refineria/consumption?campaign_id=${encodeURIComponent(id)}`)) as ConsumptionResp;
       setConsRows(Array.isArray(r.rows) ? r.rows : []);
     } catch {
       setConsRows([]);
@@ -487,6 +492,7 @@ export default function RefineryConsumptionPage() {
   }
 
   useEffect(() => {
+    loadLatestCampaignId();
     loadMeta();
   }, []);
 
@@ -543,6 +549,8 @@ export default function RefineryConsumptionPage() {
 
       await apiPost("/api/refineria/consumption/insert", payload);
       setMsg(`OK: guardado ${campaignId} · ${reagent} · ${subprocess}`);
+      await loadLatestCampaignId();
+      await loadMeta({ keepMsg: true });
       await loadConsumptionForCampaign(campaignId);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando consumo");
@@ -559,7 +567,16 @@ export default function RefineryConsumptionPage() {
         <div style={{ fontWeight: 900 }}>Consumos</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={loadMeta} disabled={loading || saving}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              loadLatestCampaignId();
+              loadMeta();
+            }}
+            disabled={loading || saving}
+          >
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>

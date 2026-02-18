@@ -13,6 +13,7 @@ type CampaignRow = {
   campaign_cu: any;
 };
 type CampaignsResp = { ok: boolean; rows: CampaignRow[] };
+type LatestResp = { ok: boolean; campaign_id: string | null };
 
 function toDecimalStrOrNullFront(v: string, scale = 9) {
   const s0 = String(v ?? "").trim();
@@ -274,15 +275,20 @@ export default function RefineryProductionPage() {
       const r = (await apiGet("/api/refineria/campaigns")) as CampaignsResp;
       const rows = Array.isArray(r.rows) ? r.rows : [];
       setCampaigns(rows);
-
-      if (!campaignId && rows[0]?.campaign_id) {
-        setCampaignId(String(rows[0].campaign_id || "").trim().toUpperCase());
-      }
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando campañas");
       setCampaigns([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadLatestCampaignId() {
+    try {
+      const r = (await apiGet("/api/refineria/campaigns/latest")) as LatestResp;
+      const latest = String(r?.campaign_id || "").trim().toUpperCase();
+      if (latest) setCampaignId(latest);
+    } catch {
     }
   }
 
@@ -293,6 +299,7 @@ export default function RefineryProductionPage() {
   }
 
   useEffect(() => {
+    loadLatestCampaignId();
     loadCampaigns();
   }, []);
 
@@ -340,6 +347,7 @@ export default function RefineryProductionPage() {
 
       await apiPost("/api/refineria/campaign/upsert", payload);
       setMsg(`OK: guardado ${campaignId}`);
+      await loadLatestCampaignId();
       await loadCampaigns({ keepMsg: true });
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando producción");

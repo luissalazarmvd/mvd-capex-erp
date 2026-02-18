@@ -10,7 +10,7 @@ type MapRow = { reagent_name: string; subprocess_name: string };
 type MappingResp = { ok: boolean; rows: MapRow[] };
 
 type EntryRow = {
-  entry_date: string; // yyyy-mm-dd
+  entry_date: string;
   reagent_name: string;
   entry_qty: any;
 };
@@ -249,8 +249,10 @@ export default function RefineryEntriesPage() {
     return dateOk && !!reagent && qtyOkGt0(qty) && !saving;
   }, [dateOk, reagent, qty, saving]);
 
-    async function loadAll() {
+  async function loadAll(opts?: { keepMsg?: boolean }) {
     setLoading(true);
+    if (!opts?.keepMsg) setMsg(null);
+
     try {
       const [m, e] = await Promise.all([
         apiGet("/api/refineria/mapping") as Promise<MappingResp>,
@@ -310,7 +312,7 @@ export default function RefineryEntriesPage() {
     }
 
     setLoadingExisting(false);
-  }, [entryDate, reagent]);
+  }, [entryDate, reagent, entries]);
 
   async function onSave() {
     setSaving(true);
@@ -330,7 +332,7 @@ export default function RefineryEntriesPage() {
 
       await apiPost("/api/refineria/entries/insert", payload);
       setMsg(`OK: guardado ${entryDate} · ${reagent}`);
-      await loadAll();
+      await loadAll({ keepMsg: true });
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando ingreso");
     } finally {
@@ -344,7 +346,7 @@ export default function RefineryEntriesPage() {
         <div style={{ fontWeight: 900 }}>Entrada de Stock</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={loadAll} disabled={loading || saving}>
+          <Button type="button" size="sm" variant="ghost" onClick={() => loadAll()} disabled={loading || saving}>
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
