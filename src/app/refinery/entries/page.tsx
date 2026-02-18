@@ -406,7 +406,7 @@ export default function RefineryEntriesPage() {
         </div>
       </div>
 
-      <div style={{ flex: "0 0 760px", width: 760, maxWidth: 760, minWidth: 760 }}>
+      <div style={{ flex: "0 0 auto", width: "fit-content", maxWidth: "100%" }}>
         <StockTable autoLoad refreshKey={stockKey} />
       </div>
     </div>
