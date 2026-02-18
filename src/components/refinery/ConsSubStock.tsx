@@ -62,6 +62,16 @@ function uniqSorted(a: string[]) {
   return Array.from(new Set(a.filter((x) => !!String(x || "").trim()))).sort((x, y) => x.localeCompare(y));
 }
 
+function colWidth(key: string) {
+  if (key === "campaign_id") return 110;
+  if (key === "reagent_name") return 220;
+  if (key === "stock") return 110;
+
+  const s = String(key || "");
+  const compact = Math.max(120, Math.min(190, 80 + s.length * 5));
+  return compact;
+}
+
 export default function ConsSubStock({
   campaignId,
   reagentName,
@@ -142,15 +152,15 @@ export default function ConsSubStock({
 
   const cols = useMemo(() => {
     const base = [
-      { key: "campaign_id", label: "Campaña", w: 110, fmt: (v: any) => String(v ?? "") },
-      { key: "reagent_name", label: "Insumo", w: 220, fmt: (v: any) => String(v ?? "") },
-      { key: "stock", label: "Stock", w: 110, fmt: (v: any) => fmtFixed(v, 2) },
+      { key: "campaign_id", label: "Campaña", w: colWidth("campaign_id"), fmt: (v: any) => String(v ?? "") },
+      { key: "reagent_name", label: "Insumo", w: colWidth("reagent_name"), fmt: (v: any) => String(v ?? "") },
+      { key: "stock", label: "Stock", w: colWidth("stock"), fmt: (v: any) => fmtFixed(v, 2) },
     ];
 
     const subs = visibleSubpros.map((name) => ({
       key: name,
       label: name,
-      w: 170,
+      w: colWidth(name),
       fmt: (v: any) => fmtFixed(v, 2),
     }));
 
@@ -158,8 +168,8 @@ export default function ConsSubStock({
   }, [visibleSubpros]);
 
   const tableMinWidth = useMemo(() => {
-    const total = cols.reduce((acc, c) => acc + (c.w ?? 160), 0);
-    return Math.max(total + 40, 620);
+    const total = cols.reduce((acc, c) => acc + (c.w ?? 140), 0);
+    return Math.max(total, 520);
   }, [cols]);
 
   const cellBase: React.CSSProperties = {
@@ -241,8 +251,8 @@ export default function ConsSubStock({
                         className="capex-th"
                         style={{
                           ...stickyHead,
-                          width: c.w ?? 160,
-                          minWidth: c.w ?? 160,
+                          width: c.w ?? 140,
+                          minWidth: c.w ?? 140,
                           border: headerBorder,
                           borderBottom: headerBorder,
                           textAlign: isText ? "left" : "right",
@@ -274,8 +284,8 @@ export default function ConsSubStock({
                         className="capex-td"
                         style={{
                           ...(isText ? textCell : numCell),
-                          width: c.w ?? 160,
-                          minWidth: c.w ?? 160,
+                          width: c.w ?? 140,
+                          minWidth: c.w ?? 140,
                           background: "rgba(0,0,0,.10)",
                           borderBottom: "1px solid rgba(255,255,255,.06)",
                           fontWeight: c.key === "stock" ? 900 : 800,
