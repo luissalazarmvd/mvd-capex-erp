@@ -55,7 +55,7 @@ function qtyOkGt0(v: string) {
 
 function toDecimalStrOrNullFrontAllow0(v: string, scale = 9) {
   const s0 = String(v ?? "").trim();
-  if (!s0) return null;
+  if (s0 === "") return null;
 
   let s = s0.replace(/\s+/g, "");
 
@@ -266,9 +266,10 @@ export default function RefineryProductionPage() {
     return Number.isFinite(n) ? String(n) : "";
   }
 
-  async function loadCampaigns() {
+  async function loadCampaigns(opts?: { keepMsg?: boolean }) {
     setLoading(true);
-    setMsg(null);
+    if (!opts?.keepMsg) setMsg(null);
+
     try {
       const r = (await apiGet("/api/refineria/campaigns")) as CampaignsResp;
       const rows = Array.isArray(r.rows) ? r.rows : [];
@@ -298,7 +299,6 @@ export default function RefineryProductionPage() {
   useEffect(() => {
     if (!campaignId) return;
     setLoadingExisting(true);
-    setMsg(null);
 
     const hit = findCampaign(campaignId);
     if (hit) {
@@ -340,7 +340,7 @@ export default function RefineryProductionPage() {
 
       await apiPost("/api/refineria/campaign/upsert", payload);
       setMsg(`OK: guardado ${campaignId}`);
-      await loadCampaigns();
+      await loadCampaigns({ keepMsg: true });
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando producción");
     } finally {
@@ -356,7 +356,7 @@ export default function RefineryProductionPage() {
         <div style={{ fontWeight: 900 }}>Producción</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={loadCampaigns} disabled={loading || saving}>
+          <Button type="button" size="sm" variant="ghost" onClick={() => loadCampaigns()} disabled={loading || saving}>
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
@@ -392,26 +392,35 @@ export default function RefineryProductionPage() {
             disabled={saving}
           />
 
-          <Input
-            placeholder="Cantidad"
-            value={auKg}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuKg(e.target.value)}
-            hint="Producción Au (kg) > 0"
-          />
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Producción Au (kg)</div>
+            <Input
+              placeholder="Cantidad"
+              value={auKg}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuKg(e.target.value)}
+              hint="Cantidad > 0"
+            />
+          </div>
 
-          <Input
-            placeholder="Cantidad"
-            value={agKg}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgKg(e.target.value)}
-            hint="Producción Ag (kg) > 0"
-          />
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Producción Ag (kg)</div>
+            <Input
+              placeholder="Cantidad"
+              value={agKg}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgKg(e.target.value)}
+              hint="Cantidad > 0"
+            />
+          </div>
 
-          <Input
-            placeholder="Cantidad"
-            value={cuKg}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCuKg(e.target.value)}
-            hint="Producción Cu (kg) ≥ 0"
-          />
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Producción Cu (kg)</div>
+            <Input
+              placeholder="Cantidad"
+              value={cuKg}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCuKg(e.target.value)}
+              hint="Cantidad ≥ 0"
+            />
+          </div>
 
           {loadingExisting ? (
             <div className="muted" style={{ fontWeight: 800 }}>

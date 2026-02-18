@@ -46,7 +46,7 @@ export default function RefineryLayout({ children }: { children: React.ReactNode
               </Link>
 
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – REFINERY</div>
+                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – REFINERÍA</div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   Campañas · Consumos · Stock · Producción · Reportes
                 </div>
