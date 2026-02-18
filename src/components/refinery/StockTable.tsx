@@ -16,6 +16,13 @@ type StockRow = {
 
 type StockResp = { ok: boolean; rows: StockRow[]; error?: string };
 
+type ReagentRow = {
+  reagent_id: string;
+  reagent_name: string | null;
+  unit_name: string | null;
+};
+type ReagentsResp = { ok: boolean; rows: ReagentRow[] };
+
 function toNum(v: any) {
   if (v === null || v === undefined || v === "") return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -29,6 +36,13 @@ function fmtFixed(v: any, digits: number) {
   const n = toNum(v);
   if (n === null) return "";
   return n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function fmtWithUnit(v: any, digits: number, unit?: string | null) {
+  const s = fmtFixed(v, digits);
+  const u = String(unit || "").trim();
+  if (!s) return "";
+  return u ? `${s} ${u}` : s;
 }
 
 function colWidth(key: string) {
@@ -46,14 +60,23 @@ export default function StockTable({
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [rows, setRows] = useState<StockRow[]>([]);
+  const [reagents, setReagents] = useState<ReagentRow[]>([]);
 
   async function load() {
     setLoading(true);
     setMsg(null);
     try {
-      const r = (await apiGet("/api/refineria/stock")) as StockResp;
-      const rr = Array.isArray(r?.rows) ? r.rows : [];
+      const [s, rg] = await Promise.all([
+        apiGet("/api/refineria/stock") as Promise<StockResp>,
+        apiGet("/api/refineria/reagents") as Promise<ReagentsResp>,
+      ]);
+
+      const rr = Array.isArray(s?.rows) ? s.rows : [];
       setRows(rr);
+
+      const rgr = Array.isArray((rg as any)?.rows) ? (rg as any).rows : [];
+      setReagents(rgr);
+
       if (!rr.length) setMsg("Sin datos.");
     } catch (e: any) {
       setRows([]);
@@ -69,14 +92,46 @@ export default function StockTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoLoad, refreshKey]);
 
+  const unitByReagent = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of reagents || []) {
+      const name = String(r.reagent_name || "").trim();
+      const unit = String(r.unit_name || "").trim();
+      if (name && unit) m.set(name, unit);
+    }
+    return m;
+  }, [reagents]);
+
+  function unitForReagentName(name: any) {
+    const key = String(name || "").trim();
+    if (!key) return "";
+    return unitByReagent.get(key) || unitByReagent.get(key.toLowerCase()) || "";
+  }
+
   const cols = useMemo(
     () => [
       { key: "reagent_name", label: "Insumo", w: colWidth("reagent_name"), fmt: (v: any) => String(v ?? "") },
-      { key: "entry_qty", label: "Ingresos", w: colWidth("entry_qty"), fmt: (v: any) => fmtFixed(v, 2) },
-      { key: "consumption_qty", label: "Consumos", w: colWidth("consumption_qty"), fmt: (v: any) => fmtFixed(v, 2) },
-      { key: "stock_available", label: "Stock", w: colWidth("stock_available"), fmt: (v: any) => fmtFixed(v, 2) },
+
+      {
+        key: "entry_qty",
+        label: "Ingresos",
+        w: colWidth("entry_qty"),
+        fmt: (v: any, r?: StockRow) => fmtWithUnit(v, 2, unitForReagentName(r?.reagent_name)),
+      },
+      {
+        key: "consumption_qty",
+        label: "Consumos",
+        w: colWidth("consumption_qty"),
+        fmt: (v: any, r?: StockRow) => fmtWithUnit(v, 2, unitForReagentName(r?.reagent_name)),
+      },
+      {
+        key: "stock_available",
+        label: "Stock",
+        w: colWidth("stock_available"),
+        fmt: (v: any, r?: StockRow) => fmtWithUnit(v, 2, unitForReagentName(r?.reagent_name)),
+      },
     ],
-    []
+    [unitByReagent]
   );
 
   const cellBase: React.CSSProperties = {
@@ -96,6 +151,20 @@ export default function StockTable({
     zIndex: 8,
     background: headerBg,
     boxShadow: headerShadow,
+  };
+
+  const stickyRightHead: React.CSSProperties = {
+    ...stickyHead,
+    right: 0,
+    zIndex: 12,
+  };
+
+  const stickyRightCell: React.CSSProperties = {
+    position: "sticky",
+    right: 0,
+    zIndex: 6,
+    background: "rgb(5, 40, 63)",
+    boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
   };
 
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right", whiteSpace: "nowrap" };
@@ -147,43 +216,46 @@ export default function StockTable({
             <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
               <thead>
                 <tr>
-                  {cols.map((c) => (
-                    <th
-                      key={String(c.key)}
-                      className="capex-th"
-                      style={{
-                        ...stickyHead,
-                        width: c.w,
-                        minWidth: c.w,
-                        border: headerBorder,
-                        borderBottom: headerBorder,
-                        textAlign: "center",
-                        padding: "6px 4px",
-                        fontSize: 12,
-                        fontWeight: 900,
-                        whiteSpace: "normal",
-                        lineHeight: "14px",
-                        verticalAlign: "middle",
-                        height: 42,
-                      }}
-                      title={c.label}
-                    >
-                      <div
+                  {cols.map((c) => {
+                    const isStock = c.key === "stock_available";
+                    return (
+                      <th
+                        key={String(c.key)}
+                        className="capex-th"
                         style={{
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          margin: "0 auto",
-                          padding: 0,
+                          ...(isStock ? stickyRightHead : stickyHead),
+                          width: c.w,
+                          minWidth: c.w,
+                          border: headerBorder,
+                          borderBottom: headerBorder,
                           textAlign: "center",
+                          padding: "6px 4px",
+                          fontSize: 12,
+                          fontWeight: 900,
+                          whiteSpace: "normal",
+                          lineHeight: "14px",
+                          verticalAlign: "middle",
+                          height: 42,
                         }}
+                        title={c.label}
                       >
-                        {c.label}
-                      </div>
-                    </th>
-                  ))}
+                        <div
+                          style={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            margin: "0 auto",
+                            padding: 0,
+                            textAlign: "center",
+                          }}
+                        >
+                          {c.label}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
 
@@ -192,20 +264,23 @@ export default function StockTable({
                   <tr key={`${String(r.reagent_name || idx)}-${idx}`} className="capex-tr">
                     {cols.map((c) => {
                       const v = (r as any)[c.key];
-                      const txt = c.fmt ? c.fmt(v) : v ?? "";
+                      const txt = (c as any).fmt(v, r);
                       const isText = c.key === "reagent_name";
+                      const isStock = c.key === "stock_available";
+
                       return (
                         <td
                           key={`${idx}-${String(c.key)}`}
                           className="capex-td"
                           style={{
                             ...(isText ? textCell : numCell),
+                            ...(isStock ? stickyRightCell : null),
                             width: c.w,
                             minWidth: c.w,
                             padding: "6px 8px",
-                            background: "rgba(0,0,0,.10)",
+                            background: isStock ? (stickyRightCell.background as any) : "rgba(0,0,0,.10)",
                             borderBottom: "1px solid rgba(255,255,255,.06)",
-                            fontWeight: c.key === "stock_available" ? 900 : 800,
+                            fontWeight: isStock ? 900 : 800,
                           }}
                           title={String(txt)}
                         >
