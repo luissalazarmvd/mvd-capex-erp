@@ -1,9 +1,9 @@
-// src/app/planta/layout.tsx
+// src/app/refinery/layout.tsx
 import Image from "next/image";
 import Link from "next/link";
-import PlantaTopNav from "../../components/planta/PlantaTopNav";
+import RefineryTopNav from "../../components/refinery/RefineryTopNav";
 
-export default function PlantaLayout({ children }: { children: React.ReactNode }) {
+export default function RefineryLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <header
@@ -46,9 +46,9 @@ export default function PlantaLayout({ children }: { children: React.ReactNode }
               </Link>
 
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – PLANTA</div>
+                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – REFINERY</div>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Guardia · Producción · Relave · Reactivos · Bolas · Duración
+                  Campañas · Consumos · Stock · Producción · Reportes
                 </div>
               </div>
             </div>
@@ -63,7 +63,7 @@ export default function PlantaLayout({ children }: { children: React.ReactNode }
           </div>
 
           <div style={{ marginTop: 12 }}>
-            <PlantaTopNav />
+            <RefineryTopNav />
           </div>
         </div>
       </header>

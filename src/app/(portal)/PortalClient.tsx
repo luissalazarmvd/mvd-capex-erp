@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui/Button";
 
-type Area = "capex" | "planta" | "ti";
+type Area = "capex" | "planta" | "refinery" | "ti";
 
 export default function PortalClient() {
   const router = useRouter();
@@ -62,6 +62,8 @@ export default function PortalClient() {
           ? "/projects"
           : area === "planta"
           ? "/planta/guardia"
+          : area === "refinery"
+          ? "/refinery/campaign"
           : "/ti"
       );
     } catch (e: any) {
@@ -93,51 +95,32 @@ export default function PortalClient() {
           textAlign: "center",
         }}
       >
-        <img
-          src="/logo_mvd.png"
-          alt="Veta Dorada"
-          style={{ height: 58, marginBottom: 18 }}
-        />
+        <img src="/logo_mvd.png" alt="Veta Dorada" style={{ height: 58, marginBottom: 18 }} />
 
         <h2 style={{ margin: "0 0 18px 0", fontWeight: 800 }}>Acceso MVD</h2>
 
         {!area ? (
           <div style={{ display: "grid", gap: 12 }}>
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("capex")}
-            >
+            <Button type="button" size="lg" variant="primary" onClick={() => start("capex")}>
               Proyectos CAPEX
             </Button>
 
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("planta")}
-            >
+            <Button type="button" size="lg" variant="primary" onClick={() => start("planta")}>
               Planta
             </Button>
 
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("ti")}
-            >
+            <Button type="button" size="lg" variant="primary" onClick={() => start("refinery")}>
+              Refinería
+            </Button>
+
+            <Button type="button" size="lg" variant="primary" onClick={() => start("ti")}>
               Tickets TI
             </Button>
           </div>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ fontWeight: 800, opacity: 0.9 }}>
-              {area === "capex"
-                ? "Clave CAPEX"
-                : area === "planta"
-                ? "Clave Planta"
-                : "Clave Tickets TI"}
+              {area === "capex" ? "Clave CAPEX" : area === "planta" ? "Clave Planta" : area === "refinery" ? "Clave Refinería" : "Clave Tickets TI"}
             </div>
 
             <input
@@ -163,13 +146,7 @@ export default function PortalClient() {
               }}
             />
 
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={login}
-              disabled={loading}
-            >
+            <Button type="button" size="lg" variant="primary" onClick={login} disabled={loading}>
               {loading ? "Validando..." : "Ingresar"}
             </Button>
 
@@ -192,9 +169,7 @@ export default function PortalClient() {
               Volver
             </button>
 
-            {err ? (
-              <div style={{ color: "#FFD6D6", fontWeight: 800 }}>{err}</div>
-            ) : null}
+            {err ? <div style={{ color: "#FFD6D6", fontWeight: 800 }}>{err}</div> : null}
           </div>
         )}
       </div>
