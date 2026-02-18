@@ -245,46 +245,43 @@ export default function ConsSubStock({
             <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
               <thead>
                 <tr>
-                  {cols.map((c) => {
-                    const isText = c.key === "campaign_id" || c.key === "reagent_name";
-                    return (
-                      <th
-                        key={String(c.key)}
-                        className="capex-th"
+                  {cols.map((c) => (
+                    <th
+                      key={String(c.key)}
+                      className="capex-th"
+                      style={{
+                        ...stickyHead,
+                        width: c.w ?? 160,
+                        minWidth: c.w ?? 160,
+                        border: headerBorder,
+                        borderBottom: headerBorder,
+                        textAlign: "center",
+                        padding: "6px 4px",
+                        fontSize: 12,
+                        fontWeight: 900,
+                        whiteSpace: "normal",
+                        lineHeight: "14px",
+                        verticalAlign: "middle",
+                        height: 42,
+                      }}
+                      title={c.label}
+                    >
+                      <div
                         style={{
-                          ...stickyHead,
-                          width: c.w ?? 160,
-                          minWidth: c.w ?? 160,
-                          border: headerBorder,
-                          borderBottom: headerBorder,
-                          textAlign: isText ? "left" : "right",
-                          padding: "8px 6px",
-                          fontSize: 12,
-                          fontWeight: 900,
-                          whiteSpace: "normal",
-                          lineHeight: "14px",
-                          verticalAlign: "middle",
-                          height: 44,
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          margin: "0 auto",
+                          padding: 0,
+                          textAlign: "center",
                         }}
-                        title={c.label}
                       >
-                        <div
-                          style={{
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            paddingLeft: 0,
-                            paddingRight: 0,
-                            margin: 0,
-                          }}
-                        >
-                          {c.label}
-                        </div>
-                      </th>
-                    );
-                  })}
+                        {c.label}
+                      </div>
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
@@ -302,7 +299,7 @@ export default function ConsSubStock({
                           ...(isText ? textCell : numCell),
                           width: c.w ?? 160,
                           minWidth: c.w ?? 160,
-                          padding: "6px 8px",
+                          padding: "6px 6px",
                           background: "rgba(0,0,0,.10)",
                           borderBottom: "1px solid rgba(255,255,255,.06)",
                           fontWeight: c.key === "stock" ? 900 : 800,
