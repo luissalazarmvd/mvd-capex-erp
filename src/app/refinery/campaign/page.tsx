@@ -132,6 +132,7 @@ export default function RefineryCampaignPage() {
   const [saving, setSaving] = useState<boolean>(false);
 
   const [rows, setRows] = useState<CampaignRow[]>([]);
+  const [existingDateIso, setExistingDateIso] = useState<string | null>(null);
 
   const [form, setForm] = useState<Form>({
     campaign_no: "",
@@ -206,6 +207,7 @@ export default function RefineryCampaignPage() {
         ) ?? null;
 
       if (ex) {
+        setExistingDateIso(ex.campaign_date ? String(ex.campaign_date).slice(0, 10) : null);
         setForm((s) => ({
           ...s,
           campaign_date: (ex.campaign_date ?? s.campaign_date) as string,
@@ -235,6 +237,7 @@ export default function RefineryCampaignPage() {
   }, []);
 
   useEffect(() => {
+    setExistingDateIso(null);
     loadExistingIfAny();
   }, [campaign_id]);
 
@@ -281,7 +284,9 @@ export default function RefineryCampaignPage() {
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Crear Campaña</div>
         <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
-          {campaign_id ? `campaign_id: ${campaign_id}` : "Completa # campaña y fecha"}
+          {campaign_id
+            ? `campaign_id: ${campaign_id}${existingDateIso ? `  |  fecha: ${existingDateIso}` : ""}`
+            : "Completa # campaña y fecha"}
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
