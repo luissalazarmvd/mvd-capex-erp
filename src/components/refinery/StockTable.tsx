@@ -111,7 +111,6 @@ export default function StockTable({
   const cols = useMemo(
     () => [
       { key: "reagent_name", label: "Insumo", w: colWidth("reagent_name"), fmt: (v: any) => String(v ?? "") },
-
       {
         key: "entry_qty",
         label: "Ingresos",
@@ -151,20 +150,6 @@ export default function StockTable({
     zIndex: 8,
     background: headerBg,
     boxShadow: headerShadow,
-  };
-
-  const stickyRightHead: React.CSSProperties = {
-    ...stickyHead,
-    right: 0,
-    zIndex: 12,
-  };
-
-  const stickyRightCell: React.CSSProperties = {
-    position: "sticky",
-    right: 0,
-    zIndex: 6,
-    background: "rgb(5, 40, 63)",
-    boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
   };
 
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right", whiteSpace: "nowrap" };
@@ -216,46 +201,43 @@ export default function StockTable({
             <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
               <thead>
                 <tr>
-                  {cols.map((c) => {
-                    const isStock = c.key === "stock_available";
-                    return (
-                      <th
-                        key={String(c.key)}
-                        className="capex-th"
+                  {cols.map((c) => (
+                    <th
+                      key={String(c.key)}
+                      className="capex-th"
+                      style={{
+                        ...stickyHead,
+                        width: c.w,
+                        minWidth: c.w,
+                        border: headerBorder,
+                        borderBottom: headerBorder,
+                        textAlign: "center",
+                        padding: "6px 4px",
+                        fontSize: 12,
+                        fontWeight: 900,
+                        whiteSpace: "normal",
+                        lineHeight: "14px",
+                        verticalAlign: "middle",
+                        height: 42,
+                      }}
+                      title={c.label}
+                    >
+                      <div
                         style={{
-                          ...(isStock ? stickyRightHead : stickyHead),
-                          width: c.w,
-                          minWidth: c.w,
-                          border: headerBorder,
-                          borderBottom: headerBorder,
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          margin: "0 auto",
+                          padding: 0,
                           textAlign: "center",
-                          padding: "6px 4px",
-                          fontSize: 12,
-                          fontWeight: 900,
-                          whiteSpace: "normal",
-                          lineHeight: "14px",
-                          verticalAlign: "middle",
-                          height: 42,
                         }}
-                        title={c.label}
                       >
-                        <div
-                          style={{
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            margin: "0 auto",
-                            padding: 0,
-                            textAlign: "center",
-                          }}
-                        >
-                          {c.label}
-                        </div>
-                      </th>
-                    );
-                  })}
+                        {c.label}
+                      </div>
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
@@ -266,7 +248,6 @@ export default function StockTable({
                       const v = (r as any)[c.key];
                       const txt = (c as any).fmt(v, r);
                       const isText = c.key === "reagent_name";
-                      const isStock = c.key === "stock_available";
 
                       return (
                         <td
@@ -274,13 +255,12 @@ export default function StockTable({
                           className="capex-td"
                           style={{
                             ...(isText ? textCell : numCell),
-                            ...(isStock ? stickyRightCell : null),
                             width: c.w,
                             minWidth: c.w,
                             padding: "6px 8px",
-                            background: isStock ? (stickyRightCell.background as any) : "rgba(0,0,0,.10)",
+                            background: "rgba(0,0,0,.10)",
                             borderBottom: "1px solid rgba(255,255,255,.06)",
-                            fontWeight: isStock ? 900 : 800,
+                            fontWeight: c.key === "stock_available" ? 900 : 800,
                           }}
                           title={String(txt)}
                         >
