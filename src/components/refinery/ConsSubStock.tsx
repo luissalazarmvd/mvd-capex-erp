@@ -258,13 +258,13 @@ export default function ConsSubStock({
                           border: headerBorder,
                           borderBottom: headerBorder,
                           textAlign: isText ? "left" : "right",
-                          padding: "10px 10px",
+                          padding: "8px 6px",
                           fontSize: 12,
                           fontWeight: 900,
                           whiteSpace: "normal",
                           lineHeight: "14px",
                           verticalAlign: "middle",
-                          height: 48,
+                          height: 44,
                         }}
                         title={c.label}
                       >
@@ -275,6 +275,9 @@ export default function ConsSubStock({
                             WebkitBoxOrient: "vertical",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
+                            paddingLeft: 0,
+                            paddingRight: 0,
+                            margin: 0,
                           }}
                         >
                           {c.label}
@@ -299,6 +302,7 @@ export default function ConsSubStock({
                           ...(isText ? textCell : numCell),
                           width: c.w ?? 160,
                           minWidth: c.w ?? 160,
+                          padding: "6px 8px",
                           background: "rgba(0,0,0,.10)",
                           borderBottom: "1px solid rgba(255,255,255,.06)",
                           fontWeight: c.key === "stock" ? 900 : 800,
