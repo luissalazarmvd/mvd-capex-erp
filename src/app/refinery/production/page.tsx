@@ -53,6 +53,45 @@ function qtyOkGt0(v: string) {
   return toDecimalStrOrNullFront(v, 9) !== null;
 }
 
+function toDecimalStrOrNullFrontAllow0(v: string, scale = 9) {
+  const s0 = String(v ?? "").trim();
+  if (!s0) return null;
+
+  let s = s0.replace(/\s+/g, "");
+
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = s.lastIndexOf(",");
+    const lastDot = s.lastIndexOf(".");
+    const decSep = lastComma > lastDot ? "," : ".";
+    const thouSep = decSep === "," ? "." : ",";
+    s = s.split(thouSep).join("");
+    if (decSep === ",") s = s.replace(",", ".");
+  } else if (hasComma && !hasDot) {
+    const parts = s.split(",");
+    if (parts.length === 2 && parts[1].length === 3) s = parts.join("");
+    else s = s.replace(",", ".");
+  } else {
+    const parts = s.split(".");
+    if (parts.length > 2) s = parts.join("");
+  }
+
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  if (n < 0) return null;
+  if (Math.abs(n) > 9e15) return null;
+
+  const f = Math.pow(10, scale);
+  const rounded = Math.round(n * f) / f;
+  return rounded.toFixed(scale);
+}
+
+function qtyOkGte0(v: string) {
+  return toDecimalStrOrNullFrontAllow0(v, 9) !== null;
+}
+
 function SearchableDropdown({
   label,
   placeholder,
@@ -218,7 +257,7 @@ export default function RefineryProductionPage() {
   const [cuKg, setCuKg] = useState<string>("");
 
   const canSave = useMemo(() => {
-    return !!campaignId && qtyOkGt0(auKg) && qtyOkGt0(agKg) && qtyOkGt0(cuKg) && !saving;
+    return !!campaignId && qtyOkGt0(auKg) && qtyOkGt0(agKg) && qtyOkGte0(cuKg) && !saving;
   }, [campaignId, auKg, agKg, cuKg, saving]);
 
   function numToStr(v: any) {
@@ -270,13 +309,10 @@ export default function RefineryProductionPage() {
       setAuKg(sAu ? (sAu.includes("e") || sAu.includes("E") ? Number(hit.campaign_au).toFixed(9) : sAu) : "");
       setAgKg(sAg ? (sAg.includes("e") || sAg.includes("E") ? Number(hit.campaign_ag).toFixed(9) : sAg) : "");
       setCuKg(sCu ? (sCu.includes("e") || sCu.includes("E") ? Number(hit.campaign_cu).toFixed(9) : sCu) : "");
-
-      setMsg(`OK: cargado ${campaignId}`);
     } else {
       setAuKg("");
       setAgKg("");
       setCuKg("");
-      setMsg(null);
     }
 
     setLoadingExisting(false);
@@ -288,7 +324,7 @@ export default function RefineryProductionPage() {
     try {
       const au = toDecimalStrOrNullFront(auKg, 9);
       const ag = toDecimalStrOrNullFront(agKg, 9);
-      const cu = toDecimalStrOrNullFront(cuKg, 9);
+      const cu = toDecimalStrOrNullFrontAllow0(cuKg, 9);
 
       if (!canSave || au === null || ag === null || cu === null) {
         setMsg("ERROR: valida los campos");
@@ -374,7 +410,7 @@ export default function RefineryProductionPage() {
             placeholder="Cantidad"
             value={cuKg}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCuKg(e.target.value)}
-            hint="Producción Cu (kg) > 0"
+            hint="Producción Cu (kg) ≥ 0"
           />
 
           {loadingExisting ? (
