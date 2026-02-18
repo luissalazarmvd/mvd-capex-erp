@@ -349,16 +349,8 @@ export default function RefineryEntriesPage() {
   }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) 760px",
-        gap: 14,
-        alignItems: "start",
-        width: "100%",
-      }}
-    >
-      <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+    <div style={{ display: "flex", gap: 14, alignItems: "flex-start", width: "100%" }}>
+      <div style={{ flex: "1 1 auto", minWidth: 0, display: "grid", gap: 12 }}>
         <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
           <div style={{ fontWeight: 900 }}>Entrada de Stock</div>
 
@@ -414,10 +406,8 @@ export default function RefineryEntriesPage() {
         </div>
       </div>
 
-      <div style={{ minWidth: 0, display: "flex", justifyContent: "flex-end" }}>
-        <div style={{ width: "760px", maxWidth: "100%" }}>
-          <StockTable autoLoad refreshKey={stockKey} />
-        </div>
+      <div style={{ flex: "0 0 760px", width: 760, maxWidth: 760, minWidth: 760 }}>
+        <StockTable autoLoad refreshKey={stockKey} />
       </div>
     </div>
   );
