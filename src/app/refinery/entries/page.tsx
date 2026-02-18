@@ -249,9 +249,8 @@ export default function RefineryEntriesPage() {
     return dateOk && !!reagent && qtyOkGt0(qty) && !saving;
   }, [dateOk, reagent, qty, saving]);
 
-  async function loadAll() {
+    async function loadAll() {
     setLoading(true);
-    setMsg(null);
     try {
       const [m, e] = await Promise.all([
         apiGet("/api/refineria/mapping") as Promise<MappingResp>,
