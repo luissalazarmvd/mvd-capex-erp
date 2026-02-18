@@ -73,12 +73,12 @@ function colWidth(key: string) {
 
 export default function ConsSubStock({
   campaignId,
-  reagentName,
+  reagentName = "",
   autoLoad = true,
   refreshKey = 0,
 }: {
   campaignId: string;
-  reagentName: string;
+  reagentName?: string;
   autoLoad?: boolean;
   refreshKey?: number;
 }) {
@@ -86,20 +86,20 @@ export default function ConsSubStock({
   const [msg, setMsg] = useState<string | null>(null);
 
   const [mapping, setMapping] = useState<MapRow[]>([]);
-  const [row, setRow] = useState<ViewRow | null>(null);
+  const [rows, setRows] = useState<ViewRow[]>([]);
 
   async function loadMapping() {
     const r = (await apiGet("/api/refineria/mapping")) as MappingResp;
-    const rows = Array.isArray(r?.rows) ? r.rows : [];
-    setMapping(rows);
+    const rr = Array.isArray(r?.rows) ? r.rows : [];
+    setMapping(rr);
   }
 
-  async function loadRow(cId: string, rName: string) {
+  async function loadRows(cId: string, rName?: string) {
     const c = String(cId || "").trim().toUpperCase();
     const rn = String(rName || "").trim();
 
-    if (!c || !rn) {
-      setRow(null);
+    if (!c) {
+      setRows([]);
       setMsg(null);
       return;
     }
@@ -107,13 +107,19 @@ export default function ConsSubStock({
     setLoading(true);
     setMsg(null);
     try {
-      const q = `?campaign_id=${encodeURIComponent(c)}&reagent_name=${encodeURIComponent(rn)}`;
+      const q = rn
+        ? `?campaign_id=${encodeURIComponent(c)}&reagent_name=${encodeURIComponent(rn)}`
+        : `?campaign_id=${encodeURIComponent(c)}`;
+
       const r = (await apiGet(`/api/refineria/cons-stock-subpro${q}`)) as ViewResp;
-      const rows = Array.isArray(r?.rows) ? r.rows : [];
-      setRow(rows[0] ?? null);
-      if (!rows.length) setMsg("Sin datos para esa campaña/insumo.");
+      const rr = Array.isArray(r?.rows) ? r.rows : [];
+      setRows(rr);
+
+      if (!rr.length) {
+        setMsg(rn ? "Sin datos para esa campaña/insumo." : "Sin datos para esa campaña.");
+      }
     } catch (e: any) {
-      setRow(null);
+      setRows([]);
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando");
     } finally {
       setLoading(false);
@@ -126,28 +132,46 @@ export default function ConsSubStock({
 
   useEffect(() => {
     if (!autoLoad) return;
-    loadRow(campaignId, reagentName);
+    loadRows(campaignId, reagentName);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, reagentName, autoLoad, refreshKey]);
 
+  const modeAllReagents = !String(reagentName || "").trim();
+
   const mappedSubpros = useMemo(() => {
+    const colsInView = new Set<string>(SUBPRO_COLS as any);
+
+    if (modeAllReagents) {
+      const reagentsInRows = new Set(
+        (rows || []).map((x) => String(x.reagent_name || "").trim()).filter((x) => !!x)
+      );
+
+      const fromMap = mapping
+        .filter((m) => reagentsInRows.has(String(m.reagent_name || "").trim()))
+        .map((m) => String(m.subprocess_name || "").trim())
+        .filter((s) => !!s);
+
+      return uniqSorted(fromMap).filter((s) => colsInView.has(s));
+    }
+
     const r = String(reagentName || "").trim();
     const fromMap = mapping
       .filter((m) => String(m.reagent_name || "").trim() === r)
       .map((m) => String(m.subprocess_name || "").trim())
       .filter((s) => !!s);
 
-    const colsInView = new Set<string>(SUBPRO_COLS as any);
     return uniqSorted(fromMap).filter((s) => colsInView.has(s));
-  }, [mapping, reagentName]);
+  }, [mapping, reagentName, rows, modeAllReagents]);
 
   const nonZeroSubpros = useMemo(() => {
-    if (!row) return [];
-    return (SUBPRO_COLS as any as string[]).filter((c) => {
-      const n = toNum((row as any)[c]);
-      return n !== null && n !== 0;
-    });
-  }, [row]);
+    if (!rows.length) return [];
+    return (SUBPRO_COLS as any as string[]).filter((c) =>
+      (rows || []).some((r) => {
+        const n = toNum((r as any)[c]);
+        return n !== null && n !== 0;
+      })
+    );
+  }, [rows]);
 
   const visibleSubpros = useMemo(
     () => (mappedSubpros.length ? mappedSubpros : nonZeroSubpros),
@@ -199,7 +223,7 @@ export default function ConsSubStock({
     textOverflow: "ellipsis",
   };
 
-  const canQuery = !!String(campaignId || "").trim() && !!String(reagentName || "").trim();
+  const canQuery = !!String(campaignId || "").trim();
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -211,7 +235,7 @@ export default function ConsSubStock({
             type="button"
             size="sm"
             variant="ghost"
-            onClick={() => loadRow(campaignId, reagentName)}
+            onClick={() => loadRows(campaignId, reagentName)}
             disabled={loading || !canQuery}
           >
             {loading ? "Cargando..." : "Refrescar"}
@@ -242,7 +266,7 @@ export default function ConsSubStock({
           WebkitOverflowScrolling: "touch",
         }}
       >
-        {row ? (
+        {rows.length ? (
           <div style={{ display: "inline-block", width: "max-content", maxWidth: "100%" }}>
             <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
               <thead>
@@ -288,44 +312,46 @@ export default function ConsSubStock({
               </thead>
 
               <tbody>
-                <tr className="capex-tr">
-                  {cols.map((c) => {
-                    const v = (row as any)[c.key];
-                    const txt = c.fmt ? c.fmt(v) : v ?? "";
-                    const isText = c.key === "campaign_id" || c.key === "reagent_name";
-                    return (
-                      <td
-                        key={`r-${String(c.key)}`}
-                        className="capex-td"
-                        style={{
-                          ...(isText ? textCell : numCell),
-                          width: c.w ?? 160,
-                          minWidth: c.w ?? 160,
-                          padding: "6px 6px",
-                          background: "rgba(0,0,0,.10)",
-                          borderBottom: "1px solid rgba(255,255,255,.06)",
-                          fontWeight: c.key === "stock" ? 900 : 800,
-                        }}
-                        title={String(txt)}
-                      >
-                        {txt}
-                      </td>
-                    );
-                  })}
-                </tr>
+                {rows.map((row, ridx) => (
+                  <tr key={`${String(row.reagent_name || ridx)}-${ridx}`} className="capex-tr">
+                    {cols.map((c) => {
+                      const v = (row as any)[c.key];
+                      const txt = c.fmt ? c.fmt(v) : v ?? "";
+                      const isText = c.key === "campaign_id" || c.key === "reagent_name";
+                      return (
+                        <td
+                          key={`${ridx}-${String(c.key)}`}
+                          className="capex-td"
+                          style={{
+                            ...(isText ? textCell : numCell),
+                            width: c.w ?? 160,
+                            minWidth: c.w ?? 160,
+                            padding: "6px 6px",
+                            background: "rgba(0,0,0,.10)",
+                            borderBottom: "1px solid rgba(255,255,255,.06)",
+                            fontWeight: c.key === "stock" ? 900 : 800,
+                          }}
+                          title={String(txt)}
+                        >
+                          {txt}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
               </tbody>
             </Table>
           </div>
         ) : (
           <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
-            {loading ? "Cargando…" : canQuery ? "Sin datos." : "Selecciona campaña e insumo arriba."}
+            {loading ? "Cargando…" : canQuery ? "Sin datos." : "Selecciona una campaña arriba."}
           </div>
         )}
       </div>
 
-      {row && !visibleSubpros.length ? (
+      {rows.length && !visibleSubpros.length ? (
         <div className="panel-inner" style={{ padding: 12, fontWeight: 800, opacity: 0.9 }}>
-          No hay subprocesos con consumo para este insumo en esa campaña (según mapping/valores).
+          No hay subprocesos con consumo para esta campaña (según mapping/valores).
         </div>
       ) : null}
     </div>
