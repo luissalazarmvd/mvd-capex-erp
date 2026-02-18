@@ -213,89 +213,76 @@ export default function RefineryReportsPage() {
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+      {/* FILA 1: dropdown */}
+      <div className="panel-inner" style={{ padding: 12 }}>
+        <div style={{ display: "grid", gap: 10, maxWidth: 720 }}>
+          <SearchableDropdown
+            label="Campaña"
+            placeholder={loading ? "Cargando campañas..." : "Buscar..."}
+            value={campaignId}
+            items={campaigns}
+            getKey={(x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase()}
+            getLabel={(x: CampaignRow) => campaignLabel(x)}
+            onSelect={(x: CampaignRow) => {
+              const id = String(x.campaign_id || "").trim().toUpperCase();
+              setCampaignId(id);
+              setRefreshKey((k) => k + 1);
+            }}
+            disabled={loading}
+          />
+
+          {msg ? (
+            <div
+              style={{
+                padding: 10,
+                border: msg.startsWith("ERROR")
+                  ? "1px solid rgba(255,80,80,.45)"
+                  : "1px solid rgba(255,255,255,.10)",
+                background: msg.startsWith("ERROR") ? "rgba(255,80,80,.10)" : "rgba(255,255,255,.04)",
+                fontWeight: 800,
+                borderRadius: 12,
+              }}
+            >
+              {msg}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => loadCampaignsAndPickLatest({ keepSelected: true })}
+            disabled={loading}
+            style={{
+              width: "fit-content",
+              justifySelf: "start",
+              borderRadius: 10,
+              border: "1px solid var(--border)",
+              background: "rgba(0,0,0,.10)",
+              color: "var(--text)",
+              padding: "8px 10px",
+              fontWeight: 900,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {loading ? "Cargando..." : "Refrescar"}
+          </button>
+        </div>
+      </div>
+
+      {/* FILA 2: summary */}
+      <Summary campaignId={campaignId} />
+
+      {/* FILA 3: ConsSubStock full width */}
+      <div className="panel-inner" style={{ padding: 0, width: "100%", overflow: "hidden" }}>
+        <ConsSubStock campaignId={campaignId} reagentName={""} refreshKey={refreshKey} />
+      </div>
+
+      {/* FILA 4: titulo dashboard */}
       <div className="panel-inner" style={{ padding: "10px 12px" }}>
         <div style={{ fontWeight: 900 }}>Dashboard - Power BI</div>
       </div>
 
-      {/* arriba del PBI */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 760px",
-          gap: 12,
-          alignItems: "start",
-          width: "100%",
-          minWidth: 0,
-        }}
-      >
-        {/* izquierda: dropdown + summary */}
-        <div style={{ minWidth: 0, display: "grid", gap: 12 }}>
-          <div className="panel-inner" style={{ padding: 12 }}>
-            <div style={{ display: "grid", gap: 10 }}>
-              <SearchableDropdown
-                label="Campaña"
-                placeholder={loading ? "Cargando campañas..." : "Buscar..."}
-                value={campaignId}
-                items={campaigns}
-                getKey={(x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase()}
-                getLabel={(x: CampaignRow) => campaignLabel(x)}
-                onSelect={(x: CampaignRow) => {
-                  const id = String(x.campaign_id || "").trim().toUpperCase();
-                  setCampaignId(id);
-                  setRefreshKey((k) => k + 1);
-                }}
-                disabled={loading}
-              />
-
-              {msg ? (
-                <div
-                  style={{
-                    padding: 10,
-                    border: msg.startsWith("ERROR") ? "1px solid rgba(255,80,80,.45)" : "1px solid rgba(255,255,255,.10)",
-                    background: msg.startsWith("ERROR") ? "rgba(255,80,80,.10)" : "rgba(255,255,255,.04)",
-                    fontWeight: 800,
-                    borderRadius: 12,
-                  }}
-                >
-                  {msg}
-                </div>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={() => loadCampaignsAndPickLatest({ keepSelected: true })}
-                disabled={loading}
-                style={{
-                  width: "fit-content",
-                  justifySelf: "start",
-                  borderRadius: 10,
-                  border: "1px solid var(--border)",
-                  background: "rgba(0,0,0,.10)",
-                  color: "var(--text)",
-                  padding: "8px 10px",
-                  fontWeight: 900,
-                  cursor: loading ? "not-allowed" : "pointer",
-                  opacity: loading ? 0.7 : 1,
-                }}
-              >
-                {loading ? "Cargando..." : "Refrescar"}
-              </button>
-            </div>
-          </div>
-
-          {/* summary horizontal, depende del campaignId */}
-          <Summary campaignId={campaignId} />
-        </div>
-
-        {/* derecha: ConsSubStock (abajo del summary en el flujo visual) */}
-        <div className="panel-inner" style={{ padding: 0, width: "100%", overflow: "hidden" }}>
-          <ConsSubStock campaignId={campaignId} reagentName={""} refreshKey={refreshKey} />
-        </div>
-      </div>
-
-      {/* debajo del summary va el ConsSubStock (ya está arriba, a la derecha del bloque). */}
-
-      {/* PBI */}
+      {/* FILA 5: PBI */}
       <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ position: "relative", width: "100%", height: "calc(100vh - 260px)" }}>
           <iframe
