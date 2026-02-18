@@ -284,7 +284,7 @@ export default function RefineryReportsPage() {
 
       {/* FILA 5: PBI */}
       <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ position: "relative", width: "100%", height: "calc(100vh - 260px)" }}>
+        <div style={{ position: "relative", width: "100%", height: "calc(100vh - 120px)" }}>
           <iframe
             title="MVD - Refinería - Reportes"
             src={PBI_REFINERY_REPORTS_URL}
