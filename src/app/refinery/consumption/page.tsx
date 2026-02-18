@@ -14,6 +14,17 @@ type LatestResp = { ok: boolean; campaign_id: string | null };
 type MapRow = { reagent_name: string; subprocess_name: string };
 type MappingResp = { ok: boolean; rows: MapRow[] };
 
+type ReagentRow = {
+  reagent_id: string;
+  reagent_name: string | null;
+  unit_name: string | null;
+  reagent_type: string | null;
+  balls_size: any;
+  unit_weight: any;
+  updated_at: any;
+};
+type ReagentsResp = { ok: boolean; rows: ReagentRow[] };
+
 type ConsRow = {
   campaign_id: string;
   reagent_name: string;
@@ -389,6 +400,8 @@ export default function RefineryConsumptionPage() {
   const [mapping, setMapping] = useState<MapRow[]>([]);
   const [consRows, setConsRows] = useState<ConsRow[]>([]);
 
+  const [reagents, setReagents] = useState<ReagentRow[]>([]);
+
   const [campaignId, setCampaignId] = useState<string>("");
   const [reagent, setReagent] = useState<string>("");
   const [subprocess, setSubprocess] = useState<string>("");
@@ -427,13 +440,29 @@ export default function RefineryConsumptionPage() {
     return !!campaignId && !!reagent && !!subprocess && dateOk && qtyOkGt0(qty) && !saving;
   }, [campaignId, reagent, subprocess, dateOk, qty, saving]);
 
+  const selectedUnit = useMemo(() => {
+    const r = String(reagent || "").trim();
+    if (!r) return null;
+
+    const hit =
+      (reagents || []).find((x) => String(x.reagent_name || "").trim() === r) ??
+      (reagents || []).find((x) => String(x.reagent_name || "").trim().toLowerCase() === r.toLowerCase()) ??
+      null;
+
+    const u = String(hit?.unit_name || "").trim();
+    return u ? u : null;
+  }, [reagent, reagents]);
+
+  const qtyLabel = useMemo(() => {
+    return selectedUnit ? `Cantidad (${selectedUnit})` : "Cantidad";
+  }, [selectedUnit]);
+
   async function loadLatestCampaignId() {
     try {
       const r = (await apiGet("/api/refineria/campaigns/latest")) as LatestResp;
       const latest = String(r?.campaign_id || "").trim().toUpperCase();
       if (latest) setCampaignId(latest);
-    } catch {
-    }
+    } catch {}
   }
 
   async function loadMeta(opts?: { keepMsg?: boolean }) {
@@ -441,16 +470,19 @@ export default function RefineryConsumptionPage() {
     if (!opts?.keepMsg) setMsg(null);
 
     try {
-      const [c, m] = await Promise.all([
+      const [c, m, r] = await Promise.all([
         apiGet("/api/refineria/campaigns") as Promise<CampaignsResp>,
         apiGet("/api/refineria/mapping") as Promise<MappingResp>,
+        apiGet("/api/refineria/reagents") as Promise<ReagentsResp>,
       ]);
 
       const cRows = Array.isArray(c.rows) ? c.rows : [];
       const mRows = Array.isArray(m.rows) ? m.rows : [];
+      const rRows = Array.isArray((r as any)?.rows) ? (r as any).rows : [];
 
       setCampaigns(cRows);
       setMapping(mRows);
+      setReagents(rRows);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando datos");
     } finally {
@@ -564,7 +596,7 @@ export default function RefineryConsumptionPage() {
 
   const campaignLabel = (x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase();
 
-    return (
+  return (
     <div style={{ display: "grid", gap: 12, width: "100%" }}>
       <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
         <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
@@ -637,12 +669,16 @@ export default function RefineryConsumptionPage() {
 
             <DatePicker valueIso={consDate} onChangeIso={setConsDate} disabled={saving} />
 
-            <Input
-              placeholder=""
-              value={qty}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQty(e.target.value)}
-              hint="Cantidad > 0"
-            />
+            {/* CAMBIO: título dinámico según unidad */}
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>{qtyLabel}</div>
+              <Input
+                placeholder=""
+                value={qty}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQty(e.target.value)}
+                hint="Cantidad > 0"
+              />
+            </div>
 
             {loadingExisting ? (
               <div className="muted" style={{ fontWeight: 800 }}>
