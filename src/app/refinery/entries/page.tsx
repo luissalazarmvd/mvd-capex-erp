@@ -352,9 +352,10 @@ export default function RefineryEntriesPage() {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "420px minmax(0, 1fr)",
+        gridTemplateColumns: "minmax(0, 1fr) 760px",
         gap: 14,
         alignItems: "start",
+        width: "100%",
       }}
     >
       <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -413,8 +414,10 @@ export default function RefineryEntriesPage() {
         </div>
       </div>
 
-      <div style={{ minWidth: 0 }}>
-        <StockTable autoLoad refreshKey={stockKey} />
+      <div style={{ minWidth: 0, display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ width: "760px", maxWidth: "100%" }}>
+          <StockTable autoLoad refreshKey={stockKey} />
+        </div>
       </div>
     </div>
   );
