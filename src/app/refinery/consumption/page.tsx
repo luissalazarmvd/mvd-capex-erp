@@ -15,7 +15,7 @@ type MappingResp = { ok: boolean; rows: MapRow[] };
 type ConsRow = {
   campaign_id: string;
   reagent_name: string;
-  consumption_date: string | null; // yyyy-mm-dd
+  consumption_date: string | null;
   subprocess_name: string;
   consumption_qty: any;
 };
@@ -424,23 +424,20 @@ export default function RefineryConsumptionPage() {
     return !!campaignId && !!reagent && !!subprocess && dateOk && qtyOkGt0(qty) && !saving;
   }, [campaignId, reagent, subprocess, dateOk, qty, saving]);
 
-  async function loadAll() {
+  async function loadMeta() {
     setLoading(true);
     setMsg(null);
     try {
-      const [c, m, cr] = await Promise.all([
+      const [c, m] = await Promise.all([
         apiGet("/api/refineria/campaigns") as Promise<CampaignsResp>,
         apiGet("/api/refineria/mapping") as Promise<MappingResp>,
-        apiGet("/api/refineria/consumption") as Promise<ConsumptionResp>,
       ]);
 
       const cRows = Array.isArray(c.rows) ? c.rows : [];
       const mRows = Array.isArray(m.rows) ? m.rows : [];
-      const cons = Array.isArray(cr.rows) ? cr.rows : [];
 
       setCampaigns(cRows);
       setMapping(mRows);
-      setConsRows(cons);
 
       if (!campaignId && cRows[0]?.campaign_id) {
         setCampaignId(String(cRows[0].campaign_id || "").trim().toUpperCase());
@@ -449,6 +446,22 @@ export default function RefineryConsumptionPage() {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando datos");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadConsumptionForCampaign(cId: string) {
+    const id = String(cId || "").trim().toUpperCase();
+    if (!id) {
+      setConsRows([]);
+      return;
+    }
+    try {
+      const r = (await apiGet(
+        `/api/refineria/consumption?campaign_id=${encodeURIComponent(id)}`
+      )) as ConsumptionResp;
+      setConsRows(Array.isArray(r.rows) ? r.rows : []);
+    } catch {
+      setConsRows([]);
     }
   }
 
@@ -474,8 +487,12 @@ export default function RefineryConsumptionPage() {
   }
 
   useEffect(() => {
-    loadAll();
+    loadMeta();
   }, []);
+
+  useEffect(() => {
+    loadConsumptionForCampaign(campaignId);
+  }, [campaignId]);
 
   useEffect(() => {
     const opts = new Set(subprocessOptions.map((x) => x.value));
@@ -504,7 +521,7 @@ export default function RefineryConsumptionPage() {
     }
 
     setLoadingExisting(false);
-  }, [campaignId, reagent, subprocess]);
+  }, [campaignId, reagent, subprocess, consRows]);
 
   async function onSave() {
     setSaving(true);
@@ -526,7 +543,7 @@ export default function RefineryConsumptionPage() {
 
       await apiPost("/api/refineria/consumption/insert", payload);
       setMsg(`OK: guardado ${campaignId} · ${reagent} · ${subprocess}`);
-      await loadAll();
+      await loadConsumptionForCampaign(campaignId);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando consumo");
     } finally {
@@ -542,7 +559,7 @@ export default function RefineryConsumptionPage() {
         <div style={{ fontWeight: 900 }}>Consumos</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={loadAll} disabled={loading || saving}>
+          <Button type="button" size="sm" variant="ghost" onClick={loadMeta} disabled={loading || saving}>
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
