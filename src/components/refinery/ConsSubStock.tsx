@@ -9,6 +9,17 @@ import { Table } from "../ui/Table";
 type MapRow = { reagent_name: string; subprocess_name: string };
 type MappingResp = { ok: boolean; rows: MapRow[] };
 
+type ReagentRow = {
+  reagent_id: string;
+  reagent_name: string | null;
+  unit_name: string | null;
+  reagent_type: string | null;
+  balls_size: any;
+  unit_weight: any;
+  updated_at: any;
+};
+type ReagentsResp = { ok: boolean; rows: ReagentRow[] };
+
 type ViewRow = {
   campaign_id: string;
   reagent_name: string;
@@ -66,7 +77,7 @@ function colWidth(key: string) {
   if (key === "campaign_id") return 120;
   if (key === "reagent_name") return 220;
   if (key === "stock") return 110;
-  if (key === "__total__") return 120;
+  if (key === "__total__") return 140;
 
   const s = String(key || "");
   return Math.max(150, Math.min(220, 90 + s.length * 4));
@@ -87,12 +98,19 @@ export default function ConsSubStock({
   const [msg, setMsg] = useState<string | null>(null);
 
   const [mapping, setMapping] = useState<MapRow[]>([]);
+  const [reagents, setReagents] = useState<ReagentRow[]>([]);
   const [rows, setRows] = useState<ViewRow[]>([]);
 
   async function loadMapping() {
     const r = (await apiGet("/api/refineria/mapping")) as MappingResp;
     const rr = Array.isArray(r?.rows) ? r.rows : [];
     setMapping(rr);
+  }
+
+  async function loadReagents() {
+    const r = (await apiGet("/api/refineria/reagents")) as ReagentsResp;
+    const rr = Array.isArray((r as any)?.rows) ? (r as any).rows : [];
+    setReagents(rr);
   }
 
   async function loadRows(cId: string, rName?: string) {
@@ -129,6 +147,7 @@ export default function ConsSubStock({
 
   useEffect(() => {
     loadMapping().catch(() => {});
+    loadReagents().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -138,6 +157,29 @@ export default function ConsSubStock({
   }, [campaignId, reagentName, autoLoad, refreshKey]);
 
   const modeAllReagents = !String(reagentName || "").trim();
+
+  const unitByReagent = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of reagents || []) {
+      const name = String(r.reagent_name || "").trim();
+      const unit = String(r.unit_name || "").trim();
+      if (name && unit) m.set(name, unit);
+    }
+    return m;
+  }, [reagents]);
+
+  function unitForReagentName(name: any) {
+    const key = String(name || "").trim();
+    if (!key) return "";
+    return unitByReagent.get(key) || unitByReagent.get(key.toLowerCase()) || "";
+  }
+
+  function fmtWithUnit(v: any, digits: number, unit?: string | null) {
+    const s = fmtFixed(v, digits);
+    const u = String(unit || "").trim();
+    if (!s) return "";
+    return u ? `${s} ${u}` : s;
+  }
 
   const mappedSubpros = useMemo(() => {
     const colsInView = new Set<string>(SUBPRO_COLS as any);
@@ -172,7 +214,10 @@ export default function ConsSubStock({
     );
   }, [rows]);
 
-  const visibleSubpros = useMemo(() => (mappedSubpros.length ? mappedSubpros : nonZeroSubpros), [mappedSubpros, nonZeroSubpros]);
+  const visibleSubpros = useMemo(
+    () => (mappedSubpros.length ? mappedSubpros : nonZeroSubpros),
+    [mappedSubpros, nonZeroSubpros]
+  );
 
   const rowTotal = useMemo(() => {
     const keys = visibleSubpros || [];
@@ -204,15 +249,20 @@ export default function ConsSubStock({
       fmt: (v: any) => fmtFixed(v, 2),
     }));
 
+    // CAMBIO: total sticky con unidad por insumo
     const totalCol = {
       key: "__total__",
       label: "Total",
       w: colWidth("__total__"),
-      fmt: (_: any, r?: ViewRow) => fmtFixed(r ? rowTotal(r) : null, 2),
+      fmt: (_: any, r?: ViewRow) => {
+        const total = r ? rowTotal(r) : null;
+        const unit = r ? unitForReagentName(r.reagent_name) : "";
+        return fmtWithUnit(total, 2, unit);
+      },
     };
 
     return [...base, ...subs, totalCol];
-  }, [visibleSubpros, rowTotal]);
+  }, [visibleSubpros, rowTotal, unitByReagent]);
 
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
@@ -264,7 +314,13 @@ export default function ConsSubStock({
         <div style={{ fontWeight: 900 }}>Consumo por Subproceso + Stock</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={() => loadRows(campaignId, reagentName)} disabled={loading || !canQuery}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => loadRows(campaignId, reagentName)}
+            disabled={loading || !canQuery}
+          >
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
         </div>
@@ -350,10 +406,10 @@ export default function ConsSubStock({
 
                       let txt = "";
                       if (isTotal) {
-                        txt = (c as any).fmt?.(null, row) ?? fmtFixed(rowTotal(row), 2);
+                        txt = (c as any).fmt(null, row);
                       } else {
                         const v = (row as any)[c.key];
-                        txt = c.fmt ? c.fmt(v) : v ?? "";
+                        txt = (c as any).fmt(v);
                       }
 
                       return (
