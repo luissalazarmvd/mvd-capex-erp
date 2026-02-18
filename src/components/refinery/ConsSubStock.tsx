@@ -66,6 +66,7 @@ function colWidth(key: string) {
   if (key === "campaign_id") return 120;
   if (key === "reagent_name") return 220;
   if (key === "stock") return 110;
+  if (key === "__total__") return 120;
 
   const s = String(key || "");
   return Math.max(150, Math.min(220, 90 + s.length * 4));
@@ -142,9 +143,7 @@ export default function ConsSubStock({
     const colsInView = new Set<string>(SUBPRO_COLS as any);
 
     if (modeAllReagents) {
-      const reagentsInRows = new Set(
-        (rows || []).map((x) => String(x.reagent_name || "").trim()).filter((x) => !!x)
-      );
+      const reagentsInRows = new Set((rows || []).map((x) => String(x.reagent_name || "").trim()).filter((x) => !!x));
 
       const fromMap = mapping
         .filter((m) => reagentsInRows.has(String(m.reagent_name || "").trim()))
@@ -173,10 +172,23 @@ export default function ConsSubStock({
     );
   }, [rows]);
 
-  const visibleSubpros = useMemo(
-    () => (mappedSubpros.length ? mappedSubpros : nonZeroSubpros),
-    [mappedSubpros, nonZeroSubpros]
-  );
+  const visibleSubpros = useMemo(() => (mappedSubpros.length ? mappedSubpros : nonZeroSubpros), [mappedSubpros, nonZeroSubpros]);
+
+  const rowTotal = useMemo(() => {
+    const keys = visibleSubpros || [];
+    return (r: ViewRow) => {
+      let sum = 0;
+      let any = false;
+      for (const k of keys) {
+        const n = toNum((r as any)[k]);
+        if (n !== null) {
+          sum += n;
+          any = true;
+        }
+      }
+      return any ? sum : null;
+    };
+  }, [visibleSubpros]);
 
   const cols = useMemo(() => {
     const base = [
@@ -192,8 +204,15 @@ export default function ConsSubStock({
       fmt: (v: any) => fmtFixed(v, 2),
     }));
 
-    return [...base, ...subs];
-  }, [visibleSubpros]);
+    const totalCol = {
+      key: "__total__",
+      label: "Total",
+      w: colWidth("__total__"),
+      fmt: (_: any, r?: ViewRow) => fmtFixed(r ? rowTotal(r) : null, 2),
+    };
+
+    return [...base, ...subs, totalCol];
+  }, [visibleSubpros, rowTotal]);
 
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
@@ -214,6 +233,20 @@ export default function ConsSubStock({
     boxShadow: headerShadow,
   };
 
+  const stickyRightHead: React.CSSProperties = {
+    ...stickyHead,
+    right: 0,
+    zIndex: 12,
+  };
+
+  const stickyRightCell: React.CSSProperties = {
+    position: "sticky",
+    right: 0,
+    zIndex: 6,
+    background: "rgb(5, 40, 63)",
+    boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
+  };
+
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right", whiteSpace: "nowrap" };
   const textCell: React.CSSProperties = {
     ...cellBase,
@@ -231,13 +264,7 @@ export default function ConsSubStock({
         <div style={{ fontWeight: 900 }}>Consumo por Subproceso + Stock</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => loadRows(campaignId, reagentName)}
-            disabled={loading || !canQuery}
-          >
+          <Button type="button" size="sm" variant="ghost" onClick={() => loadRows(campaignId, reagentName)} disabled={loading || !canQuery}>
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
         </div>
@@ -271,43 +298,46 @@ export default function ConsSubStock({
             <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
               <thead>
                 <tr>
-                  {cols.map((c) => (
-                    <th
-                      key={String(c.key)}
-                      className="capex-th"
-                      style={{
-                        ...stickyHead,
-                        width: c.w ?? 160,
-                        minWidth: c.w ?? 160,
-                        border: headerBorder,
-                        borderBottom: headerBorder,
-                        textAlign: "center",
-                        padding: "6px 4px",
-                        fontSize: 12,
-                        fontWeight: 900,
-                        whiteSpace: "normal",
-                        lineHeight: "14px",
-                        verticalAlign: "middle",
-                        height: 42,
-                      }}
-                      title={c.label}
-                    >
-                      <div
+                  {cols.map((c) => {
+                    const isTotal = String(c.key) === "__total__";
+                    return (
+                      <th
+                        key={String(c.key)}
+                        className="capex-th"
                         style={{
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          margin: "0 auto",
-                          padding: 0,
+                          ...(isTotal ? stickyRightHead : stickyHead),
+                          width: c.w ?? 160,
+                          minWidth: c.w ?? 160,
+                          border: headerBorder,
+                          borderBottom: headerBorder,
                           textAlign: "center",
+                          padding: "6px 4px",
+                          fontSize: 12,
+                          fontWeight: 900,
+                          whiteSpace: "normal",
+                          lineHeight: "14px",
+                          verticalAlign: "middle",
+                          height: 42,
                         }}
+                        title={c.label}
                       >
-                        {c.label}
-                      </div>
-                    </th>
-                  ))}
+                        <div
+                          style={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            margin: "0 auto",
+                            padding: 0,
+                            textAlign: "center",
+                          }}
+                        >
+                          {c.label}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
 
@@ -315,21 +345,30 @@ export default function ConsSubStock({
                 {rows.map((row, ridx) => (
                   <tr key={`${String(row.reagent_name || ridx)}-${ridx}`} className="capex-tr">
                     {cols.map((c) => {
-                      const v = (row as any)[c.key];
-                      const txt = c.fmt ? c.fmt(v) : v ?? "";
                       const isText = c.key === "campaign_id" || c.key === "reagent_name";
+                      const isTotal = String(c.key) === "__total__";
+
+                      let txt = "";
+                      if (isTotal) {
+                        txt = (c as any).fmt?.(null, row) ?? fmtFixed(rowTotal(row), 2);
+                      } else {
+                        const v = (row as any)[c.key];
+                        txt = c.fmt ? c.fmt(v) : v ?? "";
+                      }
+
                       return (
                         <td
                           key={`${ridx}-${String(c.key)}`}
                           className="capex-td"
                           style={{
                             ...(isText ? textCell : numCell),
+                            ...(isTotal ? stickyRightCell : null),
                             width: c.w ?? 160,
                             minWidth: c.w ?? 160,
                             padding: "6px 6px",
-                            background: "rgba(0,0,0,.10)",
+                            background: isTotal ? (stickyRightCell.background as any) : "rgba(0,0,0,.10)",
                             borderBottom: "1px solid rgba(255,255,255,.06)",
-                            fontWeight: c.key === "stock" ? 900 : 800,
+                            fontWeight: isTotal || c.key === "stock" ? 900 : 800,
                           }}
                           title={String(txt)}
                         >
