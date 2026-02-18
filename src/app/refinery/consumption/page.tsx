@@ -562,97 +562,97 @@ export default function RefineryConsumptionPage() {
 
   const campaignLabel = (x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase();
 
-  return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
-      <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Consumos</div>
+    return (
+    <div style={{ display: "grid", gap: 12, width: "100%" }}>
+      <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
+        <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ fontWeight: 900 }}>Consumos</div>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              loadLatestCampaignId();
-              loadMeta();
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                loadLatestCampaignId();
+                loadMeta();
+              }}
+              disabled={loading || saving}
+            >
+              {loading ? "Cargando..." : "Refrescar"}
+            </Button>
+            <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
+              {saving ? "Guardando…" : "Guardar"}
+            </Button>
+          </div>
+        </div>
+
+        {msg ? (
+          <div
+            className="panel-inner"
+            style={{
+              padding: 12,
+              border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
+              background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+              fontWeight: 800,
             }}
-            disabled={loading || saving}
           >
-            {loading ? "Cargando..." : "Refrescar"}
-          </Button>
-          <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
-            {saving ? "Guardando…" : "Guardar"}
-          </Button>
+            {msg}
+          </div>
+        ) : null}
+
+        <div className="panel-inner" style={{ padding: 14 }}>
+          <div style={{ display: "grid", gap: 12 }}>
+            <SearchableDropdown
+              label="Campaña"
+              placeholder={loading ? "Cargando campañas..." : "Find items"}
+              value={campaignId}
+              items={campaigns}
+              getKey={(x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase()}
+              getLabel={(x: CampaignRow) => campaignLabel(x)}
+              onSelect={(x: CampaignRow) => setCampaignId(String(x.campaign_id || "").trim().toUpperCase())}
+              disabled={saving}
+            />
+
+            <Select
+              label="Insumo"
+              value={reagent}
+              onChange={(v) => setReagent(String(v || "").trim())}
+              disabled={saving || !reagentOptions.length}
+              options={[{ value: "", label: "— Selecciona —" }, ...reagentOptions]}
+            />
+
+            <Select
+              label="Subproceso"
+              value={subprocess}
+              onChange={(v) => setSubprocess(String(v || "").trim())}
+              disabled={saving || !reagent || !subprocessOptions.length}
+              options={[
+                { value: "", label: reagent ? "— Selecciona —" : "Selecciona un insumo primero" },
+                ...subprocessOptions,
+              ]}
+            />
+
+            <DatePicker valueIso={consDate} onChangeIso={setConsDate} disabled={saving} />
+
+            <Input
+              placeholder=""
+              value={qty}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQty(e.target.value)}
+              hint="Cantidad > 0"
+            />
+
+            {loadingExisting ? (
+              <div className="muted" style={{ fontWeight: 800 }}>
+                Cargando datos existentes…
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {msg ? (
-        <div
-          className="panel-inner"
-          style={{
-            padding: 12,
-            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
-            fontWeight: 800,
-          }}
-        >
-          {msg}
-        </div>
-      ) : null}
-
-      <div className="panel-inner" style={{ padding: 14 }}>
-        <div style={{ display: "grid", gap: 12 }}>
-          <SearchableDropdown
-            label="Campaña"
-            placeholder={loading ? "Cargando campañas..." : "Find items"}
-            value={campaignId}
-            items={campaigns}
-            getKey={(x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase()}
-            getLabel={(x: CampaignRow) => campaignLabel(x)}
-            onSelect={(x: CampaignRow) => setCampaignId(String(x.campaign_id || "").trim().toUpperCase())}
-            disabled={saving}
-          />
-
-          <Select
-            label="Insumo"
-            value={reagent}
-            onChange={(v) => setReagent(String(v || "").trim())}
-            disabled={saving || !reagentOptions.length}
-            options={[{ value: "", label: "— Selecciona —" }, ...reagentOptions]}
-          />
-
-          <Select
-            label="Subproceso"
-            value={subprocess}
-            onChange={(v) => setSubprocess(String(v || "").trim())}
-            disabled={saving || !reagent || !subprocessOptions.length}
-            options={[
-              { value: "", label: reagent ? "— Selecciona —" : "Selecciona un insumo primero" },
-              ...subprocessOptions,
-            ]}
-          />
-
-          <DatePicker valueIso={consDate} onChangeIso={setConsDate} disabled={saving} />
-
-          <Input
-            placeholder=""
-            value={qty}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQty(e.target.value)}
-            hint="Cantidad > 0"
-          />
-
-          {loadingExisting ? (
-            <div className="muted" style={{ fontWeight: 800 }}>
-              Cargando datos existentes…
-            </div>
-          ) : null}
-
-          <div style={{ height: 10 }} />
-
-          <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
-            <ConsSubStock campaignId={campaignId} reagentName={reagent} />
-          </div>
-        </div>
+      <div className="panel-inner" style={{ padding: 0, width: "100%", overflow: "hidden" }}>
+        <ConsSubStock campaignId={campaignId} reagentName={reagent} />
       </div>
     </div>
   );
