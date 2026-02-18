@@ -145,14 +145,14 @@ export default function ConsSubStock({
     const base = [
       { key: "campaign_id", label: "Campaña", w: 110, fmt: (v: any) => String(v ?? "") },
       { key: "reagent_name", label: "Insumo", w: 220, fmt: (v: any) => String(v ?? "") },
-      { key: "stock", label: "Stock", w: 110, fmt: (v: any) => fmtFixed(v, 3) },
+      { key: "stock", label: "Stock", w: 110, fmt: (v: any) => fmtFixed(v, 2) },
     ];
 
     const subs = visibleSubpros.map((name) => ({
       key: name,
       label: name,
       w: 170,
-      fmt: (v: any) => fmtFixed(v, 3),
+      fmt: (v: any) => fmtFixed(v, 2),
     }));
 
     return [...base, ...subs];
@@ -162,7 +162,7 @@ export default function ConsSubStock({
     padding: "8px 10px",
     fontSize: 12,
     lineHeight: "16px",
-    whiteSpace: "nowrap",
+    whiteSpace: "normal",
   };
 
   const headerBg = "rgb(6, 36, 58)";
@@ -178,7 +178,7 @@ export default function ConsSubStock({
   };
 
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
-  const textCell: React.CSSProperties = { ...cellBase, textAlign: "left" };
+  const textCell: React.CSSProperties = { ...cellBase, textAlign: "left", whiteSpace: "normal" };
 
   const canQuery = !!String(campaignId || "").trim() && !!String(reagentName || "").trim();
 
@@ -224,20 +224,29 @@ export default function ConsSubStock({
                     key={String(c.key)}
                     className="capex-th"
                     style={{
-                      ...stickyHead,
-                      minWidth: c.w ?? 120,
-                      maxWidth: c.w ?? 120,
-                      border: headerBorder,
-                      borderBottom: headerBorder,
-                      textAlign: c.key === "reagent_name" ? "left" : "center",
-                      padding: "10px 8px",
-                      fontSize: 12,
-                      fontWeight: 900,
+                        ...stickyHead,
+                        minWidth: 140,
+                        maxWidth: 220,
+                        border: headerBorder,
+                        borderBottom: headerBorder,
+                        textAlign: c.key === "reagent_name" ? "left" : "center",
+                        padding: "10px 8px",
+                        fontSize: 12,
+                        fontWeight: 900,
+                        whiteSpace: "normal",
+                        lineHeight: "14px",
+                        height: 46,
+                        verticalAlign: "middle",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
                     }}
                     title={c.label}
-                  >
+                    >
                     {c.label}
-                  </th>
+                    </th>
                 ))}
               </tr>
             </thead>
