@@ -110,7 +110,6 @@ export default function ConsSubStock({
   }
 
   useEffect(() => {
-    // mapping se carga 1 vez
     loadMapping().catch(() => {});
   }, []);
 
@@ -158,11 +157,17 @@ export default function ConsSubStock({
     return [...base, ...subs];
   }, [visibleSubpros]);
 
+  const tableMinWidth = useMemo(() => {
+    const total = cols.reduce((acc, c) => acc + (c.w ?? 160), 0);
+    return Math.max(total + 40, 620);
+  }, [cols]);
+
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
     fontSize: 12,
     lineHeight: "16px",
     whiteSpace: "normal",
+    wordBreak: "break-word",
   };
 
   const headerBg = "rgb(6, 36, 58)";
@@ -178,7 +183,7 @@ export default function ConsSubStock({
   };
 
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
-  const textCell: React.CSSProperties = { ...cellBase, textAlign: "left", whiteSpace: "normal" };
+  const textCell: React.CSSProperties = { ...cellBase, textAlign: "left" };
 
   const canQuery = !!String(campaignId || "").trim() && !!String(reagentName || "").trim();
 
@@ -214,67 +219,76 @@ export default function ConsSubStock({
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
+      <div
+        className="panel-inner"
+        style={{
+          padding: 0,
+          overflowX: "auto",
+          overflowY: "hidden",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
         {row ? (
-          <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
-            <thead>
-              <tr>
-                {cols.map((c) => (
-                  <th
-                    key={String(c.key)}
-                    className="capex-th"
-                    style={{
-                        ...stickyHead,
-                        minWidth: 140,
-                        maxWidth: 220,
-                        border: headerBorder,
-                        borderBottom: headerBorder,
-                        textAlign: c.key === "reagent_name" ? "left" : "center",
-                        padding: "10px 8px",
-                        fontSize: 12,
-                        fontWeight: 900,
-                        whiteSpace: "normal",
-                        lineHeight: "14px",
-                        height: 46,
-                        verticalAlign: "middle",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                    }}
-                    title={c.label}
-                    >
-                    {c.label}
-                    </th>
-                ))}
-              </tr>
-            </thead>
+          <div style={{ minWidth: tableMinWidth }}>
+            <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
+              <thead>
+                <tr>
+                  {cols.map((c) => {
+                    const isText = c.key === "campaign_id" || c.key === "reagent_name";
+                    return (
+                      <th
+                        key={String(c.key)}
+                        className="capex-th"
+                        style={{
+                          ...stickyHead,
+                          width: c.w ?? 160,
+                          minWidth: c.w ?? 160,
+                          border: headerBorder,
+                          borderBottom: headerBorder,
+                          textAlign: isText ? "left" : "right",
+                          padding: "10px 10px",
+                          fontSize: 12,
+                          fontWeight: 900,
+                          whiteSpace: "normal",
+                          lineHeight: "14px",
+                          verticalAlign: "middle",
+                        }}
+                        title={c.label}
+                      >
+                        {c.label}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
 
-            <tbody>
-              <tr className="capex-tr">
-                {cols.map((c) => {
-                  const v = (row as any)[c.key];
-                  const txt = c.fmt ? c.fmt(v) : v ?? "";
-                  const isText = c.key === "campaign_id" || c.key === "reagent_name";
-                  return (
-                    <td
-                      key={`r-${String(c.key)}`}
-                      className="capex-td"
-                      style={{
-                        ...(isText ? textCell : numCell),
-                        background: "rgba(0,0,0,.10)",
-                        borderBottom: "1px solid rgba(255,255,255,.06)",
-                        fontWeight: c.key === "stock" ? 900 : 800,
-                      }}
-                    >
-                      {txt}
-                    </td>
-                  );
-                })}
-              </tr>
-            </tbody>
-          </Table>
+              <tbody>
+                <tr className="capex-tr">
+                  {cols.map((c) => {
+                    const v = (row as any)[c.key];
+                    const txt = c.fmt ? c.fmt(v) : v ?? "";
+                    const isText = c.key === "campaign_id" || c.key === "reagent_name";
+                    return (
+                      <td
+                        key={`r-${String(c.key)}`}
+                        className="capex-td"
+                        style={{
+                          ...(isText ? textCell : numCell),
+                          width: c.w ?? 160,
+                          minWidth: c.w ?? 160,
+                          background: "rgba(0,0,0,.10)",
+                          borderBottom: "1px solid rgba(255,255,255,.06)",
+                          fontWeight: c.key === "stock" ? 900 : 800,
+                        }}
+                      >
+                        {txt}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </Table>
+          </div>
         ) : (
           <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
             {loading ? "Cargando…" : canQuery ? "Sin datos." : "Selecciona campaña e insumo arriba."}
