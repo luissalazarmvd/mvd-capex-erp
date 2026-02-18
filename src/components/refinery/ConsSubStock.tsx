@@ -75,10 +75,12 @@ export default function ConsSubStock({
   campaignId,
   reagentName,
   autoLoad = true,
+  refreshKey = 0,
 }: {
   campaignId: string;
   reagentName: string;
   autoLoad?: boolean;
+  refreshKey?: number;
 }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -126,7 +128,7 @@ export default function ConsSubStock({
     if (!autoLoad) return;
     loadRow(campaignId, reagentName);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campaignId, reagentName, autoLoad]);
+  }, [campaignId, reagentName, autoLoad, refreshKey]);
 
   const mappedSubpros = useMemo(() => {
     const r = String(reagentName || "").trim();

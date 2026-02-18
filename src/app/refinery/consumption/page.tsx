@@ -394,6 +394,7 @@ export default function RefineryConsumptionPage() {
   const [subprocess, setSubprocess] = useState<string>("");
   const [consDate, setConsDate] = useState<string>(isoTodayPe());
   const [qty, setQty] = useState<string>("");
+  const [subStockRefreshKey, setSubStockRefreshKey] = useState<number>(0);
 
   const reagentOptions = useMemo(() => {
     const set = new Set<string>();
@@ -553,6 +554,7 @@ export default function RefineryConsumptionPage() {
       await loadLatestCampaignId();
       await loadMeta({ keepMsg: true });
       await loadConsumptionForCampaign(campaignId);
+      setSubStockRefreshKey((k) => k + 1);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando consumo");
     } finally {
@@ -652,7 +654,7 @@ export default function RefineryConsumptionPage() {
       </div>
 
       <div className="panel-inner" style={{ padding: 0, width: "100%", overflow: "hidden" }}>
-        <ConsSubStock campaignId={campaignId} reagentName={reagent} />
+        <ConsSubStock campaignId={campaignId} reagentName={reagent} refreshKey={subStockRefreshKey} />
       </div>
     </div>
   );
