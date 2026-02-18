@@ -65,11 +65,10 @@ function uniqSorted(a: string[]) {
 function colWidth(key: string) {
   if (key === "campaign_id") return 110;
   if (key === "reagent_name") return 220;
-  if (key === "stock") return 110;
+  if (key === "stock") return 100;
 
   const s = String(key || "");
-  const compact = Math.max(120, Math.min(190, 80 + s.length * 5));
-  return compact;
+  return Math.max(120, Math.min(180, 70 + s.length * 4));
 }
 
 export default function ConsSubStock({
@@ -167,10 +166,7 @@ export default function ConsSubStock({
     return [...base, ...subs];
   }, [visibleSubpros]);
 
-  const tableMinWidth = useMemo(() => {
-    const total = cols.reduce((acc, c) => acc + (c.w ?? 140), 0);
-    return Math.max(total, 520);
-  }, [cols]);
+  const tableMinWidth = useMemo(() => cols.reduce((acc, c) => acc + (c.w ?? 140), 0), [cols]);
 
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
@@ -229,76 +225,64 @@ export default function ConsSubStock({
         </div>
       ) : null}
 
-      <div
-        className="panel-inner"
-        style={{
-          padding: 0,
-          overflowX: "auto",
-          overflowY: "hidden",
-          WebkitOverflowScrolling: "touch",
-        }}
-      >
+      <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
         {row ? (
-          <div style={{ minWidth: tableMinWidth }}>
-            <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
-              <thead>
-                <tr>
-                  {cols.map((c) => {
-                    const isText = c.key === "campaign_id" || c.key === "reagent_name";
-                    return (
-                      <th
-                        key={String(c.key)}
-                        className="capex-th"
-                        style={{
-                          ...stickyHead,
-                          width: c.w ?? 140,
-                          minWidth: c.w ?? 140,
-                          border: headerBorder,
-                          borderBottom: headerBorder,
-                          textAlign: isText ? "left" : "right",
-                          padding: "10px 10px",
-                          fontSize: 12,
-                          fontWeight: 900,
-                          whiteSpace: "normal",
-                          lineHeight: "14px",
-                          verticalAlign: "middle",
-                        }}
-                        title={c.label}
-                      >
-                        {c.label}
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
+          <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
+            <thead>
+              <tr>
+                {cols.map((c) => {
+                  const isText = c.key === "campaign_id" || c.key === "reagent_name";
+                  return (
+                    <th
+                      key={String(c.key)}
+                      className="capex-th"
+                      style={{
+                        ...stickyHead,
+                        width: c.w ?? 140,
+                        border: headerBorder,
+                        borderBottom: headerBorder,
+                        textAlign: isText ? "left" : "right",
+                        padding: "10px 10px",
+                        fontSize: 12,
+                        fontWeight: 900,
+                        whiteSpace: "normal",
+                        lineHeight: "14px",
+                        verticalAlign: "middle",
+                      }}
+                      title={c.label}
+                    >
+                      {c.label}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
 
-              <tbody>
-                <tr className="capex-tr">
-                  {cols.map((c) => {
-                    const v = (row as any)[c.key];
-                    const txt = c.fmt ? c.fmt(v) : v ?? "";
-                    const isText = c.key === "campaign_id" || c.key === "reagent_name";
-                    return (
-                      <td
-                        key={`r-${String(c.key)}`}
-                        className="capex-td"
-                        style={{
-                          ...(isText ? textCell : numCell),
-                          width: c.w ?? 140,
-                          minWidth: c.w ?? 140,
-                          background: "rgba(0,0,0,.10)",
-                          borderBottom: "1px solid rgba(255,255,255,.06)",
-                          fontWeight: c.key === "stock" ? 900 : 800,
-                        }}
-                      >
-                        {txt}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </Table>
-          </div>
+            <tbody>
+              <tr className="capex-tr">
+                {cols.map((c) => {
+                  const v = (row as any)[c.key];
+                  const txt = c.fmt ? c.fmt(v) : v ?? "";
+                  const isText = c.key === "campaign_id" || c.key === "reagent_name";
+                  return (
+                    <td
+                      key={`r-${String(c.key)}`}
+                      className="capex-td"
+                      style={{
+                        ...(isText ? textCell : numCell),
+                        width: c.w ?? 140,
+                        background: "rgba(0,0,0,.10)",
+                        borderBottom: "1px solid rgba(255,255,255,.06)",
+                        fontWeight: c.key === "stock" ? 900 : 800,
+                      }}
+                    >
+                      {txt}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </Table>
         ) : (
           <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
             {loading ? "Cargando…" : canQuery ? "Sin datos." : "Selecciona campaña e insumo arriba."}
