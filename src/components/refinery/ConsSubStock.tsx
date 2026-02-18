@@ -166,13 +166,10 @@ export default function ConsSubStock({
     return [...base, ...subs];
   }, [visibleSubpros]);
 
-  const tableMinWidth = useMemo(() => cols.reduce((acc, c) => acc + (c.w ?? 140), 0), [cols]);
-
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
     fontSize: 12,
     lineHeight: "16px",
-    whiteSpace: "normal",
     wordBreak: "break-word",
   };
 
@@ -188,8 +185,8 @@ export default function ConsSubStock({
     boxShadow: headerShadow,
   };
 
-  const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
-  const textCell: React.CSSProperties = { ...cellBase, textAlign: "left" };
+  const numCell: React.CSSProperties = { ...cellBase, textAlign: "right", whiteSpace: "nowrap" };
+  const textCell: React.CSSProperties = { ...cellBase, textAlign: "left", whiteSpace: "nowrap" };
 
   const canQuery = !!String(campaignId || "").trim() && !!String(reagentName || "").trim();
 
@@ -225,7 +222,7 @@ export default function ConsSubStock({
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="panel-inner" style={{ padding: 0, overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch" }}>
         {row ? (
           <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
             <thead>
@@ -239,6 +236,7 @@ export default function ConsSubStock({
                       style={{
                         ...stickyHead,
                         width: c.w ?? 140,
+                        minWidth: c.w ?? 140,
                         border: headerBorder,
                         borderBottom: headerBorder,
                         textAlign: isText ? "left" : "right",
@@ -248,6 +246,11 @@ export default function ConsSubStock({
                         whiteSpace: "normal",
                         lineHeight: "14px",
                         verticalAlign: "middle",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
                       }}
                       title={c.label}
                     >
@@ -271,10 +274,12 @@ export default function ConsSubStock({
                       style={{
                         ...(isText ? textCell : numCell),
                         width: c.w ?? 140,
+                        minWidth: c.w ?? 140,
                         background: "rgba(0,0,0,.10)",
                         borderBottom: "1px solid rgba(255,255,255,.06)",
                         fontWeight: c.key === "stock" ? 900 : 800,
                       }}
+                      title={String(txt)}
                     >
                       {txt}
                     </td>
