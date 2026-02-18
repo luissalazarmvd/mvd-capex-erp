@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
+import StockTable from "../../../components/refinery/StockTable";
 
 type MapRow = { reagent_name: string; subprocess_name: string };
 type MappingResp = { ok: boolean; rows: MapRow[] };
@@ -232,6 +233,8 @@ export default function RefineryEntriesPage() {
   const [reagent, setReagent] = useState<string>("");
   const [qty, setQty] = useState<string>("");
 
+  const [stockKey, setStockKey] = useState(0);
+
   const reagentOptions = useMemo(() => {
     const set = new Set<string>();
     for (const r of mapping || []) {
@@ -282,7 +285,11 @@ export default function RefineryEntriesPage() {
     const dd = String(d || "").trim();
     const rr = String(r || "").trim();
     if (!dd || !rr) return null;
-    return (entries || []).find((x) => String(x.entry_date || "").trim() === dd && String(x.reagent_name || "").trim() === rr) ?? null;
+    return (
+      (entries || []).find(
+        (x) => String(x.entry_date || "").trim() === dd && String(x.reagent_name || "").trim() === rr
+      ) ?? null
+    );
   }
 
   function numToStr(v: any) {
@@ -333,6 +340,7 @@ export default function RefineryEntriesPage() {
       await apiPost("/api/refineria/entries/insert", payload);
       setMsg(`OK: guardado ${entryDate} · ${reagent}`);
       await loadAll({ keepMsg: true });
+      setStockKey((k) => k + 1);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando ingreso");
     } finally {
@@ -341,59 +349,72 @@ export default function RefineryEntriesPage() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
-      <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Entrada de Stock</div>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "420px minmax(0, 1fr)",
+        gap: 14,
+        alignItems: "start",
+      }}
+    >
+      <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+        <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ fontWeight: 900 }}>Entrada de Stock</div>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={() => loadAll()} disabled={loading || saving}>
-            {loading ? "Cargando..." : "Refrescar"}
-          </Button>
-          <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
-            {saving ? "Guardando…" : "Guardar"}
-          </Button>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+            <Button type="button" size="sm" variant="ghost" onClick={() => loadAll()} disabled={loading || saving}>
+              {loading ? "Cargando..." : "Refrescar"}
+            </Button>
+            <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
+              {saving ? "Guardando…" : "Guardar"}
+            </Button>
+          </div>
+        </div>
+
+        {msg ? (
+          <div
+            className="panel-inner"
+            style={{
+              padding: 12,
+              border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
+              background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+              fontWeight: 800,
+            }}
+          >
+            {msg}
+          </div>
+        ) : null}
+
+        <div className="panel-inner" style={{ padding: 14 }}>
+          <div style={{ display: "grid", gap: 12 }}>
+            <DatePicker valueIso={entryDate} onChangeIso={setEntryDate} disabled={saving} />
+
+            <Select
+              label="Insumo"
+              value={reagent}
+              onChange={(v) => setReagent(String(v || "").trim())}
+              disabled={saving || !reagentOptions.length}
+              options={[{ value: "", label: "— Selecciona —" }, ...reagentOptions]}
+            />
+
+            <Input
+              placeholder="Cantidad"
+              value={qty}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQty(e.target.value)}
+              hint="Cantidad > 0"
+            />
+
+            {loadingExisting ? (
+              <div className="muted" style={{ fontWeight: 800 }}>
+                Cargando datos existentes…
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {msg ? (
-        <div
-          className="panel-inner"
-          style={{
-            padding: 12,
-            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
-            fontWeight: 800,
-          }}
-        >
-          {msg}
-        </div>
-      ) : null}
-
-      <div className="panel-inner" style={{ padding: 14 }}>
-        <div style={{ display: "grid", gap: 12 }}>
-          <DatePicker valueIso={entryDate} onChangeIso={setEntryDate} disabled={saving} />
-
-          <Select
-            label="Insumo"
-            value={reagent}
-            onChange={(v) => setReagent(String(v || "").trim())}
-            disabled={saving || !reagentOptions.length}
-            options={[{ value: "", label: "— Selecciona —" }, ...reagentOptions]}
-          />
-
-          <Input
-            placeholder="Cantidad"
-            value={qty}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQty(e.target.value)}
-            hint="Cantidad > 0"
-          />
-
-          {loadingExisting ? (
-            <div className="muted" style={{ fontWeight: 800 }}>
-              Cargando datos existentes…
-            </div>
-          ) : null}
-        </div>
+      <div style={{ minWidth: 0 }}>
+        <StockTable autoLoad refreshKey={stockKey} />
       </div>
     </div>
   );
