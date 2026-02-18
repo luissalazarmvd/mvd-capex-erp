@@ -191,7 +191,18 @@ export default function RefineryCampaignPage() {
   }
 
   async function loadExistingIfAny() {
-    if (!campaign_id) return;
+        if (!campaign_id) {
+      setExistingDateIso(null);
+      setForm((s) => ({
+        ...s,
+        campaign_wet_cr: "",
+        campaign_moisture_pct: "",
+        campaign_au_grade: "",
+        campaign_ag_grade: "",
+      }));
+      return;
+    }
+
     setLoadingExisting(true);
     setMsg(null);
     try {
@@ -221,8 +232,20 @@ export default function RefineryCampaignPage() {
         }));
         setMsg(`OK: cargado ${campaign_id}`);
       } else {
+        setExistingDateIso(null);
+
+        // si no existe la campaña, limpiar campos dependientes
+        setForm((s) => ({
+          ...s,
+          campaign_wet_cr: "",
+          campaign_moisture_pct: "",
+          campaign_au_grade: "",
+          campaign_ag_grade: "",
+        }));
+
         setMsg(null);
       }
+
     } catch (e: any) {
       const m = String(e?.message || "");
       if (m.includes("400") || m.includes("404")) setMsg(null);
