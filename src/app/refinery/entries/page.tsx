@@ -17,6 +17,17 @@ type EntryRow = {
 };
 type EntriesResp = { ok: boolean; rows: EntryRow[] };
 
+type ReagentRow = {
+  reagent_id: string;
+  reagent_name: string | null;
+  unit_name: string | null;
+  reagent_type: string | null;
+  balls_size: any;
+  unit_weight: any;
+  updated_at: any;
+};
+type ReagentsResp = { ok: boolean; rows: ReagentRow[] };
+
 function isoTodayPe(): string {
   const now = new Date();
   const pe = new Date(now.getTime() - 5 * 60 * 60 * 1000);
@@ -231,6 +242,7 @@ export default function RefineryEntriesPage() {
 
   const [mapping, setMapping] = useState<MapRow[]>([]);
   const [entries, setEntries] = useState<EntryRow[]>([]);
+  const [reagents, setReagents] = useState<ReagentRow[]>([]);
 
   const [entryDate, setEntryDate] = useState<string>(isoTodayPe());
   const [reagent, setReagent] = useState<string>("");
@@ -255,26 +267,45 @@ export default function RefineryEntriesPage() {
     return dateOk && !!reagent && qtyOkGt0(qty) && !saving;
   }, [dateOk, reagent, qty, saving]);
 
+  const selectedUnit = useMemo(() => {
+    const r = String(reagent || "").trim();
+    if (!r) return null;
+
+    const hit =
+      (reagents || []).find((x) => String(x.reagent_name || "").trim() === r) ??
+      (reagents || []).find((x) => String(x.reagent_name || "").trim().toLowerCase() === r.toLowerCase()) ??
+      null;
+
+    const u = String(hit?.unit_name || "").trim();
+    return u ? u : null;
+  }, [reagent, reagents]);
+
+  const qtyLabel = useMemo(() => {
+    return selectedUnit ? `Cantidad (${selectedUnit})` : "Cantidad";
+  }, [selectedUnit]);
+
   async function loadAll(opts?: { keepMsg?: boolean }) {
     setLoading(true);
     if (!opts?.keepMsg) setMsg(null);
 
     try {
-      const [m, e] = await Promise.all([
+      const [m, e, r] = await Promise.all([
         apiGet("/api/refineria/mapping") as Promise<MappingResp>,
         apiGet("/api/refineria/entries") as Promise<EntriesResp>,
+        apiGet("/api/refineria/reagents") as Promise<ReagentsResp>,
       ]);
 
       const mRows = Array.isArray(m.rows) ? m.rows : [];
       const eRows = Array.isArray(e.rows) ? e.rows : [];
+      const rRows = Array.isArray((r as any)?.rows) ? (r as any).rows : [];
 
       setMapping(mRows);
       setEntries(eRows);
+      setReagents(rRows);
 
       if (!reagent) {
-        const first = Array.from(
-          new Set(mRows.map((x) => String(x.reagent_name || "").trim()).filter((x) => !!x))
-        ).sort((a, b) => a.localeCompare(b))[0];
+        const first = Array.from(new Set(mRows.map((x) => String(x.reagent_name || "").trim()).filter((x) => !!x)))
+          .sort((a, b) => a.localeCompare(b))[0];
         if (first) setReagent(first);
       }
     } catch (e: any) {
@@ -393,12 +424,16 @@ export default function RefineryEntriesPage() {
               options={[{ value: "", label: "— Selecciona —" }, ...reagentOptions]}
             />
 
-            <Input
-              placeholder="Cantidad"
-              value={qty}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQty(e.target.value)}
-              hint="Cantidad > 0"
-            />
+            {/* CAMBIO: título dinámico según unidad */}
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>{qtyLabel}</div>
+              <Input
+                placeholder=""
+                value={qty}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQty(e.target.value)}
+                hint="Cantidad > 0"
+              />
+            </div>
 
             {loadingExisting ? (
               <div className="muted" style={{ fontWeight: 800 }}>
