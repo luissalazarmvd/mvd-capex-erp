@@ -5,7 +5,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
-import ConsSubStock from "../../../components/refinery/ConsSubStock";
 
 type CampaignRow = {
   campaign_id: string;
@@ -436,12 +435,6 @@ export default function RefineryProductionPage() {
               Cargando datos existentes…
             </div>
           ) : null}
-
-          <div style={{ height: 10 }} />
-
-          <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
-            <ConsSubStock />
-          </div>
         </div>
       </div>
     </div>

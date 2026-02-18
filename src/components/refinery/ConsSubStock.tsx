@@ -13,7 +13,6 @@ type ViewRow = {
   campaign_id: string;
   reagent_name: string;
   stock: any;
-
   [k: string]: any;
 };
 
@@ -63,17 +62,19 @@ function uniqSorted(a: string[]) {
   return Array.from(new Set(a.filter((x) => !!String(x || "").trim()))).sort((x, y) => x.localeCompare(y));
 }
 
-export default function ConsSubStock() {
+export default function ConsSubStock({
+  campaignId,
+  reagentName,
+  autoLoad = true,
+}: {
+  campaignId: string;
+  reagentName: string;
+  autoLoad?: boolean;
+}) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const [mapping, setMapping] = useState<MapRow[]>([]);
-  const [campaigns, setCampaigns] = useState<string[]>([]);
-  const [reagents, setReagents] = useState<string[]>([]);
-
-  const [campaignId, setCampaignId] = useState("");
-  const [reagentName, setReagentName] = useState("");
-
   const [row, setRow] = useState<ViewRow | null>(null);
 
   async function loadMapping() {
@@ -82,30 +83,20 @@ export default function ConsSubStock() {
     setMapping(rows);
   }
 
-  async function loadCatalogs() {
-    const r = (await apiGet("/api/refineria/cons-stock-subpro")) as ViewResp;
-    const rows = Array.isArray(r?.rows) ? r.rows : [];
-
-    const camp = uniqSorted(rows.map((x) => String(x.campaign_id || "").trim()));
-    const reag = uniqSorted(rows.map((x) => String(x.reagent_name || "").trim()));
-
-    setCampaigns(camp);
-    setReagents(reag);
-
-    if (!campaignId && camp.length) setCampaignId(camp[0]);
-    if (!reagentName && reag.length) setReagentName(reag[0]);
-  }
-
   async function loadRow(cId: string, rName: string) {
-    if (!cId || !rName) {
+    const c = String(cId || "").trim().toUpperCase();
+    const rn = String(rName || "").trim();
+
+    if (!c || !rn) {
       setRow(null);
+      setMsg(null);
       return;
     }
 
     setLoading(true);
     setMsg(null);
     try {
-      const q = `?campaign_id=${encodeURIComponent(cId)}&reagent_name=${encodeURIComponent(rName)}`;
+      const q = `?campaign_id=${encodeURIComponent(c)}&reagent_name=${encodeURIComponent(rn)}`;
       const r = (await apiGet(`/api/refineria/cons-stock-subpro${q}`)) as ViewResp;
       const rows = Array.isArray(r?.rows) ? r.rows : [];
       setRow(rows[0] ?? null);
@@ -119,28 +110,17 @@ export default function ConsSubStock() {
   }
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setMsg(null);
-      try {
-        await Promise.all([loadMapping(), loadCatalogs()]);
-      } catch (e: any) {
-        setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR inicializando");
-      } finally {
-        setLoading(false);
-      }
-    })();
-
+    // mapping se carga 1 vez
+    loadMapping().catch(() => {});
   }, []);
 
   useEffect(() => {
-
+    if (!autoLoad) return;
     loadRow(campaignId, reagentName);
-
-  }, [campaignId, reagentName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, reagentName, autoLoad]);
 
   const mappedSubpros = useMemo(() => {
-
     const r = String(reagentName || "").trim();
     const fromMap = mapping
       .filter((m) => String(m.reagent_name || "").trim() === r)
@@ -148,13 +128,10 @@ export default function ConsSubStock() {
       .filter((s) => !!s);
 
     const colsInView = new Set<string>(SUBPRO_COLS as any);
-
-    const clean = uniqSorted(fromMap).filter((s) => colsInView.has(s));
-    return clean;
+    return uniqSorted(fromMap).filter((s) => colsInView.has(s));
   }, [mapping, reagentName]);
 
   const nonZeroSubpros = useMemo(() => {
-
     if (!row) return [];
     return (SUBPRO_COLS as any as string[]).filter((c) => {
       const n = toNum((row as any)[c]);
@@ -162,10 +139,7 @@ export default function ConsSubStock() {
     });
   }, [row]);
 
-  const visibleSubpros = useMemo(() => {
-
-    return mappedSubpros.length ? mappedSubpros : nonZeroSubpros;
-  }, [mappedSubpros, nonZeroSubpros]);
+  const visibleSubpros = useMemo(() => (mappedSubpros.length ? mappedSubpros : nonZeroSubpros), [mappedSubpros, nonZeroSubpros]);
 
   const cols = useMemo(() => {
     const base = [
@@ -206,6 +180,8 @@ export default function ConsSubStock() {
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
   const textCell: React.CSSProperties = { ...cellBase, textAlign: "left" };
 
+  const canQuery = !!String(campaignId || "").trim() && !!String(reagentName || "").trim();
+
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
@@ -217,64 +193,10 @@ export default function ConsSubStock() {
             size="sm"
             variant="ghost"
             onClick={() => loadRow(campaignId, reagentName)}
-            disabled={loading || !campaignId || !reagentName}
+            disabled={loading || !canQuery}
           >
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
-        </div>
-      </div>
-
-      <div className="panel-inner" style={{ padding: 14 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "260px 320px", gap: 12, alignItems: "end" }}>
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Campaña</div>
-            <select
-              value={campaignId}
-              onChange={(e) => setCampaignId(String(e.target.value || "").trim())}
-              disabled={loading}
-              style={{
-                width: "100%",
-                background: "rgba(0,0,0,.10)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                outline: "none",
-                fontWeight: 900,
-              }}
-            >
-              {campaigns.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Insumo</div>
-            <select
-              value={reagentName}
-              onChange={(e) => setReagentName(String(e.target.value || "").trim())}
-              disabled={loading}
-              style={{
-                width: "100%",
-                background: "rgba(0,0,0,.10)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                outline: "none",
-                fontWeight: 900,
-              }}
-            >
-              {reagents.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
       </div>
 
@@ -346,7 +268,7 @@ export default function ConsSubStock() {
           </Table>
         ) : (
           <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
-            {loading ? "Cargando…" : "Selecciona campaña e insumo."}
+            {loading ? "Cargando…" : canQuery ? "Sin datos." : "Selecciona campaña e insumo arriba."}
           </div>
         )}
       </div>

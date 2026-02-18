@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
+import ConsSubStock from "../../../components/refinery/ConsSubStock";
 
 type CampaignRow = { campaign_id: string };
 type CampaignsResp = { ok: boolean; rows: CampaignRow[] };
@@ -645,6 +646,12 @@ export default function RefineryConsumptionPage() {
               Cargando datos existentes…
             </div>
           ) : null}
+
+          <div style={{ height: 10 }} />
+
+          <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
+            <ConsSubStock campaignId={campaignId} reagentName={reagent} />
+          </div>
         </div>
       </div>
     </div>
