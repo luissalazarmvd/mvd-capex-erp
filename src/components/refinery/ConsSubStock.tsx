@@ -241,7 +241,7 @@ export default function ConsSubStock({
         }}
       >
         {row ? (
-          <div style={{ width: "max-content", minWidth: "100%" }}>
+          <div style={{ display: "inline-block", width: "max-content", maxWidth: "100%" }}>
             <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
               <thead>
                 <tr>
