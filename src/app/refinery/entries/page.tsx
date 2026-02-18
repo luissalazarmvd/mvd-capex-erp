@@ -140,6 +140,9 @@ function Select({
               background: "rgba(5, 25, 45, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
+              maxHeight: 6 * 44,
+              overflowY: "auto",
+              overscrollBehavior: "contain",
             }}
           >
             {options.map((o) => {
@@ -378,7 +381,7 @@ export default function RefineryEntriesPage() {
           </div>
         ) : null}
 
-        <div className="panel-inner" style={{ padding: 14 }}>
+        <div className="panel-inner" style={{ padding: 14, overflow: "visible" }}>
           <div style={{ display: "grid", gap: 12 }}>
             <DatePicker valueIso={entryDate} onChangeIso={setEntryDate} disabled={saving} />
 
