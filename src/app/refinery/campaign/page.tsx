@@ -183,12 +183,6 @@ export default function RefineryCampaignPage() {
     }
   }
 
-  function findExistingByCampaignId(id: string) {
-    if (!id) return null;
-    const key = String(id).trim().toUpperCase();
-    return rows.find((x) => String(x.campaign_id || "").trim().toUpperCase() === key) ?? null;
-  }
-
   function numToStr(v: any) {
     if (v === null || v === undefined) return "";
     const n = Number(v);
@@ -260,7 +254,7 @@ export default function RefineryCampaignPage() {
       }
 
       const moistDec = moistPct / 100;
-      const campaign_cr = wet * moistDec;
+      const campaign_cr = wet * (1 - moistDec);
 
       const payload = {
         campaign_id,
@@ -317,18 +311,35 @@ export default function RefineryCampaignPage() {
       <div className="panel-inner" style={{ padding: 14 }}>
         <div style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gridTemplateColumns: "260px 260px 1fr", gap: 12, alignItems: "end" }}>
-            <Input
-              placeholder=""
-              value={form.campaign_no}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setForm((s) => ({
-                  ...s,
-                  campaign_no: String(e.target.value || "").replace(/[^\d]/g, "").slice(0, 2),
-                }))
-              }
-              hint="# de Campaña en El Mes (1-99)"
-            />
+            {/* # CAMPAÑA */}
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}># de Campaña en el Mes</div>
+              <input
+                value={form.campaign_no}
+                disabled={saving}
+                onChange={(e) =>
+                  setForm((s) => ({
+                    ...s,
+                    campaign_no: String(e.target.value || "").replace(/[^\d]/g, "").slice(0, 2),
+                  }))
+                }
+                placeholder=""
+                inputMode="numeric"
+                style={{
+                  width: "100%",
+                  background: "rgba(0,0,0,.10)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  outline: "none",
+                  fontWeight: 900,
+                  opacity: saving ? 0.7 : 1,
+                }}
+              />
+            </div>
 
+            {/* FECHA */}
             <DatePicker
               valueIso={form.campaign_date}
               onChangeIso={(iso) => setForm((s) => ({ ...s, campaign_date: iso }))}
@@ -376,10 +387,6 @@ export default function RefineryCampaignPage() {
               }
               hint="Ley Ag > 0"
             />
-          </div>
-
-          <div className="muted" style={{ fontWeight: 900, fontSize: 12 }}>
-            Se guarda: wet_cr (kg), moisture_pct (decimal), campaign_cr = wet_cr * moisture_pct, Au grade, Ag grade. campaign_id: YY-CMM-NN.
           </div>
 
           {!inputsOk ? (
