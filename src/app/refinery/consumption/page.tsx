@@ -144,6 +144,9 @@ function Select({
               background: "rgba(5, 25, 45, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
+              maxHeight: 6 * 44,
+              overflowY: "auto",
+              overscrollBehavior: "contain",
             }}
           >
             {options.map((o) => {
