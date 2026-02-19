@@ -82,12 +82,6 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
   const [densityOf, setDensityOf] = useState("");
   const [pct200, setPct200] = useState("");
 
-  const [auSolidOf, setAuSolidOf] = useState("");
-  const [auSoluOf, setAuSoluOf] = useState("");
-
-  const [agSolidOf, setAgSolidOf] = useState("");
-  const [agSoluOf, setAgSoluOf] = useState("");
-
   const [nacnOf, setNacnOf] = useState("");
   const [nacnAds, setNacnAds] = useState("");
   const [nacnTail, setNacnTail] = useState("");
@@ -99,10 +93,6 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
   function clearFields() {
     setDensityOf("");
     setPct200("");
-    setAuSolidOf("");
-    setAuSoluOf("");
-    setAgSolidOf("");
-    setAgSoluOf("");
     setNacnOf("");
     setNacnAds("");
     setNacnTail("");
@@ -111,12 +101,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     setPhTail("");
   }
 
-  const validNonNeg =
-    okNonNegOrEmpty(densityOf) &&
-    okNonNegOrEmpty(auSolidOf) &&
-    okNonNegOrEmpty(auSoluOf) &&
-    okNonNegOrEmpty(agSolidOf) &&
-    okNonNegOrEmpty(agSoluOf);
+  const validNonNeg = okNonNegOrEmpty(densityOf);
 
   const validPct =
     okPct1to100OrEmpty(pct200) &&
@@ -157,12 +142,6 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
           setPct200(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.pct_200));
         }
 
-        if (h.au_solid_of !== null && h.au_solid_of !== undefined) setAuSolidOf(String(h.au_solid_of));
-        if (h.au_solu_of !== null && h.au_solu_of !== undefined) setAuSoluOf(String(h.au_solu_of));
-
-        if (h.ag_solid_of !== null && h.ag_solid_of !== undefined) setAgSolidOf(String(h.ag_solid_of));
-        if (h.ag_solu_of !== null && h.ag_solu_of !== undefined) setAgSoluOf(String(h.ag_solu_of));
-
         if (h.nacn_of !== null && h.nacn_of !== undefined) {
           const v = Number(h.nacn_of);
           setNacnOf(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.nacn_of));
@@ -187,7 +166,6 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     }
   }
 
-  // cuando cambia la guardia desde el page
   useEffect(() => {
     if (!sid) {
       clearFields();
@@ -205,10 +183,6 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
         shift_id: sid,
         density_of: toNumOrNull(densityOf),
         pct_200: pctStrToDecimalOrNull(pct200),
-        au_solid_of: toNumOrNull(auSolidOf),
-        au_solu_of: toNumOrNull(auSoluOf),
-        ag_solid_of: toNumOrNull(agSolidOf),
-        ag_solu_of: toNumOrNull(agSoluOf),
         nacn_of: pctStrToDecimalOrNull(nacnOf),
         nacn_ads: pctStrToDecimalOrNull(nacnAds),
         nacn_tail: pctStrToDecimalOrNull(nacnTail),
@@ -278,21 +252,13 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
             <Input value={pct200} onChange={(e: any) => setPct200(e.target.value)} hint="%-m-200 (1-100)" />
             <div />
 
-            <Input value={auSolidOf} onChange={(e: any) => setAuSolidOf(e.target.value)} hint="Au Sólido OF (g/t)" />
-            <Input value={auSoluOf} onChange={(e: any) => setAuSoluOf(e.target.value)} hint="Au Solución OF (g/m³)" />
-            <Input value={agSolidOf} onChange={(e: any) => setAgSolidOf(e.target.value)} hint="Ag Sólido OF (g/t)" />
-
-            <Input value={agSoluOf} onChange={(e: any) => setAgSoluOf(e.target.value)} hint="Ag Solución OF (g/m³)" />
             <Input value={nacnOf} onChange={(e: any) => setNacnOf(e.target.value)} hint="%NaCN OF (1-100)" />
             <Input value={nacnAds} onChange={(e: any) => setNacnAds(e.target.value)} hint="%NaCN TK1 (1-100)" />
-
             <Input value={nacnTail} onChange={(e: any) => setNacnTail(e.target.value)} hint="%NaCN TK11 (1-100)" />
+
             <Input value={phOf} onChange={(e: any) => setPhOf(e.target.value)} hint="PH OF (1-14)" />
             <Input value={phAds} onChange={(e: any) => setPhAds(e.target.value)} hint="PH TK1 (1-14)" />
-
             <Input value={phTail} onChange={(e: any) => setPhTail(e.target.value)} hint="PH TK11 (1-14)" />
-            <div />
-            <div />
           </div>
 
           {loadingExisting ? (
