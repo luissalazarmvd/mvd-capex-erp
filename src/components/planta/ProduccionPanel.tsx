@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { Table } from "../ui/Table";
 
 type DetRow = {
   shift_id: string;
@@ -14,21 +15,21 @@ type DetRow = {
 };
 
 type DetResp = { ok: boolean; shift_id: string; var_code: string; rows: DetRow[]; error?: string };
-
 type ReplaceResp = { ok: boolean; shift_id: string; var_code: string; inserted: number; error?: string };
 
 const VARS = [
   { code: "DENSITY_OF", label: "Densidad (g/l)", kind: "nonneg" as const },
-  { code: "PCT_200", label: "%-m-200 (1–100)", kind: "pct" as const },
-  { code: "NACN_OF", label: "%NaCN OF (1–100)", kind: "pct" as const },
-  { code: "NACN_ADS", label: "%NaCN TK1 (1–100)", kind: "pct" as const },
-  { code: "NACN_TAIL", label: "%NaCN TK11 (1–100)", kind: "pct" as const },
-  { code: "PH_OF", label: "pH OF (1–14)", kind: "ph" as const },
-  { code: "PH_ADS", label: "pH TK1 (1–14)", kind: "ph" as const },
-  { code: "PH_TAIL", label: "pH TK11 (1–14)", kind: "ph" as const },
+  { code: "PCT_200", label: "%-m-200", kind: "pct" as const },
+  { code: "NACN_OF", label: "%NaCN OF", kind: "pct" as const },
+  { code: "NACN_ADS", label: "%NaCN TK1", kind: "pct" as const },
+  { code: "NACN_TAIL", label: "%NaCN TK11", kind: "pct" as const },
+  { code: "PH_OF", label: "pH OF", kind: "ph" as const },
+  { code: "PH_ADS", label: "pH TK1", kind: "ph" as const },
+  { code: "PH_TAIL", label: "pH TK11", kind: "ph" as const },
 ] as const;
 
 type VarCode = (typeof VARS)[number]["code"];
+type Kind = (typeof VARS)[number]["kind"];
 
 function toNumOrNaN(s: string) {
   if (s === null || s === undefined) return NaN;
@@ -38,17 +39,10 @@ function toNumOrNaN(s: string) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-function fmt(v: number | null, digits = 3) {
-  if (v === null || !Number.isFinite(v)) return "—";
-  const p = Math.pow(10, digits);
-  return String(Math.round(v * p) / p);
-}
-
 function isShiftId(s: string) {
   return /^\d{8}-[AB]$/.test(String(s || "").trim().toUpperCase());
 }
 
-// 12 filas (1..12)
 function blank12() {
   return Array.from({ length: 12 }, () => "");
 }
@@ -60,26 +54,24 @@ function cellIsEmptyOrZero(s: string) {
   return !Number.isFinite(n) || n === 0;
 }
 
-function validateCell(kind: "nonneg" | "pct" | "ph", s: string): boolean {
+function validateCell(kind: Kind, s: string): boolean {
   const t = String(s ?? "").trim();
-  if (!t) return true; // vacío permitido
+  if (!t) return true;
   const n = toNumOrNaN(t);
   if (!Number.isFinite(n)) return false;
-  if (n === 0) return true; // 0 = no se manda (lo tratamos como "vacío")
+  if (n === 0) return true;
   if (kind === "nonneg") return n >= 0;
   if (kind === "pct") return n >= 1 && n <= 100;
   if (kind === "ph") return n >= 1 && n <= 14;
   return false;
 }
 
-// Regla secuencial: no puedes llenar fila i si la anterior está vacía/0
-function validateSequentialColumn(kind: "nonneg" | "pct" | "ph", arr: string[]) {
+function validateSequentialColumn(kind: Kind, arr: string[]) {
   let seenEmpty = false;
   for (let i = 0; i < 12; i++) {
     const s = String(arr[i] ?? "");
     const emptyOrZero = cellIsEmptyOrZero(s);
 
-    // Validación rango/formato
     if (!validateCell(kind, s)) {
       return { ok: false, firstGapAt: null as number | null, firstInvalidAt: i + 1 };
     }
@@ -89,7 +81,6 @@ function validateSequentialColumn(kind: "nonneg" | "pct" | "ph", arr: string[]) 
       continue;
     }
 
-    // si esta fila tiene valor y ya vimos un vacío/0 antes => gap
     if (seenEmpty) {
       return { ok: false, firstGapAt: i + 1, firstInvalidAt: null as number | null };
     }
@@ -101,14 +92,26 @@ function computeAvgFromColumn(arr: string[]) {
   const vals: number[] = [];
   for (let i = 0; i < 12; i++) {
     const s = String(arr[i] ?? "").trim();
-    if (!s) break; // secuencial: al primer vacío cortamos
+    if (!s) break;
     const n = toNumOrNaN(s);
-    if (!Number.isFinite(n) || n === 0) break; // 0 = no se manda => corta
+    if (!Number.isFinite(n) || n === 0) break;
     vals.push(n);
   }
   if (!vals.length) return null;
   const sum = vals.reduce((a, b) => a + b, 0);
   return sum / vals.length;
+}
+
+function fmtAvg(v: number | null, digits = 3) {
+  if (v === null || !Number.isFinite(v)) return "";
+  return v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function pctToDecimalOrNull(avg: number | null) {
+  if (avg === null) return null;
+  if (!Number.isFinite(avg)) return null;
+  if (avg < 1 || avg > 100) return null;
+  return avg / 100;
 }
 
 export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
@@ -118,19 +121,30 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
 
   const sid = useMemo(() => String(shiftId || "").trim().toUpperCase(), [shiftId]);
 
-  // matriz: var_code -> 12 strings
   const [mat, setMat] = useState<Record<VarCode, string[]>>(() => {
     const o: any = {};
     for (const v of VARS) o[v.code] = blank12();
     return o;
   });
 
-  // promedios (display)
   const avgs = useMemo(() => {
     const o: Record<VarCode, number | null> = {} as any;
     for (const v of VARS) o[v.code] = computeAvgFromColumn(mat[v.code] || []);
     return o;
   }, [mat]);
+
+  const colStatus = useMemo(() => {
+    const o: Record<VarCode, { ok: boolean; firstGapAt: number | null; firstInvalidAt: number | null }> = {} as any;
+    for (const v of VARS) o[v.code] = validateSequentialColumn(v.kind, mat[v.code] || []);
+    return o;
+  }, [mat]);
+
+  const allValid = useMemo(() => {
+    if (!sid || !isShiftId(sid)) return false;
+    return VARS.every((v) => colStatus[v.code]?.ok);
+  }, [sid, colStatus]);
+
+  const canSave = useMemo(() => allValid && !saving, [allValid, saving]);
 
   function clearAll() {
     setMat(() => {
@@ -179,17 +193,13 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
             const n = typeof raw === "number" ? raw : toNumOrNaN(String(raw));
             if (!Number.isFinite(n)) continue;
 
-            // Guardamos como string tal cual (sin forzar decimales)
             next[v.code][k - 1] = String(n);
           }
-        } catch {
-          // si un var falla, igual cargamos lo demás
-        }
+        } catch {}
       }
 
       setMat(next);
     } catch {
-      // silencioso como venías manejando
     } finally {
       setLoadingExisting(false);
     }
@@ -205,25 +215,10 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sid]);
 
-  // validación global: rangos + secuencial por columna
-  const colStatus = useMemo(() => {
-    const o: Record<VarCode, { ok: boolean; firstGapAt: number | null; firstInvalidAt: number | null }> = {} as any;
-    for (const v of VARS) o[v.code] = validateSequentialColumn(v.kind, mat[v.code] || []);
-    return o;
-  }, [mat]);
-
-  const allValid = useMemo(() => {
-    if (!sid || !isShiftId(sid)) return false;
-    return VARS.every((v) => colStatus[v.code]?.ok);
-  }, [sid, colStatus]);
-
-  const canSave = useMemo(() => allValid && !saving, [allValid, saving]);
-
   function buildItems(varCode: VarCode) {
     const arr = mat[varCode] || blank12();
     const items: { sample_no: number; val: number }[] = [];
 
-    // Por regla secuencial, mandamos desde 1 hasta el primer vacío/0
     for (let i = 0; i < 12; i++) {
       const s = String(arr[i] ?? "").trim();
       if (!s) break;
@@ -235,22 +230,14 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     return items;
   }
 
-  function pctToDecimalOrNull(avg: number | null) {
-    if (avg === null) return null;
-    if (!Number.isFinite(avg)) return null;
-    if (avg < 1 || avg > 100) return null;
-    return avg / 100;
-  }
-
   async function onSave() {
     if (!sid || !isShiftId(sid)) {
       setMsg("ERROR: shift_id inválido");
       return;
     }
 
-    // refuerzo: no guardes si hay gaps/invalids
     if (!allValid) {
-      setMsg("ERROR: corrige celdas inválidas o saltos de fila (debe ser secuencial).");
+      setMsg("ERROR: corrige celdas inválidas o saltos de fila.");
       return;
     }
 
@@ -258,16 +245,12 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     setMsg(null);
 
     try {
-      // 1) replace por variable
       for (const v of VARS) {
-        const items = buildItems(v.code);
-        const payload = { shift_id: sid, var_code: v.code, items };
-
+        const payload = { shift_id: sid, var_code: v.code, items: buildItems(v.code) };
         const rr = (await apiPost("/api/planta/production/replace", payload)) as ReplaceResp;
         if (!rr?.ok) throw new Error(rr?.error || `Error guardando ${v.code}`);
       }
 
-      // 2) upsert de promedios (stg.plant_facts) usando tu endpoint existente
       const payloadFacts = {
         shift_id: sid,
         density_of: avgs.DENSITY_OF,
@@ -282,7 +265,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
 
       await apiPost("/api/planta/produccion/upsert", payloadFacts);
 
-      setMsg(`OK: guardado ${sid} · Producción (matriz + promedios)`);
+      setMsg(`OK: guardado ${sid} · Producción`);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando producción");
     } finally {
@@ -290,44 +273,62 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     }
   }
 
-  // estilos simples tipo matriz (no “Inputs con hint”)
-  const cellStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "8px 10px",
-    border: "1px solid rgba(255,255,255,.10)",
-    borderRadius: 10,
-    background: "rgba(255,255,255,.04)",
-    outline: "none",
-    fontWeight: 800,
+  const headerBg = "rgb(6, 36, 58)";
+  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const gridV = "2px solid rgba(191, 231, 255, 0.16)";
+  const gridH = "2px solid rgba(191, 231, 255, 0.10)";
+  const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
+
+  const stickyHead: React.CSSProperties = {
+    position: "sticky",
+    top: 0,
+    zIndex: 8,
+    background: headerBg,
+    boxShadow: headerShadow,
   };
 
-  const headerCell: React.CSSProperties = {
+  const cellBase: React.CSSProperties = {
+    padding: "6px 8px",
     fontSize: 12,
-    fontWeight: 900,
-    opacity: 0.9,
-    padding: "6px 6px 10px 6px",
+    lineHeight: "14px",
+    whiteSpace: "nowrap",
   };
 
-  const subNote: React.CSSProperties = { fontSize: 11, fontWeight: 800, opacity: 0.75 };
+  const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
+
+  const inputCell: React.CSSProperties = {
+    width: "100%",
+    border: "1px solid rgba(191,231,255,.18)",
+    background: "rgba(0,0,0,.10)",
+    color: "white",
+    fontWeight: 900,
+    padding: "6px 8px",
+    borderRadius: 8,
+    outline: "none",
+    textAlign: "right",
+    fontSize: 12,
+    lineHeight: "14px",
+  };
+
+  const errInput: React.CSSProperties = {
+    border: "1px solid rgba(255,80,80,.55)",
+    background: "rgba(255,80,80,.10)",
+  };
+
+  const rowBg = "rgba(0,0,0,.10)";
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 1180 }}>
-      <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
+    <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
+      <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Producción</div>
 
         <div className="muted" style={{ fontWeight: 800, marginLeft: 8 }}>
           Guardia: {sid || "—"}
         </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => sid && loadExisting(sid)}
-            disabled={!sid || loadingExisting || saving}
-          >
-            {loadingExisting ? "Cargando..." : "Refrescar"}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          <Button type="button" size="sm" variant="default" onClick={() => sid && loadExisting(sid)} disabled={!sid || loadingExisting || saving}>
+            {loadingExisting ? "Cargando…" : "Refrescar"}
           </Button>
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
             {saving ? "Guardando…" : "Guardar"}
@@ -339,7 +340,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
         <div
           className="panel-inner"
           style={{
-            padding: 12,
+            padding: 10,
             border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
             background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
             fontWeight: 800,
@@ -349,141 +350,111 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 14 }}>
-        {!sid ? (
-          <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
-            Selecciona una guardia en el page.
-          </div>
-        ) : null}
-
-        <div style={{ display: "grid", gap: 10 }}>
-          {/* encabezados */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: `70px repeat(${VARS.length}, minmax(140px, 1fr))`,
-              gap: 10,
-              alignItems: "end",
-            }}
-          >
-            <div style={headerCell}>#</div>
-            {VARS.map((v) => {
-              const st = colStatus[v.code];
-              const hasErr = sid && !st.ok;
-              const errText = hasErr
-                ? st.firstInvalidAt
-                  ? `Inválido en fila ${st.firstInvalidAt}`
-                  : st.firstGapAt
-                  ? `Salto en fila ${st.firstGapAt}`
-                  : "Revisa valores"
-                : " ";
-
-              return (
-                <div key={v.code} style={{ ...headerCell }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-                    <div>{v.label}</div>
-                    <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.9 }}>Prom: {fmt(avgs[v.code], 3)}</div>
-                  </div>
-                  <div style={{ ...subNote, color: hasErr ? "rgba(255,120,120,.95)" : "rgba(255,255,255,.55)" }}>
-                    {hasErr ? errText : "Secuencial (sin saltos) · 0/vacío = no se manda"}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* filas 1..12 */}
-          {Array.from({ length: 12 }).map((_, rIdx) => (
-            <div
-              key={rIdx}
-              style={{
-                display: "grid",
-                gridTemplateColumns: `70px repeat(${VARS.length}, minmax(140px, 1fr))`,
-                gap: 10,
-                alignItems: "center",
-              }}
-            >
-              <div className="muted" style={{ fontWeight: 900, textAlign: "center" }}>
-                {rIdx + 1}
-              </div>
+      <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
+        <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
+          <thead>
+            <tr>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "center", padding: "8px 8px", fontSize: 12, minWidth: 52 }}>
+                #
+              </th>
 
               {VARS.map((v) => {
-                const value = mat[v.code]?.[rIdx] ?? "";
                 const st = colStatus[v.code];
-                const invalidCell = !validateCell(v.kind, value);
-
-                // bloqueo suave: si hay gap, no dejes editar filas posteriores al gap (para guiar al usuario)
-                // (igual la validación ya evita guardar)
-                let disabled = !sid || saving || loadingExisting;
-                if (sid && st && !st.ok && st.firstGapAt && rIdx + 1 >= st.firstGapAt) {
-                  // deja editar la fila del gap para corregir, pero bloquea después
-                  disabled = disabled || (rIdx + 1 > st.firstGapAt);
-                }
+                const hasErr = !!sid && !st.ok;
+                const title = hasErr
+                  ? st.firstInvalidAt
+                    ? `Inválido en fila ${st.firstInvalidAt}`
+                    : st.firstGapAt
+                    ? `Salto en fila ${st.firstGapAt}`
+                    : "Revisa"
+                  : "";
 
                 return (
-                  <input
+                  <th
                     key={v.code}
-                    value={value}
-                    disabled={disabled}
-                    onChange={(e) => setCell(v.code, rIdx, e.target.value)}
-                    inputMode="decimal"
-                    placeholder=""
+                    className="capex-th"
                     style={{
-                      ...cellStyle,
-                      border: invalidCell
-                        ? "1px solid rgba(255,80,80,.55)"
-                        : "1px solid rgba(255,255,255,.10)",
-                      background: invalidCell ? "rgba(255,80,80,.08)" : "rgba(255,255,255,.04)",
+                      ...stickyHead,
+                      border: headerBorder,
+                      borderBottom: headerBorder,
+                      textAlign: "left",
+                      padding: "8px 8px",
+                      fontSize: 12,
+                      minWidth: 140,
                     }}
-                  />
+                    title={title}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+                      <div style={{ fontWeight: 900 }}>{v.label}</div>
+                      <div style={{ fontWeight: 900, opacity: 0.95 }}>{fmtAvg(avgs[v.code], 3)}</div>
+                    </div>
+                  </th>
                 );
               })}
-            </div>
-          ))}
+            </tr>
+          </thead>
 
-          {loadingExisting ? (
-            <div className="muted" style={{ fontWeight: 800 }}>
-              Cargando datos existentes…
-            </div>
-          ) : null}
+          <tbody>
+            {Array.from({ length: 12 }).map((_, rIdx) => {
+              const rowBorder = gridH;
 
-          {/* feedback promedios (extra) */}
-          <div
-            className="muted"
-            style={{
-              marginTop: 6,
-              fontSize: 12,
-              fontWeight: 800,
-              opacity: 0.9,
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div style={{ fontWeight: 900 }}>Promedios actuales (lo que se manda a stg.plant_facts):</div>
-            <div style={{ display: "grid", gap: 4 }}>
-              <div>
-                Densidad: <span style={{ fontWeight: 900 }}>{fmt(avgs.DENSITY_OF, 3)}</span>
-              </div>
-              <div>
-                %-m-200: <span style={{ fontWeight: 900 }}>{fmt(avgs.PCT_200, 3)}</span> (se guarda como{" "}
-                <span style={{ fontWeight: 900 }}>{fmt(pctToDecimalOrNull(avgs.PCT_200) as any, 6)}</span>)
-              </div>
-              <div>
-                NaCN OF/TK1/TK11:{" "}
-                <span style={{ fontWeight: 900 }}>
-                  {fmt(avgs.NACN_OF, 3)} / {fmt(avgs.NACN_ADS, 3)} / {fmt(avgs.NACN_TAIL, 3)}
-                </span>{" "}
-                (se guarda como decimales 0–1)
-              </div>
-              <div>
-                pH OF/TK1/TK11:{" "}
-                <span style={{ fontWeight: 900 }}>
-                  {fmt(avgs.PH_OF, 3)} / {fmt(avgs.PH_ADS, 3)} / {fmt(avgs.PH_TAIL, 3)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+              return (
+                <tr key={rIdx} className="capex-tr">
+                  <td className="capex-td capex-td-strong" style={{ ...cellBase, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, textAlign: "center", fontWeight: 900 }}>
+                    {rIdx + 1}
+                  </td>
+
+                  {VARS.map((v) => {
+                    const value = mat[v.code]?.[rIdx] ?? "";
+                    const st = colStatus[v.code];
+                    const invalidCell = !validateCell(v.kind, value);
+
+                    let disabled = !sid || saving || loadingExisting;
+                    if (sid && st && !st.ok && st.firstGapAt && rIdx + 1 >= st.firstGapAt) {
+                      disabled = disabled || (rIdx + 1 > st.firstGapAt);
+                    }
+
+                    return (
+                      <td key={v.code} className="capex-td" style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, padding: "6px 8px" }}>
+                        <input
+                          value={value}
+                          disabled={disabled}
+                          onChange={(e) => setCell(v.code, rIdx, (e.target as any).value)}
+                          inputMode="decimal"
+                          style={{ ...inputCell, ...(invalidCell ? errInput : {}) }}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+
+            {!sid ? (
+              <tr className="capex-tr">
+                <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={1 + VARS.length}>
+                  Selecciona una guardia en el page.
+                </td>
+              </tr>
+            ) : null}
+
+            {sid && !loadingExisting && !allValid ? (
+              <tr className="capex-tr">
+                <td className="capex-td" style={{ ...cellBase, fontWeight: 900, color: "rgba(255,120,120,.95)" }} colSpan={1 + VARS.length}>
+                  Corrige columnas con error (valores inválidos o saltos).
+                </td>
+              </tr>
+            ) : null}
+
+            {loadingExisting ? (
+              <tr className="capex-tr">
+                <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={1 + VARS.length}>
+                  Cargando datos existentes…
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </Table>
       </div>
     </div>
   );
