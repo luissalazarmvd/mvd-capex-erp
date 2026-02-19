@@ -428,9 +428,9 @@ export default function GuardiaPage() {
     };
   }, [computedLive, headerExisting]);
 
-  function fmt(v: number, d: number) {
+  function fmt2(v: number) {
     if (!Number.isFinite(v)) return "—";
-    return v.toFixed(d);
+    return v.toFixed(2);
   }
 
   const canSave = useMemo(() => {
@@ -580,28 +580,25 @@ export default function GuardiaPage() {
     try {
       const hasAnyPiles = payloadItemsLive.length > 0;
 
-      if (hasAnyPiles) {
-        await apiPost("/api/planta/pilas/replace", { shift_id, items: payloadItemsLive });
-      }
-
-      const baseBody: any = {
+      const body: any = {
         shift_date: form.shift_date,
         plant_shift: form.plant_shift,
         plant_supervisor: form.plant_supervisor,
         shift_comment: String(form.shift_comment || "").slice(0, COMMENT_MAX),
       };
 
-      const body = hasAnyPiles
-        ? {
-            ...baseBody,
-            tmh: Number.isFinite(computedLive.tmh_sum) ? computedLive.tmh_sum : null,
-            h2o_pct: Number.isFinite(computedLive.h2o_w) ? computedLive.h2o_w : null,
-            au_feed: Number.isFinite(computedLive.au_w) ? computedLive.au_w : null,
-            ag_feed: Number.isFinite(computedLive.ag_w) ? computedLive.ag_w : null,
-          }
-        : baseBody;
+      if (hasAnyPiles) {
+        body.tmh = Number.isFinite(computedLive.tmh_sum) ? computedLive.tmh_sum : null;
+        body.h2o_pct = Number.isFinite(computedLive.h2o_w) ? computedLive.h2o_w : null;
+        body.au_feed = Number.isFinite(computedLive.au_w) ? computedLive.au_w : null;
+        body.ag_feed = Number.isFinite(computedLive.ag_w) ? computedLive.ag_w : null;
+      }
 
       await apiPost("/api/planta/guardia/upsert", body);
+
+      if (hasAnyPiles) {
+        await apiPost("/api/planta/pilas/replace", { shift_id, items: payloadItemsLive });
+      }
 
       setMsg(`OK: guardado ${shift_id}`);
 
@@ -692,11 +689,11 @@ export default function GuardiaPage() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
-            <StatCard title="TMH" value={displayAgg.has ? fmt(displayAgg.tmh_sum, 3) : "—"} />
-            <StatCard title="% Humedad" value={displayAgg.has ? fmt(displayAgg.h2o_w, 3) : "—"} />
-            <StatCard title="TMS" value={displayAgg.has ? fmt(displayAgg.tms_sum, 3) : "—"} />
-            <StatCard title="Ley de Au" value={displayAgg.has ? fmt(displayAgg.au_w, 4) : "—"} sub="g/t" />
-            <StatCard title="Ley de Ag" value={displayAgg.has ? fmt(displayAgg.ag_w, 4) : "—"} sub="g/t" />
+            <StatCard title="TMH" value={displayAgg.has ? fmt2(displayAgg.tmh_sum) : "—"} />
+            <StatCard title="% Humedad" value={displayAgg.has ? fmt2(displayAgg.h2o_w) : "—"} />
+            <StatCard title="TMS" value={displayAgg.has ? fmt2(displayAgg.tms_sum) : "—"} />
+            <StatCard title="Ley de Au" value={displayAgg.has ? fmt2(displayAgg.au_w) : "—"} sub="g/t" />
+            <StatCard title="Ley de Ag" value={displayAgg.has ? fmt2(displayAgg.ag_w) : "—"} sub="g/t" />
           </div>
 
           <div style={{ display: "grid", gap: 8 }}>
@@ -846,25 +843,25 @@ export default function GuardiaPage() {
                     <td style={tfLabel}>Totales</td>
                     <td style={tf}></td>
                     <td style={tf}>
-                      <div style={{ fontWeight: 950 }}>TMH: {computedLive.has ? fmt(computedLive.tmh_sum, 3) : "—"}</div>
+                      <div style={{ fontWeight: 950 }}>TMH: {computedLive.has ? fmt2(computedLive.tmh_sum) : "—"}</div>
                       <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
-                        TMS: {computedLive.has ? fmt(computedLive.tms_sum, 3) : "—"}
+                        TMS: {computedLive.has ? fmt2(computedLive.tms_sum) : "—"}
                       </div>
                     </td>
                     <td style={tf}>
-                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt(computedLive.h2o_w, 3) : "—"}</div>
+                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt2(computedLive.h2o_w) : "—"}</div>
                       <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
                         %H2O pond.
                       </div>
                     </td>
                     <td style={tf}>
-                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt(computedLive.au_w, 4) : "—"}</div>
+                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt2(computedLive.au_w) : "—"}</div>
                       <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
                         Ley Au pond.
                       </div>
                     </td>
                     <td style={tf}>
-                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt(computedLive.ag_w, 4) : "—"}</div>
+                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt2(computedLive.ag_w) : "—"}</div>
                       <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
                         Ley Ag pond.
                       </div>
