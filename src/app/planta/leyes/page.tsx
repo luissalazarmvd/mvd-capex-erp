@@ -1,4 +1,4 @@
-// src/app/planta/duracion/page.tsx
+// src/app/planta/leyes/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -19,13 +19,17 @@ type ShiftsResp = {
   error?: string;
 };
 
-type GuardiaGetResp = {
+type GuardiaHeader = {
+  au_solid_tail?: any;
+  au_solu_tail?: any;
+  ag_solid_tail?: any;
+  ag_solu_tail?: any;
+};
+
+type GuardiaResp = {
   ok: boolean;
   shift_id: string;
-  header: any | null;
-  consumables: any[];
-  balls: any[];
-  duration: { shift_id: string; op_type: string; shift_duration: number | null }[];
+  header: GuardiaHeader | null;
   error?: string;
 };
 
@@ -46,25 +50,20 @@ function parseShiftIdToQuery(shift_id: string): { date: string; shift: "A" | "B"
   return { date, shift };
 }
 
-function clampInt(n: number, min: number, max: number) {
-  if (!Number.isFinite(n)) return min;
-  const x = Math.trunc(n);
-  return Math.max(min, Math.min(max, x));
+function toTextNum(v: any) {
+  if (v === null || v === undefined || v === "") return "";
+  const n = Number(String(v).trim());
+  return Number.isFinite(n) ? String(n) : "";
 }
 
-function parseIntSafeNonNeg(s: string) {
+function parseNullableNumberNonNeg(s: string) {
   const t = String(s ?? "").trim();
-  if (!t) return 0;
-  const n = Number(t);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.trunc(n));
-}
-
-function fmtMinToHHMM(mins: number) {
-  const m = clampInt(mins, 0, 24 * 60);
-  const hh = String(Math.floor(m / 60)).padStart(2, "0");
-  const mm = String(m % 60).padStart(2, "0");
-  return `${hh}:${mm}`;
+  if (!t) return null;
+  const normalized = t.replace(/\s+/g, "").replace(",", ".");
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return NaN;
+  if (n < 0) return NaN;
+  return n;
 }
 
 function SearchableDropdown({
@@ -217,7 +216,7 @@ function SearchableDropdown({
   );
 }
 
-export default function PlantaDuracionPage() {
+export default function RelavePage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const [loadingShifts, setLoadingShifts] = useState(true);
@@ -227,10 +226,10 @@ export default function PlantaDuracionPage() {
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [shiftId, setShiftId] = useState<string>("");
 
-  const [opH, setOpH] = useState<string>("");
-  const [opM, setOpM] = useState<string>("");
-  const [stopH, setStopH] = useState<string>("");
-  const [stopM, setStopM] = useState<string>("");
+  const [auSolid, setAuSolid] = useState<string>("");
+  const [auSolu, setAuSolu] = useState<string>("");
+  const [agSolid, setAgSolid] = useState<string>("");
+  const [agSolu, setAgSolu] = useState<string>("");
 
   const shiftsSorted = useMemo(() => {
     const list = Array.isArray(shifts) ? [...shifts] : [];
@@ -251,6 +250,29 @@ export default function PlantaDuracionPage() {
     return `${s.shift_id}${sup}`;
   };
 
+  const canSave = useMemo(() => {
+    if (saving) return false;
+    const sid = String(shiftId || "").trim();
+    if (!sid) return false;
+
+    const a1 = parseNullableNumberNonNeg(auSolid);
+    const a2 = parseNullableNumberNonNeg(auSolu);
+    const g1 = parseNullableNumberNonNeg(agSolid);
+    const g2 = parseNullableNumberNonNeg(agSolu);
+
+    const arr = [a1, a2, g1, g2];
+
+    const anyFilled = [auSolid, auSolu, agSolid, agSolu].some((x) => String(x || "").trim() !== "");
+    if (!anyFilled) return false;
+
+    for (const v of arr) {
+      if (v === null) continue;
+      if (!Number.isFinite(v) || v <= 0) return false;
+    }
+
+    return true;
+  }, [shiftId, auSolid, auSolu, agSolid, agSolu, saving]);
+
   async function loadShifts() {
     setLoadingShifts(true);
     setMsg(null);
@@ -267,11 +289,11 @@ export default function PlantaDuracionPage() {
     }
   }
 
-  function clearFields() {
-    setOpH("");
-    setOpM("");
-    setStopH("");
-    setStopM("");
+  function clearEntryFields() {
+    setAuSolid("");
+    setAuSolu("");
+    setAgSolid("");
+    setAgSolu("");
   }
 
   async function loadExistingForShift(sid: string) {
@@ -279,44 +301,20 @@ export default function PlantaDuracionPage() {
     if (!q) return;
 
     setLoadingExisting(true);
-    // OJO: NO borres msg acá, si no se “come” el OK después de guardar.
 
     try {
       const r = (await apiGet(
         `/api/planta/guardia/get?date=${encodeURIComponent(q.date)}&shift=${encodeURIComponent(q.shift)}`
-      )) as GuardiaGetResp;
+      )) as any;
 
-      if (!(r as any)?.ok) throw new Error((r as any)?.error || "No se pudo cargar guardia");
-
-      let opMinDb: number | null = null;
-      let stopMinDb: number | null = null;
-
-      for (const d of r.duration || []) {
-        const t = String(d.op_type || "").toLowerCase();
-        if (t.includes("oper")) opMinDb = d.shift_duration ?? null;
-        if (t.includes("para")) stopMinDb = d.shift_duration ?? null;
-      }
-
-      if (opMinDb !== null && Number.isFinite(opMinDb)) {
-        const v = clampInt(opMinDb, 0, 720);
-        setOpH(String(Math.floor(v / 60)));
-        setOpM(String(v % 60));
-      } else {
-        setOpH("");
-        setOpM("");
-      }
-
-      if (stopMinDb !== null && Number.isFinite(stopMinDb)) {
-        const v = clampInt(stopMinDb, 0, 720);
-        setStopH(String(Math.floor(v / 60)));
-        setStopM(String(v % 60));
-      } else {
-        setStopH("");
-        setStopM("");
-      }
+      const h: GuardiaHeader = (r?.header as any) || {};
+      setAuSolid(toTextNum(h.au_solid_tail));
+      setAuSolu(toTextNum(h.au_solu_tail));
+      setAgSolid(toTextNum(h.ag_solid_tail));
+      setAgSolu(toTextNum(h.ag_solu_tail));
     } catch (e: any) {
-      clearFields();
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando duración");
+      clearEntryFields();
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando relave");
     } finally {
       setLoadingExisting(false);
     }
@@ -328,59 +326,61 @@ export default function PlantaDuracionPage() {
 
   useEffect(() => {
     setMsg(null);
+
     if (!shiftId) {
-      clearFields();
+      clearEntryFields();
       return;
     }
     loadExistingForShift(shiftId);
   }, [shiftId]);
 
-  const opMin = useMemo(() => {
-    const h = parseIntSafeNonNeg(opH);
-    const m = parseIntSafeNonNeg(opM);
-    return h * 60 + m;
-  }, [opH, opM]);
-
-  const stopMin = useMemo(() => {
-    const h = parseIntSafeNonNeg(stopH);
-    const m = parseIntSafeNonNeg(stopM);
-    return h * 60 + m;
-  }, [stopH, stopM]);
-
-  const total = opMin + stopMin;
-
-  const canSave = useMemo(() => {
-    if (saving) return false;
-    const sid = String(shiftId || "").trim();
-    if (!sid) return false;
-    if (total !== 720) return false;
-    return true;
-  }, [shiftId, total, saving]);
-
   async function onSave() {
     setMsg(null);
 
-    if (!canSave) {
-      setMsg("ERROR: Operación + Parada debe sumar 720 min.");
+    const sid = String(shiftId || "").trim().toUpperCase();
+    if (!sid) {
+      setMsg("ERROR: Selecciona un turno (shift_id).");
       return;
     }
 
-    const sid = String(shiftId || "").trim().toUpperCase();
+    const a1 = parseNullableNumberNonNeg(auSolid);
+    const a2 = parseNullableNumberNonNeg(auSolu);
+    const g1 = parseNullableNumberNonNeg(agSolid);
+    const g2 = parseNullableNumberNonNeg(agSolu);
+
+    const values = [a1, a2, g1, g2];
+    const raw = [auSolid, auSolu, agSolid, agSolu];
+
+    const anyFilled = raw.some((x) => String(x || "").trim() !== "");
+    if (!anyFilled) {
+      setMsg("ERROR: Ingresa al menos un valor.");
+      return;
+    }
+
+    for (const v of values) {
+      if (v === null) continue;
+      if (!Number.isFinite(v) || v <= 0) {
+        setMsg("ERROR: Si llenas un valor, debe ser numérico y mayor a 0.");
+        return;
+      }
+    }
 
     setSaving(true);
     try {
-      const r = (await apiPost("/api/planta/duracion/upsert", {
-        shift_id: sid,
-        op_min: opMin,
-        stop_min: stopMin,
-      })) as UpsertResp;
+      const payload: any = { shift_id: sid };
 
+      payload.au_solid_tail = a1 === null ? null : a1;
+      payload.au_solu_tail = a2 === null ? null : a2;
+      payload.ag_solid_tail = g1 === null ? null : g1;
+      payload.ag_solu_tail = g2 === null ? null : g2;
+
+      const r = (await apiPost(`/api/planta/relave/upsert`, payload)) as UpsertResp;
       if (!r?.ok) throw new Error(r?.error || "No se pudo guardar");
 
-      setMsg(`OK: guardado ${sid} · Duración`);
+      setMsg(`OK: guardado ${sid} · Relave`);
       await loadExistingForShift(sid);
     } catch (e: any) {
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando duración");
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando relave");
     } finally {
       setSaving(false);
     }
@@ -389,10 +389,20 @@ export default function PlantaDuracionPage() {
   return (
     <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Duración</div>
+        <div style={{ fontWeight: 900 }}>Relave</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave || loadingExisting}>
+          <Button type="button" size="sm" variant="ghost" onClick={loadShifts} disabled={loadingShifts || saving}>
+            {loadingShifts ? "Cargando..." : "Refrescar"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            onClick={onSave}
+            disabled={!canSave || loadingExisting}
+            title={loadingExisting ? "Cargando datos existentes..." : ""}
+          >
             {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
@@ -439,57 +449,55 @@ export default function PlantaDuracionPage() {
             </div>
           ) : null}
 
-          <div style={{ display: "grid", gap: 10 }}>
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Duración - Operación (h)</div>
-              <Input
-                value={opH}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOpH(e.target.value.replace(/[^\d]/g, ""))}
-                hint=""
-                disabled={saving || loadingExisting || !shiftId}
-              />
-            </div>
-
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Duración - Operación (min)</div>
-              <Input
-                value={opM}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOpM(e.target.value.replace(/[^\d]/g, ""))}
-                hint=""
-                disabled={saving || loadingExisting || !shiftId}
-              />
-            </div>
-
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Duración - Parada (h)</div>
-              <Input
-                value={stopH}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStopH(e.target.value.replace(/[^\d]/g, ""))}
-                hint=""
-                disabled={saving || loadingExisting || !shiftId}
-              />
-            </div>
-
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Duración - Parada (min)</div>
-              <Input
-                value={stopM}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStopM(e.target.value.replace(/[^\d]/g, ""))}
-                hint=""
-                disabled={saving || loadingExisting || !shiftId}
-              />
-            </div>
-
-            <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
-              Total: {fmtMinToHHMM(total)} (debe ser {fmtMinToHHMM(720)})
-            </div>
-
-            {loadingExisting ? (
-              <div className="muted" style={{ fontWeight: 800 }}>
-                Cargando datos existentes…
-              </div>
-            ) : null}
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido Relave (g/t)</div>
+            <Input
+              placeholder="vacío o > 0"
+              value={auSolid}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolid(e.target.value)}
+              hint=""
+            />
           </div>
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución Relave (g/m³)</div>
+            <Input
+              placeholder="vacío o > 0"
+              value={auSolu}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolu(e.target.value)}
+              hint=""
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido Relave (g/t)</div>
+            <Input
+              placeholder="vacío o > 0"
+              value={agSolid}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolid(e.target.value)}
+              hint=""
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución Relave (g/m³)</div>
+            <Input
+              placeholder="vacío o > 0"
+              value={agSolu}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolu(e.target.value)}
+              hint=""
+            />
+          </div>
+
+          <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+            Guardado por turno (shift_id). Si dejas campos vacíos, no se actualizan.
+          </div>
+
+          {loadingExisting ? (
+            <div className="muted" style={{ fontWeight: 800 }}>
+              Cargando datos existentes…
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

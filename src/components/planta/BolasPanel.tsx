@@ -1,22 +1,10 @@
-// src/app/planta/bolas/page.tsx
+// src/components/planta/BolasPanel.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { apiGet, apiPost } from "../../../lib/apiClient";
-import { Input } from "../../../components/ui/Input";
-import { Button } from "../../../components/ui/Button";
-
-type ShiftRow = {
-  shift_id: string;
-  shift_date: string;
-  plant_shift: string;
-  plant_supervisor?: string | null;
-};
-
-type ShiftsResp = {
-  ok: boolean;
-  shifts: ShiftRow[];
-};
+import { apiGet, apiPost } from "../../lib/apiClient";
+import { Input } from "../ui/Input";
+import { Button } from "../ui/Button";
 
 type GuardiaGetResp = {
   ok: boolean;
@@ -212,165 +200,13 @@ function Select({
   );
 }
 
-function SearchableDropdown({
-  label,
-  placeholder,
-  value,
-  items,
-  getKey,
-  getLabel,
-  onSelect,
-  disabled,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  items: any[];
-  getKey: (x: any) => string;
-  getLabel: (x: any) => string;
-  onSelect: (x: any) => void;
-  disabled?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const boxRef = useRef<HTMLDivElement | null>(null);
-
-  const filtered = useMemo(() => {
-    const qq = q.trim().toLowerCase();
-    if (!qq) return items;
-    return items.filter((it) => {
-      const a = getLabel(it).toLowerCase();
-      const b = getKey(it).toLowerCase();
-      return a.includes(qq) || b.includes(qq);
-    });
-  }, [q, items, getKey, getLabel]);
-
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (!boxRef.current) return;
-      if (!boxRef.current.contains(e.target as any)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  return (
-    <div ref={boxRef} style={{ display: "grid", gap: 6, position: "relative" }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
-
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <input
-          value={open ? q : value}
-          placeholder={placeholder}
-          disabled={disabled}
-          onFocus={() => {
-            if (disabled) return;
-            setOpen(true);
-            setQ("");
-          }}
-          onChange={(e) => {
-            setOpen(true);
-            setQ(e.target.value);
-          }}
-          style={{
-            width: "100%",
-            background: "rgba(0,0,0,.10)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-            borderRadius: 10,
-            padding: "10px 12px",
-            outline: "none",
-            fontWeight: 900,
-            opacity: disabled ? 0.7 : 1,
-          }}
-        />
-
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => setOpen((s) => !s)}
-          style={{
-            width: 44,
-            height: 42,
-            borderRadius: 10,
-            border: "1px solid var(--border)",
-            background: "rgba(0,0,0,.10)",
-            cursor: disabled ? "not-allowed" : "pointer",
-            opacity: disabled ? 0.7 : 1,
-            fontWeight: 900,
-            color: "var(--text)",
-          }}
-          aria-label="Abrir"
-          title="Abrir"
-        >
-          ▾
-        </button>
-      </div>
-
-      {open ? (
-        <div
-          style={{
-            position: "absolute",
-            top: 72,
-            left: 0,
-            right: 0,
-            zIndex: 20,
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            background: "var(--panel)",
-            boxShadow: "0 10px 24px rgba(0,0,0,.25)",
-            maxHeight: 280,
-            overflow: "auto",
-          }}
-        >
-          {filtered.length ? (
-            filtered.map((it) => {
-              const k = getKey(it);
-              const lbl = getLabel(it);
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => {
-                    onSelect(it);
-                    setOpen(false);
-                  }}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "10px 12px",
-                    border: "none",
-                    background: "transparent",
-                    cursor: "pointer",
-                    color: "var(--text)",
-                    fontWeight: 900,
-                    borderBottom: "1px solid rgba(255,255,255,.06)",
-                  }}
-                >
-                  {lbl}
-                </button>
-              );
-            })
-          ) : (
-            <div className="muted" style={{ padding: 12, fontWeight: 800 }}>
-              No hay resultados
-            </div>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-export default function BolasPage() {
+export default function BolasPanel({ shiftId }: { shiftId: string }) {
   const [msg, setMsg] = useState<string | null>(null);
 
-  const [loadingShifts, setLoadingShifts] = useState(true);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [shifts, setShifts] = useState<ShiftRow[]>([]);
-  const [shiftId, setShiftId] = useState<string>("");
+  const sid = useMemo(() => String(shiftId || "").trim().toUpperCase(), [shiftId]);
 
   const [mill, setMill] = useState<string>("");
   const [size, setSize] = useState<string>("");
@@ -379,32 +215,12 @@ export default function BolasPage() {
   const [existingBalls, setExistingBalls] = useState<GuardiaGetResp["balls"]>([]);
   const [isEditingExisting, setIsEditingExisting] = useState(false);
 
-  const shiftsSorted = useMemo(() => {
-    const list = Array.isArray(shifts) ? [...shifts] : [];
-    list.sort((a, b) => {
-      const ad = String(a.shift_date || "").replaceAll("-", "");
-      const bd = String(b.shift_date || "").replaceAll("-", "");
-      if (ad !== bd) return bd.localeCompare(ad);
-      const ash = String(a.plant_shift || "");
-      const bsh = String(b.plant_shift || "");
-      if (ash !== bsh) return bsh.localeCompare(ash);
-      return String(b.shift_id || "").localeCompare(String(a.shift_id || ""));
-    });
-    return list;
-  }, [shifts]);
-
-  const shiftLabel = (s: ShiftRow) => {
-    const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
-    return `${s.shift_id}${sup}`;
-  };
-
   const canSave = useMemo(() => {
-    const sid = String(shiftId || "").trim();
     const m = String(mill || "").trim();
     const sz = String(size || "").trim();
     const okW = qtyOkNonNeg(weight);
     return !!sid && !!m && !!sz && okW && !saving;
-  }, [shiftId, mill, size, weight, saving]);
+  }, [sid, mill, size, weight, saving]);
 
   const existingMap = useMemo(() => {
     const map = new Map<string, { mill: string; size: string; qty: number }>();
@@ -427,30 +243,14 @@ export default function BolasPage() {
     return raw;
   }, [existingMap]);
 
-  async function loadShifts() {
-    setLoadingShifts(true);
-    setMsg(null);
-    try {
-      const r = (await apiGet("/api/planta/shifts?top=500")) as ShiftsResp;
-      const list = Array.isArray((r as any)?.shifts) ? ((r as any).shifts as ShiftRow[]) : [];
-      setShifts(list);
-      if (list[0]?.shift_id) setShiftId(String(list[0].shift_id || "").trim().toUpperCase());
-    } catch (e: any) {
-      setShifts([]);
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando guardias");
-    } finally {
-      setLoadingShifts(false);
-    }
-  }
-
   function clearEntryFields() {
     setSize("");
     setWeight("");
     setIsEditingExisting(false);
   }
 
-  async function loadExistingForShift(sid: string) {
-    const q = parseShiftIdToQuery(sid);
+  async function loadExistingForShift(nextSid: string) {
+    const q = parseShiftIdToQuery(nextSid);
     if (!q) {
       setExistingBalls([]);
       return;
@@ -472,11 +272,10 @@ export default function BolasPage() {
     }
   }
 
-  function syncWeightFromSelection(nextShiftId: string, nextMill: string, nextSize: string) {
-    const sid = String(nextShiftId || "").trim().toUpperCase();
+  function syncWeightFromSelection(nextSid: string, nextMill: string, nextSize: string) {
     const mm = String(nextMill || "").trim().toUpperCase();
     const sz = String(nextSize || "").trim();
-    if (!sid || !mm || !sz) {
+    if (!nextSid || !mm || !sz) {
       setIsEditingExisting(false);
       return;
     }
@@ -492,30 +291,27 @@ export default function BolasPage() {
     }
   }
 
+  // cuando cambia la guardia desde el page
   useEffect(() => {
-    loadShifts();
-  }, []);
-
-  useEffect(() => {
+    setMsg(null);
     clearEntryFields();
     setMill("");
     setExistingBalls([]);
-    if (shiftId) loadExistingForShift(shiftId);
-  }, [shiftId]);
+    if (sid) loadExistingForShift(sid);
+  }, [sid]);
 
   useEffect(() => {
     clearEntryFields();
   }, [mill]);
 
   useEffect(() => {
-    syncWeightFromSelection(shiftId, mill, size);
-  }, [size, shiftId, mill, existingMap]);
+    syncWeightFromSelection(sid, mill, size);
+  }, [size, sid, mill, existingMap]);
 
   async function onSave() {
     setMsg(null);
     if (!canSave) return;
 
-    const sid = String(shiftId || "").trim().toUpperCase();
     const m = String(mill || "").trim().toUpperCase();
     const sz = String(size || "").trim();
     const wStr = toDecimalStrOrNullFront(weight, 18);
@@ -547,16 +343,26 @@ export default function BolasPage() {
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Bolas</div>
 
+        <div className="muted" style={{ fontWeight: 800, marginLeft: 8 }}>
+          Guardia: {sid || "—"}
+        </div>
+
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={loadShifts} disabled={loadingShifts || saving}>
-            {loadingShifts ? "Cargando..." : "Refrescar"}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => sid && loadExistingForShift(sid)}
+            disabled={!sid || loadingExisting || saving}
+          >
+            {loadingExisting ? "Cargando..." : "Refrescar"}
           </Button>
           <Button
             type="button"
             size="sm"
             variant="primary"
             onClick={onSave}
-            disabled={!canSave || loadingExisting}
+            disabled={!canSave || loadingExisting || !sid}
             title={loadingExisting ? "Cargando datos existentes..." : ""}
           >
             {saving ? "Guardando…" : "Guardar"}
@@ -581,36 +387,11 @@ export default function BolasPage() {
       <div className="panel-inner" style={{ padding: 14 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
           <div style={{ flex: "0 0 520px", display: "grid", gap: 12 }}>
-            <SearchableDropdown
-              label="Guardia"
-              placeholder={loadingShifts ? "Cargando guardias..." : "Busca: 20260205-A, supervisor..."}
-              value={shiftId}
-              items={shiftsSorted}
-              getKey={(x: ShiftRow) => x.shift_id}
-              getLabel={(x: ShiftRow) => shiftLabel(x)}
-              onSelect={(x: ShiftRow) => setShiftId(String(x.shift_id || "").trim().toUpperCase())}
-              disabled={saving}
-            />
-
-            {!shiftsSorted.length ? (
-              <div style={{ display: "grid", gap: 6 }}>
-                <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
-                  Pega el shift_id manual (formato: YYYYMMDD-A o YYYYMMDD-B).
-                </div>
-                <Input
-                  placeholder="Ej: 20260205-A"
-                  value={shiftId}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShiftId(e.target.value.trim().toUpperCase())}
-                  hint="shift_id"
-                />
-              </div>
-            ) : null}
-
             <Select
               label="Molino"
               value={mill}
               onChange={(v) => setMill((v as any) || "")}
-              disabled={saving}
+              disabled={saving || !sid}
               options={[{ value: "", label: "Selecciona..." }, ...MILLS.map((x) => ({ value: x, label: x }))]}
             />
 
@@ -618,7 +399,7 @@ export default function BolasPage() {
               label="Tamaño de Bolas (Pulgadas)"
               value={size}
               onChange={(v) => setSize((v as any) || "")}
-              disabled={saving || loadingExisting || !shiftId || !mill}
+              disabled={saving || loadingExisting || !sid || !mill}
               options={[{ value: "", label: "Selecciona..." }, ...BALL_SIZES.map((x) => ({ value: x, label: x }))]}
             />
 
@@ -633,10 +414,9 @@ export default function BolasPage() {
               <div className="muted" style={{ fontWeight: 800 }}>
                 Cargando datos existentes…
               </div>
-            ) : isEditingExisting && shiftId && mill && size ? (
+            ) : isEditingExisting && sid && mill && size ? (
               <div className="muted" style={{ fontWeight: 800 }}>
-                Editando registro existente para {String(shiftId).trim().toUpperCase()} · {String(mill).trim().toUpperCase()} ·{" "}
-                {String(size).trim()}
+                Editando registro existente para {sid} · {String(mill).trim().toUpperCase()} · {String(size).trim()}
               </div>
             ) : null}
           </div>
@@ -703,7 +483,7 @@ export default function BolasPage() {
                 })
               ) : (
                 <div className="muted" style={{ padding: 12, fontWeight: 800 }}>
-                  {shiftId ? "No hay bolas registradas para esta guardia." : "Selecciona una guardia."}
+                  {sid ? "No hay bolas registradas para esta guardia." : "Selecciona una guardia en el page."}
                 </div>
               )}
             </div>
