@@ -6,10 +6,7 @@ import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 
-type LookupsResp = {
-  ok: boolean;
-  supervisors: string[];
-};
+type LookupsResp = { ok: boolean; supervisors: string[] };
 
 type GuardiaGetResp = {
   ok: boolean;
@@ -300,8 +297,9 @@ export default function GuardiaPage() {
     shift_comment: "",
   });
 
-  const [items, setItems] = useState<PileItem[]>([]);
-  const [rowsComputed, setRowsComputed] = useState<PilesGetResp["rows"]>([]);
+  const [items, setItems] = useState<PileItem[]>([
+    { pile_num: "", i_tmh: "", f_tmh: "", h2o_pct: "", au_feed: "", ag_feed: "" },
+  ]);
 
   const shift_id = useMemo(
     () => buildShiftId(form.shift_date, form.plant_shift),
@@ -322,37 +320,51 @@ export default function GuardiaPage() {
     );
   }, [dateOk, form.plant_shift, form.plant_supervisor, form.shift_comment]);
 
-  const itemsOk = useMemo(() => {
-    // Regla: pile_id válido; decimales >=0; h2o 1..100
-    // Se ignoran filas vacías (pile_num vacío o inválido)
+  const validation = useMemo(() => {
+    // Reglas:
+    // - No permitir pile_id duplicado (solo filas con pile_id válido)
+    // - Peso Final > Peso Inicial
+    // - i_tmh,f_tmh,au,ag >=0 y h2o 1..100 (para filas con pile_id válido)
+    const seen = new Set<string>();
+    let dup = false;
+    let badDelta = false;
+    let badNums = false;
+
     for (const it of items) {
       const pile_id = pileIdFromNum(it.pile_num);
       if (!pile_id) continue;
 
-      const i_tmh = toNumOrNull(it.i_tmh);
-      const f_tmh = toNumOrNull(it.f_tmh);
+      if (seen.has(pile_id)) dup = true;
+      seen.add(pile_id);
+
+      const i = toNumOrNull(it.i_tmh);
+      const f = toNumOrNull(it.f_tmh);
       const h2o = clampStrPct_1to100_OrNull(it.h2o_pct);
       const au = toNumOrNull(it.au_feed);
       const ag = toNumOrNull(it.ag_feed);
 
-      const ok_i = i_tmh !== null && i_tmh >= 0;
-      const ok_f = f_tmh !== null && f_tmh >= 0;
-      const ok_h = h2o !== null;
-      const ok_au = au !== null && au >= 0;
-      const ok_ag = ag !== null && ag >= 0;
+      const okNums = i !== null && f !== null && h2o !== null && au !== null && ag !== null;
+      if (!okNums) {
+        badNums = true;
+        continue;
+      }
 
-      if (!ok_i || !ok_f || !ok_h || !ok_au || !ok_ag) return false;
+      if (i < 0 || f < 0 || au < 0 || ag < 0) badNums = true;
+      if (!(f > i)) badDelta = true;
     }
-    return true;
+
+    return {
+      ok: !dup && !badDelta && !badNums,
+      dup,
+      badDelta,
+      badNums,
+    };
   }, [items]);
 
-  const canSave = useMemo(() => {
-    return headerOk && itemsOk && !!shift_id && !saving;
-  }, [headerOk, itemsOk, shift_id, saving]);
-
-  const computedAgg = useMemo(() => {
-    // No asumimos cómo se deriva tmh/tms de i_tmh y f_tmh:
-    // usamos los campos tmh/tms que devuelve dw.v_plant_piles (vía GET).
+  const computedLive = useMemo(() => {
+    // TMH fila = (f - i)
+    // TMS fila = TMH * (1 - h2o/100)
+    // ponderados por TMS
     let tmh_sum = 0;
     let tms_sum = 0;
 
@@ -360,20 +372,29 @@ export default function GuardiaPage() {
     let w_au = 0;
     let w_ag = 0;
 
-    for (const r of rowsComputed || []) {
-      const tmh = toNumOrNaN(r.tmh);
-      const tms = toNumOrNaN(r.tms);
-      const h2o = toNumOrNaN(r.h2o_pct);
-      const au = toNumOrNaN(r.au_feed);
-      const ag = toNumOrNaN(r.ag_feed);
+    for (const it of items) {
+      const pile_id = pileIdFromNum(it.pile_num);
+      if (!pile_id) continue;
 
-      if (Number.isFinite(tmh)) tmh_sum += tmh;
-      if (Number.isFinite(tms)) {
-        tms_sum += tms;
-        if (Number.isFinite(h2o)) w_h2o += h2o * tms;
-        if (Number.isFinite(au)) w_au += au * tms;
-        if (Number.isFinite(ag)) w_ag += ag * tms;
-      }
+      const i = toNumOrNaN(it.i_tmh);
+      const f = toNumOrNaN(it.f_tmh);
+      const h2o = toNumOrNaN(it.h2o_pct);
+      const au = toNumOrNaN(it.au_feed);
+      const ag = toNumOrNaN(it.ag_feed);
+
+      if (!Number.isFinite(i) || !Number.isFinite(f) || !Number.isFinite(h2o)) continue;
+      const tmh = f - i;
+      if (!Number.isFinite(tmh) || tmh <= 0) continue;
+
+      const tms = tmh * (1 - h2o / 100);
+      if (!Number.isFinite(tms) || tms < 0) continue;
+
+      tmh_sum += tmh;
+      tms_sum += tms;
+
+      if (Number.isFinite(h2o)) w_h2o += h2o * tms;
+      if (Number.isFinite(au)) w_au += au * tms;
+      if (Number.isFinite(ag)) w_ag += ag * tms;
     }
 
     const h2o_w = tms_sum > 0 ? w_h2o / tms_sum : NaN;
@@ -386,14 +407,18 @@ export default function GuardiaPage() {
       h2o_w,
       au_w,
       ag_w,
-      has: (rowsComputed?.length || 0) > 0,
+      has: tms_sum > 0 || tmh_sum > 0,
     };
-  }, [rowsComputed]);
+  }, [items]);
 
   function fmt(v: number, d: number) {
     if (!Number.isFinite(v)) return "—";
     return v.toFixed(d);
   }
+
+  const canSave = useMemo(() => {
+    return headerOk && validation.ok && !!shift_id && !saving;
+  }, [headerOk, validation.ok, shift_id, saving]);
 
   async function loadLookups() {
     setLoadingLookups(true);
@@ -430,19 +455,13 @@ export default function GuardiaPage() {
         }));
         setMsg(`OK: cargado ${r.shift_id}`);
       } else {
-        setForm((s) => ({
-          ...s,
-          shift_comment: "",
-        }));
+        setForm((s) => ({ ...s, shift_comment: "" }));
         setMsg(null);
       }
     } catch (e: any) {
       const m = String(e?.message || "");
-      if (m.includes("400") || m.includes("404")) {
-        setMsg(null);
-      } else {
-        setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando guardia");
-      }
+      if (m.includes("400") || m.includes("404")) setMsg(null);
+      else setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando guardia");
     } finally {
       setLoadingExisting(false);
     }
@@ -454,9 +473,7 @@ export default function GuardiaPage() {
     try {
       const r = (await apiGet(`/api/planta/pilas?shift_id=${encodeURIComponent(shift_id)}`)) as PilesGetResp;
       const rows = r.rows || [];
-      setRowsComputed(rows);
 
-      // Poblar editor desde lo existente (sin tocar supervisor/comentario)
       const mapped: PileItem[] = rows.map((x) => {
         const p = String(x.pile_id || "").toUpperCase().trim(); // "P-10"
         const num = p.startsWith("P-") ? pad2(p.slice(2)) : "";
@@ -470,9 +487,16 @@ export default function GuardiaPage() {
         };
       });
 
-      setItems(mapped.length ? mapped : []);
+      // existente => filas existentes; nuevo => 1 fila lista
+      setItems(
+        mapped.length
+          ? mapped
+          : [{ pile_num: "", i_tmh: "", f_tmh: "", h2o_pct: "", au_feed: "", ag_feed: "" }]
+      );
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando pilas");
+      // fallback: siempre 1 fila lista
+      setItems([{ pile_num: "", i_tmh: "", f_tmh: "", h2o_pct: "", au_feed: "", ag_feed: "" }]);
     } finally {
       setLoadingPiles(false);
     }
@@ -483,10 +507,8 @@ export default function GuardiaPage() {
   }, []);
 
   useEffect(() => {
-    // Cambia turno/fecha: recarga cabecera y pilas existentes
     if (!form.shift_date || (form.plant_shift !== "A" && form.plant_shift !== "B")) {
-      setRowsComputed([]);
-      setItems([]);
+      setItems([{ pile_num: "", i_tmh: "", f_tmh: "", h2o_pct: "", au_feed: "", ag_feed: "" }]);
       return;
     }
     loadHeaderIfAny(form.shift_date, form.plant_shift);
@@ -495,14 +517,16 @@ export default function GuardiaPage() {
   }, [form.shift_date, form.plant_shift]);
 
   function addRow() {
-    setItems((s) => [
-      ...s,
-      { pile_num: "", i_tmh: "", f_tmh: "", h2o_pct: "", au_feed: "", ag_feed: "" },
-    ]);
+    setItems((s) => [...s, { pile_num: "", i_tmh: "", f_tmh: "", h2o_pct: "", au_feed: "", ag_feed: "" }]);
   }
 
   function removeRow(idx: number) {
-    setItems((s) => s.filter((_, i) => i !== idx));
+    setItems((s) => {
+      const next = s.filter((_, i) => i !== idx);
+      return next.length
+        ? next
+        : [{ pile_num: "", i_tmh: "", f_tmh: "", h2o_pct: "", au_feed: "", ag_feed: "" }];
+    });
   }
 
   async function onSave() {
@@ -512,71 +536,40 @@ export default function GuardiaPage() {
     setSaving(true);
 
     try {
-      // 1) replace pilas
+      // 1) replace pilas (ignorando filas sin pile_id válido)
       const payloadItems = items
         .map((it) => {
           const pile_id = pileIdFromNum(it.pile_num);
           if (!pile_id) return null;
 
-          return {
-            pile_id,
-            i_tmh: toNumOrNull(it.i_tmh),
-            f_tmh: toNumOrNull(it.f_tmh),
-            h2o_pct: clampStrPct_1to100_OrNull(it.h2o_pct),
-            au_feed: toNumOrNull(it.au_feed),
-            ag_feed: toNumOrNull(it.ag_feed),
-          };
+          const i = toNumOrNull(it.i_tmh);
+          const f = toNumOrNull(it.f_tmh);
+          const h2o = clampStrPct_1to100_OrNull(it.h2o_pct);
+          const au = toNumOrNull(it.au_feed);
+          const ag = toNumOrNull(it.ag_feed);
+
+          return { pile_id, i_tmh: i, f_tmh: f, h2o_pct: h2o, au_feed: au, ag_feed: ag };
         })
         .filter(Boolean);
 
-      const r1: any = await apiPost("/api/planta/pilas/replace", {
-        shift_id,
-        items: payloadItems,
-      });
+      const r1: any = await apiPost("/api/planta/pilas/replace", { shift_id, items: payloadItems });
 
-      // 2) recargar desde DW para obtener tmh/tms y ponderados (sin asumir fórmula de tmh por pila)
-      const r2 = (await apiGet(`/api/planta/pilas?shift_id=${encodeURIComponent(shift_id)}`)) as PilesGetResp;
-      setRowsComputed(r2.rows || []);
-
-      // 3) upsert facts/header (suma tmh + ponderados por tms)
-      let tmh_sum = 0;
-      let tms_sum = 0;
-      let w_h2o = 0;
-      let w_au = 0;
-      let w_ag = 0;
-
-      for (const row of r2.rows || []) {
-        const tmh = toNumOrNaN(row.tmh);
-        const tms = toNumOrNaN(row.tms);
-        const h2o = toNumOrNaN(row.h2o_pct);
-        const au = toNumOrNaN(row.au_feed);
-        const ag = toNumOrNaN(row.ag_feed);
-
-        if (Number.isFinite(tmh)) tmh_sum += tmh;
-        if (Number.isFinite(tms)) {
-          tms_sum += tms;
-          if (Number.isFinite(h2o)) w_h2o += h2o * tms;
-          if (Number.isFinite(au)) w_au += au * tms;
-          if (Number.isFinite(ag)) w_ag += ag * tms;
-        }
-      }
-
-      const h2o_w = tms_sum > 0 ? w_h2o / tms_sum : null;
-      const au_w = tms_sum > 0 ? w_au / tms_sum : null;
-      const ag_w = tms_sum > 0 ? w_ag / tms_sum : null;
-
+      // 2) upsert guardia (totales/ponderados en vivo)
       await apiPost("/api/planta/guardia/upsert", {
         shift_date: form.shift_date,
         plant_shift: form.plant_shift,
         plant_supervisor: form.plant_supervisor,
-        tmh: Number.isFinite(tmh_sum) ? tmh_sum : null,
-        h2o_pct: h2o_w,
-        au_feed: au_w,
-        ag_feed: ag_w,
+        tmh: Number.isFinite(computedLive.tmh_sum) ? computedLive.tmh_sum : null,
+        h2o_pct: Number.isFinite(computedLive.h2o_w) ? computedLive.h2o_w : null,
+        au_feed: Number.isFinite(computedLive.au_w) ? computedLive.au_w : null,
+        ag_feed: Number.isFinite(computedLive.ag_w) ? computedLive.ag_w : null,
         shift_comment: String(form.shift_comment || "").slice(0, COMMENT_MAX),
       });
 
       setMsg(`OK: guardado ${shift_id} (pilas insertadas: ${String(r1?.inserted ?? "0")})`);
+
+      // refresca desde GET para campañas existentes (mantiene la misma UX)
+      await loadPiles(shift_id);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando guardia/pilas");
     } finally {
@@ -627,7 +620,7 @@ export default function GuardiaPage() {
 
       <div className="panel-inner" style={{ padding: 14 }}>
         <div style={{ display: "grid", gap: 12 }}>
-          {/* Header: fecha + guardia + supervisor */}
+          {/* Header */}
           <div style={{ display: "grid", gridTemplateColumns: "260px 200px 1fr", gap: 12, alignItems: "end" }}>
             <DatePicker
               valueIso={form.shift_date}
@@ -659,34 +652,19 @@ export default function GuardiaPage() {
             />
           </div>
 
-          {/* Tarjetas de agregados (desde DW luego de cargar/guardar) */}
+          {/* Tarjetas (sin paréntesis; TMS después de %Humedad) */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
-            <StatCard title="TMH (Σ)" value={computedAgg.has ? fmt(computedAgg.tmh_sum, 3) : "—"} sub="desde pilas" />
-            <StatCard title="TMS (Σ)" value={computedAgg.has ? fmt(computedAgg.tms_sum, 3) : "—"} sub="desde pilas" />
-            <StatCard
-              title="%H2O (pond. por TMS)"
-              value={computedAgg.has ? fmt(computedAgg.h2o_w, 3) : "—"}
-              sub="desde pilas"
-            />
-            <StatCard
-              title="Au (pond. por TMS)"
-              value={computedAgg.has ? fmt(computedAgg.au_w, 4) : "—"}
-              sub="g/t"
-            />
-            <StatCard
-              title="Ag (pond. por TMS)"
-              value={computedAgg.has ? fmt(computedAgg.ag_w, 4) : "—"}
-              sub="g/t"
-            />
+            <StatCard title="TMH" value={computedLive.has ? fmt(computedLive.tmh_sum, 3) : "—"} />
+            <StatCard title="% Humedad" value={computedLive.has ? fmt(computedLive.h2o_w, 3) : "—"} />
+            <StatCard title="TMS" value={computedLive.has ? fmt(computedLive.tms_sum, 3) : "—"} />
+            <StatCard title="Ley de Au" value={computedLive.has ? fmt(computedLive.au_w, 4) : "—"} sub="g/t" />
+            <StatCard title="Ley de Ag" value={computedLive.has ? fmt(computedLive.ag_w, 4) : "—"} sub="g/t" />
           </div>
 
-          {/* Editor de pilas */}
+          {/* Pilas */}
           <div style={{ display: "grid", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ fontWeight: 950 }}>Pilas</div>
-              <div className="muted" style={{ fontSize: 12, fontWeight: 800, opacity: 0.8 }}>
-                Inserta filas por pila (P-00 a P-99). Los agregados se calculan desde dw.v_plant_piles luego de cargar/guardar.
-              </div>
 
               <div style={{ marginLeft: "auto" }}>
                 <Button type="button" size="sm" variant="ghost" onClick={addRow} disabled={!shift_id || saving}>
@@ -708,140 +686,160 @@ export default function GuardiaPage() {
                     <th style={{ ...th, width: 46 }} />
                   </tr>
                 </thead>
+
                 <tbody>
-                  {items.length === 0 ? (
-                    <tr>
-                      <td style={tdMuted} colSpan={7}>
-                        No hay filas. Dale a <b>+ Agregar fila</b>.
-                      </td>
-                    </tr>
-                  ) : (
-                    items.map((it, idx) => {
-                      const pile_id = pileIdFromNum(it.pile_num);
-                      const showInvalid = it.pile_num && !pile_id;
+                  {items.map((it, idx) => {
+                    const pile_id = pileIdFromNum(it.pile_num);
+                    const showInvalid = it.pile_num && !pile_id;
 
-                      return (
-                        <tr key={idx}>
-                          <td style={td}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <div style={{ fontWeight: 950, opacity: 0.9 }}>P-</div>
-                              <input
-                                value={it.pile_num}
-                                disabled={saving}
-                                inputMode="numeric"
-                                placeholder="00"
-                                onChange={(e) => {
-                                  const v = pad2(e.target.value);
-                                  setItems((s) => s.map((x, i) => (i === idx ? { ...x, pile_num: v } : x)));
-                                }}
-                                style={{
-                                  width: 60,
-                                  background: "rgba(0,0,0,.10)",
-                                  border: showInvalid ? "1px solid rgba(255,80,80,.60)" : "1px solid var(--border)",
-                                  color: "var(--text)",
-                                  borderRadius: 10,
-                                  padding: "10px 10px",
-                                  outline: "none",
-                                  fontWeight: 900,
-                                }}
-                              />
-                              <div className="muted" style={{ fontSize: 12, fontWeight: 900, opacity: 0.75 }}>
-                                {pile_id || "—"}
-                              </div>
-                            </div>
-                          </td>
-
-                          <td style={td}>
-                            <Input
-                              value={it.i_tmh}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                setItems((s) => s.map((x, i) => (i === idx ? { ...x, i_tmh: e.target.value } : x)))
-                              }
-                              hint=""
-                              placeholder=""
-                            />
-                          </td>
-
-                          <td style={td}>
-                            <Input
-                              value={it.f_tmh}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                setItems((s) => s.map((x, i) => (i === idx ? { ...x, f_tmh: e.target.value } : x)))
-                              }
-                              hint=""
-                              placeholder=""
-                            />
-                          </td>
-
-                          <td style={td}>
-                            <Input
-                              value={it.h2o_pct}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                setItems((s) =>
-                                  s.map((x, i) => (i === idx ? { ...x, h2o_pct: e.target.value } : x))
-                                )
-                              }
-                              hint=""
-                              placeholder=""
-                            />
-                          </td>
-
-                          <td style={td}>
-                            <Input
-                              value={it.au_feed}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                setItems((s) =>
-                                  s.map((x, i) => (i === idx ? { ...x, au_feed: e.target.value } : x))
-                                )
-                              }
-                              hint=""
-                              placeholder=""
-                            />
-                          </td>
-
-                          <td style={td}>
-                            <Input
-                              value={it.ag_feed}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                setItems((s) =>
-                                  s.map((x, i) => (i === idx ? { ...x, ag_feed: e.target.value } : x))
-                                )
-                              }
-                              hint=""
-                              placeholder=""
-                            />
-                          </td>
-
-                          <td style={{ ...td, textAlign: "right" }}>
-                            <button
-                              type="button"
-                              onClick={() => removeRow(idx)}
+                    return (
+                      <tr key={idx}>
+                        <td style={td}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ fontWeight: 950, opacity: 0.9 }}>P-</div>
+                            <input
+                              value={it.pile_num}
                               disabled={saving}
-                              title="Eliminar fila"
-                              style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 10,
-                                border: "1px solid rgba(255,255,255,.12)",
-                                background: "rgba(255,80,80,.10)",
-                                color: "rgba(255,255,255,.90)",
-                                fontWeight: 950,
-                                cursor: saving ? "not-allowed" : "pointer",
-                                opacity: saving ? 0.6 : 1,
+                              inputMode="numeric"
+                              placeholder="00"
+                              onChange={(e) => {
+                                const v = pad2(e.target.value);
+                                setItems((s) => s.map((x, i) => (i === idx ? { ...x, pile_num: v } : x)));
                               }}
-                            >
-                              ×
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                              style={{
+                                width: 60,
+                                background: "rgba(0,0,0,.10)",
+                                border: showInvalid ? "1px solid rgba(255,80,80,.60)" : "1px solid var(--border)",
+                                color: "var(--text)",
+                                borderRadius: 10,
+                                padding: "10px 10px",
+                                outline: "none",
+                                fontWeight: 900,
+                              }}
+                            />
+                            <div className="muted" style={{ fontSize: 12, fontWeight: 900, opacity: 0.75 }}>
+                              {pile_id || "—"}
+                            </div>
+                          </div>
+                        </td>
+
+                        <td style={td}>
+                          <Input
+                            value={it.i_tmh}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                              setItems((s) => s.map((x, i) => (i === idx ? { ...x, i_tmh: e.target.value } : x)))
+                            }
+                            hint=""
+                            placeholder=""
+                          />
+                        </td>
+
+                        <td style={td}>
+                          <Input
+                            value={it.f_tmh}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                              setItems((s) => s.map((x, i) => (i === idx ? { ...x, f_tmh: e.target.value } : x)))
+                            }
+                            hint=""
+                            placeholder=""
+                          />
+                        </td>
+
+                        <td style={td}>
+                          <Input
+                            value={it.h2o_pct}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                              setItems((s) => s.map((x, i) => (i === idx ? { ...x, h2o_pct: e.target.value } : x)))
+                            }
+                            hint=""
+                            placeholder=""
+                          />
+                        </td>
+
+                        <td style={td}>
+                          <Input
+                            value={it.au_feed}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                              setItems((s) => s.map((x, i) => (i === idx ? { ...x, au_feed: e.target.value } : x)))
+                            }
+                            hint=""
+                            placeholder=""
+                          />
+                        </td>
+
+                        <td style={td}>
+                          <Input
+                            value={it.ag_feed}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                              setItems((s) => s.map((x, i) => (i === idx ? { ...x, ag_feed: e.target.value } : x)))
+                            }
+                            hint=""
+                            placeholder=""
+                          />
+                        </td>
+
+                        <td style={{ ...td, textAlign: "right" }}>
+                          <button
+                            type="button"
+                            onClick={() => removeRow(idx)}
+                            disabled={saving}
+                            title="Eliminar fila"
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 10,
+                              border: "1px solid rgba(255,255,255,.12)",
+                              background: "rgba(255,80,80,.10)",
+                              color: "rgba(255,255,255,.90)",
+                              fontWeight: 950,
+                              cursor: saving ? "not-allowed" : "pointer",
+                              opacity: saving ? 0.6 : 1,
+                            }}
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
+
+                {/* Feedback debajo de filas: TMH (Σ deltas), y ponderados por TMS */}
+                <tfoot>
+                  <tr>
+                    <td style={tfLabel}>Totales</td>
+                    <td style={tf}></td>
+                    <td style={tf}>
+                      <div style={{ fontWeight: 950 }}>TMH: {computedLive.has ? fmt(computedLive.tmh_sum, 3) : "—"}</div>
+                      <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
+                        TMS: {computedLive.has ? fmt(computedLive.tms_sum, 3) : "—"}
+                      </div>
+                    </td>
+                    <td style={tf}>
+                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt(computedLive.h2o_w, 3) : "—"}</div>
+                      <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
+                        %H2O pond.
+                      </div>
+                    </td>
+                    <td style={tf}>
+                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt(computedLive.au_w, 4) : "—"}</div>
+                      <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
+                        Ley Au pond.
+                      </div>
+                    </td>
+                    <td style={tf}>
+                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt(computedLive.ag_w, 4) : "—"}</div>
+                      <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
+                        Ley Ag pond.
+                      </div>
+                    </td>
+                    <td style={tf}></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
 
-            {!itemsOk ? (
+            {!validation.ok ? (
               <div
                 className="panel-inner"
                 style={{
@@ -851,7 +849,15 @@ export default function GuardiaPage() {
                   fontWeight: 850,
                 }}
               >
-                Revisa las pilas: para filas con P-xx válido, todos los campos deben ser números (≥0) y %H2O debe estar en 1–100.
+                {validation.dup ? (
+                  <div>No se permite repetir la misma pila (P-xx) en la misma guardia.</div>
+                ) : null}
+                {validation.badDelta ? (
+                  <div>En cada fila válida, el Peso Final debe ser mayor que el Peso Inicial.</div>
+                ) : null}
+                {validation.badNums ? (
+                  <div>En filas con P-xx válido, todos los campos deben ser números (≥0) y %H2O debe estar en 1–100.</div>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -924,10 +930,15 @@ const td: React.CSSProperties = {
   verticalAlign: "top",
 };
 
-const tdMuted: React.CSSProperties = {
-  padding: "14px 10px",
-  borderBottom: "1px solid rgba(255,255,255,.06)",
+const tfLabel: React.CSSProperties = {
+  padding: "12px 10px",
+  borderTop: "1px solid rgba(255,255,255,.10)",
+  fontWeight: 950,
+  opacity: 0.9,
+};
+
+const tf: React.CSSProperties = {
+  padding: "12px 10px",
+  borderTop: "1px solid rgba(255,255,255,.10)",
   verticalAlign: "top",
-  opacity: 0.8,
-  fontWeight: 800,
 };
