@@ -19,10 +19,10 @@ type ReplaceResp = { ok: boolean; shift_id: string; var_code: string; inserted: 
 
 const VARS = [
   { code: "DENSITY_OF", label: "Densidad (g/l)", kind: "nonneg" as const },
-  { code: "PCT_200", label: "%-m-200", kind: "pct" as const },
-  { code: "NACN_OF", label: "%NaCN OF", kind: "pct" as const },
-  { code: "NACN_ADS", label: "%NaCN TK1", kind: "pct" as const },
-  { code: "NACN_TAIL", label: "%NaCN TK11", kind: "pct" as const },
+  { code: "PCT_200", label: "%-m-200 (1-100)", kind: "pct" as const },
+  { code: "NACN_OF", label: "NaCN OF (1-12)", kind: "pct" as const },
+  { code: "NACN_ADS", label: "NaCN TK1 (1-12)", kind: "pct" as const },
+  { code: "NACN_TAIL", label: "NaCN TK11 (1-12)", kind: "pct" as const },
   { code: "PH_OF", label: "pH OF", kind: "ph" as const },
   { code: "PH_ADS", label: "pH TK1", kind: "ph" as const },
   { code: "PH_TAIL", label: "pH TK11", kind: "ph" as const },
@@ -102,7 +102,7 @@ function computeAvgFromColumn(arr: string[]) {
   return sum / vals.length;
 }
 
-function fmtAvg(v: number | null, digits = 3) {
+function fmtAvg(v: number | null, digits = 2) {
   if (v === null || !Number.isFinite(v)) return "";
   return v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
@@ -112,6 +112,17 @@ function pctToDecimalOrNull(avg: number | null) {
   if (!Number.isFinite(avg)) return null;
   if (avg < 1 || avg > 100) return null;
   return avg / 100;
+}
+
+function nacnAvgToUi(avg: number | null) {
+  if (avg === null || !Number.isFinite(avg)) return null;
+  return avg * 100;
+}
+
+function nacnUiToDbOrNull(avgUi: number | null) {
+  if (avgUi === null || !Number.isFinite(avgUi)) return null;
+  if (avgUi < 1 || avgUi > 100) return null;
+  return avgUi / 100;
 }
 
 export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
@@ -127,11 +138,21 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     return o;
   });
 
-  const avgs = useMemo(() => {
+  const avgsRaw = useMemo(() => {
     const o: Record<VarCode, number | null> = {} as any;
     for (const v of VARS) o[v.code] = computeAvgFromColumn(mat[v.code] || []);
     return o;
   }, [mat]);
+
+  const avgsUi = useMemo(() => {
+    const o: Record<VarCode, number | null> = {} as any;
+    for (const v of VARS) {
+      const raw = avgsRaw[v.code];
+      if (v.code === "NACN_OF" || v.code === "NACN_ADS" || v.code === "NACN_TAIL") o[v.code] = nacnAvgToUi(raw);
+      else o[v.code] = raw;
+    }
+    return o;
+  }, [avgsRaw]);
 
   const colStatus = useMemo(() => {
     const o: Record<VarCode, { ok: boolean; firstGapAt: number | null; firstInvalidAt: number | null }> = {} as any;
@@ -193,7 +214,11 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
             const n = typeof raw === "number" ? raw : toNumOrNaN(String(raw));
             if (!Number.isFinite(n)) continue;
 
-            next[v.code][k - 1] = String(n);
+            if (v.code === "NACN_OF" || v.code === "NACN_ADS" || v.code === "NACN_TAIL") {
+              next[v.code][k - 1] = String(n * 100);
+            } else {
+              next[v.code][k - 1] = String(n);
+            }
           }
         } catch {}
       }
@@ -219,12 +244,17 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     const arr = mat[varCode] || blank12();
     const items: { sample_no: number; val: number }[] = [];
 
+    const isNacn = varCode === "NACN_OF" || varCode === "NACN_ADS" || varCode === "NACN_TAIL";
+
     for (let i = 0; i < 12; i++) {
       const s = String(arr[i] ?? "").trim();
       if (!s) break;
-      const n = toNumOrNaN(s);
-      if (!Number.isFinite(n) || n === 0) break;
-      items.push({ sample_no: i + 1, val: n });
+
+      const nUi = toNumOrNaN(s);
+      if (!Number.isFinite(nUi) || nUi === 0) break;
+
+      const nDb = isNacn ? nUi / 100 : nUi;
+      items.push({ sample_no: i + 1, val: nDb });
     }
 
     return items;
@@ -253,14 +283,14 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
 
       const payloadFacts = {
         shift_id: sid,
-        density_of: avgs.DENSITY_OF,
-        pct_200: pctToDecimalOrNull(avgs.PCT_200),
-        nacn_of: pctToDecimalOrNull(avgs.NACN_OF),
-        nacn_ads: pctToDecimalOrNull(avgs.NACN_ADS),
-        nacn_tail: pctToDecimalOrNull(avgs.NACN_TAIL),
-        ph_of: avgs.PH_OF,
-        ph_ads: avgs.PH_ADS,
-        ph_tail: avgs.PH_TAIL,
+        density_of: avgsUi.DENSITY_OF,
+        pct_200: pctToDecimalOrNull(avgsUi.PCT_200),
+        nacn_of: nacnUiToDbOrNull(avgsUi.NACN_OF),
+        nacn_ads: nacnUiToDbOrNull(avgsUi.NACN_ADS),
+        nacn_tail: nacnUiToDbOrNull(avgsUi.NACN_TAIL),
+        ph_of: avgsUi.PH_OF,
+        ph_ads: avgsUi.PH_ADS,
+        ph_tail: avgsUi.PH_TAIL,
       };
 
       await apiPost("/api/planta/produccion/upsert", payloadFacts);
@@ -386,7 +416,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
                       <div style={{ fontWeight: 900 }}>{v.label}</div>
-                      <div style={{ fontWeight: 900, opacity: 0.95 }}>{fmtAvg(avgs[v.code], 3)}</div>
+                      <div style={{ fontWeight: 900, opacity: 0.95 }}>{fmtAvg(avgsUi[v.code], 2)}</div>
                     </div>
                   </th>
                 );
