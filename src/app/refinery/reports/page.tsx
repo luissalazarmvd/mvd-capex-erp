@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet } from "../../../lib/apiClient";
+import { Button } from "../../../components/ui/Button";
 import Summary from "../../../components/refinery/Summary";
 import ConsSubStock from "../../../components/refinery/ConsSubStock";
 
@@ -173,6 +174,38 @@ export default function RefineryReportsPage() {
 
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
+    async function onExportExcel() {
+    try {
+      setMsg(null);
+      const r = (await apiGet("/api/refineria/reports/excel")) as any;
+
+      if (!r?.ok || !r?.file_base64) {
+        setMsg(r?.error ? `ERROR: ${r.error}` : "ERROR exportando");
+        return;
+      }
+
+      const byteChars = atob(String(r.file_base64));
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+      const bytes = new Uint8Array(byteNums);
+
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = String(r.file_name || "MVD_Refineria_Reportes.xlsx");
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR exportando");
+    }
+  }
+
   async function loadCampaignsAndPickLatest(opts?: { keepSelected?: boolean }) {
     setLoading(true);
     setMsg(null);
@@ -215,58 +248,57 @@ export default function RefineryReportsPage() {
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       {/* FILA 1: dropdown */}
       <div className="panel-inner" style={{ padding: 12 }}>
-        <div style={{ display: "grid", gap: 10, maxWidth: 720 }}>
-          <SearchableDropdown
-            label="Campaña"
-            placeholder={loading ? "Cargando campañas..." : "Buscar..."}
-            value={campaignId}
-            items={campaigns}
-            getKey={(x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase()}
-            getLabel={(x: CampaignRow) => campaignLabel(x)}
-            onSelect={(x: CampaignRow) => {
-              const id = String(x.campaign_id || "").trim().toUpperCase();
-              setCampaignId(id);
-              setRefreshKey((k) => k + 1);
-            }}
-            disabled={loading}
-          />
-
-          {msg ? (
-            <div
-              style={{
-                padding: 10,
-                border: msg.startsWith("ERROR")
-                  ? "1px solid rgba(255,80,80,.45)"
-                  : "1px solid rgba(255,255,255,.10)",
-                background: msg.startsWith("ERROR") ? "rgba(255,80,80,.10)" : "rgba(255,255,255,.04)",
-                fontWeight: 800,
-                borderRadius: 12,
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end", width: "100%" }}>
+          <div style={{ flex: 1, minWidth: 320, maxWidth: 720 }}>
+            <SearchableDropdown
+              label="Campaña"
+              placeholder={loading ? "Cargando campañas..." : "Buscar..."}
+              value={campaignId}
+              items={campaigns}
+              getKey={(x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase()}
+              getLabel={(x: CampaignRow) => campaignLabel(x)}
+              onSelect={(x: CampaignRow) => {
+                const id = String(x.campaign_id || "").trim().toUpperCase();
+                setCampaignId(id);
+                setRefreshKey((k) => k + 1);
               }}
-            >
-              {msg}
-            </div>
-          ) : null}
+              disabled={loading}
+            />
+          </div>
 
-          <button
-            type="button"
-            onClick={() => loadCampaignsAndPickLatest({ keepSelected: true })}
-            disabled={loading}
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => loadCampaignsAndPickLatest({ keepSelected: true })}
+              disabled={loading}
+            >
+              {loading ? "Cargando..." : "Refrescar"}
+            </Button>
+
+            <Button type="button" size="sm" variant="primary" onClick={onExportExcel} disabled={loading}>
+              Exportar Excel
+            </Button>
+          </div>
+        </div>
+
+        {msg ? (
+          <div
             style={{
-              width: "fit-content",
-              justifySelf: "start",
-              borderRadius: 10,
-              border: "1px solid var(--border)",
-              background: "rgba(0,0,0,.10)",
-              color: "var(--text)",
-              padding: "8px 10px",
-              fontWeight: 900,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.7 : 1,
+              marginTop: 10,
+              padding: 10,
+              border: msg.startsWith("ERROR")
+                ? "1px solid rgba(255,80,80,.45)"
+                : "1px solid rgba(255,255,255,.10)",
+              background: msg.startsWith("ERROR") ? "rgba(255,80,80,.10)" : "rgba(255,255,255,.04)",
+              fontWeight: 800,
+              borderRadius: 12,
             }}
           >
-            {loading ? "Cargando..." : "Refrescar"}
-          </button>
-        </div>
+            {msg}
+          </div>
+        ) : null}
       </div>
 
       {/* FILA 2: summary */}
