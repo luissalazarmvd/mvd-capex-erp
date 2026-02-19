@@ -7,6 +7,7 @@ import ProduccionPanel from "../../../components/planta/ProduccionPanel";
 import BolasPanel from "../../../components/planta/BolasPanel";
 import ReactivosPanel from "../../../components/planta/ReactivosPanel";
 import DuracionPanel from "../../../components/planta/DuracionPanel";
+import { Button } from "../../../components/ui/Button";
 
 type OpenShift = {
   shift_id: string;
@@ -333,20 +334,14 @@ export default function DatosGuardiaPage() {
   const anyOpen = openProd || openBolas || openReact || openDur;
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 1100 }}>
+    <div style={{ display: "grid", gap: 12, maxWidth: "100%" }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Datos de Guardia</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={loadShifts}
-            disabled={loadingShifts}
-            className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
-            style={loadingShifts ? { outline: "none", opacity: 0.72, cursor: "not-allowed" } : undefined}
-          >
-            {loadingShifts ? "Cargando..." : "Refrescar guardias"}
-          </button>
+        <Button type="button" size="sm" variant="ghost" onClick={loadShifts} disabled={loadingShifts}>
+          {loadingShifts ? "Cargando..." : "Refrescar guardias"}
+        </Button>
         </div>
       </div>
 
@@ -388,27 +383,12 @@ export default function DatosGuardiaPage() {
             />
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                onClick={expandAll}
-                disabled={!shiftId}
-                className="nav-pill !text-white visited:!text-white font-extrabold"
-                style={!shiftId ? { opacity: 0.72, cursor: "not-allowed" } : undefined}
-                title="Expandir todo"
-              >
+              <Button type="button" size="sm" variant="primary" onClick={expandAll} disabled={!shiftId}>
                 Expandir todo
-              </button>
-
-              <button
-                type="button"
-                onClick={collapseAll}
-                disabled={!shiftId || !anyOpen}
-                className="nav-pill !text-white visited:!text-white font-extrabold"
-                style={!shiftId || !anyOpen ? { opacity: 0.72, cursor: "not-allowed" } : undefined}
-                title="Colapsar todo"
-              >
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={collapseAll} disabled={!shiftId || !anyOpen}>
                 Colapsar todo
-              </button>
+              </Button>
             </div>
           </div>
 
