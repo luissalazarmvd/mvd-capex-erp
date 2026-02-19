@@ -398,20 +398,23 @@ export default function LeyesPage() {
 
     setSaving(true);
     try {
-      const payload: any = { shift_id: sid };
+      const payloadProd: any = { shift_id: sid };
+      payloadProd.au_solid_of = of1 === null ? null : of1;
+      payloadProd.au_solu_of = of2 === null ? null : of2;
+      payloadProd.ag_solid_of = of3 === null ? null : of3;
+      payloadProd.ag_solu_of = of4 === null ? null : of4;
 
-      payload.au_solid_of = of1 === null ? null : of1;
-      payload.au_solu_of = of2 === null ? null : of2;
-      payload.ag_solid_of = of3 === null ? null : of3;
-      payload.ag_solu_of = of4 === null ? null : of4;
+      const payloadRel: any = { shift_id: sid };
+      payloadRel.au_solid_tail = a1 === null ? null : a1;
+      payloadRel.au_solu_tail = a2 === null ? null : a2;
+      payloadRel.ag_solid_tail = g1 === null ? null : g1;
+      payloadRel.ag_solu_tail = g2 === null ? null : g2;
 
-      payload.au_solid_tail = a1 === null ? null : a1;
-      payload.au_solu_tail = a2 === null ? null : a2;
-      payload.ag_solid_tail = g1 === null ? null : g1;
-      payload.ag_solu_tail = g2 === null ? null : g2;
+      const r1 = (await apiPost(`/api/planta/produccion/upsert`, payloadProd)) as UpsertResp;
+      if (!r1?.ok) throw new Error(r1?.error || "No se pudo guardar OF");
 
-      const r = (await apiPost(`/api/planta/produccion/upsert`, payload)) as UpsertResp;
-      if (!r?.ok) throw new Error(r?.error || "No se pudo guardar");
+      const r2 = (await apiPost(`/api/planta/relave/upsert`, payloadRel)) as UpsertResp;
+      if (!r2?.ok) throw new Error(r2?.error || "No se pudo guardar Relave");
 
       setMsg(`OK: guardado ${sid} · Leyes`);
       await loadExistingForShift(sid);
