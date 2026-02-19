@@ -20,6 +20,13 @@ type ShiftsResp = {
 };
 
 type GuardiaHeader = {
+  // ✅ NUEVOS (OF)
+  au_solid_of?: any;
+  au_solu_of?: any;
+  ag_solid_of?: any;
+  ag_solu_of?: any;
+
+  // Relave (Tail)
   au_solid_tail?: any;
   au_solu_tail?: any;
   ag_solid_tail?: any;
@@ -216,7 +223,7 @@ function SearchableDropdown({
   );
 }
 
-export default function RelavePage() {
+export default function LeyesPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const [loadingShifts, setLoadingShifts] = useState(true);
@@ -226,6 +233,13 @@ export default function RelavePage() {
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [shiftId, setShiftId] = useState<string>("");
 
+  // ✅ NUEVOS (OF) - van primero en UI
+  const [auSolidOf, setAuSolidOf] = useState<string>("");
+  const [auSoluOf, setAuSoluOf] = useState<string>("");
+  const [agSolidOf, setAgSolidOf] = useState<string>("");
+  const [agSoluOf, setAgSoluOf] = useState<string>("");
+
+  // Relave (Tail)
   const [auSolid, setAuSolid] = useState<string>("");
   const [auSolu, setAuSolu] = useState<string>("");
   const [agSolid, setAgSolid] = useState<string>("");
@@ -255,23 +269,32 @@ export default function RelavePage() {
     const sid = String(shiftId || "").trim();
     if (!sid) return false;
 
+    // OF
+    const of1 = parseNullableNumberNonNeg(auSolidOf);
+    const of2 = parseNullableNumberNonNeg(auSoluOf);
+    const of3 = parseNullableNumberNonNeg(agSolidOf);
+    const of4 = parseNullableNumberNonNeg(agSoluOf);
+
+    // Tail
     const a1 = parseNullableNumberNonNeg(auSolid);
     const a2 = parseNullableNumberNonNeg(auSolu);
     const g1 = parseNullableNumberNonNeg(agSolid);
     const g2 = parseNullableNumberNonNeg(agSolu);
 
-    const arr = [a1, a2, g1, g2];
+    const values = [of1, of2, of3, of4, a1, a2, g1, g2];
+    const raw = [auSolidOf, auSoluOf, agSolidOf, agSoluOf, auSolid, auSolu, agSolid, agSolu];
 
-    const anyFilled = [auSolid, auSolu, agSolid, agSolu].some((x) => String(x || "").trim() !== "");
+    const anyFilled = raw.some((x) => String(x || "").trim() !== "");
     if (!anyFilled) return false;
 
-    for (const v of arr) {
+    for (const v of values) {
       if (v === null) continue;
+      // mismo criterio que tu page: si llenas, debe ser > 0
       if (!Number.isFinite(v) || v <= 0) return false;
     }
 
     return true;
-  }, [shiftId, auSolid, auSolu, agSolid, agSolu, saving]);
+  }, [shiftId, auSolidOf, auSoluOf, agSolidOf, agSoluOf, auSolid, auSolu, agSolid, agSolu, saving]);
 
   async function loadShifts() {
     setLoadingShifts(true);
@@ -290,6 +313,13 @@ export default function RelavePage() {
   }
 
   function clearEntryFields() {
+    // OF
+    setAuSolidOf("");
+    setAuSoluOf("");
+    setAgSolidOf("");
+    setAgSoluOf("");
+
+    // Tail
     setAuSolid("");
     setAuSolu("");
     setAgSolid("");
@@ -308,13 +338,21 @@ export default function RelavePage() {
       )) as any;
 
       const h: GuardiaHeader = (r?.header as any) || {};
+
+      // OF
+      setAuSolidOf(toTextNum(h.au_solid_of));
+      setAuSoluOf(toTextNum(h.au_solu_of));
+      setAgSolidOf(toTextNum(h.ag_solid_of));
+      setAgSoluOf(toTextNum(h.ag_solu_of));
+
+      // Tail
       setAuSolid(toTextNum(h.au_solid_tail));
       setAuSolu(toTextNum(h.au_solu_tail));
       setAgSolid(toTextNum(h.ag_solid_tail));
       setAgSolu(toTextNum(h.ag_solu_tail));
     } catch (e: any) {
       clearEntryFields();
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando relave");
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando leyes");
     } finally {
       setLoadingExisting(false);
     }
@@ -343,13 +381,20 @@ export default function RelavePage() {
       return;
     }
 
+    // OF
+    const of1 = parseNullableNumberNonNeg(auSolidOf);
+    const of2 = parseNullableNumberNonNeg(auSoluOf);
+    const of3 = parseNullableNumberNonNeg(agSolidOf);
+    const of4 = parseNullableNumberNonNeg(agSoluOf);
+
+    // Tail
     const a1 = parseNullableNumberNonNeg(auSolid);
     const a2 = parseNullableNumberNonNeg(auSolu);
     const g1 = parseNullableNumberNonNeg(agSolid);
     const g2 = parseNullableNumberNonNeg(agSolu);
 
-    const values = [a1, a2, g1, g2];
-    const raw = [auSolid, auSolu, agSolid, agSolu];
+    const values = [of1, of2, of3, of4, a1, a2, g1, g2];
+    const raw = [auSolidOf, auSoluOf, agSolidOf, agSoluOf, auSolid, auSolu, agSolid, agSolu];
 
     const anyFilled = raw.some((x) => String(x || "").trim() !== "");
     if (!anyFilled) {
@@ -369,6 +414,13 @@ export default function RelavePage() {
     try {
       const payload: any = { shift_id: sid };
 
+      // OF
+      payload.au_solid_of = of1 === null ? null : of1;
+      payload.au_solu_of = of2 === null ? null : of2;
+      payload.ag_solid_of = of3 === null ? null : of3;
+      payload.ag_solu_of = of4 === null ? null : of4;
+
+      // Tail
       payload.au_solid_tail = a1 === null ? null : a1;
       payload.au_solu_tail = a2 === null ? null : a2;
       payload.ag_solid_tail = g1 === null ? null : g1;
@@ -377,10 +429,10 @@ export default function RelavePage() {
       const r = (await apiPost(`/api/planta/relave/upsert`, payload)) as UpsertResp;
       if (!r?.ok) throw new Error(r?.error || "No se pudo guardar");
 
-      setMsg(`OK: guardado ${sid} · Relave`);
+      setMsg(`OK: guardado ${sid} · Leyes`);
       await loadExistingForShift(sid);
     } catch (e: any) {
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando relave");
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando leyes");
     } finally {
       setSaving(false);
     }
@@ -389,7 +441,7 @@ export default function RelavePage() {
   return (
     <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Relave</div>
+        <div style={{ fontWeight: 900 }}>Leyes</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
           <Button type="button" size="sm" variant="ghost" onClick={loadShifts} disabled={loadingShifts || saving}>
@@ -449,6 +501,48 @@ export default function RelavePage() {
             </div>
           ) : null}
 
+          {/* ✅ NUEVOS PRIMERO (OF) */}
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido OF (g/t)</div>
+            <Input
+              placeholder="vacío o > 0"
+              value={auSolidOf}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolidOf(e.target.value)}
+              hint=""
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución OF (g/m³)</div>
+            <Input
+              placeholder="vacío o > 0"
+              value={auSoluOf}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSoluOf(e.target.value)}
+              hint=""
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido OF (g/t)</div>
+            <Input
+              placeholder="vacío o > 0"
+              value={agSolidOf}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolidOf(e.target.value)}
+              hint=""
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución OF (g/m³)</div>
+            <Input
+              placeholder="vacío o > 0"
+              value={agSoluOf}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSoluOf(e.target.value)}
+              hint=""
+            />
+          </div>
+
+          {/* Relave (Tail) - se quedan como estaban, pero van después */}
           <div style={{ display: "grid", gap: 6 }}>
             <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido Relave (g/t)</div>
             <Input
