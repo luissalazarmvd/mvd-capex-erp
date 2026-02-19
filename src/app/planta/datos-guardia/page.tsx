@@ -201,7 +201,7 @@ function Accordion({
         border: "1px solid rgba(255,255,255,.10)",
         borderRadius: 14,
         background: "rgba(0,0,0,.06)",
-        overflow: "hidden",
+        overflow: "visible", // ✅ antes: "hidden" (esto cortaba dropdowns)
       }}
     >
       <button
@@ -218,6 +218,8 @@ function Accordion({
           background: "rgba(0,0,0,.10)",
           cursor: "pointer",
           color: "var(--text)",
+          borderTopLeftRadius: 14,
+          borderTopRightRadius: 14,
         }}
       >
         <div style={{ display: "grid", gap: 2 }}>
@@ -411,7 +413,7 @@ export default function DatosGuardiaPage() {
           </div>
 
           {/* acordeones a ancho natural */}
-          <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gap: 10, overflow: "visible" }}>
             <Accordion title="Producción" subtitle={shiftId ? shiftSub : ""} open={openProd} onToggle={() => setOpenProd((s) => !s)}>
               <ProduccionPanel shiftId={shiftId} />
             </Accordion>
