@@ -187,19 +187,6 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
     return o;
   }, [avgsUi, facts]);
 
-  const hasAnyData = useMemo(() => {
-    for (const v of VARS) {
-      const arr = mat[v.code] || [];
-      for (let i = 0; i < arr.length; i++) {
-        const s = String(arr[i] ?? "").trim();
-        if (!s) continue;
-        const n = toNumOrNaN(s);
-        if (Number.isFinite(n) && n !== 0) return true;
-      }
-    }
-    return false;
-  }, [mat]);
-
   const colStatus = useMemo(() => {
     const o: Record<VarCode, { ok: boolean; firstGapAt: number | null; firstInvalidAt: number | null }> = {} as any;
     for (const v of VARS) o[v.code] = validateSequentialColumn(v.kind, mat[v.code] || []);
@@ -208,11 +195,10 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
 
   const allValid = useMemo(() => {
     if (!sid || !isShiftId(sid)) return false;
-    if (!hasAnyData) return false;
     return VARS.every((v) => colStatus[v.code]?.ok);
-  }, [sid, colStatus, hasAnyData]);
+  }, [sid, colStatus]);
 
-  const canSave = useMemo(() => allValid && !saving, [allValid, saving]);
+  const canSave = useMemo(() => allValid && !saving && !loadingExisting, [allValid, saving, loadingExisting]);
 
   function clearAll() {
     setMat(() => {
@@ -232,14 +218,14 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
     });
   }
 
-  async function loadExisting(nextSid: string) {
+  async function loadExisting(nextSid: string, opts?: { silentMsg?: boolean }) {
     if (!nextSid || !isShiftId(nextSid)) {
       clearAll();
       return;
     }
 
     setLoadingExisting(true);
-    setMsg(null);
+    if (!opts?.silentMsg) setMsg(null);
 
     try {
       const next: Record<VarCode, string[]> = {} as any;
@@ -283,7 +269,6 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
       return;
     }
     loadExisting(sid);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sid]);
 
   function buildItems(varCode: VarCode) {
@@ -329,17 +314,19 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
 
       const payloadFacts = {
         shift_id: sid,
-        density_of: avgsUi.density_of,
+        density_of: avgsUi.density_of ?? null,
         pct_200: pctToDecimalOrNull(avgsUi.pct_200),
         nacn_of: nacnUiToDbOrNull(avgsUi.nacn_of),
         nacn_ads: nacnUiToDbOrNull(avgsUi.nacn_ads),
         nacn_tail: nacnUiToDbOrNull(avgsUi.nacn_tail),
-        ph_of: avgsUi.ph_of,
-        ph_ads: avgsUi.ph_ads,
-        ph_tail: avgsUi.ph_tail,
+        ph_of: avgsUi.ph_of ?? null,
+        ph_ads: avgsUi.ph_ads ?? null,
+        ph_tail: avgsUi.ph_tail ?? null,
       };
 
       await apiPost("/api/planta/produccion/upsert", payloadFacts);
+
+      await loadExisting(sid, { silentMsg: true });
 
       setMsg(`OK: guardado ${sid} · Producción`);
     } catch (e: any) {
@@ -403,7 +390,13 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="default" onClick={() => sid && loadExisting(sid)} disabled={!sid || loadingExisting || saving}>
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            onClick={() => sid && loadExisting(sid)}
+            disabled={!sid || loadingExisting || saving}
+          >
             {loadingExisting ? "Cargando…" : "Refrescar"}
           </Button>
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
@@ -430,7 +423,18 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
         <Table stickyHeader>
           <thead>
             <tr>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "center", padding: "8px 8px", fontSize: 12, minWidth: 52 }}>
+              <th
+                className="capex-th"
+                style={{
+                  ...stickyHead,
+                  border: headerBorder,
+                  borderBottom: headerBorder,
+                  textAlign: "center",
+                  padding: "8px 8px",
+                  fontSize: 12,
+                  minWidth: 52,
+                }}
+              >
                 #
               </th>
 
@@ -476,7 +480,18 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
 
               return (
                 <tr key={rIdx} className="capex-tr">
-                  <td className="capex-td capex-td-strong" style={{ ...cellBase, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, textAlign: "center", fontWeight: 900 }}>
+                  <td
+                    className="capex-td capex-td-strong"
+                    style={{
+                      ...cellBase,
+                      borderTop: rowBorder,
+                      borderBottom: rowBorder,
+                      borderRight: gridV,
+                      background: rowBg,
+                      textAlign: "center",
+                      fontWeight: 900,
+                    }}
+                  >
                     {rIdx + 1}
                   </td>
 
@@ -487,11 +502,22 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
 
                     let disabled = !sid || saving || loadingExisting;
                     if (sid && st && !st.ok && st.firstGapAt && rIdx + 1 >= st.firstGapAt) {
-                      disabled = disabled || (rIdx + 1 > st.firstGapAt);
+                      disabled = disabled || rIdx + 1 > st.firstGapAt;
                     }
 
                     return (
-                      <td key={v.code} className="capex-td" style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, padding: "6px 8px" }}>
+                      <td
+                        key={v.code}
+                        className="capex-td"
+                        style={{
+                          ...numCell,
+                          borderTop: rowBorder,
+                          borderBottom: rowBorder,
+                          borderRight: gridV,
+                          background: rowBg,
+                          padding: "6px 8px",
+                        }}
+                      >
                         <input
                           value={value}
                           disabled={disabled}
@@ -516,7 +542,11 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
 
             {sid && !loadingExisting && !allValid ? (
               <tr className="capex-tr">
-                <td className="capex-td" style={{ ...cellBase, fontWeight: 900, color: "rgba(255,120,120,.95)" }} colSpan={1 + VARS.length}>
+                <td
+                  className="capex-td"
+                  style={{ ...cellBase, fontWeight: 900, color: "rgba(255,120,120,.95)" }}
+                  colSpan={1 + VARS.length}
+                >
                   Corrige columnas con error (valores inválidos o saltos).
                 </td>
               </tr>
