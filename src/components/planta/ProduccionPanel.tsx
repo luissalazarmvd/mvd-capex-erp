@@ -18,14 +18,14 @@ type DetResp = { ok: boolean; shift_id: string; var_code: string; rows: DetRow[]
 type ReplaceResp = { ok: boolean; shift_id: string; var_code: string; inserted: number; error?: string };
 
 const VARS = [
-  { code: "DENSITY_OF", label: "Densidad (g/l)", kind: "nonneg" as const },
-  { code: "PCT_200", label: "%-m-200 (1-100)", kind: "pct" as const },
-  { code: "NACN_OF", label: "NaCN OF (1-12)", kind: "pct" as const },
-  { code: "NACN_ADS", label: "NaCN TK1 (1-12)", kind: "pct" as const },
-  { code: "NACN_TAIL", label: "NaCN TK11 (1-12)", kind: "pct" as const },
-  { code: "PH_OF", label: "pH OF", kind: "ph" as const },
-  { code: "PH_ADS", label: "pH TK1", kind: "ph" as const },
-  { code: "PH_TAIL", label: "pH TK11", kind: "ph" as const },
+  { code: "density_of", label: "Densidad (g/l)", kind: "nonneg" as const },
+  { code: "pct_200", label: "%-m-200 (1-100)", kind: "pct" as const },
+  { code: "nacn_of", label: "NaCN OF (1-12)", kind: "pct" as const },
+  { code: "nacn_ads", label: "NaCN TK1 (1-12)", kind: "pct" as const },
+  { code: "nacn_tail", label: "NaCN TK11 (1-12)", kind: "pct" as const },
+  { code: "ph_of", label: "pH OF", kind: "ph" as const },
+  { code: "ph_ads", label: "pH TK1", kind: "ph" as const },
+  { code: "ph_tail", label: "pH TK11", kind: "ph" as const },
 ] as const;
 
 type VarCode = (typeof VARS)[number]["code"];
@@ -148,7 +148,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     const o: Record<VarCode, number | null> = {} as any;
     for (const v of VARS) {
       const raw = avgsRaw[v.code];
-      if (v.code === "NACN_OF" || v.code === "NACN_ADS" || v.code === "NACN_TAIL") o[v.code] = nacnAvgToUi(raw);
+      if (v.code === "nacn_of" || v.code === "nacn_ads" || v.code === "nacn_tail") o[v.code] = nacnAvgToUi(raw);
       else o[v.code] = raw;
     }
     return o;
@@ -214,7 +214,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
             const n = typeof raw === "number" ? raw : toNumOrNaN(String(raw));
             if (!Number.isFinite(n)) continue;
 
-            if (v.code === "NACN_OF" || v.code === "NACN_ADS" || v.code === "NACN_TAIL") {
+            if (v.code === "nacn_of" || v.code === "nacn_ads" || v.code === "nacn_tail") {
               next[v.code][k - 1] = String(n * 100);
             } else {
               next[v.code][k - 1] = String(n);
@@ -244,7 +244,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     const arr = mat[varCode] || blank12();
     const items: { sample_no: number; val: number }[] = [];
 
-    const isNacn = varCode === "NACN_OF" || varCode === "NACN_ADS" || varCode === "NACN_TAIL";
+    const isNacn = varCode === "nacn_of" || varCode === "nacn_ads" || varCode === "nacn_tail";
 
     for (let i = 0; i < 12; i++) {
       const s = String(arr[i] ?? "").trim();
@@ -283,14 +283,14 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
 
       const payloadFacts = {
         shift_id: sid,
-        density_of: avgsUi.DENSITY_OF,
-        pct_200: pctToDecimalOrNull(avgsUi.PCT_200),
-        nacn_of: nacnUiToDbOrNull(avgsUi.NACN_OF),
-        nacn_ads: nacnUiToDbOrNull(avgsUi.NACN_ADS),
-        nacn_tail: nacnUiToDbOrNull(avgsUi.NACN_TAIL),
-        ph_of: avgsUi.PH_OF,
-        ph_ads: avgsUi.PH_ADS,
-        ph_tail: avgsUi.PH_TAIL,
+        density_of: avgsUi.density_of,
+        pct_200: pctToDecimalOrNull(avgsUi.pct_200),
+        nacn_of: nacnUiToDbOrNull(avgsUi.nacn_of),
+        nacn_ads: nacnUiToDbOrNull(avgsUi.nacn_ads),
+        nacn_tail: nacnUiToDbOrNull(avgsUi.nacn_tail),
+        ph_of: avgsUi.ph_of,
+        ph_ads: avgsUi.ph_ads,
+        ph_tail: avgsUi.ph_tail,
       };
 
       await apiPost("/api/planta/produccion/upsert", payloadFacts);
