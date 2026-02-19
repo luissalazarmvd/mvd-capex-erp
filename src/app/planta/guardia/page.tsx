@@ -362,12 +362,9 @@ export default function GuardiaPage() {
   }, [items]);
 
   const computedLive = useMemo(() => {
-    // TMH fila = (f - i)
-    // TMS fila = TMH * (1 - h2o/100)
-    // ponderados por TMS
     let tmh_sum = 0;
     let tms_sum = 0;
-
+    let w_h2o_tmh = 0;
     let w_h2o = 0;
     let w_au = 0;
     let w_ag = 0;
@@ -390,14 +387,14 @@ export default function GuardiaPage() {
       if (!Number.isFinite(tms) || tms < 0) continue;
 
       tmh_sum += tmh;
+      w_h2o_tmh += h2o * tmh;
       tms_sum += tms;
 
-      if (Number.isFinite(h2o)) w_h2o += h2o * tms;
       if (Number.isFinite(au)) w_au += au * tms;
       if (Number.isFinite(ag)) w_ag += ag * tms;
     }
 
-    const h2o_w = tms_sum > 0 ? w_h2o / tms_sum : NaN;
+    const h2o_w = tmh_sum > 0 ? w_h2o_tmh / tmh_sum : NaN;
     const au_w = tms_sum > 0 ? w_au / tms_sum : NaN;
     const ag_w = tms_sum > 0 ? w_ag / tms_sum : NaN;
 
