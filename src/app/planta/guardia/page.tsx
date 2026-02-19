@@ -35,7 +35,7 @@ type PilesGetResp = {
 const COMMENT_MAX = 255;
 
 type PileItem = {
-  pile_num: string; // "00".."99"
+  pile_num: string;
   i_tmh: string;
   f_tmh: string;
   h2o_pct: string;
@@ -290,6 +290,8 @@ export default function GuardiaPage() {
   const [loadingPiles, setLoadingPiles] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
 
+  const [headerExisting, setHeaderExisting] = useState<any | null>(null);
+
   const [form, setForm] = useState<Form>({
     shift_date: isoTodayPe(),
     plant_shift: "",
@@ -321,10 +323,6 @@ export default function GuardiaPage() {
   }, [dateOk, form.plant_shift, form.plant_supervisor, form.shift_comment]);
 
   const validation = useMemo(() => {
-    // Reglas:
-    // - No permitir pile_id duplicado (solo filas con pile_id válido)
-    // - Peso Final > Peso Inicial
-    // - i_tmh,f_tmh,au,ag >=0 y h2o 1..100 (para filas con pile_id válido)
     const seen = new Set<string>();
     let dup = false;
     let badDelta = false;
@@ -353,19 +351,13 @@ export default function GuardiaPage() {
       if (!(f > i)) badDelta = true;
     }
 
-    return {
-      ok: !dup && !badDelta && !badNums,
-      dup,
-      badDelta,
-      badNums,
-    };
+    return { ok: !dup && !badDelta && !badNums, dup, badDelta, badNums };
   }, [items]);
 
   const computedLive = useMemo(() => {
     let tmh_sum = 0;
     let tms_sum = 0;
     let w_h2o_tmh = 0;
-    let w_h2o = 0;
     let w_au = 0;
     let w_ag = 0;
 
@@ -380,6 +372,7 @@ export default function GuardiaPage() {
       const ag = toNumOrNaN(it.ag_feed);
 
       if (!Number.isFinite(i) || !Number.isFinite(f) || !Number.isFinite(h2o)) continue;
+
       const tmh = f - i;
       if (!Number.isFinite(tmh) || tmh <= 0) continue;
 
@@ -387,8 +380,8 @@ export default function GuardiaPage() {
       if (!Number.isFinite(tms) || tms < 0) continue;
 
       tmh_sum += tmh;
-      w_h2o_tmh += h2o * tmh;
       tms_sum += tms;
+      w_h2o_tmh += h2o * tmh;
 
       if (Number.isFinite(au)) w_au += au * tms;
       if (Number.isFinite(ag)) w_ag += ag * tms;
@@ -408,6 +401,33 @@ export default function GuardiaPage() {
     };
   }, [items]);
 
+  const displayAgg = useMemo(() => {
+    if (computedLive.has) return computedLive;
+
+    const h = headerExisting || {};
+    const tmh = toNumOrNaN(h.tmh);
+    const tms = toNumOrNaN(h.tms);
+    const h2o = toNumOrNaN(h.h2o_pct);
+    const au = toNumOrNaN(h.au_feed);
+    const ag = toNumOrNaN(h.ag_feed);
+
+    const hasAny =
+      Number.isFinite(tmh) ||
+      Number.isFinite(tms) ||
+      Number.isFinite(h2o) ||
+      Number.isFinite(au) ||
+      Number.isFinite(ag);
+
+    return {
+      tmh_sum: tmh,
+      tms_sum: tms,
+      h2o_w: h2o,
+      au_w: au,
+      ag_w: ag,
+      has: !!hasAny,
+    };
+  }, [computedLive, headerExisting]);
+
   function fmt(v: number, d: number) {
     if (!Number.isFinite(v)) return "—";
     return v.toFixed(d);
@@ -416,6 +436,30 @@ export default function GuardiaPage() {
   const canSave = useMemo(() => {
     return headerOk && validation.ok && !!shift_id && !saving;
   }, [headerOk, validation.ok, shift_id, saving]);
+
+  const payloadItemsLive = useMemo(() => {
+    return items
+      .map((it) => {
+        const pile_id = pileIdFromNum(it.pile_num);
+        if (!pile_id) return null;
+
+        const i = toNumOrNull(it.i_tmh);
+        const f = toNumOrNull(it.f_tmh);
+        const h2o = clampStrPct_1to100_OrNull(it.h2o_pct);
+        const au = toNumOrNull(it.au_feed);
+        const ag = toNumOrNull(it.ag_feed);
+
+        return { pile_id, i_tmh: i, f_tmh: f, h2o_pct: h2o, au_feed: au, ag_feed: ag };
+      })
+      .filter(Boolean) as Array<{
+      pile_id: string;
+      i_tmh: number | null;
+      f_tmh: number | null;
+      h2o_pct: number | null;
+      au_feed: number | null;
+      ag_feed: number | null;
+    }>;
+  }, [items]);
 
   async function loadLookups() {
     setLoadingLookups(true);
@@ -440,6 +484,7 @@ export default function GuardiaPage() {
       )) as GuardiaGetResp;
 
       const h = r.header;
+      setHeaderExisting(h || null);
 
       if (h) {
         setForm((s) => ({
@@ -456,6 +501,7 @@ export default function GuardiaPage() {
         setMsg(null);
       }
     } catch (e: any) {
+      setHeaderExisting(null);
       const m = String(e?.message || "");
       if (m.includes("400") || m.includes("404")) setMsg(null);
       else setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando guardia");
@@ -472,7 +518,7 @@ export default function GuardiaPage() {
       const rows = r.rows || [];
 
       const mapped: PileItem[] = rows.map((x) => {
-        const p = String(x.pile_id || "").toUpperCase().trim(); // "P-10"
+        const p = String(x.pile_id || "").toUpperCase().trim();
         const num = p.startsWith("P-") ? pad2(p.slice(2)) : "";
         return {
           pile_num: num,
@@ -484,7 +530,6 @@ export default function GuardiaPage() {
         };
       });
 
-      // existente => filas existentes; nuevo => 1 fila lista
       setItems(
         mapped.length
           ? mapped
@@ -492,7 +537,6 @@ export default function GuardiaPage() {
       );
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando pilas");
-      // fallback: siempre 1 fila lista
       setItems([{ pile_num: "", i_tmh: "", f_tmh: "", h2o_pct: "", au_feed: "", ag_feed: "" }]);
     } finally {
       setLoadingPiles(false);
@@ -505,6 +549,7 @@ export default function GuardiaPage() {
 
   useEffect(() => {
     if (!form.shift_date || (form.plant_shift !== "A" && form.plant_shift !== "B")) {
+      setHeaderExisting(null);
       setItems([{ pile_num: "", i_tmh: "", f_tmh: "", h2o_pct: "", au_feed: "", ag_feed: "" }]);
       return;
     }
@@ -533,39 +578,34 @@ export default function GuardiaPage() {
     setSaving(true);
 
     try {
-      // 1) replace pilas (ignorando filas sin pile_id válido)
-      const payloadItems = items
-        .map((it) => {
-          const pile_id = pileIdFromNum(it.pile_num);
-          if (!pile_id) return null;
+      const hasAnyPiles = payloadItemsLive.length > 0;
 
-          const i = toNumOrNull(it.i_tmh);
-          const f = toNumOrNull(it.f_tmh);
-          const h2o = clampStrPct_1to100_OrNull(it.h2o_pct);
-          const au = toNumOrNull(it.au_feed);
-          const ag = toNumOrNull(it.ag_feed);
+      if (hasAnyPiles) {
+        await apiPost("/api/planta/pilas/replace", { shift_id, items: payloadItemsLive });
+      }
 
-          return { pile_id, i_tmh: i, f_tmh: f, h2o_pct: h2o, au_feed: au, ag_feed: ag };
-        })
-        .filter(Boolean);
-
-      const r1: any = await apiPost("/api/planta/pilas/replace", { shift_id, items: payloadItems });
-
-      // 2) upsert guardia (totales/ponderados en vivo)
-      await apiPost("/api/planta/guardia/upsert", {
+      const baseBody: any = {
         shift_date: form.shift_date,
         plant_shift: form.plant_shift,
         plant_supervisor: form.plant_supervisor,
-        tmh: Number.isFinite(computedLive.tmh_sum) ? computedLive.tmh_sum : null,
-        h2o_pct: Number.isFinite(computedLive.h2o_w) ? computedLive.h2o_w : null,
-        au_feed: Number.isFinite(computedLive.au_w) ? computedLive.au_w : null,
-        ag_feed: Number.isFinite(computedLive.ag_w) ? computedLive.ag_w : null,
         shift_comment: String(form.shift_comment || "").slice(0, COMMENT_MAX),
-      });
+      };
 
-      setMsg(`OK: guardado ${shift_id} (pilas insertadas: ${String(r1?.inserted ?? "0")})`);
+      const body = hasAnyPiles
+        ? {
+            ...baseBody,
+            tmh: Number.isFinite(computedLive.tmh_sum) ? computedLive.tmh_sum : null,
+            h2o_pct: Number.isFinite(computedLive.h2o_w) ? computedLive.h2o_w : null,
+            au_feed: Number.isFinite(computedLive.au_w) ? computedLive.au_w : null,
+            ag_feed: Number.isFinite(computedLive.ag_w) ? computedLive.ag_w : null,
+          }
+        : baseBody;
 
-      // refresca desde GET para campañas existentes (mantiene la misma UX)
+      await apiPost("/api/planta/guardia/upsert", body);
+
+      setMsg(`OK: guardado ${shift_id}`);
+
+      await loadHeaderIfAny(form.shift_date, form.plant_shift);
       await loadPiles(shift_id);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando guardia/pilas");
@@ -589,11 +629,14 @@ export default function GuardiaPage() {
             variant="ghost"
             onClick={() => {
               loadLookups();
+              if (form.shift_date && (form.plant_shift === "A" || form.plant_shift === "B")) {
+                loadHeaderIfAny(form.shift_date, form.plant_shift);
+              }
               if (shift_id) loadPiles(shift_id);
             }}
-            disabled={loadingLookups || loadingPiles || saving}
+            disabled={loadingLookups || loadingPiles || loadingExisting || saving}
           >
-            {loadingLookups || loadingPiles ? "Cargando..." : "Refrescar"}
+            {loadingLookups || loadingPiles || loadingExisting ? "Cargando..." : "Refrescar"}
           </Button>
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
             {saving ? "Guardando…" : "Guardar"}
@@ -617,7 +660,6 @@ export default function GuardiaPage() {
 
       <div className="panel-inner" style={{ padding: 14 }}>
         <div style={{ display: "grid", gap: 12 }}>
-          {/* Header */}
           <div style={{ display: "grid", gridTemplateColumns: "260px 200px 1fr", gap: 12, alignItems: "end" }}>
             <DatePicker
               valueIso={form.shift_date}
@@ -649,16 +691,14 @@ export default function GuardiaPage() {
             />
           </div>
 
-          {/* Tarjetas (sin paréntesis; TMS después de %Humedad) */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
-            <StatCard title="TMH" value={computedLive.has ? fmt(computedLive.tmh_sum, 3) : "—"} />
-            <StatCard title="% Humedad" value={computedLive.has ? fmt(computedLive.h2o_w, 3) : "—"} />
-            <StatCard title="TMS" value={computedLive.has ? fmt(computedLive.tms_sum, 3) : "—"} />
-            <StatCard title="Ley de Au" value={computedLive.has ? fmt(computedLive.au_w, 4) : "—"} sub="g/t" />
-            <StatCard title="Ley de Ag" value={computedLive.has ? fmt(computedLive.ag_w, 4) : "—"} sub="g/t" />
+            <StatCard title="TMH" value={displayAgg.has ? fmt(displayAgg.tmh_sum, 3) : "—"} />
+            <StatCard title="% Humedad" value={displayAgg.has ? fmt(displayAgg.h2o_w, 3) : "—"} />
+            <StatCard title="TMS" value={displayAgg.has ? fmt(displayAgg.tms_sum, 3) : "—"} />
+            <StatCard title="Ley de Au" value={displayAgg.has ? fmt(displayAgg.au_w, 4) : "—"} sub="g/t" />
+            <StatCard title="Ley de Ag" value={displayAgg.has ? fmt(displayAgg.ag_w, 4) : "—"} sub="g/t" />
           </div>
 
-          {/* Pilas */}
           <div style={{ display: "grid", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ fontWeight: 950 }}>Pilas</div>
@@ -801,7 +841,6 @@ export default function GuardiaPage() {
                   })}
                 </tbody>
 
-                {/* Feedback debajo de filas: TMH (Σ deltas), y ponderados por TMS */}
                 <tfoot>
                   <tr>
                     <td style={tfLabel}>Totales</td>
@@ -846,12 +885,8 @@ export default function GuardiaPage() {
                   fontWeight: 850,
                 }}
               >
-                {validation.dup ? (
-                  <div>No se permite repetir la misma pila (P-xx) en la misma guardia.</div>
-                ) : null}
-                {validation.badDelta ? (
-                  <div>En cada fila válida, el Peso Final debe ser mayor que el Peso Inicial.</div>
-                ) : null}
+                {validation.dup ? <div>No se permite repetir la misma pila (P-xx) en la misma guardia.</div> : null}
+                {validation.badDelta ? <div>En cada fila válida, el Peso Final debe ser mayor que el Peso Inicial.</div> : null}
                 {validation.badNums ? (
                   <div>En filas con P-xx válido, todos los campos deben ser números (≥0) y %H2O debe estar en 1–100.</div>
                 ) : null}
@@ -859,7 +894,6 @@ export default function GuardiaPage() {
             ) : null}
           </div>
 
-          {/* Comentario */}
           <div style={{ display: "grid", gap: 6 }}>
             <div style={{ fontWeight: 900, fontSize: 13 }}>Comentario</div>
 
