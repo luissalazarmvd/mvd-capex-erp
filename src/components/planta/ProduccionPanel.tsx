@@ -20,9 +20,9 @@ type ReplaceResp = { ok: boolean; shift_id: string; var_code: string; inserted: 
 const VARS = [
   { code: "density_of", label: "Densidad (g/l)", kind: "nonneg" as const },
   { code: "pct_200", label: "%-m-200 (1-100)", kind: "pct" as const },
-  { code: "nacn_of", label: "NaCN OF (1-12)", kind: "pct" as const },
-  { code: "nacn_ads", label: "NaCN TK1 (1-12)", kind: "pct" as const },
-  { code: "nacn_tail", label: "NaCN TK11 (1-12)", kind: "pct" as const },
+  { code: "nacn_of", label: "NaCN OF (1-12)", kind: "nacn" as const },
+  { code: "nacn_ads", label: "NaCN TK1 (1-12)", kind: "nacn" as const },
+  { code: "nacn_tail", label: "NaCN TK11 (1-12)", kind: "nacn" as const },
   { code: "ph_of", label: "pH OF", kind: "ph" as const },
   { code: "ph_ads", label: "pH TK1", kind: "ph" as const },
   { code: "ph_tail", label: "pH TK11", kind: "ph" as const },
@@ -62,6 +62,7 @@ function validateCell(kind: Kind, s: string): boolean {
   if (n === 0) return true;
   if (kind === "nonneg") return n >= 0;
   if (kind === "pct") return n >= 1 && n <= 100;
+  if (kind === "nacn") return n >= 1 && n <= 12;
   if (kind === "ph") return n >= 1 && n <= 14;
   return false;
 }
@@ -114,14 +115,9 @@ function pctToDecimalOrNull(avg: number | null) {
   return avg / 100;
 }
 
-function nacnAvgToUi(avg: number | null) {
-  if (avg === null || !Number.isFinite(avg)) return null;
-  return avg * 100;
-}
-
 function nacnUiToDbOrNull(avgUi: number | null) {
   if (avgUi === null || !Number.isFinite(avgUi)) return null;
-  if (avgUi < 1 || avgUi > 100) return null;
+  if (avgUi < 1 || avgUi > 12) return null;
   return avgUi / 100;
 }
 
@@ -145,21 +141,11 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
     return o;
   });
 
-  const avgsRaw = useMemo(() => {
+  const avgsUi = useMemo(() => {
     const o: Record<VarCode, number | null> = {} as any;
     for (const v of VARS) o[v.code] = computeAvgFromColumn(mat[v.code] || []);
     return o;
   }, [mat]);
-
-  const avgsUi = useMemo(() => {
-    const o: Record<VarCode, number | null> = {} as any;
-    for (const v of VARS) {
-      const raw = avgsRaw[v.code];
-      if (v.code === "nacn_of" || v.code === "nacn_ads" || v.code === "nacn_tail") o[v.code] = nacnAvgToUi(raw);
-      else o[v.code] = raw;
-    }
-    return o;
-  }, [avgsRaw]);
 
   const avgsDisplay = useMemo(() => {
     const o: Record<VarCode, number | null> = {} as any;
