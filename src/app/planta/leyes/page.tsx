@@ -6,41 +6,55 @@ import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 
-type ShiftRow = {
-  shift_id: string;
-  shift_date: string;
-  plant_shift: "A" | "B";
-  plant_supervisor?: string | null;
-};
-
-type ShiftsResp = {
-  ok: boolean;
-  shifts: ShiftRow[];
-  error?: string;
-};
-
-type GuardiaHeader = {
-  // ✅ NUEVOS (OF)
-  au_solid_of?: any;
-  au_solu_of?: any;
-  ag_solid_of?: any;
-  ag_solu_of?: any;
-
-  // Relave (Tail)
-  au_solid_tail?: any;
-  au_solu_tail?: any;
-  ag_solid_tail?: any;
-  ag_solu_tail?: any;
-};
-
-type GuardiaResp = {
+type GuardiaGetResp = {
   ok: boolean;
   shift_id: string;
-  header: GuardiaHeader | null;
-  error?: string;
+  header: any | null;
+  consumables: { shift_id: string; reagent_name: string; qty: any }[];
+  balls: any[];
+  duration: any[];
 };
 
-type UpsertResp = { ok: boolean; error?: string };
+function toNumOrNaN(s: string) {
+  if (!s) return NaN;
+  const t = String(s).trim().replace(",", ".");
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function toNumOrNull(s: string) {
+  const n = toNumOrNaN(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function okNonNegOrEmpty(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  const n = toNumOrNaN(t);
+  return Number.isFinite(n) && n >= 0;
+}
+
+function okPct1to100OrEmpty(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  const n = toNumOrNaN(t);
+  return Number.isFinite(n) && n >= 1 && n <= 100;
+}
+
+function okPh1to14OrEmpty(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  const n = toNumOrNaN(t);
+  return Number.isFinite(n) && n >= 1 && n <= 14;
+}
+
+function pctStrToDecimalOrNull(s: string) {
+  const t = String(s ?? "").trim();
+  if (!t) return null;
+  const n = toNumOrNaN(t);
+  if (!Number.isFinite(n) || n < 1 || n > 100) return null;
+  return n / 100;
+}
 
 function isIsoDate(s: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim());
@@ -57,404 +71,182 @@ function parseShiftIdToQuery(shift_id: string): { date: string; shift: "A" | "B"
   return { date, shift };
 }
 
-function toTextNum(v: any) {
-  if (v === null || v === undefined || v === "") return "";
-  const n = Number(String(v).trim());
-  return Number.isFinite(n) ? String(n) : "";
-}
-
-function parseNullableNumberNonNeg(s: string) {
-  const t = String(s ?? "").trim();
-  if (!t) return null;
-  const normalized = t.replace(/\s+/g, "").replace(",", ".");
-  const n = Number(normalized);
-  if (!Number.isFinite(n)) return NaN;
-  if (n < 0) return NaN;
-  return n;
-}
-
-function SearchableDropdown({
-  label,
-  placeholder,
-  value,
-  items,
-  getKey,
-  getLabel,
-  onSelect,
-  disabled,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  items: any[];
-  getKey: (x: any) => string;
-  getLabel: (x: any) => string;
-  onSelect: (x: any) => void;
-  disabled?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const boxRef = useRef<HTMLDivElement | null>(null);
-
-  const filtered = useMemo(() => {
-    const qq = q.trim().toLowerCase();
-    if (!qq) return items;
-    return items.filter((it) => {
-      const a = getLabel(it).toLowerCase();
-      const b = getKey(it).toLowerCase();
-      return a.includes(qq) || b.includes(qq);
-    });
-  }, [q, items, getKey, getLabel]);
-
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (!boxRef.current) return;
-      if (!boxRef.current.contains(e.target as any)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  return (
-    <div ref={boxRef} style={{ display: "grid", gap: 6, position: "relative" }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
-
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <input
-          value={open ? q : value}
-          placeholder={placeholder}
-          disabled={disabled}
-          onFocus={() => {
-            if (disabled) return;
-            setOpen(true);
-            setQ("");
-          }}
-          onChange={(e) => {
-            setOpen(true);
-            setQ(e.target.value);
-          }}
-          style={{
-            width: "100%",
-            background: "rgba(0,0,0,.10)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-            borderRadius: 10,
-            padding: "10px 12px",
-            outline: "none",
-            fontWeight: 900,
-            opacity: disabled ? 0.7 : 1,
-          }}
-        />
-
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => setOpen((s) => !s)}
-          style={{
-            width: 44,
-            height: 42,
-            borderRadius: 10,
-            border: "1px solid var(--border)",
-            background: "rgba(0,0,0,.10)",
-            cursor: disabled ? "not-allowed" : "pointer",
-            opacity: disabled ? 0.7 : 1,
-            fontWeight: 900,
-            color: "var(--text)",
-          }}
-          aria-label="Abrir"
-          title="Abrir"
-        >
-          ▾
-        </button>
-      </div>
-
-      {open ? (
-        <div
-          style={{
-            position: "absolute",
-            top: 72,
-            left: 0,
-            right: 0,
-            zIndex: 20,
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            background: "var(--panel)",
-            boxShadow: "0 10px 24px rgba(0,0,0,.25)",
-            maxHeight: 280,
-            overflow: "auto",
-          }}
-        >
-          {filtered.length ? (
-            filtered.map((it) => {
-              const k = getKey(it);
-              const lbl = getLabel(it);
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => {
-                    onSelect(it);
-                    setOpen(false);
-                  }}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "10px 12px",
-                    border: "none",
-                    background: "transparent",
-                    cursor: "pointer",
-                    color: "var(--text)",
-                    fontWeight: 900,
-                    borderBottom: "1px solid rgba(255,255,255,.06)",
-                  }}
-                >
-                  {lbl}
-                </button>
-              );
-            })
-          ) : (
-            <div className="muted" style={{ padding: 12, fontWeight: 800 }}>
-              No hay resultados
-            </div>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-export default function LeyesPage() {
+export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
   const [msg, setMsg] = useState<string | null>(null);
 
-  const [loadingShifts, setLoadingShifts] = useState(true);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [shifts, setShifts] = useState<ShiftRow[]>([]);
-  const [shiftId, setShiftId] = useState<string>("");
+  const sid = useMemo(() => String(shiftId || "").trim().toUpperCase(), [shiftId]);
 
-  // ✅ NUEVOS (OF) - van primero en UI
-  const [auSolidOf, setAuSolidOf] = useState<string>("");
-  const [auSoluOf, setAuSoluOf] = useState<string>("");
-  const [agSolidOf, setAgSolidOf] = useState<string>("");
-  const [agSoluOf, setAgSoluOf] = useState<string>("");
+  const [densityOf, setDensityOf] = useState("");
+  const [pct200, setPct200] = useState("");
 
-  // Relave (Tail)
-  const [auSolid, setAuSolid] = useState<string>("");
-  const [auSolu, setAuSolu] = useState<string>("");
-  const [agSolid, setAgSolid] = useState<string>("");
-  const [agSolu, setAgSolu] = useState<string>("");
+  const [auSolidOf, setAuSolidOf] = useState("");
+  const [auSoluOf, setAuSoluOf] = useState("");
 
-  const shiftsSorted = useMemo(() => {
-    const list = Array.isArray(shifts) ? [...shifts] : [];
-    list.sort((a, b) => {
-      const ad = String(a.shift_date || "").replaceAll("-", "");
-      const bd = String(b.shift_date || "").replaceAll("-", "");
-      if (ad !== bd) return bd.localeCompare(ad);
-      const ash = String(a.plant_shift || "");
-      const bsh = String(b.plant_shift || "");
-      if (ash !== bsh) return bsh.localeCompare(ash);
-      return String(b.shift_id || "").localeCompare(String(a.shift_id || ""));
-    });
-    return list;
-  }, [shifts]);
+  const [agSolidOf, setAgSolidOf] = useState("");
+  const [agSoluOf, setAgSoluOf] = useState("");
 
-  const shiftLabel = (s: ShiftRow) => {
-    const sup = s.plant_supervisor ? ` · ${s.plant_supervisor}` : "";
-    return `${s.shift_id}${sup}`;
-  };
+  const [nacnOf, setNacnOf] = useState("");
+  const [nacnAds, setNacnAds] = useState("");
+  const [nacnTail, setNacnTail] = useState("");
 
-  const canSave = useMemo(() => {
-    if (saving) return false;
-    const sid = String(shiftId || "").trim();
-    if (!sid) return false;
+  const [phOf, setPhOf] = useState("");
+  const [phAds, setPhAds] = useState("");
+  const [phTail, setPhTail] = useState("");
 
-    // OF
-    const of1 = parseNullableNumberNonNeg(auSolidOf);
-    const of2 = parseNullableNumberNonNeg(auSoluOf);
-    const of3 = parseNullableNumberNonNeg(agSolidOf);
-    const of4 = parseNullableNumberNonNeg(agSoluOf);
-
-    // Tail
-    const a1 = parseNullableNumberNonNeg(auSolid);
-    const a2 = parseNullableNumberNonNeg(auSolu);
-    const g1 = parseNullableNumberNonNeg(agSolid);
-    const g2 = parseNullableNumberNonNeg(agSolu);
-
-    const values = [of1, of2, of3, of4, a1, a2, g1, g2];
-    const raw = [auSolidOf, auSoluOf, agSolidOf, agSoluOf, auSolid, auSolu, agSolid, agSolu];
-
-    const anyFilled = raw.some((x) => String(x || "").trim() !== "");
-    if (!anyFilled) return false;
-
-    for (const v of values) {
-      if (v === null) continue;
-      // mismo criterio que tu page: si llenas, debe ser > 0
-      if (!Number.isFinite(v) || v <= 0) return false;
-    }
-
-    return true;
-  }, [shiftId, auSolidOf, auSoluOf, agSolidOf, agSoluOf, auSolid, auSolu, agSolid, agSolu, saving]);
-
-  async function loadShifts() {
-    setLoadingShifts(true);
-    setMsg(null);
-    try {
-      const r = (await apiGet("/api/planta/shifts?top=500")) as ShiftsResp;
-      const list = Array.isArray((r as any)?.shifts) ? ((r as any).shifts as ShiftRow[]) : [];
-      setShifts(list);
-      if (list[0]?.shift_id) setShiftId(String(list[0].shift_id || "").trim().toUpperCase());
-    } catch (e: any) {
-      setShifts([]);
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando guardias");
-    } finally {
-      setLoadingShifts(false);
-    }
-  }
-
-  function clearEntryFields() {
-    // OF
+  function clearFields() {
+    setDensityOf("");
+    setPct200("");
     setAuSolidOf("");
     setAuSoluOf("");
     setAgSolidOf("");
     setAgSoluOf("");
-
-    // Tail
-    setAuSolid("");
-    setAuSolu("");
-    setAgSolid("");
-    setAgSolu("");
+    setNacnOf("");
+    setNacnAds("");
+    setNacnTail("");
+    setPhOf("");
+    setPhAds("");
+    setPhTail("");
   }
 
-  async function loadExistingForShift(sid: string) {
-    const q = parseShiftIdToQuery(sid);
-    if (!q) return;
+  const validNonNeg =
+    okNonNegOrEmpty(densityOf) &&
+    okNonNegOrEmpty(auSolidOf) &&
+    okNonNegOrEmpty(auSoluOf) &&
+    okNonNegOrEmpty(agSolidOf) &&
+    okNonNegOrEmpty(agSoluOf);
+
+  const validPct =
+    okPct1to100OrEmpty(pct200) &&
+    okPct1to100OrEmpty(nacnOf) &&
+    okPct1to100OrEmpty(nacnAds) &&
+    okPct1to100OrEmpty(nacnTail);
+
+  const validPh = okPh1to14OrEmpty(phOf) && okPh1to14OrEmpty(phAds) && okPh1to14OrEmpty(phTail);
+
+  const canSave = useMemo(
+    () => !!sid && validNonNeg && validPct && validPh && !saving,
+    [sid, validNonNeg, validPct, validPh, saving]
+  );
+
+  async function loadExisting(nextSid: string) {
+    if (!nextSid) return;
+
+    const q = parseShiftIdToQuery(nextSid);
+    if (!q) {
+      clearFields();
+      return;
+    }
 
     setLoadingExisting(true);
+    setMsg(null);
 
     try {
       const r = (await apiGet(
         `/api/planta/guardia/get?date=${encodeURIComponent(q.date)}&shift=${encodeURIComponent(q.shift)}`
-      )) as any;
+      )) as GuardiaGetResp;
 
-      const h: GuardiaHeader = (r?.header as any) || {};
+      const h = r.header || null;
 
-      // OF
-      setAuSolidOf(toTextNum(h.au_solid_of));
-      setAuSoluOf(toTextNum(h.au_solu_of));
-      setAgSolidOf(toTextNum(h.ag_solid_of));
-      setAgSoluOf(toTextNum(h.ag_solu_of));
+      clearFields();
 
-      // Tail
-      setAuSolid(toTextNum(h.au_solid_tail));
-      setAuSolu(toTextNum(h.au_solu_tail));
-      setAgSolid(toTextNum(h.ag_solid_tail));
-      setAgSolu(toTextNum(h.ag_solu_tail));
-    } catch (e: any) {
-      clearEntryFields();
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando leyes");
+      if (h) {
+        if (h.density_of !== null && h.density_of !== undefined) setDensityOf(String(h.density_of));
+
+        if (h.pct_200 !== null && h.pct_200 !== undefined) {
+          const v = Number(h.pct_200);
+          setPct200(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.pct_200));
+        }
+
+        if (h.au_solid_of !== null && h.au_solid_of !== undefined) setAuSolidOf(String(h.au_solid_of));
+        if (h.au_solu_of !== null && h.au_solu_of !== undefined) setAuSoluOf(String(h.au_solu_of));
+
+        if (h.ag_solid_of !== null && h.ag_solid_of !== undefined) setAgSolidOf(String(h.ag_solid_of));
+        if (h.ag_solu_of !== null && h.ag_solu_of !== undefined) setAgSoluOf(String(h.ag_solu_of));
+
+        if (h.nacn_of !== null && h.nacn_of !== undefined) {
+          const v = Number(h.nacn_of);
+          setNacnOf(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.nacn_of));
+        }
+        if (h.nacn_ads !== null && h.nacn_ads !== undefined) {
+          const v = Number(h.nacn_ads);
+          setNacnAds(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.nacn_ads));
+        }
+        if (h.nacn_tail !== null && h.nacn_tail !== undefined) {
+          const v = Number(h.nacn_tail);
+          setNacnTail(Number.isFinite(v) ? String(Math.round(v * 100 * 1000) / 1000) : String(h.nacn_tail));
+        }
+
+        if (h.ph_of !== null && h.ph_of !== undefined) setPhOf(String(h.ph_of));
+        if (h.ph_ads !== null && h.ph_ads !== undefined) setPhAds(String(h.ph_ads));
+        if (h.ph_tail !== null && h.ph_tail !== undefined) setPhTail(String(h.ph_tail));
+      }
+    } catch {
     } finally {
       setLoadingExisting(false);
     }
   }
 
   useEffect(() => {
-    loadShifts();
-  }, []);
-
-  useEffect(() => {
-    setMsg(null);
-
-    if (!shiftId) {
-      clearEntryFields();
+    if (!sid) {
+      clearFields();
+      setMsg(null);
       return;
     }
-    loadExistingForShift(shiftId);
-  }, [shiftId]);
+    loadExisting(sid);
+  }, [sid]);
 
   async function onSave() {
-    setMsg(null);
-
-    const sid = String(shiftId || "").trim().toUpperCase();
-    if (!sid) {
-      setMsg("ERROR: Selecciona un turno (shift_id).");
-      return;
-    }
-
-    // OF
-    const of1 = parseNullableNumberNonNeg(auSolidOf);
-    const of2 = parseNullableNumberNonNeg(auSoluOf);
-    const of3 = parseNullableNumberNonNeg(agSolidOf);
-    const of4 = parseNullableNumberNonNeg(agSoluOf);
-
-    // Tail
-    const a1 = parseNullableNumberNonNeg(auSolid);
-    const a2 = parseNullableNumberNonNeg(auSolu);
-    const g1 = parseNullableNumberNonNeg(agSolid);
-    const g2 = parseNullableNumberNonNeg(agSolu);
-
-    const values = [of1, of2, of3, of4, a1, a2, g1, g2];
-    const raw = [auSolidOf, auSoluOf, agSolidOf, agSoluOf, auSolid, auSolu, agSolid, agSolu];
-
-    const anyFilled = raw.some((x) => String(x || "").trim() !== "");
-    if (!anyFilled) {
-      setMsg("ERROR: Ingresa al menos un valor.");
-      return;
-    }
-
-    for (const v of values) {
-      if (v === null) continue;
-      if (!Number.isFinite(v) || v <= 0) {
-        setMsg("ERROR: Si llenas un valor, debe ser numérico y mayor a 0.");
-        return;
-      }
-    }
-
     setSaving(true);
+    setMsg(null);
     try {
-      const payload: any = { shift_id: sid };
+      const payload = {
+        shift_id: sid,
+        density_of: toNumOrNull(densityOf),
+        pct_200: pctStrToDecimalOrNull(pct200),
+        au_solid_of: toNumOrNull(auSolidOf),
+        au_solu_of: toNumOrNull(auSoluOf),
+        ag_solid_of: toNumOrNull(agSolidOf),
+        ag_solu_of: toNumOrNull(agSoluOf),
+        nacn_of: pctStrToDecimalOrNull(nacnOf),
+        nacn_ads: pctStrToDecimalOrNull(nacnAds),
+        nacn_tail: pctStrToDecimalOrNull(nacnTail),
+        ph_of: toNumOrNull(phOf),
+        ph_ads: toNumOrNull(phAds),
+        ph_tail: toNumOrNull(phTail),
+      };
 
-      // OF
-      payload.au_solid_of = of1 === null ? null : of1;
-      payload.au_solu_of = of2 === null ? null : of2;
-      payload.ag_solid_of = of3 === null ? null : of3;
-      payload.ag_solu_of = of4 === null ? null : of4;
-
-      // Tail
-      payload.au_solid_tail = a1 === null ? null : a1;
-      payload.au_solu_tail = a2 === null ? null : a2;
-      payload.ag_solid_tail = g1 === null ? null : g1;
-      payload.ag_solu_tail = g2 === null ? null : g2;
-
-      const r = (await apiPost(`/api/planta/relave/upsert`, payload)) as UpsertResp;
-      if (!r?.ok) throw new Error(r?.error || "No se pudo guardar");
-
-      setMsg(`OK: guardado ${sid} · Leyes`);
-      await loadExistingForShift(sid);
+      await apiPost("/api/planta/produccion/upsert", payload);
+      setMsg(`OK: guardado ${payload.shift_id} · Producción`);
     } catch (e: any) {
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando leyes");
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando producción");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
+    <div style={{ display: "grid", gap: 12, maxWidth: 980 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Leyes</div>
+        <div style={{ fontWeight: 900 }}>Producción</div>
+
+        <div className="muted" style={{ fontWeight: 800, marginLeft: 8 }}>
+          Guardia: {sid || "—"}
+        </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={loadShifts} disabled={loadingShifts || saving}>
-            {loadingShifts ? "Cargando..." : "Refrescar"}
-          </Button>
           <Button
             type="button"
             size="sm"
-            variant="primary"
-            onClick={onSave}
-            disabled={!canSave || loadingExisting}
-            title={loadingExisting ? "Cargando datos existentes..." : ""}
+            variant="ghost"
+            onClick={() => sid && loadExisting(sid)}
+            disabled={!sid || loadingExisting || saving}
           >
+            {loadingExisting ? "Cargando..." : "Refrescar"}
+          </Button>
+          <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
             {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
@@ -476,115 +268,127 @@ export default function LeyesPage() {
 
       <div className="panel-inner" style={{ padding: 14 }}>
         <div style={{ display: "grid", gap: 12 }}>
-          <SearchableDropdown
-            label="Guardia"
-            placeholder={loadingShifts ? "Cargando guardias..." : "Busca: 20260205-A, supervisor..."}
-            value={shiftId}
-            items={shiftsSorted}
-            getKey={(x: ShiftRow) => x.shift_id}
-            getLabel={(x: ShiftRow) => shiftLabel(x)}
-            onSelect={(x: ShiftRow) => setShiftId(String(x.shift_id || "").trim().toUpperCase())}
-            disabled={saving}
-          />
-
-          {!shiftsSorted.length ? (
-            <div style={{ display: "grid", gap: 6 }}>
-              <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
-                Pega el shift_id manual (formato: YYYYMMDD-A o YYYYMMDD-B).
-              </div>
-              <Input
-                placeholder="Ej: 20260205-A"
-                value={shiftId}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShiftId(e.target.value.trim().toUpperCase())}
-                hint="shift_id"
-              />
+          {!sid ? (
+            <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+              Selecciona una guardia en el page.
             </div>
           ) : null}
 
-          {/* ✅ NUEVOS PRIMERO (OF) */}
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido OF (g/t)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={auSolidOf}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolidOf(e.target.value)}
-              hint=""
-            />
-          </div>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Densidad OF (g/l)</div>
+              <Input
+                placeholder="vacío o ≥ 0"
+                value={densityOf}
+                onChange={(e: any) => setDensityOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución OF (g/m³)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={auSoluOf}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSoluOf(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>%-m-200 (1-100)</div>
+              <Input
+                placeholder="vacío o 1–100"
+                value={pct200}
+                onChange={(e: any) => setPct200(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido OF (g/t)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={agSolidOf}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolidOf(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido OF (g/t)</div>
+              <Input
+                placeholder="vacío o ≥ 0"
+                value={auSolidOf}
+                onChange={(e: any) => setAuSolidOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución OF (g/m³)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={agSoluOf}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSoluOf(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución OF (g/m³)</div>
+              <Input
+                placeholder="vacío o ≥ 0"
+                value={auSoluOf}
+                onChange={(e: any) => setAuSoluOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          {/* Relave (Tail) - se quedan como estaban, pero van después */}
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido Relave (g/t)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={auSolid}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolid(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido OF (g/t)</div>
+              <Input
+                placeholder="vacío o ≥ 0"
+                value={agSolidOf}
+                onChange={(e: any) => setAgSolidOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución Relave (g/m³)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={auSolu}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolu(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución OF (g/m³)</div>
+              <Input
+                placeholder="vacío o ≥ 0"
+                value={agSoluOf}
+                onChange={(e: any) => setAgSoluOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido Relave (g/t)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={agSolid}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolid(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>%NaCN OF (1-100)</div>
+              <Input
+                placeholder="vacío o 1–100"
+                value={nacnOf}
+                onChange={(e: any) => setNacnOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución Relave (g/m³)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={agSolu}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolu(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>%NaCN TK1 (1-100)</div>
+              <Input
+                placeholder="vacío o 1–100"
+                value={nacnAds}
+                onChange={(e: any) => setNacnAds(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
-            Guardado por turno (shift_id). Si dejas campos vacíos, no se actualizan.
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>%NaCN TK11 (1-100)</div>
+              <Input
+                placeholder="vacío o 1–100"
+                value={nacnTail}
+                onChange={(e: any) => setNacnTail(e.target.value)}
+                hint=""
+              />
+            </div>
+
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>PH OF (1-14)</div>
+              <Input placeholder="vacío o 1–14" value={phOf} onChange={(e: any) => setPhOf(e.target.value)} hint="" />
+            </div>
+
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>PH TK1 (1-14)</div>
+              <Input
+                placeholder="vacío o 1–14"
+                value={phAds}
+                onChange={(e: any) => setPhAds(e.target.value)}
+                hint=""
+              />
+            </div>
+
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>PH TK11 (1-14)</div>
+              <Input
+                placeholder="vacío o 1–14"
+                value={phTail}
+                onChange={(e: any) => setPhTail(e.target.value)}
+                hint=""
+              />
+            </div>
           </div>
 
           {loadingExisting ? (
