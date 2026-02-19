@@ -154,6 +154,19 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     return o;
   }, [avgsRaw]);
 
+    const hasAnyData = useMemo(() => {
+    for (const v of VARS) {
+      const arr = mat[v.code] || [];
+      for (let i = 0; i < arr.length; i++) {
+        const s = String(arr[i] ?? "").trim();
+        if (!s) continue;
+        const n = toNumOrNaN(s);
+        if (Number.isFinite(n) && n !== 0) return true;
+      }
+    }
+    return false;
+  }, [mat]);
+
   const colStatus = useMemo(() => {
     const o: Record<VarCode, { ok: boolean; firstGapAt: number | null; firstInvalidAt: number | null }> = {} as any;
     for (const v of VARS) o[v.code] = validateSequentialColumn(v.kind, mat[v.code] || []);
@@ -162,8 +175,9 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
 
   const allValid = useMemo(() => {
     if (!sid || !isShiftId(sid)) return false;
+    if (!hasAnyData) return false;
     return VARS.every((v) => colStatus[v.code]?.ok);
-  }, [sid, colStatus]);
+  }, [sid, colStatus, hasAnyData]);
 
   const canSave = useMemo(() => allValid && !saving, [allValid, saving]);
 
