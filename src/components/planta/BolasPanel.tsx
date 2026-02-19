@@ -115,7 +115,7 @@ function Select({
   }, []);
 
   return (
-    <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
+    <div style={{ display: "grid", gap: 6, overflow: "visible" }} ref={wrapRef}>
       <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
 
       <button
@@ -145,55 +145,52 @@ function Select({
       </button>
 
       {open ? (
-        <div style={{ position: "relative", zIndex: 50 }}>
-          <div
-            style={{
-              position: "absolute",
-              top: 6,
-              left: 0,
-              right: 0,
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(5, 25, 45, .98)",
-              boxShadow: "0 10px 30px rgba(0,0,0,.45)",
-              overflow: "hidden",
-            }}
-          >
-            {options.map((o) => {
-              const active = o.value === value;
-              const isEmpty = o.value === "";
-              return (
-                <button
-                  key={o.value || "__empty__"}
-                  type="button"
-                  onClick={() => {
-                    onChange(o.value);
-                    setOpen(false);
-                  }}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "10px 12px",
-                    background: active ? "rgba(102,199,255,.18)" : "transparent",
-                    color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
-                    border: "none",
-                    cursor: "pointer",
-                    fontWeight: 900,
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as any).style.background = active
-                      ? "rgba(102,199,255,.18)"
-                      : "rgba(255,255,255,.06)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as any).style.background = active ? "rgba(102,199,255,.18)" : "transparent";
-                  }}
-                >
-                  {o.label}
-                </button>
-              );
-            })}
-          </div>
+        // ✅ menú en flujo normal (NO overlay). Empuja el layout y agranda el accordion.
+        <div
+          style={{
+            marginTop: 8,
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,.10)",
+            background: "rgba(5, 25, 45, .98)",
+            boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+            overflow: "auto",
+            maxHeight: 280, // mantiene scroll interno si hay muchas opciones
+          }}
+        >
+          {options.map((o) => {
+            const active = o.value === value;
+            const isEmpty = o.value === "";
+            return (
+              <button
+                key={o.value || "__empty__"}
+                type="button"
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  background: active ? "rgba(102,199,255,.18)" : "transparent",
+                  color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 900,
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as any).style.background = active
+                    ? "rgba(102,199,255,.18)"
+                    : "rgba(255,255,255,.06)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as any).style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                }}
+              >
+                {o.label}
+              </button>
+            );
+          })}
         </div>
       ) : null}
     </div>
