@@ -380,8 +380,8 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>
-        <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
+      <div className="panel-inner" style={{ padding: 0, overflow: "visible" }}>
+        <Table stickyHeader>
           <thead>
             <tr>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "center", padding: "8px 8px", fontSize: 12, minWidth: 52 }}>
