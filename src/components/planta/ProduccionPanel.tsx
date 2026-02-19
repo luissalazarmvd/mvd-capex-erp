@@ -125,7 +125,14 @@ function nacnUiToDbOrNull(avgUi: number | null) {
   return avgUi / 100;
 }
 
-export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
+type FactsHeader = Partial<Record<VarCode, any>>;
+
+function numOrNull(v: any): number | null {
+  const n = typeof v === "number" ? v : toNumOrNaN(String(v ?? ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; facts?: FactsHeader | null }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -154,7 +161,33 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
     return o;
   }, [avgsRaw]);
 
-    const hasAnyData = useMemo(() => {
+  const avgsDisplay = useMemo(() => {
+    const o: Record<VarCode, number | null> = {} as any;
+
+    for (const v of VARS) {
+      const fromDet = avgsUi[v.code];
+      if (fromDet !== null && Number.isFinite(fromDet as any)) {
+        o[v.code] = fromDet;
+        continue;
+      }
+
+      const fv = numOrNull((facts as any)?.[v.code]);
+      if (fv === null) {
+        o[v.code] = null;
+        continue;
+      }
+
+      if (v.code === "pct_200" || v.code === "nacn_of" || v.code === "nacn_ads" || v.code === "nacn_tail") {
+        o[v.code] = fv * 100;
+      } else {
+        o[v.code] = fv;
+      }
+    }
+
+    return o;
+  }, [avgsUi, facts]);
+
+  const hasAnyData = useMemo(() => {
     for (const v of VARS) {
       const arr = mat[v.code] || [];
       for (let i = 0; i < arr.length; i++) {
@@ -238,7 +271,6 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
       }
 
       setMat(next);
-    } catch {
     } finally {
       setLoadingExisting(false);
     }
@@ -430,7 +462,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string }) {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
                       <div style={{ fontWeight: 900 }}>{v.label}</div>
-                      <div style={{ fontWeight: 900, opacity: 0.95 }}>{fmtAvg(avgsUi[v.code], 2)}</div>
+                      <div style={{ fontWeight: 900, opacity: 0.95 }}>{fmtAvg(avgsDisplay[v.code], 2)}</div>
                     </div>
                   </th>
                 );

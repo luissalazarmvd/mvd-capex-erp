@@ -244,6 +244,7 @@ export default function DatosGuardiaPage() {
   const [loadingShifts, setLoadingShifts] = useState(true);
   const [shifts, setShifts] = useState<OpenShift[]>([]);
   const [shiftId, setShiftId] = useState<string>("");
+  const [guardiaHeader, setGuardiaHeader] = useState<any>(null);
 
   // Varias abiertas
   const [openProd, setOpenProd] = useState(true);
@@ -308,13 +309,42 @@ export default function DatosGuardiaPage() {
     loadShifts();
   }, []);
 
-  // ✅ Al cambiar guardia: solo Producción abierta, el resto cerrado
   useEffect(() => {
     if (!shiftId) return;
     setOpenProd(true);
     setOpenBolas(false);
     setOpenReact(false);
     setOpenDur(false);
+  }, [shiftId]);
+
+  useEffect(() => {
+    let alive = true;
+
+    if (!shiftId) {
+      setGuardiaHeader(null);
+      return;
+    }
+
+    const q = parseShiftIdToQuery(shiftId);
+    if (!q) {
+      setGuardiaHeader(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const r = await apiGet(
+          `/api/planta/guardia/get?date=${encodeURIComponent(q.date)}&shift=${encodeURIComponent(q.shift)}`
+        );
+        if (alive) setGuardiaHeader(r?.header || null);
+      } catch {
+        if (alive) setGuardiaHeader(null);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
   }, [shiftId]);
 
   function expandAll() {
@@ -395,7 +425,7 @@ export default function DatosGuardiaPage() {
           {/* acordeones a ancho natural */}
           <div style={{ display: "grid", gap: 10, overflow: "visible" }}>
             <Accordion title="Producción" subtitle={shiftId ? shiftSub : ""} open={openProd} onToggle={() => setOpenProd((s) => !s)}>
-              <ProduccionPanel shiftId={shiftId} />
+              <ProduccionPanel shiftId={shiftId} facts={guardiaHeader} />
             </Accordion>
 
             <Accordion title="Bolas" subtitle={shiftId ? shiftSub : ""} open={openBolas} onToggle={() => setOpenBolas((s) => !s)}>
