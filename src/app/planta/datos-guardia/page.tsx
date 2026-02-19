@@ -362,10 +362,18 @@ export default function DatosGuardiaPage() {
         </div>
       ) : null}
 
-      {/* layout: contenido + panel sticky derecha */}
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 220px", alignItems: "start" }}>
-        <div className="panel-inner" style={{ padding: 14 }}>
-          <div style={{ display: "grid", gap: 12 }}>
+      {/* ✅ SIN sticky ni columna derecha. Todo a ancho completo. */}
+      <div className="panel-inner" style={{ padding: 14 }}>
+        <div style={{ display: "grid", gap: 12 }}>
+          {/* selector + acciones al costado (misma altura) */}
+          <div
+            style={{
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "1fr auto",
+              alignItems: "end",
+            }}
+          >
             <SearchableDropdown
               label="Guardia"
               placeholder={loadingShifts ? "Cargando..." : "Busca: 20260205-A, supervisor..."}
@@ -377,79 +385,48 @@ export default function DatosGuardiaPage() {
               disabled={loadingShifts}
             />
 
-            <div style={{ display: "grid", gap: 10 }}>
-              <Accordion title="Producción" subtitle={shiftId ? shiftSub : ""} open={openProd} onToggle={() => setOpenProd((s) => !s)}>
-                <ProduccionPanel shiftId={shiftId} />
-              </Accordion>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={expandAll}
+                disabled={!shiftId}
+                className="nav-pill !text-white visited:!text-white font-extrabold"
+                style={!shiftId ? { opacity: 0.72, cursor: "not-allowed" } : undefined}
+                title="Expandir todo"
+              >
+                Expandir todo
+              </button>
 
-              <Accordion title="Bolas" subtitle={shiftId ? shiftSub : ""} open={openBolas} onToggle={() => setOpenBolas((s) => !s)}>
-                <BolasPanel shiftId={shiftId} />
-              </Accordion>
-
-              <Accordion title="Reactivos" subtitle={shiftId ? shiftSub : ""} open={openReact} onToggle={() => setOpenReact((s) => !s)}>
-                <ReactivosPanel shiftId={shiftId} />
-              </Accordion>
-
-              <Accordion title="Duración" subtitle={shiftId ? shiftSub : ""} open={openDur} onToggle={() => setOpenDur((s) => !s)}>
-                <DuracionPanel shiftId={shiftId} />
-              </Accordion>
+              <button
+                type="button"
+                onClick={collapseAll}
+                disabled={!shiftId || !anyOpen}
+                className="nav-pill !text-white visited:!text-white font-extrabold"
+                style={!shiftId || !anyOpen ? { opacity: 0.72, cursor: "not-allowed" } : undefined}
+                title="Colapsar todo"
+              >
+                Colapsar todo
+              </button>
             </div>
           </div>
-        </div>
 
-        {/* Sticky controls */}
-        <div
-          className="panel-inner"
-          style={{
-            padding: 12,
-            position: "sticky",
-            top: 12,
-            borderRadius: 14,
-            background: "rgba(0,0,0,.06)",
-            border: "1px solid rgba(255,255,255,.10)",
-          }}
-        >
-          <div style={{ fontWeight: 950, marginBottom: 8 }}>Secciones</div>
+          {/* acordeones a ancho natural */}
+          <div style={{ display: "grid", gap: 10 }}>
+            <Accordion title="Producción" subtitle={shiftId ? shiftSub : ""} open={openProd} onToggle={() => setOpenProd((s) => !s)}>
+              <ProduccionPanel shiftId={shiftId} />
+            </Accordion>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <button
-              type="button"
-              onClick={expandAll}
-              className="nav-pill !text-white visited:!text-white font-extrabold"
-              style={{ width: "100%", outline: "none" }}
-              disabled={!shiftId}
-              title="Expandir todo"
-            >
-              Expandir todo
-            </button>
+            <Accordion title="Bolas" subtitle={shiftId ? shiftSub : ""} open={openBolas} onToggle={() => setOpenBolas((s) => !s)}>
+              <BolasPanel shiftId={shiftId} />
+            </Accordion>
 
-            <button
-              type="button"
-              onClick={collapseAll}
-              className="nav-pill !text-white visited:!text-white font-extrabold"
-              style={{ width: "100%", outline: "none", opacity: anyOpen ? 1 : 0.7 }}
-              disabled={!shiftId || !anyOpen}
-              title="Colapsar todo"
-            >
-              Colapsar todo
-            </button>
+            <Accordion title="Reactivos" subtitle={shiftId ? shiftSub : ""} open={openReact} onToggle={() => setOpenReact((s) => !s)}>
+              <ReactivosPanel shiftId={shiftId} />
+            </Accordion>
 
-            <div style={{ height: 1, background: "rgba(255,255,255,.08)", margin: "6px 0" }} />
-
-            <button
-              type="button"
-              onClick={() => setOpenProd(true)}
-              className="nav-pill !text-white visited:!text-white font-extrabold"
-              style={{ width: "100%", outline: "none" }}
-              disabled={!shiftId}
-              title="Abrir Producción"
-            >
-              Abrir Producción
-            </button>
-          </div>
-
-          <div className="muted" style={{ marginTop: 10, fontWeight: 800, fontSize: 12, opacity: 0.8 }}>
-            Tip: al cambiar de guardia, solo Producción queda abierta.
+            <Accordion title="Duración" subtitle={shiftId ? shiftSub : ""} open={openDur} onToggle={() => setOpenDur((s) => !s)}>
+              <DuracionPanel shiftId={shiftId} />
+            </Accordion>
           </div>
         </div>
       </div>
