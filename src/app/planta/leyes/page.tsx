@@ -20,13 +20,10 @@ type ShiftsResp = {
 };
 
 type GuardiaHeader = {
-  // ✅ NUEVOS (OF)
   au_solid_of?: any;
   au_solu_of?: any;
   ag_solid_of?: any;
   ag_solu_of?: any;
-
-  // Relave (Tail)
   au_solid_tail?: any;
   au_solu_tail?: any;
   ag_solid_tail?: any;
@@ -233,13 +230,11 @@ export default function LeyesPage() {
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [shiftId, setShiftId] = useState<string>("");
 
-  // ✅ NUEVOS (OF) - van primero en UI
   const [auSolidOf, setAuSolidOf] = useState<string>("");
   const [auSoluOf, setAuSoluOf] = useState<string>("");
   const [agSolidOf, setAgSolidOf] = useState<string>("");
   const [agSoluOf, setAgSoluOf] = useState<string>("");
 
-  // Relave (Tail)
   const [auSolid, setAuSolid] = useState<string>("");
   const [auSolu, setAuSolu] = useState<string>("");
   const [agSolid, setAgSolid] = useState<string>("");
@@ -269,13 +264,11 @@ export default function LeyesPage() {
     const sid = String(shiftId || "").trim();
     if (!sid) return false;
 
-    // OF
     const of1 = parseNullableNumberNonNeg(auSolidOf);
     const of2 = parseNullableNumberNonNeg(auSoluOf);
     const of3 = parseNullableNumberNonNeg(agSolidOf);
     const of4 = parseNullableNumberNonNeg(agSoluOf);
 
-    // Tail
     const a1 = parseNullableNumberNonNeg(auSolid);
     const a2 = parseNullableNumberNonNeg(auSolu);
     const g1 = parseNullableNumberNonNeg(agSolid);
@@ -289,7 +282,6 @@ export default function LeyesPage() {
 
     for (const v of values) {
       if (v === null) continue;
-      // mismo criterio que tu page: si llenas, debe ser > 0
       if (!Number.isFinite(v) || v <= 0) return false;
     }
 
@@ -313,13 +305,11 @@ export default function LeyesPage() {
   }
 
   function clearEntryFields() {
-    // OF
     setAuSolidOf("");
     setAuSoluOf("");
     setAgSolidOf("");
     setAgSoluOf("");
 
-    // Tail
     setAuSolid("");
     setAuSolu("");
     setAgSolid("");
@@ -339,13 +329,11 @@ export default function LeyesPage() {
 
       const h: GuardiaHeader = (r?.header as any) || {};
 
-      // OF
       setAuSolidOf(toTextNum(h.au_solid_of));
       setAuSoluOf(toTextNum(h.au_solu_of));
       setAgSolidOf(toTextNum(h.ag_solid_of));
       setAgSoluOf(toTextNum(h.ag_solu_of));
 
-      // Tail
       setAuSolid(toTextNum(h.au_solid_tail));
       setAuSolu(toTextNum(h.au_solu_tail));
       setAgSolid(toTextNum(h.ag_solid_tail));
@@ -381,13 +369,11 @@ export default function LeyesPage() {
       return;
     }
 
-    // OF
     const of1 = parseNullableNumberNonNeg(auSolidOf);
     const of2 = parseNullableNumberNonNeg(auSoluOf);
     const of3 = parseNullableNumberNonNeg(agSolidOf);
     const of4 = parseNullableNumberNonNeg(agSoluOf);
 
-    // Tail
     const a1 = parseNullableNumberNonNeg(auSolid);
     const a2 = parseNullableNumberNonNeg(auSolu);
     const g1 = parseNullableNumberNonNeg(agSolid);
@@ -414,13 +400,11 @@ export default function LeyesPage() {
     try {
       const payload: any = { shift_id: sid };
 
-      // OF
       payload.au_solid_of = of1 === null ? null : of1;
       payload.au_solu_of = of2 === null ? null : of2;
       payload.ag_solid_of = of3 === null ? null : of3;
       payload.ag_solu_of = of4 === null ? null : of4;
 
-      // Tail
       payload.au_solid_tail = a1 === null ? null : a1;
       payload.au_solu_tail = a2 === null ? null : a2;
       payload.ag_solid_tail = g1 === null ? null : g1;
@@ -439,7 +423,7 @@ export default function LeyesPage() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
+    <div style={{ display: "grid", gap: 12, maxWidth: 980 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Leyes</div>
 
@@ -501,86 +485,86 @@ export default function LeyesPage() {
             </div>
           ) : null}
 
-          {/* ✅ NUEVOS PRIMERO (OF) */}
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido OF (g/t)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={auSolidOf}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolidOf(e.target.value)}
-              hint=""
-            />
-          </div>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido OF (g/t)</div>
+              <Input
+                placeholder="vacío o > 0"
+                value={auSolidOf}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolidOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución OF (g/m³)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={auSoluOf}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSoluOf(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución OF (g/m³)</div>
+              <Input
+                placeholder="vacío o > 0"
+                value={auSoluOf}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSoluOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido OF (g/t)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={agSolidOf}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolidOf(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido OF (g/t)</div>
+              <Input
+                placeholder="vacío o > 0"
+                value={agSolidOf}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolidOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución OF (g/m³)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={agSoluOf}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSoluOf(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución OF (g/m³)</div>
+              <Input
+                placeholder="vacío o > 0"
+                value={agSoluOf}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSoluOf(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          {/* Relave (Tail) - se quedan como estaban, pero van después */}
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido Relave (g/t)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={auSolid}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolid(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Au Sólido Relave (g/t)</div>
+              <Input
+                placeholder="vacío o > 0"
+                value={auSolid}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolid(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución Relave (g/m³)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={auSolu}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolu(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Au Solución Relave (g/m³)</div>
+              <Input
+                placeholder="vacío o > 0"
+                value={auSolu}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAuSolu(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido Relave (g/t)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={agSolid}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolid(e.target.value)}
-              hint=""
-            />
-          </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Sólido Relave (g/t)</div>
+              <Input
+                placeholder="vacío o > 0"
+                value={agSolid}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolid(e.target.value)}
+                hint=""
+              />
+            </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución Relave (g/m³)</div>
-            <Input
-              placeholder="vacío o > 0"
-              value={agSolu}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolu(e.target.value)}
-              hint=""
-            />
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Ag Solución Relave (g/m³)</div>
+              <Input
+                placeholder="vacío o > 0"
+                value={agSolu}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgSolu(e.target.value)}
+                hint=""
+              />
+            </div>
           </div>
 
           <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
