@@ -20,9 +20,9 @@ type ReplaceResp = { ok: boolean; shift_id: string; var_code: string; inserted: 
 const VARS = [
   { code: "density_of", label: "Densidad (g/l)", kind: "nonneg" as const },
   { code: "pct_200", label: "%-m-200 (1-100)", kind: "pct" as const },
-  { code: "nacn_of", label: "NaCN OF (1-12)", kind: "nacn" as const },
-  { code: "nacn_ads", label: "NaCN TK1 (1-12)", kind: "nacn" as const },
-  { code: "nacn_tail", label: "NaCN TK11 (1-12)", kind: "nacn" as const },
+  { code: "nacn_of", label: "NaCN OF (1-20)", kind: "nacn" as const },
+  { code: "nacn_ads", label: "NaCN TK1 (1-20)", kind: "nacn" as const },
+  { code: "nacn_tail", label: "NaCN TK11 (1-20)", kind: "nacn" as const },
   { code: "ph_of", label: "pH OF", kind: "ph" as const },
   { code: "ph_ads", label: "pH TK1", kind: "ph" as const },
   { code: "ph_tail", label: "pH TK11", kind: "ph" as const },
@@ -62,7 +62,7 @@ function validateCell(kind: Kind, s: string): boolean {
   if (n === 0) return true;
   if (kind === "nonneg") return n >= 0;
   if (kind === "pct") return n >= 1 && n <= 100;
-  if (kind === "nacn") return n >= 1 && n <= 12;
+  if (kind === "nacn") return n >= 1 && n <= 20;
   if (kind === "ph") return n >= 1 && n <= 14;
   return false;
 }
@@ -117,7 +117,7 @@ function pctToDecimalOrNull(avg: number | null) {
 
 function nacnUiToDbOrNull(avgUi: number | null) {
   if (avgUi === null || !Number.isFinite(avgUi)) return null;
-  if (avgUi < 1 || avgUi > 12) return null;
+  if (avgUi < 1 || avgUi > 20) return null;
   return avgUi / 100;
 }
 
@@ -126,6 +126,14 @@ type FactsHeader = Partial<Record<VarCode, any>>;
 function numOrNull(v: any): number | null {
   const n = typeof v === "number" ? v : toNumOrNaN(String(v ?? ""));
   return Number.isFinite(n) ? n : null;
+}
+
+function rowTimeLabel(sid: string, rIdx: number) {
+  const s = String(sid || "").trim().toUpperCase();
+  const isA = /-A$/.test(s);
+  const start = isA ? 8 : 20;
+  const h = (start + rIdx) % 24;
+  return `${String(h).padStart(2, "0")}:00`;
 }
 
 export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; facts?: FactsHeader | null }) {
@@ -478,7 +486,7 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
                       fontWeight: 900,
                     }}
                   >
-                    {rIdx + 1}
+                    {sid ? rowTimeLabel(sid, rIdx) : rIdx + 1}
                   </td>
 
                   {VARS.map((v) => {
