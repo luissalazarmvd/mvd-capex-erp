@@ -9,7 +9,7 @@ import CarbonTableSum from "../../../components/planta/CarbonTableSum";
 import { Button } from "../../../components/ui/Button";
 
 const PBI_PLANTA_REPORTS_URL =
-  "https://app.powerbi.com/view?r=eyJrIjoiOTVmMzI2NWQtZDgzNy00ZGI3LWE5MzMtZjllNDcxOWIyZWU2IiwidCI6IjYzNzhiZmNkLWRjYjktNDMwZi05Nzc4LWRiNTk3NGRjMmFkYyIsImMiOjR9";
+  "https://app.powerbi.com/view?r=eyJrIjoiOTVmMzI2NWQtZDgzNy00ZGI3LWE5MzMtZjllNDcxOWIyZWU2IiwidCI6IjYzNzhiZmNkLWRjYjktNDMwZi05Nzc4LWRiNTk3NGRjMmFkYyIsImMiOjR9&pageName=367da76411dcb491358d";
 
 type TankSumResp = { ok: boolean; rows: TankSumRow[] };
 
