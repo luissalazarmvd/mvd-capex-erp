@@ -23,7 +23,7 @@ export default function PlantaReportsPage() {
   const [tankMsg, setTankMsg] = useState<string | null>(null);
 
   const [showFull, setShowFull] = useState(false);
-  const [focusCarbones, setFocusCarbones] = useState(false);
+  const [carbonesFullScreen, setCarbonesFullScreen] = useState(false);
 
   async function loadTankSummary(which: "AU" | "AG") {
     setTankLoading(true);
@@ -59,6 +59,22 @@ export default function PlantaReportsPage() {
     loadTankSummary("AG");
   }, []);
 
+  async function enterCarbonesFullscreen() {
+    try {
+      await document.documentElement.requestFullscreen();
+      setCarbonesFullScreen(true);
+    } catch {}
+  }
+
+  useEffect(() => {
+    function onFsChange() {
+      const isFs = !!document.fullscreenElement;
+      setCarbonesFullScreen(isFs);
+    }
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
   const tanquesBlock = (
     <>
       <div style={{ height: 6 }} />
@@ -67,8 +83,8 @@ export default function PlantaReportsPage() {
         <div style={{ fontWeight: 900 }}>Tanques</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={() => setFocusCarbones((s) => !s)} disabled={tankLoading}>
-            {focusCarbones ? "Vista normal" : "Vista completa Carbones"}
+          <Button type="button" size="sm" variant="ghost" onClick={enterCarbonesFullscreen} disabled={tankLoading}>
+            Pantalla completa
           </Button>
 
           <Button type="button" size="sm" variant="ghost" onClick={() => setShowFull((s) => !s)} disabled={tankLoading}>
@@ -124,7 +140,7 @@ export default function PlantaReportsPage() {
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
-      {!focusCarbones ? (
+      {!carbonesFullScreen ? (
         <>
           <BalanceTable />
           {tanquesBlock}
