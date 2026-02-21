@@ -121,13 +121,13 @@ function isCampaignPresent(v: any) {
 }
 
 function campaignKey(r: TankSumRow) {
-  const c = String((r as any)?.campaign ?? (r as any)?.campaign_id ?? "").trim().toUpperCase();
-  return c;
+  return String((r as any)?.campaign ?? (r as any)?.campaign_id ?? "")
+    .trim()
+    .toUpperCase();
 }
 
 function commentPick(r: TankSumRow) {
-  const c = String((r as any)?.tank_comment ?? (r as any)?.comment ?? "").trim();
-  return c;
+  return String((r as any)?.tank_comment ?? (r as any)?.comment ?? "").trim();
 }
 
 function rgbToHex(r: number, g: number, b: number) {
@@ -187,7 +187,7 @@ export default function CarbonTableSum(props: {
   tankRowsAu: TankSumRow[];
   tankRowsAg: TankSumRow[];
 }) {
-  const { tankLoading, onRefresh, tankMsg, tankRowsAu, tankRowsAg } = props;
+  const { tankLoading, onRefresh, tankMsg, tankRowsAu, tankRowsAg, tankMode } = props;
 
   const tableWrapRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -244,7 +244,13 @@ export default function CarbonTableSum(props: {
       const iso = pickIsoDateOnly(r?.tank_date);
       if (/^D[1-5]$/.test(key) && /^\d{4}-\d{2}-\d{2}$/.test(iso)) map.set(key, fmtDateDdMm(iso));
     }
-    return { d1: map.get("D1") ?? "D1" };
+    return {
+      d1: map.get("D1") ?? "D1",
+      d2: map.get("D2") ?? "D2",
+      d3: map.get("D3") ?? "D3",
+      d4: map.get("D4") ?? "D4",
+      d5: map.get("D5") ?? "D5",
+    };
   }, [top5dRows]);
 
   const tankGroups = useMemo(() => {
@@ -267,7 +273,6 @@ export default function CarbonTableSum(props: {
     for (const r of ag) put(agByKey, r);
 
     const keys = new Set<string>([...auByKey.keys(), ...agByKey.keys()]);
-
     const out: Group[] = [];
 
     for (const key of keys) {
@@ -278,14 +283,18 @@ export default function CarbonTableSum(props: {
       const auCampaignRows = auRows.filter((x) => isCampaignPresent((x as any).campaign ?? (x as any).campaign_id));
       const agCampaignRows = agRows.filter((x) => isCampaignPresent((x as any).campaign ?? (x as any).campaign_id));
 
-      const baseRows = auCampaignRows.length ? auCampaignRows : agCampaignRows.length ? agCampaignRows : auRows.length ? [auRows[0]] : agRows.length ? [agRows[0]] : [];
-      const showRows = baseRows.slice();
+      const baseRows = auCampaignRows.length
+        ? auCampaignRows
+        : agCampaignRows.length
+        ? agCampaignRows
+        : auRows.length
+        ? [auRows[0]]
+        : agRows.length
+        ? [agRows[0]]
+        : [];
 
-      showRows.sort((a, b) => {
-        const ca = campaignKey(a);
-        const cb = campaignKey(b);
-        return ca.localeCompare(cb);
-      });
+      const showRows = baseRows.slice();
+      showRows.sort((a, b) => campaignKey(a).localeCompare(campaignKey(b)));
 
       const auAssay = auRows.find((x) => isCampaignPresent((x as any).campaign ?? (x as any).campaign_id)) ?? auRows[0] ?? null;
       const agAssay = agRows.find((x) => isCampaignPresent((x as any).campaign ?? (x as any).campaign_id)) ?? agRows[0] ?? null;
@@ -314,6 +323,14 @@ export default function CarbonTableSum(props: {
     return out;
   }, [tankRowsAu, tankRowsAg]);
 
+  function totalGrStyle(v: any): React.CSSProperties {
+    const n = toNum(v);
+    if (n === null) return {};
+    if (n > 0) return { background: upGreen, color: "white", fontWeight: 900 };
+    if (n < 0) return { background: downRed, color: "white", fontWeight: 900 };
+    return {};
+  }
+
   function varStyle(v: any): React.CSSProperties {
     const n = toNum(v);
     if (n === null) return {};
@@ -326,17 +343,17 @@ export default function CarbonTableSum(props: {
     const title = `MVD_Planta_Tanques_SUM_${(tankDatesLabels.d1 || "D1").replaceAll("/", "-")}`;
 
     const headers = [
+      "# Tanque",
+      "Fecha de Ingreso",
+      "Campaña",
       "Incremento Au",
       "Ley Au",
       "Incremento Ag",
       "Ley Ag",
-      "Campaña",
       "Carbón (kg)",
       "Ef. %",
       "Días",
       "# Vueltas",
-      "# Tanque",
-      "Fecha de Ingreso",
       "Comentario",
     ];
 
@@ -358,13 +375,13 @@ export default function CarbonTableSum(props: {
     for (let c = 1; c <= headers.length; c++) {
       const cell = headerRow.getCell(c);
       cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-      cell.alignment = { vertical: "middle", horizontal: c === 5 || c === 10 || c === 11 || c === 12 ? "left" : "right" };
+      cell.alignment = { vertical: "middle", horizontal: c <= 3 || c === 12 ? "left" : "right" };
       setFill(cell, "#06243A");
       setCellBorder(cell);
     }
 
     for (const g of tankGroups) {
-      const showRows = g.showRows.length ? g.showRows : [];
+      const showRows = g.showRows.length ? g.showRows : [g.auAssay ?? g.agAssay].filter(Boolean) as TankSumRow[];
       const span = showRows.length || 1;
 
       const startRow = ws.rowCount + 1;
@@ -376,22 +393,22 @@ export default function CarbonTableSum(props: {
       const leyAg = g.agAssay ? (g.agAssay as any).ag_d5 ?? null : null;
 
       for (let i = 0; i < span; i++) {
-        const r = showRows[i] ?? (g.auAssay ?? g.agAssay);
+        const r = showRows[i] ?? null;
         const camp = r ? String((r as any).campaign ?? (r as any).campaign_id ?? "").trim() : "";
         const hasCampaign = !!camp;
 
         const rowVals = [
+          i === 0 ? String(g.tank || "").toUpperCase() : "",
+          i === 0 ? fmtDateAnyToDdMm(g.entryIso) : "",
+          hasCampaign ? camp : "",
           i === 0 ? toNum(incAu) ?? "" : "",
           i === 0 ? toNum(leyAu) ?? "" : "",
           i === 0 ? toNum(incAg) ?? "" : "",
           i === 0 ? toNum(leyAg) ?? "" : "",
-          hasCampaign ? camp : "",
           hasCampaign ? toNum((r as any)?.carbon_kg) ?? "" : "",
           hasCampaign ? (toNum((r as any)?.eff_pct) === null ? "" : toNum((r as any)?.eff_pct)! * 100) : "",
           i === 0 ? (toNum(g.days_since) ?? "") : "",
           hasCampaign ? toNum((r as any)?.cycles) ?? "" : "",
-          i === 0 ? String(g.tank || "").toUpperCase() : "",
-          i === 0 ? fmtDateAnyToDdMm(g.entryIso) : "",
           i === 0 ? String(g.commentSpan || "").trim() : "",
         ];
 
@@ -400,19 +417,21 @@ export default function CarbonTableSum(props: {
 
         for (let c = 1; c <= headers.length; c++) {
           const cell = rr.getCell(c);
-          cell.alignment = { vertical: "middle", horizontal: c === 5 || c === 10 || c === 11 || c === 12 ? "left" : "right" };
-          cell.font = { bold: c === 10 || c === 11 || c === 5 || c === 12, color: { argb: "FFFFFFFF" } };
+
+          cell.alignment = { vertical: "middle", horizontal: c <= 3 || c === 12 ? "left" : "right" };
+          cell.font = { bold: c === 1 || c === 2 || c === 3 || c === 12, color: { argb: "FFFFFFFF" } };
+
           setFill(cell, "#0A2E48");
           setCellBorder(cell);
 
-          if (c === 1 || c === 3) cell.numFmt = "0.000";
-          if (c === 2 || c === 4) cell.numFmt = "0.000";
-          if (c === 6) cell.numFmt = "#,##0.00";
-          if (c === 7) cell.numFmt = "0.0";
-          if (c === 8) cell.numFmt = "0";
-          if (c === 9) cell.numFmt = "0";
+          if (c === 4 || c === 6) cell.numFmt = "0.000";
+          if (c === 5 || c === 7) cell.numFmt = "0.000";
+          if (c === 8) cell.numFmt = "#,##0.00";
+          if (c === 9) cell.numFmt = "0.0";
+          if (c === 10) cell.numFmt = "0";
+          if (c === 11) cell.numFmt = "0";
 
-          if (c === 1 && i === 0) {
+          if (c === 4 && i === 0) {
             const n = toNum(incAu);
             if (n !== null) {
               setFill(cell, n >= 0 ? upGreen : downRed);
@@ -420,7 +439,7 @@ export default function CarbonTableSum(props: {
             }
           }
 
-          if (c === 3 && i === 0) {
+          if (c === 6 && i === 0) {
             const n = toNum(incAg);
             if (n !== null) {
               setFill(cell, n >= 0 ? upGreen : downRed);
@@ -432,7 +451,7 @@ export default function CarbonTableSum(props: {
 
       if (span > 1) {
         const endRow = startRow + span - 1;
-        const mergeCols = [1, 2, 3, 4, 8, 10, 11, 12];
+        const mergeCols = [1, 2, 4, 5, 6, 7, 10, 12];
         for (const col of mergeCols) ws.mergeCells(startRow, col, endRow, col);
       }
     }
@@ -579,6 +598,16 @@ export default function CarbonTableSum(props: {
         <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
           <thead>
             <tr>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 58 }}>
+                # Tanque
+              </th>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 108 }}>
+                Fecha de Ingreso
+              </th>
+              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 92 }}>
+                Campaña
+              </th>
+
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 110 }}>
                 Incremento Au
               </th>
@@ -592,9 +621,6 @@ export default function CarbonTableSum(props: {
                 Ley Ag
               </th>
 
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 92 }}>
-                Campaña
-              </th>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "right", padding: "8px 8px", fontSize: 12, minWidth: 110 }}>
                 Carbón (kg)
               </th>
@@ -608,12 +634,6 @@ export default function CarbonTableSum(props: {
                 # Vueltas
               </th>
 
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 58 }}>
-                # Tanque
-              </th>
-              <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 108 }}>
-                Fecha de Ingreso
-              </th>
               <th className="capex-th" style={{ ...stickyHead, border: headerBorder, borderBottom: headerBorder, textAlign: "left", padding: "8px 8px", fontSize: 12, minWidth: 160 }}>
                 Comentario
               </th>
@@ -626,7 +646,7 @@ export default function CarbonTableSum(props: {
                 const rowBorder = gridH;
                 const rowBg = "rgba(0,0,0,.10)";
 
-                const showRows = g.showRows.length ? g.showRows : [g.auAssay ?? g.agAssay].filter(Boolean) as TankSumRow[];
+                const showRows = g.showRows.length ? g.showRows : ([g.auAssay ?? g.agAssay].filter(Boolean) as TankSumRow[]);
                 const span = showRows.length || 1;
 
                 const incAu = g.auAssay ? g.auAssay.variation ?? null : null;
@@ -642,72 +662,18 @@ export default function CarbonTableSum(props: {
                       const campaignStr = r ? String((r as any).campaign ?? (r as any).campaign_id ?? "").trim() : "";
                       const hasCampaign = !!campaignStr;
 
+                      const totalGr = hasCampaign ? (r as any)?.total_gr ?? null : null;
+
                       return (
                         <tr key={`${g.key}-${idx}`} className="capex-tr">
                           {idx === 0 ? (
                             <>
-                              <td
-                                className="capex-td"
-                                rowSpan={span}
-                                style={{
-                                  ...numCell,
-                                  borderTop: rowBorder,
-                                  borderBottom: rowBorder,
-                                  borderRight: gridV,
-                                  ...(varStyle(incAu) as any),
-                                  verticalAlign: "middle",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                {fmtFixed(incAu, 3)}
+                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase, borderTop: rowBorder, fontWeight: 900, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
+                                {String(g.tank || "").toUpperCase()}
                               </td>
 
-                              <td
-                                className="capex-td"
-                                rowSpan={span}
-                                style={{
-                                  ...numCell,
-                                  borderTop: rowBorder,
-                                  borderBottom: rowBorder,
-                                  borderRight: gridV,
-                                  background: rowBg,
-                                  verticalAlign: "middle",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                {fmtFixed(leyAu, 3)}
-                              </td>
-
-                              <td
-                                className="capex-td"
-                                rowSpan={span}
-                                style={{
-                                  ...numCell,
-                                  borderTop: rowBorder,
-                                  borderBottom: rowBorder,
-                                  borderRight: gridV,
-                                  ...(varStyle(incAg) as any),
-                                  verticalAlign: "middle",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                {fmtFixed(incAg, 3)}
-                              </td>
-
-                              <td
-                                className="capex-td"
-                                rowSpan={span}
-                                style={{
-                                  ...numCell,
-                                  borderTop: rowBorder,
-                                  borderBottom: rowBorder,
-                                  borderRight: gridV,
-                                  background: rowBg,
-                                  verticalAlign: "middle",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                {fmtFixed(leyAg, 3)}
+                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
+                                {fmtDateAnyToDdMm(g.entryIso)}
                               </td>
                             </>
                           ) : null}
@@ -715,6 +681,26 @@ export default function CarbonTableSum(props: {
                           <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg }}>
                             {hasCampaign ? campaignStr : ""}
                           </td>
+
+                          {idx === 0 ? (
+                            <>
+                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, ...(varStyle(incAu) as any), verticalAlign: "middle", fontWeight: 900 }}>
+                                {fmtFixed(incAu, 3)}
+                              </td>
+
+                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle", fontWeight: 900 }}>
+                                {fmtFixed(leyAu, 3)}
+                              </td>
+
+                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, ...(varStyle(incAg) as any), verticalAlign: "middle", fontWeight: 900 }}>
+                                {fmtFixed(incAg, 3)}
+                              </td>
+
+                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle", fontWeight: 900 }}>
+                                {fmtFixed(leyAg, 3)}
+                              </td>
+                            </>
+                          ) : null}
 
                           <td className="capex-td" style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg }}>
                             {hasCampaign ? fmtFixed((r as any)?.carbon_kg, 2) : ""}
@@ -735,36 +721,26 @@ export default function CarbonTableSum(props: {
                           </td>
 
                           {idx === 0 ? (
-                            <>
-                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase, borderTop: rowBorder, fontWeight: 900, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
-                                {String(g.tank || "").toUpperCase()}
-                              </td>
-
-                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
-                                {fmtDateAnyToDdMm(g.entryIso)}
-                              </td>
-
-                              <td
-                                className="capex-td"
-                                rowSpan={span}
-                                style={{
-                                  ...cellBase,
-                                  fontWeight: 900,
-                                  borderTop: rowBorder,
-                                  borderBottom: rowBorder,
-                                  borderRight: gridV,
-                                  background: rowBg,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  maxWidth: 320,
-                                  verticalAlign: "middle",
-                                }}
-                                title={g.commentSpan}
-                              >
-                                {g.commentSpan}
-                              </td>
-                            </>
+                            <td
+                              className="capex-td"
+                              rowSpan={span}
+                              style={{
+                                ...cellBase,
+                                fontWeight: 900,
+                                borderTop: rowBorder,
+                                borderBottom: rowBorder,
+                                borderRight: gridV,
+                                background: rowBg,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                maxWidth: 320,
+                                verticalAlign: "middle",
+                              }}
+                              title={g.commentSpan}
+                            >
+                              {g.commentSpan}
+                            </td>
                           ) : null}
                         </tr>
                       );
