@@ -1,7 +1,7 @@
 // src/components/planta/ProduccionPanel.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
@@ -67,35 +67,13 @@ function validateCell(kind: Kind, s: string): boolean {
   return false;
 }
 
-function validateSequentialColumn(kind: Kind, arr: string[]) {
-  let seenEmpty = false;
-  for (let i = 0; i < 12; i++) {
-    const s = String(arr[i] ?? "");
-    const emptyOrZero = cellIsEmptyOrZero(s);
-
-    if (!validateCell(kind, s)) {
-      return { ok: false, firstGapAt: null as number | null, firstInvalidAt: i + 1 };
-    }
-
-    if (emptyOrZero) {
-      seenEmpty = true;
-      continue;
-    }
-
-    if (seenEmpty) {
-      return { ok: false, firstGapAt: i + 1, firstInvalidAt: null as number | null };
-    }
-  }
-  return { ok: true, firstGapAt: null as number | null, firstInvalidAt: null as number | null };
-}
-
 function computeAvgFromColumn(arr: string[]) {
   const vals: number[] = [];
   for (let i = 0; i < 12; i++) {
     const s = String(arr[i] ?? "").trim();
-    if (!s) break;
+    if (!s) continue;
     const n = toNumOrNaN(s);
-    if (!Number.isFinite(n) || n === 0) break;
+    if (!Number.isFinite(n) || n === 0) continue;
     vals.push(n);
   }
   if (!vals.length) return null;
@@ -149,6 +127,8 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
     return o;
   });
 
+  const cellRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
   const avgsUi = useMemo(() => {
     const o: Record<VarCode, number | null> = {} as any;
     for (const v of VARS) o[v.code] = computeAvgFromColumn(mat[v.code] || []);
@@ -183,7 +163,8 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
 
   const colStatus = useMemo(() => {
     const o: Record<VarCode, { ok: boolean; firstGapAt: number | null; firstInvalidAt: number | null }> = {} as any;
-    for (const v of VARS) o[v.code] = validateSequentialColumn(v.kind, mat[v.code] || []);
+    for (const v of VARS)
+      o[v.code] = { ok: (mat[v.code] || []).every((s) => validateCell(v.kind, String(s ?? ""))), firstGapAt: null, firstInvalidAt: null };
     return o;
   }, [mat]);
 
@@ -273,10 +254,10 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
 
     for (let i = 0; i < 12; i++) {
       const s = String(arr[i] ?? "").trim();
-      if (!s) break;
+      if (!s) continue;
 
       const nUi = toNumOrNaN(s);
-      if (!Number.isFinite(nUi) || nUi === 0) break;
+      if (!Number.isFinite(nUi) || nUi === 0) continue;
 
       const nDb = isNacn ? nUi / 100 : nUi;
       items.push({ sample_no: i + 1, val: nDb });
@@ -292,7 +273,7 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
     }
 
     if (!allValid) {
-      setMsg("ERROR: corrige celdas inválidas o saltos de fila.");
+      setMsg("ERROR: corrige celdas inválidas.");
       return;
     }
 
@@ -374,6 +355,39 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
 
   const rowBg = "rgba(0,0,0,.10)";
 
+  function keyForCell(varCode: VarCode, rIdx: number) {
+    return `${varCode}__${rIdx}`;
+  }
+
+  function isCellDisabled(varCode: VarCode, rIdx: number) {
+    return !sid || saving || loadingExisting;
+  }
+
+  function focusCell(varCode: VarCode, rIdx: number) {
+    const el = cellRefs.current[keyForCell(varCode, rIdx)];
+    if (el) {
+      el.focus();
+      try {
+        el.select();
+      } catch {}
+    }
+  }
+
+  function onGridKeyDown(e: React.KeyboardEvent<HTMLInputElement>, varCode: VarCode, rIdx: number) {
+    const key = e.key;
+    if (key !== "Enter" && key !== "Tab") return;
+
+    e.preventDefault();
+
+    const dir = e.shiftKey ? -1 : 1;
+    const nextRow = rIdx + dir;
+    if (nextRow < 0 || nextRow > 11) return;
+
+    if (isCellDisabled(varCode, nextRow)) return;
+
+    focusCell(varCode, nextRow);
+  }
+
   return (
     <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
@@ -435,13 +449,7 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
               {VARS.map((v) => {
                 const st = colStatus[v.code];
                 const hasErr = !!sid && !st.ok;
-                const title = hasErr
-                  ? st.firstInvalidAt
-                    ? `Inválido en fila ${st.firstInvalidAt}`
-                    : st.firstGapAt
-                    ? `Salto en fila ${st.firstGapAt}`
-                    : "Revisa"
-                  : "";
+                const title = hasErr ? "Revisa valores inválidos" : "";
 
                 return (
                   <th
@@ -491,13 +499,8 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
 
                   {VARS.map((v) => {
                     const value = mat[v.code]?.[rIdx] ?? "";
-                    const st = colStatus[v.code];
                     const invalidCell = !validateCell(v.kind, value);
-
-                    let disabled = !sid || saving || loadingExisting;
-                    if (sid && st && !st.ok && st.firstGapAt && rIdx + 1 >= st.firstGapAt) {
-                      disabled = disabled || rIdx + 1 > st.firstGapAt;
-                    }
+                    const disabled = isCellDisabled(v.code, rIdx);
 
                     return (
                       <td
@@ -513,9 +516,13 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
                         }}
                       >
                         <input
+                          ref={(el) => {
+                            cellRefs.current[keyForCell(v.code, rIdx)] = el;
+                          }}
                           value={value}
                           disabled={disabled}
                           onChange={(e) => setCell(v.code, rIdx, (e.target as any).value)}
+                          onKeyDown={(e) => onGridKeyDown(e, v.code, rIdx)}
                           inputMode="decimal"
                           style={{ ...inputCell, ...(invalidCell ? errInput : {}) }}
                         />
@@ -541,7 +548,7 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
                   style={{ ...cellBase, fontWeight: 900, color: "rgba(255,120,120,.95)" }}
                   colSpan={1 + VARS.length}
                 >
-                  Corrige columnas con error (valores inválidos o saltos).
+                  Corrige columnas con error (valores inválidos).
                 </td>
               </tr>
             ) : null}
