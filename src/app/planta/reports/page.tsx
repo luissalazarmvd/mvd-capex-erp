@@ -65,6 +65,7 @@ export default function PlantaReportsPage() {
         await document.exitFullscreen();
         return;
       }
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       await document.documentElement.requestFullscreen();
     } catch {}
   }
@@ -73,6 +74,7 @@ export default function PlantaReportsPage() {
     function onFsChange() {
       const isFs = !!document.fullscreenElement;
       setCarbonesFullScreen(isFs);
+      if (isFs) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     }
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
