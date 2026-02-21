@@ -5,6 +5,8 @@ import React, { useEffect, useState } from "react";
 import { apiGet } from "../../../lib/apiClient";
 import BalanceTable from "../../../components/planta/BalanceTable";
 import CarbonTable, { TankSumRow } from "../../../components/planta/CarbonTable";
+import CarbonTableSum from "../../../components/planta/CarbonTableSum";
+import { Button } from "../../../components/ui/Button";
 
 const PBI_PLANTA_REPORTS_URL =
   "https://app.powerbi.com/view?r=eyJrIjoiOTVmMzI2NWQtZDgzNy00ZGI3LWE5MzMtZjllNDcxOWIyZWU2IiwidCI6IjYzNzhiZmNkLWRjYjktNDMwZi05Nzc4LWRiNTk3NGRjMmFkYyIsImMiOjR9";
@@ -12,7 +14,6 @@ const PBI_PLANTA_REPORTS_URL =
 type TankSumResp = { ok: boolean; rows: TankSumRow[] };
 
 export default function PlantaReportsPage() {
-  // Tanques
   const [tankMode, setTankMode] = useState<"AU" | "AG">("AU");
   const [tankRowsAu, setTankRowsAu] = useState<TankSumRow[]>([]);
   const [tankRowsAg, setTankRowsAg] = useState<TankSumRow[]>([]);
@@ -20,6 +21,8 @@ export default function PlantaReportsPage() {
   const [tankDatesAg, setTankDatesAg] = useState<string[]>([]);
   const [tankLoading, setTankLoading] = useState(false);
   const [tankMsg, setTankMsg] = useState<string | null>(null);
+
+  const [showFull, setShowFull] = useState(false);
 
   async function loadTankSummary(which: "AU" | "AG") {
     setTankLoading(true);
@@ -57,25 +60,43 @@ export default function PlantaReportsPage() {
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
-      {/* BALANCE: export Excel/PDF y todo lo demás vive dentro del componente */}
       <BalanceTable />
 
       <div style={{ height: 6 }} />
 
-      {/* TANQUES: UI vive dentro del componente */}
-      <CarbonTable
-        tankMode={tankMode}
-        setTankMode={setTankMode}
-        tankLoading={tankLoading}
-        onRefresh={loadTankSummary}
-        tankMsg={tankMsg}
-        tankRowsAu={tankRowsAu}
-        tankRowsAg={tankRowsAg}
-      />
+      <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ fontWeight: 900 }}>Tanques</div>
+        <div style={{ marginLeft: "auto" }}>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setShowFull((s) => !s)} disabled={tankLoading}>
+            {showFull ? "Ver resumen" : "Ver detalle"}
+          </Button>
+        </div>
+      </div>
+
+      {showFull ? (
+        <CarbonTable
+          tankMode={tankMode}
+          setTankMode={setTankMode}
+          tankLoading={tankLoading}
+          onRefresh={loadTankSummary}
+          tankMsg={tankMsg}
+          tankRowsAu={tankRowsAu}
+          tankRowsAg={tankRowsAg}
+        />
+      ) : (
+        <CarbonTableSum
+          tankMode={tankMode}
+          setTankMode={setTankMode}
+          tankLoading={tankLoading}
+          onRefresh={loadTankSummary}
+          tankMsg={tankMsg}
+          tankRowsAu={tankRowsAu}
+          tankRowsAg={tankRowsAg}
+        />
+      )}
 
       <div style={{ height: 6 }} />
 
-      {/* POWER BI */}
       <div className="panel-inner" style={{ padding: "10px 12px" }}>
         <div style={{ fontWeight: 900 }}>Dashboard - Power BI</div>
       </div>
