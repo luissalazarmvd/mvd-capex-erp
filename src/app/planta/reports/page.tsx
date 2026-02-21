@@ -59,10 +59,13 @@ export default function PlantaReportsPage() {
     loadTankSummary("AG");
   }, []);
 
-  async function enterCarbonesFullscreen() {
+  async function toggleCarbonesFullscreen() {
     try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+      }
       await document.documentElement.requestFullscreen();
-      setCarbonesFullScreen(true);
     } catch {}
   }
 
@@ -83,8 +86,8 @@ export default function PlantaReportsPage() {
         <div style={{ fontWeight: 900 }}>Tanques</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={enterCarbonesFullscreen} disabled={tankLoading}>
-            Pantalla completa
+          <Button type="button" size="sm" variant="ghost" onClick={toggleCarbonesFullscreen} disabled={tankLoading}>
+            {carbonesFullScreen ? "Salir de pantalla completa" : "Pantalla completa"}
           </Button>
 
           <Button type="button" size="sm" variant="ghost" onClick={() => setShowFull((s) => !s)} disabled={tankLoading}>
