@@ -313,8 +313,6 @@ function Select({
 
 function normalizeIsoDateForInput(v: any): string {
   if (v === null || v === undefined) return "";
-
-  // Si viene como Date (por mssql a veces)
   if (v instanceof Date && !Number.isNaN(v.getTime())) {
     const y = v.getFullYear();
     const m = pad2(v.getMonth() + 1);
@@ -324,17 +322,13 @@ function normalizeIsoDateForInput(v: any): string {
 
   const s = String(v).trim();
   if (!s) return "";
-
-  // Ya viene perfecto
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
 
-  // Viene con hora (ISO o SQL): 2026-02-07T... o 2026-02-07 ...
   const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
   if (m) return m[1];
 
   return "";
 }
-
 
 function isIsoDate(s: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim());
@@ -500,7 +494,6 @@ function qtyRowCompleteAndValid(r: TankQtyRow) {
   if (!(l1.active || l2.active)) return false;
   if (!isIsoDate(r.entry_date)) return false;
 
-
   const eff1 = toEff01OrNull(r.eff_pct_ui_1);
   const eff2 = toEff01OrNull(r.eff_pct_ui_2);
 
@@ -509,7 +502,6 @@ function qtyRowCompleteAndValid(r: TankQtyRow) {
 
   const cy1Ok = Number.isInteger(cy1) && cy1 >= 0;
   const cy2Ok = Number.isInteger(cy2) && cy2 >= 0;
-
 
   if (l1.active) {
     if (!okEff0to100OrEmpty(r.eff_pct_ui_1) || String(r.eff_pct_ui_1 || "").trim() === "") return false;
@@ -524,7 +516,6 @@ function qtyRowCompleteAndValid(r: TankQtyRow) {
     if (!okIntNonNegOrEmpty(r.cycles_2) || String(r.cycles_2 || "").trim() === "") return false;
     if (!cy2Ok) return false;
   }
-
 
   const checkLine = (ln: ReturnType<typeof lineState>) => {
     if (!ln.active) return true;
@@ -555,7 +546,6 @@ type QtyViewRow = {
   comment?: string | null;
 };
 
-
 type QtyViewResp = {
   ok: boolean;
   rows: QtyViewRow[];
@@ -567,10 +557,6 @@ function parseCampaignId(campaign_id: string | null | undefined) {
   const m = s.match(/^C-(\d{2})-(\d{2})$/);
   if (!m) return null;
   return { mm: m[1], seq: m[2] };
-}
-
-function strOrEmpty(v: any) {
-  return v === null || v === undefined ? "" : String(v);
 }
 
 function numToUi(v: any, decimals?: number) {
@@ -593,12 +579,10 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
   const items = (two || [])
     .slice()
     .sort((p, q) => {
-      // 1) primero filas con campaña (campaign_id o campaign)
       const pc = !!((p as any)?.campaign_id ?? (p as any)?.campaign);
       const qc = !!((q as any)?.campaign_id ?? (q as any)?.campaign);
       if (pc !== qc) return pc ? -1 : 1;
 
-      // 2) dentro del mismo grupo, más reciente primero por entry_date
       const pd = normalizeIsoDateForInput((p as any)?.entry_date);
       const qd = normalizeIsoDateForInput((q as any)?.entry_date);
       return String(qd).localeCompare(String(pd));
@@ -622,7 +606,6 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
           : String((x as any).tank_comment),
     }));
 
-
   if (items.length === 2) {
     if (!items[0].campaign_id && items[1].campaign_id) {
       const tmp = items[0];
@@ -631,13 +614,13 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
     }
   }
 
-  const ref = items.find((x) => x && (x.campaign_id || x.entry_date || x.eff_pct !== null || x.cycles !== null)) || items[0];
+  const ref =
+    items.find((x) => x && (x.campaign_id || x.entry_date || x.eff_pct !== null || x.cycles !== null)) || items[0];
 
   if (ref) {
     base.entry_date = normalizeIsoDateForInput(ref.entry_date);
     base.tank_comment = ref.tank_comment ? String(ref.tank_comment).slice(0, COMMENT_MAX) : "";
   }
-
 
   const a = items[0];
   const b = items[1];
@@ -650,10 +633,9 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
       base.carbon_kg_1 = numToUi(a.carbon_kg, 3);
       base.eff_pct_ui_1 = effToUiPct(a.eff_pct);
       base.cycles_1 = (() => {
-      const n = Number(a.cycles);
-      return Number.isInteger(n) && n >= 0 ? String(n) : "";
+        const n = Number(a.cycles);
+        return Number.isInteger(n) && n >= 0 ? String(n) : "";
       })();
-
     }
   }
 
@@ -665,10 +647,9 @@ function normalizeQtyFromView(tank: Tank, two: QtyViewRow[]) {
       base.carbon_kg_2 = numToUi(b.carbon_kg, 3);
       base.eff_pct_ui_2 = effToUiPct(b.eff_pct);
       base.cycles_2 = (() => {
-      const n = Number(b.cycles);
-      return Number.isInteger(n) && n >= 0 ? String(n) : "";
+        const n = Number(b.cycles);
+        return Number.isInteger(n) && n >= 0 ? String(n) : "";
       })();
-
     }
   }
 
@@ -688,6 +669,8 @@ export default function CarbonPage() {
   const [rows, setRows] = useState<RowState[]>([]);
   const [dirty, setDirty] = useState<Record<string, true>>({});
 
+  const cellRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
   const ym = useMemo(() => ymFromInputs(year, month) ?? "", [year, month]);
   const isYmValid = useMemo(() => /^\d{6}$/.test(String(ym || "").trim()) && daysInMonth(ym.trim()) > 0, [ym]);
 
@@ -703,6 +686,41 @@ export default function CarbonPage() {
     }
     return true;
   }, [dirty, savingAll, loading, rows]);
+
+  function keyForCell(day: string, key: FieldKey) {
+    return `${day}__${key}`;
+  }
+
+  function isCellDisabledInMonthTable() {
+    return savingAll || loading;
+  }
+
+  function focusCell(day: string, key: FieldKey) {
+    const el = cellRefs.current[keyForCell(day, key)];
+    if (el) {
+      el.focus();
+      try {
+        el.select();
+      } catch {}
+    }
+  }
+
+  function onMonthGridKeyDown(e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, key: FieldKey) {
+    const k = e.key;
+    if (k !== "Enter" && k !== "Tab") return;
+
+    e.preventDefault();
+
+    const dir = e.shiftKey ? -1 : 1;
+    const nextRow = rowIdx + dir;
+    if (nextRow < 0 || nextRow >= rows.length) return;
+    if (isCellDisabledInMonthTable()) return;
+
+    const nextDay = rows[nextRow]?.tank_day;
+    if (!nextDay) return;
+
+    focusCell(nextDay, key);
+  }
 
   async function loadMonth(nextYm?: string) {
     const ym0 = String(nextYm ?? ym).trim();
@@ -897,21 +915,20 @@ export default function CarbonPage() {
     const orig = originalQtyRef.current[nextRow.tank];
     if (!orig) return true;
 
-const keys: (keyof TankQtyRow)[] = [
-  "entry_date",
-  "campaign1_mm",
-  "campaign1_seq",
-  "campaign2_mm",
-  "campaign2_seq",
-  "carbon_kg_1",
-  "carbon_kg_2",
-  "eff_pct_ui_1",
-  "eff_pct_ui_2",
-  "cycles_1",
-  "cycles_2",
-  "tank_comment",
-];
-
+    const keys: (keyof TankQtyRow)[] = [
+      "entry_date",
+      "campaign1_mm",
+      "campaign1_seq",
+      "campaign2_mm",
+      "campaign2_seq",
+      "carbon_kg_1",
+      "carbon_kg_2",
+      "eff_pct_ui_1",
+      "eff_pct_ui_2",
+      "cycles_1",
+      "cycles_2",
+      "tank_comment",
+    ];
 
     for (const k of keys) {
       if (String(nextRow[k] ?? "") !== String(orig[k] ?? "")) return true;
@@ -961,50 +978,45 @@ const keys: (keyof TankQtyRow)[] = [
   }
 
   async function loadQtyLatest() {
-  setQtyMsg(null);
-  setQtyLoading(true);
+    setQtyMsg(null);
+    setQtyLoading(true);
 
-  try {
-    const r = (await apiGet(`/api/planta/tanks/summary/au?top=2000`)) as any;
+    try {
+      const r = (await apiGet(`/api/planta/tanks/summary/au?top=2000`)) as any;
 
-    // Soporta respuestas tipo { rows: [] } o directo array o recordset
-    const list: QtyViewRow[] = Array.isArray(r?.rows)
-      ? r.rows
-      : Array.isArray(r?.recordset)
-      ? r.recordset
-      : Array.isArray(r)
-      ? r
-      : [];
+      const list: QtyViewRow[] = Array.isArray(r?.rows)
+        ? r.rows
+        : Array.isArray(r?.recordset)
+        ? r.recordset
+        : Array.isArray(r)
+        ? r
+        : [];
 
-    // Arma 1 fila editable por tanque usando LAS 2 filas que ya trae el view
-    // (si viene 1 campaña + 1 null, igual entra tal cual)
-    const byTank = new Map<string, QtyViewRow[]>();
-    for (const it of list) {
-      const t = String(it?.tank || "").trim().toUpperCase();
-      if (!t) continue;
-      if (!byTank.has(t)) byTank.set(t, []);
-      byTank.get(t)!.push(it);
+      const byTank = new Map<string, QtyViewRow[]>();
+      for (const it of list) {
+        const t = String(it?.tank || "").trim().toUpperCase();
+        if (!t) continue;
+        if (!byTank.has(t)) byTank.set(t, []);
+        byTank.get(t)!.push(it);
+      }
+
+      const next = (TANKS as readonly Tank[]).map((t) => {
+        const rowsForTank = byTank.get(t) || [];
+        return normalizeQtyFromView(t, rowsForTank.slice(0, 2));
+      });
+
+      const orig: Record<string, TankQtyRow> = {};
+      for (const rr of next) orig[rr.tank] = { ...rr };
+      originalQtyRef.current = orig;
+
+      setQtyRows(next);
+      setQtyDirty({});
+    } catch (e: any) {
+      setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando carbón por tanque");
+    } finally {
+      setQtyLoading(false);
     }
-
-    const next = (TANKS as readonly Tank[]).map((t) => {
-      const rowsForTank = byTank.get(t) || [];
-      // sin lógica: usa lo que venga (máx 2)
-      return normalizeQtyFromView(t, rowsForTank.slice(0, 2));
-    });
-
-    const orig: Record<string, TankQtyRow> = {};
-    for (const rr of next) orig[rr.tank] = { ...rr };
-    originalQtyRef.current = orig;
-
-    setQtyRows(next);
-    setQtyDirty({});
-  } catch (e: any) {
-    setQtyMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando carbón por tanque");
-  } finally {
-    setQtyLoading(false);
   }
-}
-
 
   useEffect(() => {
     loadQtyLatest();
@@ -1076,7 +1088,6 @@ const keys: (keyof TankQtyRow)[] = [
           tank_comment,
         };
 
-
         const activeCount = (l1.active ? 1 : 0) + (l2.active ? 1 : 0);
 
         if (l1.active) {
@@ -1098,7 +1109,6 @@ const keys: (keyof TankQtyRow)[] = [
           });
         }
 
-
         if (l2.active) {
           if (!c2.complete || !c2.code) throw new Error(`campaña 2 inválida en ${t}`);
           if (!l2.kgAny || !l2.kgOk) throw new Error(`carbón 2 inválido en ${t}`);
@@ -1118,7 +1128,6 @@ const keys: (keyof TankQtyRow)[] = [
           });
         }
 
-
         if (activeCount === 1) {
           const useEff = l1.active ? toEff01OrNull(r.eff_pct_ui_1) : toEff01OrNull(r.eff_pct_ui_2);
           const useCy = l1.active ? Number(String(r.cycles_1 || "").trim()) : Number(String(r.cycles_2 || "").trim());
@@ -1134,7 +1143,6 @@ const keys: (keyof TankQtyRow)[] = [
             carbon_kg: null,
           });
         }
-
       }
 
       if (!items.length) {
@@ -1184,7 +1192,12 @@ const keys: (keyof TankQtyRow)[] = [
           />
 
           <div style={{ display: "grid", gap: 4 }}>
-            <Select value={String(month)} onChange={(v) => setMonth(Number(v))} disabled={loading || savingAll} options={monthOptions} />
+            <Select
+              value={String(month)}
+              onChange={(v) => setMonth(Number(v))}
+              disabled={loading || savingAll}
+              options={monthOptions}
+            />
             <div className="muted" style={{ fontWeight: 900, fontSize: 12, paddingLeft: 2 }}>
               Mes
             </div>
@@ -1344,7 +1357,11 @@ const keys: (keyof TankQtyRow)[] = [
                 const isLastRow = rowIdx === rows.length - 1;
 
                 return (
-                  <tr key={r.tank_day} className="capex-tr" style={{ background: isDirty ? "rgba(102,199,255,.05)" : "transparent" }}>
+                  <tr
+                    key={r.tank_day}
+                    className="capex-tr"
+                    style={{ background: isDirty ? "rgba(102,199,255,.05)" : "transparent" }}
+                  >
                     <td
                       className="capex-td capex-td-strong"
                       style={{
@@ -1362,7 +1379,9 @@ const keys: (keyof TankQtyRow)[] = [
                           {weekdayShort(r.tank_day)}
                         </div>
                         {!valid ? (
-                          <div style={{ marginLeft: 8, fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Inválido</div>
+                          <div style={{ marginLeft: 8, fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>
+                            Inválido
+                          </div>
                         ) : null}
                       </div>
                     </td>
@@ -1385,9 +1404,13 @@ const keys: (keyof TankQtyRow)[] = [
                           }}
                         >
                           <input
+                            ref={(el) => {
+                              cellRefs.current[keyForCell(r.tank_day, k)] = el;
+                            }}
                             value={v}
                             disabled={savingAll || loading}
                             onChange={(e) => setCell(r.tank_day, k, e.target.value)}
+                            onKeyDown={(e) => onMonthGridKeyDown(e, rowIdx, k)}
                             style={{
                               ...inputStyle,
                               border: ok ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
@@ -1428,9 +1451,13 @@ const keys: (keyof TankQtyRow)[] = [
                           }}
                         >
                           <input
+                            ref={(el) => {
+                              cellRefs.current[keyForCell(r.tank_day, k)] = el;
+                            }}
                             value={v}
                             disabled={savingAll || loading}
                             onChange={(e) => setCell(r.tank_day, k, e.target.value)}
+                            onKeyDown={(e) => onMonthGridKeyDown(e, rowIdx, k)}
                             style={{
                               ...inputStyle,
                               border: ok ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
@@ -1529,7 +1556,6 @@ const keys: (keyof TankQtyRow)[] = [
             const okCy1 = !meaningful || !l1.active || (okIntNonNegOrEmpty(r.cycles_1) && String(r.cycles_1 || "").trim() !== "");
             const okCy2 = !meaningful || !l2.active || (okIntNonNegOrEmpty(r.cycles_2) && String(r.cycles_2 || "").trim() !== "");
 
-
             return (
               <tr key={r.tank} className="capex-tr" style={{ background: isD ? "rgba(102,199,255,.05)" : "transparent" }}>
                 <td className="capex-td capex-td-strong" style={{ fontWeight: 900 }}>
@@ -1562,7 +1588,9 @@ const keys: (keyof TankQtyRow)[] = [
                       <input
                         value={r.campaign1_mm}
                         disabled={qtySaving || qtyLoading || loading || savingAll}
-                        onChange={(e) => setQtyCellFromPrev(r.tank, "campaign1_mm", e.target.value, (prevVal) => allowMonthTyping(e.target.value, prevVal))}
+                        onChange={(e) =>
+                          setQtyCellFromPrev(r.tank, "campaign1_mm", e.target.value, (prevVal) => allowMonthTyping(e.target.value, prevVal))
+                        }
                         onBlur={() => setQtyCell(r.tank, "campaign1_mm", normalizeMonthMm(r.campaign1_mm))}
                         style={{
                           ...qtyInputStyle,
@@ -1602,7 +1630,9 @@ const keys: (keyof TankQtyRow)[] = [
                       <input
                         value={r.campaign2_mm}
                         disabled={qtySaving || qtyLoading || loading || savingAll}
-                        onChange={(e) => setQtyCellFromPrev(r.tank, "campaign2_mm", e.target.value, (prevVal) => allowMonthTyping(e.target.value, prevVal))}
+                        onChange={(e) =>
+                          setQtyCellFromPrev(r.tank, "campaign2_mm", e.target.value, (prevVal) => allowMonthTyping(e.target.value, prevVal))
+                        }
                         onBlur={() => setQtyCell(r.tank, "campaign2_mm", normalizeMonthMm(r.campaign2_mm))}
                         style={{
                           ...qtyInputStyle,
@@ -1673,69 +1703,67 @@ const keys: (keyof TankQtyRow)[] = [
                   </div>
                 </td>
 
-<td className="capex-td">
-  <div style={{ display: "grid", gap: 8 }}>
-    <input
-      value={r.eff_pct_ui_1}
-      disabled={qtySaving || qtyLoading || loading || savingAll}
-      onChange={(e) => setQtyCell(r.tank, "eff_pct_ui_1", e.target.value)}
-      style={{
-        ...qtyInputStyle,
-        textAlign: "right",
-        border: okEff1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-        background: okEff1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
-      }}
-      placeholder="0-100"
-    />
-    <input
-      value={r.eff_pct_ui_2}
-      disabled={qtySaving || qtyLoading || loading || savingAll}
-      onChange={(e) => setQtyCell(r.tank, "eff_pct_ui_2", e.target.value)}
-      style={{
-        ...qtyInputStyle,
-        textAlign: "right",
-        border: okEff2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-        background: okEff2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
-      }}
-      placeholder="0-100"
-    />
-  </div>
-</td>
+                <td className="capex-td">
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <input
+                      value={r.eff_pct_ui_1}
+                      disabled={qtySaving || qtyLoading || loading || savingAll}
+                      onChange={(e) => setQtyCell(r.tank, "eff_pct_ui_1", e.target.value)}
+                      style={{
+                        ...qtyInputStyle,
+                        textAlign: "right",
+                        border: okEff1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                        background: okEff1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
+                      }}
+                      placeholder="0-100"
+                    />
+                    <input
+                      value={r.eff_pct_ui_2}
+                      disabled={qtySaving || qtyLoading || loading || savingAll}
+                      onChange={(e) => setQtyCell(r.tank, "eff_pct_ui_2", e.target.value)}
+                      style={{
+                        ...qtyInputStyle,
+                        textAlign: "right",
+                        border: okEff2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                        background: okEff2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
+                      }}
+                      placeholder="0-100"
+                    />
+                  </div>
+                </td>
 
-
-<td className="capex-td">
-  <div style={{ display: "grid", gap: 8 }}>
-    <input
-      value={r.cycles_1}
-      disabled={qtySaving || qtyLoading || loading || savingAll}
-      onChange={(e) => setQtyCell(r.tank, "cycles_1", e.target.value)}
-      style={{
-        ...qtyInputStyle,
-        textAlign: "right",
-        border: okCy1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-        background: okCy1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
-      }}
-      placeholder="0"
-    />
-    <input
-      value={r.cycles_2}
-      disabled={qtySaving || qtyLoading || loading || savingAll}
-      onChange={(e) => setQtyCell(r.tank, "cycles_2", e.target.value)}
-      style={{
-        ...qtyInputStyle,
-        textAlign: "right",
-        border: okCy2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-        background: okCy2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
-        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
-      }}
-      placeholder="0"
-    />
-  </div>
-</td>
-
+                <td className="capex-td">
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <input
+                      value={r.cycles_1}
+                      disabled={qtySaving || qtyLoading || loading || savingAll}
+                      onChange={(e) => setQtyCell(r.tank, "cycles_1", e.target.value)}
+                      style={{
+                        ...qtyInputStyle,
+                        textAlign: "right",
+                        border: okCy1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                        background: okCy1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
+                      }}
+                      placeholder="0"
+                    />
+                    <input
+                      value={r.cycles_2}
+                      disabled={qtySaving || qtyLoading || loading || savingAll}
+                      onChange={(e) => setQtyCell(r.tank, "cycles_2", e.target.value)}
+                      style={{
+                        ...qtyInputStyle,
+                        textAlign: "right",
+                        border: okCy2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
+                        background: okCy2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
+                      }}
+                      placeholder="0"
+                    />
+                  </div>
+                </td>
 
                 <td className="capex-td">
                   <div style={{ display: "grid", gap: 6 }}>
