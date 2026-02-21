@@ -23,6 +23,7 @@ export default function PlantaReportsPage() {
   const [tankMsg, setTankMsg] = useState<string | null>(null);
 
   const [showFull, setShowFull] = useState(false);
+  const [focusCarbones, setFocusCarbones] = useState(false);
 
   async function loadTankSummary(which: "AU" | "AG") {
     setTankLoading(true);
@@ -58,15 +59,18 @@ export default function PlantaReportsPage() {
     loadTankSummary("AG");
   }, []);
 
-  return (
-    <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
-      <BalanceTable />
-
+  const tanquesBlock = (
+    <>
       <div style={{ height: 6 }} />
 
       <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Tanques</div>
-        <div style={{ marginLeft: "auto" }}>
+
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setFocusCarbones((s) => !s)} disabled={tankLoading}>
+            {focusCarbones ? "Vista normal" : "Vista completa Carbones"}
+          </Button>
+
           <Button type="button" size="sm" variant="ghost" onClick={() => setShowFull((s) => !s)} disabled={tankLoading}>
             {showFull ? "Ver resumen" : "Ver detalle"}
           </Button>
@@ -94,7 +98,11 @@ export default function PlantaReportsPage() {
           tankRowsAg={tankRowsAg}
         />
       )}
+    </>
+  );
 
+  const pbiBlock = (
+    <>
       <div style={{ height: 6 }} />
 
       <div className="panel-inner" style={{ padding: "10px 12px" }}>
@@ -111,6 +119,23 @@ export default function PlantaReportsPage() {
           />
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+      {!focusCarbones ? (
+        <>
+          <BalanceTable />
+          {tanquesBlock}
+          {pbiBlock}
+        </>
+      ) : (
+        <>
+          {tanquesBlock}
+          {pbiBlock}
+        </>
+      )}
     </div>
   );
 }
