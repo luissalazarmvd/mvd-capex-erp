@@ -59,13 +59,27 @@ export default function PlantaReportsPage() {
     loadTankSummary("AG");
   }, []);
 
+  function scrollToTopHard() {
+    try {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    } catch {}
+  }
+
   async function toggleCarbonesFullscreen() {
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
         return;
       }
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+
+      scrollToTopHard();
+      requestAnimationFrame(() => scrollToTopHard());
+      setTimeout(scrollToTopHard, 0);
+      setTimeout(scrollToTopHard, 50);
+      setTimeout(scrollToTopHard, 150);
+
       await document.documentElement.requestFullscreen();
     } catch {}
   }
@@ -74,7 +88,14 @@ export default function PlantaReportsPage() {
     function onFsChange() {
       const isFs = !!document.fullscreenElement;
       setCarbonesFullScreen(isFs);
-      if (isFs) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+
+      if (isFs) {
+        scrollToTopHard();
+        requestAnimationFrame(() => scrollToTopHard());
+        setTimeout(scrollToTopHard, 0);
+        setTimeout(scrollToTopHard, 50);
+        setTimeout(scrollToTopHard, 150);
+      }
     }
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
