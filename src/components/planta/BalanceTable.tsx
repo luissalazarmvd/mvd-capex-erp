@@ -635,40 +635,33 @@ export default function BalanceTable() {
       ]);
     }
 
-    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-
     const margin = 24;
-    const usableW = pageW - margin * 2;
+    const isoRatio = 595.28 / 841.89; // A4 landscape H/W (mismo ratio ISO para A3, etc.)
 
-    const scaleW = usableW / totalW;
-    const widths = baseWidths.map((w) => Math.max(40, Math.round(w * scaleW)));
+    const pageW = totalW + margin * 2;
+    const pageH = Math.round(pageW * isoRatio);
 
-    const fontBody = Math.max(6, Math.round(9 * scaleW));
-    const fontHead = Math.max(6, Math.round(9 * scaleW));
-    const pad = Math.max(2, Math.round(4 * scaleW));
-    const lineH = Math.max(8, Math.round(fontBody * 1.25));
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: [pageW, pageH] });
 
     doc.setFontSize(12);
     doc.text(title.replaceAll("_", " "), margin, 18);
 
     const colStyles: Record<number, any> = {};
-    for (let i = 0; i < widths.length; i++) colStyles[i] = { cellWidth: widths[i] };
+    for (let i = 0; i < baseWidths.length; i++) colStyles[i] = { cellWidth: baseWidths[i] };
 
-    const commentColIdx = widths.length - 1;
-    const commentCellW = Math.max(40, widths[commentColIdx] - pad * 2);
+    const commentColIdx = baseWidths.length - 1;
+    const pad = 4;
+    const commentCellW = Math.max(40, baseWidths[commentColIdx] - pad * 2);
 
     autoTable(doc, {
       head: [headers],
       body,
       startY: 28,
       theme: "plain",
-      tableWidth: usableW,
+      tableWidth: totalW,
       margin: { left: margin, right: margin, top: margin, bottom: margin },
       styles: {
-        fontSize: fontBody,
+        fontSize: 9,
         cellPadding: pad,
         overflow: "linebreak",
         textColor: [0, 0, 0],
@@ -676,13 +669,12 @@ export default function BalanceTable() {
         lineWidth: 0.25,
         lineColor: [210, 210, 210],
         valign: "top",
-        minCellHeight: pad * 2 + lineH,
       },
       headStyles: {
         fillColor: [0, 103, 172],
         textColor: [255, 255, 255],
         fontStyle: "bold",
-        fontSize: fontHead,
+        fontSize: 9,
         halign: "center",
         lineWidth: 0.25,
         lineColor: [0, 103, 172],
@@ -690,9 +682,6 @@ export default function BalanceTable() {
       columnStyles: colStyles,
       didParseCell: (data) => {
         if (data.section === "head") {
-          data.cell.styles.fillColor = [0, 103, 172];
-          data.cell.styles.textColor = [255, 255, 255];
-          data.cell.styles.fontStyle = "bold";
           data.cell.styles.halign = data.column.index === 0 ? "left" : "center";
           return;
         }
@@ -703,7 +692,7 @@ export default function BalanceTable() {
           else data.cell.styles.halign = "right";
 
           if (data.column.index === commentColIdx) {
-            const raw = String((data.cell.raw ?? "") as any).replace(/\s+\n/g, "\n").trim();
+            const raw = String((data.cell.raw ?? "") as any).trim();
             if (!raw) {
               data.cell.text = [""];
               return;
