@@ -644,7 +644,6 @@ export default function BalanceTable() {
     const pad = Math.max(3, Math.round(4 * fontScale));
     const extraPxPerSide = Math.max(6, Math.round(8 * fontScale));
 
-    // --- medir texto para anchos ---
     const meas = new jsPDF({ orientation: "landscape", unit: "pt", format: [200, 200] });
     meas.setFont("helvetica", "normal");
     meas.setFontSize(headFont);
@@ -660,7 +659,6 @@ export default function BalanceTable() {
       return Math.ceil(wText + extraPxPerSide * 2);
     });
 
-    // Ensanchar Ratio para que "Tratamiento" no se corte
     const ratioIdx = idxOf("Ratio (t/h)");
     if (ratioIdx !== -1) {
       const need = meas.getTextWidth("Ratio de Tratamiento") + extraPxPerSide * 2;
@@ -676,7 +674,6 @@ export default function BalanceTable() {
 
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: [pageW, pageH] });
 
-    // --- cargar logo (public/logo_mvd.png) ---
     let logoDataUrl: string | null = null;
     let logoFmt: "PNG" | "JPEG" = "PNG";
     try {
@@ -687,7 +684,7 @@ export default function BalanceTable() {
         logoDataUrl = await new Promise<string>((resolve, reject) => {
           const fr = new FileReader();
           fr.onload = () => resolve(String(fr.result));
-          fr.onerror = () => reject(new Error("No se pudo leer logo"));
+          fr.onerror = () => reject(new Error("logo read error"));
           fr.readAsDataURL(blob);
         });
       }
@@ -695,7 +692,6 @@ export default function BalanceTable() {
       logoDataUrl = null;
     }
 
-    // Título archivo (arriba del PDF)
     doc.setFontSize(titleFont);
     doc.text(title.replaceAll("_", " "), margin, 18);
 
@@ -706,7 +702,6 @@ export default function BalanceTable() {
 
     const metal = balMode === "AU" ? "Au" : "Ag";
 
-    // --- índices clave ---
     const tmsI = idxOf("TMS");
     const agFeedGI = idxOf("Ag (g) Feed");
 
@@ -740,7 +735,6 @@ export default function BalanceTable() {
 
     const inRange = (x: number, a: number, b: number) => a !== -1 && b !== -1 && x >= a && x <= b;
 
-    // Top (nivel 1)
     const topRanges: Array<{ label: string; from: number; to: number }> = [];
 
     if (tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
@@ -769,25 +763,21 @@ export default function BalanceTable() {
     };
 
     const midLabelAt = (col: number) => {
-      // 2 niveles
       if (col === opI) return "Operación";
       if (col === rtI) return "Ratio de Tratamiento";
 
       if (col === auProdI || col === agProdI) return "Producción";
       if (col === auRecI || col === agRecI) return "Recup.";
 
-      // Reactivos
       if (col === nacnI) return "Cianuro de Sodio";
       if (col === naohI) return "Soda Caústica";
       if (col === bolasI) return "Bolas de Acero";
 
-      // Overflow (sub-bloques)
       if (denI !== -1 && volI !== -1 && inRange(col, denI, volI)) return "Datos de Operación";
       if (ofSolGTI !== -1 && ofSolGI !== -1 && inRange(col, ofSolGTI, ofSolGI)) return "Sólido";
       if (ofLiqGTI !== -1 && ofLiqGI !== -1 && inRange(col, ofLiqGTI, ofLiqGI)) return "Solución";
       if (col === ofTotGI) return "Solid. + Soluc.";
 
-      // Relave (sub-bloques)
       if (relSolGTI !== -1 && relSolGI !== -1 && inRange(col, relSolGTI, relSolGI)) return "Sólido";
       if (relLiqGTI !== -1 && relLiqGI !== -1 && inRange(col, relLiqGTI, relLiqGI)) return "Solución";
       if (relTotGTI !== -1 && relTotGI !== -1 && inRange(col, relTotGTI, relTotGI)) return "Solid. + Soluc.";
@@ -795,11 +785,8 @@ export default function BalanceTable() {
       return null;
     };
 
-    // -------- HEAD (4 filas: banner+logo, top, mid, bottom) --------
-
-    // Fila 0: logo + banner (desde Ley de Cabeza hasta Comentario, pero visualmente lo hacemos ancho total excepto logo)
     const bannerRow: any[] = [
-      { content: "", styles: { halign: "center", valign: "middle" } }, // aquí va el logo (col 0)
+      { content: "", styles: { halign: "center", valign: "middle" } },
       {
         content: "Balance Metalúrgico de Producción Planta MVD",
         colSpan: headers.length - 1,
@@ -807,12 +794,7 @@ export default function BalanceTable() {
       },
     ];
 
-    // Fila 1: topRow (incluye "Fecha" combinada 3 filas)
-    const topRow: any[] = [
-      { content: "Fecha", rowSpan: 3, styles: { halign: "center", valign: "middle" } },
-    ];
-
-    // bottomRow se arma con posibilidad de vacíos si el header se “sube”
+    const topRow: any[] = [{ content: "Fecha", rowSpan: 3, styles: { halign: "center", valign: "middle" } }];
     const bottomRow: any[] = headers.slice(1);
 
     const pushTop = (content: string, colSpan: number) =>
@@ -820,11 +802,6 @@ export default function BalanceTable() {
     const pushTopRowSpan2 = (content: string) =>
       topRow.push({ content, rowSpan: 2, styles: { halign: "center", valign: "middle" } });
 
-    // Regla:
-    // - si tiene top => se maneja con spans y se completa en midRow
-    // - si NO tiene top:
-    //   - si tiene mid => topRow pone mid con rowSpan=2, bottom queda con header real
-    //   - si no tiene mid => topRow pone el header real con rowSpan=2, y bottom se vacía (ej: Comentario)
     let i = 1;
     while (i < headers.length) {
       const t = topLabelAt(i);
@@ -841,7 +818,6 @@ export default function BalanceTable() {
       if (m) {
         pushTopRowSpan2(m);
       } else {
-        // sube el header real (merge) y vacía el bottom
         pushTopRowSpan2(headers[i]);
         bottomRow[i - 1] = "";
       }
@@ -849,7 +825,6 @@ export default function BalanceTable() {
       i += 1;
     }
 
-    // Fila 2: midRow solo para columnas bajo un topLabel
     const midRow: any[] = [];
     const pushMid = (content: string, colSpan: number) =>
       midRow.push({ content, colSpan, styles: { halign: "center", valign: "middle" } });
@@ -870,10 +845,8 @@ export default function BalanceTable() {
       i = j;
     }
 
-    // Estilos de encabezado (cuadriculado visible)
     const headGridLineColor: [number, number, number] = [210, 210, 210];
 
-    // --- AutoTable ---
     autoTable(doc, {
       head: [bannerRow, topRow, midRow, bottomRow],
       body,
@@ -904,33 +877,28 @@ export default function BalanceTable() {
       columnStyles: colStyles,
       didParseCell: (data) => {
         if (data.section === "head") {
-          // Fila 0: banner+logo
-          if (data.row.index === 0) {
-            data.cell.styles.halign = "center";
-            data.cell.styles.valign = "middle";
-            data.cell.styles.lineColor = headGridLineColor;
-            data.cell.styles.lineWidth = 0.25;
-
-            // Logo cell: mantener background y bordes
-            if (data.column.index === 0) {
-              data.cell.styles.halign = "center";
-            }
-            return;
-          }
-
-          // "Fecha" centrado (fila 1 col 0 con rowSpan=3)
-          if (data.row.index === 1 && data.column.index === 0) {
-            data.cell.styles.halign = "center";
-            data.cell.styles.valign = "middle";
-            data.cell.styles.lineColor = headGridLineColor;
-            data.cell.styles.lineWidth = 0.25;
-            return;
-          }
-
           data.cell.styles.halign = "center";
           data.cell.styles.valign = "middle";
           data.cell.styles.lineColor = headGridLineColor;
           data.cell.styles.lineWidth = 0.25;
+
+          if (data.row.index === 0 && data.column.index === 0) {
+            data.cell.styles.halign = "center";
+          }
+
+          if (data.row.index === 1 && data.column.index === 0) {
+            data.cell.styles.halign = "center";
+            data.cell.styles.valign = "middle";
+          }
+
+          if (data.row.index === 1 && data.column.index >= 1) {
+            const colInHeaders = data.column.index;
+            const t = topLabelAt(colInHeaders);
+            if (t === "Ley de Cabeza") {
+              (data.cell as any).rowSpan = 2;
+            }
+          }
+
           return;
         }
 
@@ -957,26 +925,26 @@ export default function BalanceTable() {
         }
       },
       didDrawCell: (data) => {
-        // dibujar logo dentro de la celda [fila 0, col 0]
         if (data.section === "head" && data.row.index === 0 && data.column.index === 0 && logoDataUrl) {
           const cell = data.cell;
-
-          // padding visual dentro de la celda
           const inset = 6;
           const maxW = Math.max(10, cell.width - inset * 2);
           const maxH = Math.max(10, cell.height - inset * 2);
 
-          // dibujar como cuadrado “fit” (sin conocer ratio exacto, se ve bien si el logo es más o menos cuadrado)
-          const size = Math.min(maxW, maxH);
+          const imgProps = (doc as any).getImageProperties ? (doc as any).getImageProperties(logoDataUrl) : null;
+          const iw = imgProps?.width ?? 1;
+          const ih = imgProps?.height ?? 1;
+          const scale = Math.min(maxW / iw, maxH / ih);
 
-          const x = cell.x + (cell.width - size) / 2;
-          const y = cell.y + (cell.height - size) / 2;
+          const w = iw * scale;
+          const h = ih * scale;
+
+          const x = cell.x + (cell.width - w) / 2;
+          const y = cell.y + (cell.height - h) / 2;
 
           try {
-            doc.addImage(logoDataUrl, logoFmt, x, y, size, size);
-          } catch {
-            // si falla, no hacemos nada
-          }
+            doc.addImage(logoDataUrl, logoFmt, x, y, w, h);
+          } catch {}
         }
       },
     });
