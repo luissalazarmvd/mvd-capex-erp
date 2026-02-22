@@ -571,22 +571,9 @@ export default function BalanceTable() {
       };
     };
 
-    const autosize = (ws: ExcelJS.Worksheet, maxW = 48) => {
-      const n = ws.columnCount || (ws.columns?.length ?? 0);
-      for (let i = 1; i <= n; i++) {
-        const col = ws.getColumn(i);
-        let maxLen = 10;
-        col.eachCell({ includeEmpty: true }, (cell) => {
-          const v = cell.value as any;
-          const s =
-            v === null || v === undefined
-              ? ""
-              : typeof v === "object" && (v as any).richText
-              ? String((v as any).richText?.map((x: any) => x.text).join("") ?? "")
-              : String(v);
-          maxLen = Math.max(maxLen, s.length);
-        });
-        col.width = Math.min(maxW, Math.max(10, maxLen + 2));
+    const setColWidths = (ws: ExcelJS.Worksheet, widths: number[]) => {
+      for (let i = 0; i < widths.length; i++) {
+        ws.getColumn(i + 1).width = widths[i];
       }
     };
 
@@ -677,7 +664,7 @@ export default function BalanceTable() {
       };
 
       const topRowCells: Array<{ col: number; text: string; colSpan: number; rowSpan: number }> = [];
-      const midRowCells: Array<{ col: number; text: string; colSpan: number; rowSpan: number }> = [];
+      const midRowCells: Array<{ col: number; text: string; colSpan: number }> = [];
       const bottomRow = headers.map((h) => h);
 
       for (let c = 0; c < leftFixed; c++) {
@@ -709,24 +696,19 @@ export default function BalanceTable() {
             }
           }
 
-          if (!hasMid) {
-            topRowCells.push({ col: i, text: t, colSpan: j - i, rowSpan: 2 });
-          } else {
-            topRowCells.push({ col: i, text: t, colSpan: j - i, rowSpan: 1 });
-          }
-
+          topRowCells.push({ col: i, text: t, colSpan: j - i, rowSpan: hasMid ? 1 : 2 });
           i = j;
           continue;
         }
 
         if (m) {
           topRowCells.push({ col: i, text: m, colSpan: 1, rowSpan: 2 });
-          bottomRow[i] = "";
-        } else {
-          topRowCells.push({ col: i, text: headers[i], colSpan: 1, rowSpan: 2 });
-          bottomRow[i] = "";
+          i += 1;
+          continue;
         }
 
+        topRowCells.push({ col: i, text: headers[i], colSpan: 1, rowSpan: 2 });
+        bottomRow[i] = "";
         i += 1;
       }
 
@@ -746,12 +728,11 @@ export default function BalanceTable() {
         const m0 = midLabelAt(i) ?? "";
         let j = i + 1;
         while (j < headers.length && topLabelAt(j) === t && (midLabelAt(j) ?? "") === m0) j++;
-        if (!m0) {
-          i = j;
-          continue;
+
+        if (m0) {
+          midRowCells.push({ col: i, text: m0, colSpan: j - i });
         }
 
-        midRowCells.push({ col: i, text: m0, colSpan: j - i, rowSpan: 1 });
         i = j;
       }
 
@@ -793,11 +774,8 @@ export default function BalanceTable() {
         for (let c = 1; c <= nCols; c++) applyHeaderCell(row.getCell(c));
       }
 
-      return { startRow: rBot.number + 1, commentColIdx: grid.commentColIdx + 1 };
+      return { commentColIdx: grid.commentColIdx + 1 };
     };
-
-    const fileTag = `${balMode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
-    const title = `MVD_Planta_Balance_${fileTag}`;
 
     const colsPdfLabels = cols.map((c) => c.label).map((h) => {
       if (h === `${metal} (g/t) OF Liq`) return `${metal} (g/m³) OF Liq`;
@@ -868,20 +846,34 @@ export default function BalanceTable() {
       }),
     ]);
 
+    const wFromPx = (px: number) => Math.max(10, Math.round(px / 7));
+    const commentW = 90;
+
+    const widthsShift = [
+      16,
+      10,
+      ...cols.map((c) => wFromPx(c.w ?? 90)),
+    ];
+    widthsShift[widthsShift.length - 1] = commentW;
+
+    const widthsDaily = [
+      16,
+      ...cols.map((c) => wFromPx(c.w ?? 90)),
+    ];
+    widthsDaily[widthsDaily.length - 1] = commentW;
+
     const wb = new ExcelJS.Workbook();
 
     const wsShift = wb.addWorksheet("Guardias");
-    wsShift.addRow([title.replaceAll("_", " ")]);
-    wsShift.mergeCells(1, 1, 1, headersShift.length);
-    wsShift.getRow(1).font = { bold: true, size: 14 };
-    wsShift.addRow([]);
-
-    const headInfoShift = writePdfLikeHeaders(wsShift, headersShift, 2);
-    const firstDataRowShift = wsShift.rowCount + 1;
+    const headShift = writePdfLikeHeaders(wsShift, headersShift, 2);
 
     for (const r of rowsShift) wsShift.addRow(r);
 
-    const commentColShift = headInfoShift.commentColIdx;
+    setColWidths(wsShift, widthsShift);
+    wsShift.getColumn(headShift.commentColIdx).width = commentW;
+
+    const commentColShift = headShift.commentColIdx;
+    const firstDataRowShift = 6;
     for (let rn = firstDataRowShift; rn <= wsShift.rowCount; rn++) {
       const row = wsShift.getRow(rn);
       const isTotal = rn === wsShift.rowCount;
@@ -901,21 +893,16 @@ export default function BalanceTable() {
       });
     }
 
-    autosize(wsShift);
-    wsShift.getColumn(commentColShift).width = Math.max(wsShift.getColumn(commentColShift).width ?? 10, 70);
-
     const wsDaily = wb.addWorksheet("Diario");
-    wsDaily.addRow([title.replaceAll("_", " ")]);
-    wsDaily.mergeCells(1, 1, 1, headersDaily.length);
-    wsDaily.getRow(1).font = { bold: true, size: 14 };
-    wsDaily.addRow([]);
-
-    const headInfoDaily = writePdfLikeHeaders(wsDaily, headersDaily, 1);
-    const firstDataRowDaily = wsDaily.rowCount + 1;
+    const headDaily = writePdfLikeHeaders(wsDaily, headersDaily, 1);
 
     for (const r of rowsDaily) wsDaily.addRow(r);
 
-    const commentColDaily = headInfoDaily.commentColIdx;
+    setColWidths(wsDaily, widthsDaily);
+    wsDaily.getColumn(headDaily.commentColIdx).width = commentW;
+
+    const commentColDaily = headDaily.commentColIdx;
+    const firstDataRowDaily = 6;
     for (let rn = firstDataRowDaily; rn <= wsDaily.rowCount; rn++) {
       const row = wsDaily.getRow(rn);
       const isTotal = rn === wsDaily.rowCount;
@@ -935,8 +922,8 @@ export default function BalanceTable() {
       });
     }
 
-    autosize(wsDaily);
-    wsDaily.getColumn(commentColDaily).width = Math.max(wsDaily.getColumn(commentColDaily).width ?? 10, 70);
+    const fileTag = `${balMode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
+    const title = `MVD_Planta_Balance_${fileTag}`;
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], {
