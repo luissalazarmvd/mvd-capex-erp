@@ -608,23 +608,45 @@ export default function BalanceTable() {
     const headers = ["Fecha", ...cols.map((c) => c.label)];
     const body: any[][] = [];
 
+    const commentKey = String(cols.find((c) => c.key === "shift_comment")?.key ?? "shift_comment");
+
     for (const g of groups) {
       const dayTotals: Record<string, any> = {};
       for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
 
+      const commentLines: string[] = [];
+      for (const rr of g.rows) {
+        const sh = String((rr as any)._shift ?? "").toUpperCase();
+        const cm = String((rr as any)[commentKey] ?? "").trim();
+        if (!cm) continue;
+        commentLines.push(`${sh}: "${cm.replace(/\s+/g, " ")}"`);
+      }
+      const dayComment = commentLines.join("\n");
+
       body.push([
         fmtDateDdMm(g.dateIso),
         ...cols.map((c) => {
-          const v = dayTotals[String(c.key)];
+          const v = c.key === "shift_comment" ? dayComment : dayTotals[String(c.key)];
           return c.fmt ? c.fmt(v) : v ?? "";
         }),
       ]);
     }
 
+    const overallCommentLines: string[] = [];
+    for (const g of groups) {
+      for (const rr of g.rows) {
+        const sh = String((rr as any)._shift ?? "").toUpperCase();
+        const cm = String((rr as any)[commentKey] ?? "").trim();
+        if (!cm) continue;
+        overallCommentLines.push(`${fmtDateDdMm(g.dateIso)} ${sh}: "${cm.replace(/\s+/g, " ")}"`);
+      }
+    }
+    const overallComment = overallCommentLines.join("\n");
+
     body.push([
       "Total",
       ...cols.map((c) => {
-        const v = overallTotals[String(c.key)];
+        const v = c.key === "shift_comment" ? overallComment : overallTotals[String(c.key)];
         return c.fmt ? c.fmt(v) : v ?? "";
       }),
     ]);
