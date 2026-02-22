@@ -635,7 +635,7 @@ export default function BalanceTable() {
     const margin = 24;
     const isoRatio = 595.28 / 841.89;
 
-    const fontScale = 1.3;
+    const fontScale = 1.45; // +15% vs 1.30
 
     const baseFont = Math.round(9 * fontScale);
     const headFont = Math.round(9 * fontScale);
@@ -650,9 +650,11 @@ export default function BalanceTable() {
 
     const colWidths: number[] = headers.map((h, idx) => {
       const wText = meas.getTextWidth(String(h ?? ""));
-      const minW = idx === 0 ? meas.getTextWidth("00/00/0000") : 0;
+      const minW = idx === 0 ? meas.getTextWidth("15/02/2026") : 0;
       return Math.max(minW, Math.ceil(wText + extraPxPerSide * 2));
     });
+
+    colWidths[0] = Math.max(colWidths[0], Math.ceil(meas.getTextWidth("15/02/2026") + extraPxPerSide * 2 + 14));
 
     const commentColIdx = colWidths.length - 1;
     colWidths[commentColIdx] = Math.max(colWidths[commentColIdx], 260);
