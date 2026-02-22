@@ -634,7 +634,6 @@ export default function BalanceTable() {
 
     const margin = 24;
     const isoRatio = 595.28 / 841.89;
-
     const fontScale = 1.67;
 
     const baseFont = Math.round(9 * fontScale);
@@ -673,13 +672,16 @@ export default function BalanceTable() {
 
     const commentCellW = Math.max(40, colWidths[commentColIdx] - pad * 2);
 
-    const H = (s: string) => String(s ?? "");
+    const H = (s: any) => String(s ?? "");
     const idxOf = (label: string) => headers.findIndex((x) => H(x) === label);
 
     const metal = balMode === "AU" ? "Au" : "Ag";
 
     const groupRow: any[] = [];
     const pushBlank = () => groupRow.push({ content: "", styles: { halign: "center" } });
+    const pushOne = (label: string) => groupRow.push({ content: label, colSpan: 1, styles: { halign: "center" } });
+    const pushSpan = (label: string, from: number, to: number) =>
+      groupRow.push({ content: label, colSpan: Math.max(1, to - from + 1), styles: { halign: "center" } });
 
     let i = 0;
     while (i < headers.length) {
@@ -692,15 +694,29 @@ export default function BalanceTable() {
       const tmsI = idxOf("TMS");
       const agFeedGI = idxOf("Ag (g) Feed");
       if (i === tmsI && tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
-        groupRow.push({ content: "Ley de Cabeza", colSpan: agFeedGI - tmsI + 1, styles: { halign: "center" } });
+        pushSpan("Ley de Cabeza", tmsI, agFeedGI);
         i = agFeedGI + 1;
+        continue;
+      }
+
+      const opI = idxOf("Operación (h)");
+      if (i === opI && opI !== -1) {
+        pushOne("Operación");
+        i += 1;
+        continue;
+      }
+
+      const ratioI = idxOf("Ratio (t/h)");
+      if (i === ratioI && ratioI !== -1) {
+        pushOne("Ratio de Tratamiento");
+        i += 1;
         continue;
       }
 
       const denI = idxOf("Den (g/l)");
       const volI = idxOf("Vol (m³)");
       if (i === denI && denI !== -1 && volI !== -1 && volI >= denI) {
-        groupRow.push({ content: "Datos de Operación", colSpan: volI - denI + 1, styles: { halign: "center" } });
+        pushSpan("Datos de Operación", denI, volI);
         i = volI + 1;
         continue;
       }
@@ -708,7 +724,7 @@ export default function BalanceTable() {
       const ofSolGTI = idxOf(`${metal} (g/t) OF Sol`);
       const ofSolGI = idxOf(`${metal} (g) OF Sol`);
       if (i === ofSolGTI && ofSolGTI !== -1 && ofSolGI !== -1 && ofSolGI >= ofSolGTI) {
-        groupRow.push({ content: "Sólido", colSpan: ofSolGI - ofSolGTI + 1, styles: { halign: "center" } });
+        pushSpan("Sólido", ofSolGTI, ofSolGI);
         i = ofSolGI + 1;
         continue;
       }
@@ -716,14 +732,14 @@ export default function BalanceTable() {
       const ofLiqGTI = idxOf(`${metal} (g/t) OF Liq`);
       const ofLiqGI = idxOf(`${metal} (g) OF Liq`);
       if (i === ofLiqGTI && ofLiqGTI !== -1 && ofLiqGI !== -1 && ofLiqGI >= ofLiqGTI) {
-        groupRow.push({ content: "Solución", colSpan: ofLiqGI - ofLiqGTI + 1, styles: { halign: "center" } });
+        pushSpan("Solución", ofLiqGTI, ofLiqGI);
         i = ofLiqGI + 1;
         continue;
       }
 
       const ofTotGI = idxOf(`${metal} (g) OF Tot`);
       if (i === ofTotGI && ofTotGI !== -1) {
-        groupRow.push({ content: "Solid. + Soluc.", colSpan: 1, styles: { halign: "center" } });
+        pushOne("Solid. + Soluc.");
         i += 1;
         continue;
       }
@@ -731,7 +747,7 @@ export default function BalanceTable() {
       const relSolGTI = idxOf(`${metal} (g/t) Rel Sol`);
       const relSolGI = idxOf(`${metal} (g) Rel Sol`);
       if (i === relSolGTI && relSolGTI !== -1 && relSolGI !== -1 && relSolGI >= relSolGTI) {
-        groupRow.push({ content: "Sólido", colSpan: relSolGI - relSolGTI + 1, styles: { halign: "center" } });
+        pushSpan("Sólido", relSolGTI, relSolGI);
         i = relSolGI + 1;
         continue;
       }
@@ -739,7 +755,7 @@ export default function BalanceTable() {
       const relLiqGTI = idxOf(`${metal} (g/t) Rel Liq`);
       const relLiqGI = idxOf(`${metal} (g) Rel Liq`);
       if (i === relLiqGTI && relLiqGTI !== -1 && relLiqGI !== -1 && relLiqGI >= relLiqGTI) {
-        groupRow.push({ content: "Solución", colSpan: relLiqGI - relLiqGTI + 1, styles: { halign: "center" } });
+        pushSpan("Solución", relLiqGTI, relLiqGI);
         i = relLiqGI + 1;
         continue;
       }
@@ -748,8 +764,52 @@ export default function BalanceTable() {
       const relTotGI = idxOf(`${metal} (g) Rel Tot`);
       if (i === relTotGTI && relTotGTI !== -1) {
         const end = relTotGI !== -1 && relTotGI >= relTotGTI ? relTotGI : relTotGTI;
-        groupRow.push({ content: "Solid. + Soluc.", colSpan: end - relTotGTI + 1, styles: { halign: "center" } });
+        pushSpan("Solid. + Soluc.", relTotGTI, end);
         i = end + 1;
+        continue;
+      }
+
+      const auProdI = idxOf("Au Prod (g)");
+      if (i === auProdI && auProdI !== -1) {
+        pushOne("Producción");
+        i += 1;
+        continue;
+      }
+      const agProdI = idxOf("Ag Prod (g)");
+      if (i === agProdI && agProdI !== -1) {
+        pushOne("Producción");
+        i += 1;
+        continue;
+      }
+      const auRecI = idxOf("Au Rec (%)");
+      if (i === auRecI && auRecI !== -1) {
+        pushOne("Recup.");
+        i += 1;
+        continue;
+      }
+      const agRecI = idxOf("Ag Rec (%)");
+      if (i === agRecI && agRecI !== -1) {
+        pushOne("Recup.");
+        i += 1;
+        continue;
+      }
+
+      const nacnI = idxOf("NaCN (kg/t)");
+      if (i === nacnI && nacnI !== -1) {
+        pushOne("Cianuro de Sodio");
+        i += 1;
+        continue;
+      }
+      const naohI = idxOf("NaOH (kg/t)");
+      if (i === naohI && naohI !== -1) {
+        pushOne("Soda Caústica");
+        i += 1;
+        continue;
+      }
+      const bolasI = idxOf("Bolas (kg/t)");
+      if (i === bolasI && bolasI !== -1) {
+        pushOne("Bolas de Acero");
+        i += 1;
         continue;
       }
 
@@ -781,7 +841,7 @@ export default function BalanceTable() {
         fontSize: headFont,
         halign: "center",
         lineWidth: 0.25,
-        lineColor: [0, 103, 172],
+        lineColor: [210, 210, 210], // para que se vean las líneas en encabezados
       },
       columnStyles: colStyles,
       didParseCell: (data) => {
