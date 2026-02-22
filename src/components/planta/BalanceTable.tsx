@@ -602,6 +602,8 @@ export default function BalanceTable() {
   }
 
   function exportPdf() {
+    const SCALE = 0.7;
+
     const fileTag = `${balMode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
     const title = `MVD_Planta_Balance_${fileTag}`;
 
@@ -615,7 +617,7 @@ export default function BalanceTable() {
       body.push([
         fmtDateDdMm(g.dateIso),
         ...cols.map((c) => {
-          const v = c.key === "shift_comment" ? clampPdfText(dayTotals[String(c.key)], 220) : dayTotals[String(c.key)];
+          const v = dayTotals[String(c.key)];
           return c.fmt ? c.fmt(v) : v ?? "";
         }),
       ]);
@@ -624,31 +626,49 @@ export default function BalanceTable() {
     body.push([
       "Total",
       ...cols.map((c) => {
-        const v = c.key === "shift_comment" ? clampPdfText(overallTotals[String(c.key)], 220) : overallTotals[String(c.key)];
+        const v = overallTotals[String(c.key)];
         return c.fmt ? c.fmt(v) : v ?? "";
       }),
     ]);
 
-    const W_FECHA = 120;
-    const widths = [W_FECHA, ...cols.map((c) => c.w ?? 90)];
+    const baseWidths = [120, ...cols.map((c) => c.w ?? 90)];
+    const widths = baseWidths.map((w) => Math.max(40, Math.round(w * SCALE)));
     const totalTableW = widths.reduce((a, b) => a + b, 0);
 
-    const marginL = 20;
-    const marginR = 20;
-    const topTitleH = 34;
-    const topGap = 10;
-
+    const marginL = Math.round(20 * SCALE);
+    const marginR = Math.round(20 * SCALE);
     const pageW = marginL + totalTableW + marginR;
-    const approxRowH = 18;
-    const pageH = Math.max(260, topTitleH + topGap + 24 + body.length * approxRowH + 30);
 
-    const doc = new jsPDF({
-      unit: "pt",
-      format: [pageW, pageH],
-    });
+    const titleFont = Math.max(10, Math.round(12 * SCALE));
+    const bodyFont = Math.max(6, Math.round(9 * SCALE));
+    const pad = Math.max(2, Math.round(4 * SCALE));
+    const lineH = Math.max(8, Math.round(bodyFont * 1.25));
 
-    doc.setFontSize(12);
-    doc.text(title.replaceAll("_", " "), marginL, 22);
+    const commentColIdx = widths.length - 1;
+    const commentCellW = Math.max(40, widths[commentColIdx] - pad * 2);
+
+    const meas = new jsPDF({ unit: "pt", format: [100, 100] });
+    meas.setFontSize(bodyFont);
+
+    const rowHeights: number[] = [];
+    for (const r of body) {
+      const raw = String(r[commentColIdx] ?? "");
+      const clean = raw.replace(/\s+/g, " ").trim();
+      const lines = clean ? meas.splitTextToSize(clean, commentCellW) : [""];
+      const nLines = Math.min(4, Math.max(1, Array.isArray(lines) ? lines.length : 1));
+      rowHeights.push(pad * 2 + lineH * nLines);
+    }
+
+    const topTitleH = Math.max(28, Math.round(34 * SCALE));
+    const topGap = Math.max(6, Math.round(10 * SCALE));
+    const headH = pad * 2 + lineH;
+    const bottomPad = Math.max(18, Math.round(26 * SCALE));
+    const pageH = Math.max(220, topTitleH + topGap + headH + rowHeights.reduce((a, b) => a + b, 0) + bottomPad);
+
+    const doc = new jsPDF({ unit: "pt", format: [pageW, pageH] });
+
+    doc.setFontSize(titleFont);
+    doc.text(title.replaceAll("_", " "), marginL, Math.max(18, Math.round(22 * SCALE)));
 
     const colStyles: Record<number, any> = {};
     for (let i = 0; i < widths.length; i++) colStyles[i] = { cellWidth: widths[i] };
@@ -661,45 +681,49 @@ export default function BalanceTable() {
       tableWidth: totalTableW,
       margin: { left: marginL, right: marginR },
       styles: {
-        fontSize: 9,
-        cellPadding: 4,
+        fontSize: bodyFont,
+        cellPadding: pad,
         overflow: "linebreak",
         textColor: [0, 0, 0],
         fillColor: [255, 255, 255],
-        lineWidth: 0.2,
-        lineColor: [220, 220, 220],
+        lineWidth: 0.25,
+        lineColor: [210, 210, 210],
         valign: "top",
+        minCellHeight: pad * 2 + lineH,
       },
       headStyles: {
         fillColor: [0, 103, 172],
         textColor: [255, 255, 255],
         fontStyle: "bold",
         halign: "center",
-        lineWidth: 0.2,
+        lineWidth: 0.25,
         lineColor: [0, 103, 172],
       },
       columnStyles: colStyles,
       didParseCell: (data) => {
+        if (data.section === "head") {
+          data.cell.styles.fillColor = [0, 103, 172];
+          data.cell.styles.textColor = [255, 255, 255];
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.halign = data.column.index === 0 ? "left" : "center";
+          return;
+        }
+
         if (data.section === "body") {
           data.cell.styles.fillColor = [255, 255, 255];
           data.cell.styles.textColor = [0, 0, 0];
+
           if (data.column.index === 0) data.cell.styles.halign = "left";
-          else data.cell.styles.halign = data.column.index === widths.length - 1 ? "left" : "right";
-        }
-        if (data.section === "head") {
-          if (data.column.index === 0) data.cell.styles.halign = "left";
-          else data.cell.styles.halign = "center";
-        }
-      },
-      didDrawCell: (data) => {
-        if (data.section !== "body") return;
-        if (data.column.index !== widths.length - 1) return;
-        const raw = String((data.cell.raw ?? "") as any);
-        if (!raw) return;
-        const lines = raw.split("\n");
-        if (lines.length > 4) {
-          const clamped = lines.slice(0, 4).join("\n");
-          data.cell.text = doc.splitTextToSize(clamped, data.cell.width - data.cell.padding("horizontal"));
+          else if (data.column.index === commentColIdx) data.cell.styles.halign = "left";
+          else data.cell.styles.halign = "right";
+
+          if (data.column.index === commentColIdx) {
+            const raw = String((data.cell.raw ?? "") as any);
+            const clean = raw.replace(/\s+/g, " ").trim();
+            const lines = clean ? doc.splitTextToSize(clean, commentCellW) : [""];
+            const clamped = (Array.isArray(lines) ? lines : [String(lines)]).slice(0, 4);
+            data.cell.text = clamped;
+          }
         }
       },
     });
