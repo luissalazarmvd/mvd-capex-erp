@@ -545,42 +545,30 @@ export default function BalanceTable() {
   }
 
   async function exportExcel() {
-    // === Helpers de estilo (mismo look en ambas hojas) ===
     const BLUE = "0067AC";
     const GRID = "D2D2D2";
 
-    const applyHeaderStyle = (row: ExcelJS.Row) => {
-      row.font = { bold: true, color: { argb: "FFFFFFFF" } };
-      row.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-      row.eachCell((cell) => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
-        cell.border = {
-          top: { style: "thin", color: { argb: GRID } },
-          left: { style: "thin", color: { argb: GRID } },
-          bottom: { style: "thin", color: { argb: GRID } },
-          right: { style: "thin", color: { argb: GRID } },
-        };
-      });
+    const metal = balMode === "AU" ? "Au" : "Ag";
+
+    const applyHeaderCell = (cell: ExcelJS.Cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
+      cell.border = {
+        top: { style: "thin", color: { argb: GRID } },
+        left: { style: "thin", color: { argb: GRID } },
+        bottom: { style: "thin", color: { argb: GRID } },
+        right: { style: "thin", color: { argb: GRID } },
+      };
     };
 
-    const applyGridRow = (row: ExcelJS.Row, opts?: { bold?: boolean; wrapCols?: number[]; rightFrom?: number }) => {
-      if (opts?.bold) row.font = { ...(row.font ?? {}), bold: true };
-      row.alignment = { vertical: "top" };
-
-      row.eachCell((cell, colNumber) => {
-        cell.border = {
-          top: { style: "thin", color: { argb: GRID } },
-          left: { style: "thin", color: { argb: GRID } },
-          bottom: { style: "thin", color: { argb: GRID } },
-          right: { style: "thin", color: { argb: GRID } },
-        };
-
-        if (opts?.wrapCols?.includes(colNumber)) {
-          cell.alignment = { ...(cell.alignment ?? {}), wrapText: true, vertical: "top", horizontal: "left" };
-        } else if (opts?.rightFrom && colNumber >= opts.rightFrom) {
-          cell.alignment = { ...(cell.alignment ?? {}), horizontal: "right", vertical: "top" };
-        }
-      });
+    const applyGridCell = (cell: ExcelJS.Cell) => {
+      cell.border = {
+        top: { style: "thin", color: { argb: GRID } },
+        left: { style: "thin", color: { argb: GRID } },
+        bottom: { style: "thin", color: { argb: GRID } },
+        right: { style: "thin", color: { argb: GRID } },
+      };
     };
 
     const autosize = (ws: ExcelJS.Worksheet, maxW = 48) => {
@@ -588,31 +576,239 @@ export default function BalanceTable() {
       for (let i = 1; i <= n; i++) {
         const col = ws.getColumn(i);
         let maxLen = 10;
-
         col.eachCell({ includeEmpty: true }, (cell) => {
           const v = cell.value as any;
-
           const s =
             v === null || v === undefined
               ? ""
               : typeof v === "object" && (v as any).richText
               ? String((v as any).richText?.map((x: any) => x.text).join("") ?? "")
               : String(v);
-
           maxLen = Math.max(maxLen, s.length);
         });
-
         col.width = Math.min(maxW, Math.max(10, maxLen + 2));
       }
+    };
+
+    const buildHeaderGrid = (headers: string[], leftFixed: number) => {
+      const H = (s: any) => String(s ?? "");
+      const idxOf = (label: string) => headers.findIndex((x) => H(x) === label);
+
+      const commentColIdx = headers.length - 1;
+
+      const agFeedGI = idxOf("Ag (g) Feed");
+      const rtI = idxOf("Ratio (t/h)");
+      const denI = idxOf("Den (g/l)");
+
+      const ofTotGI = idxOf(`${metal} (g) OF Tot`);
+      const relSolGTI = idxOf(`${metal} (g/t) Rel Sol`);
+      const relTotGI = idxOf(`${metal} (g) Rel Tot`);
+
+      const auProdI = idxOf("Au Prod (g)");
+      const auRecI = idxOf("Au Rec (%)");
+      const agProdI = idxOf("Ag Prod (g)");
+      const agRecI = idxOf("Ag Rec (%)");
+
+      const nacnI = idxOf("NaCN (kg/t)");
+      const bolasI = idxOf("Bolas (kg/t)");
+
+      const ofSolGTI = idxOf(`${metal} (g/t) OF Sol`);
+      const ofLiqGTI = idxOf(`${metal} (g/m³) OF Liq`);
+      const relLiqGTI = idxOf(`${metal} (g/m³) Rel Liq`);
+
+      const opI = idxOf("Operación (h)");
+
+      const ofSolGI = idxOf(`${metal} (g) OF Sol`);
+      const ofLiqGI = idxOf(`${metal} (g) OF Liq`);
+      const volI = idxOf("Vol (m³)");
+
+      const relSolGI = idxOf(`${metal} (g) Rel Sol`);
+      const relLiqGI = idxOf(`${metal} (g) Rel Liq`);
+
+      const inRange = (x: number, a: number, b: number) => a !== -1 && b !== -1 && x >= a && x <= b;
+
+      const topRanges: Array<{ label: string; from: number; to: number }> = [];
+      const tmsI = idxOf("TMS");
+      if (tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
+        topRanges.push({ label: "Ley de Cabeza", from: tmsI, to: agFeedGI });
+      }
+      const ofDataFrom = denI;
+      const ofDataTo = ofTotGI;
+      if (ofDataFrom !== -1 && ofDataTo !== -1 && ofDataTo >= ofDataFrom) {
+        topRanges.push({
+          label: "Overflow O/F (ingreso a TQs de lixiviación-adsorción)",
+          from: ofDataFrom,
+          to: ofDataTo,
+        });
+      }
+      if (relSolGTI !== -1 && relTotGI !== -1 && relTotGI >= relSolGTI) {
+        topRanges.push({ label: "Relave", from: relSolGTI, to: relTotGI });
+      }
+      if (nacnI !== -1 && bolasI !== -1 && bolasI >= nacnI) {
+        topRanges.push({ label: "Consumo reactivos/insumos", from: nacnI, to: bolasI });
+      }
+
+      const topLabelAt = (col: number) => {
+        for (const r of topRanges) if (inRange(col, r.from, r.to)) return r.label;
+        return null;
+      };
+
+      const midLabelAt = (col: number) => {
+        if (col === opI) return "Operación";
+        if (col === rtI) return "Ratio de\nTratamiento";
+
+        if (col === auProdI || col === agProdI) return "Producción";
+        if (col === auRecI || col === agRecI) return "Recup.";
+
+        if (col === nacnI) return "Cianuro de Sodio";
+        if (col === idxOf("NaOH (kg/t)")) return "Soda Caústica";
+        if (col === bolasI) return "Bolas de Acero";
+
+        if (denI !== -1 && volI !== -1 && inRange(col, denI, volI)) return "Datos de Operación";
+        if (ofSolGTI !== -1 && ofSolGI !== -1 && inRange(col, ofSolGTI, ofSolGI)) return "Sólido";
+        if (ofLiqGTI !== -1 && ofLiqGI !== -1 && inRange(col, ofLiqGTI, ofLiqGI)) return "Solución";
+        if (col === ofTotGI) return "Solid. + Soluc.";
+
+        if (relSolGTI !== -1 && relSolGI !== -1 && inRange(col, relSolGTI, relSolGI)) return "Sólido";
+        if (relLiqGTI !== -1 && relLiqGI !== -1 && inRange(col, relLiqGTI, relLiqGI)) return "Solución";
+        if (col === relTotGI) return "Solid. + Soluc.";
+
+        return null;
+      };
+
+      const topRowCells: Array<{ col: number; text: string; colSpan: number; rowSpan: number }> = [];
+      const midRowCells: Array<{ col: number; text: string; colSpan: number; rowSpan: number }> = [];
+      const bottomRow = headers.map((h) => h);
+
+      for (let c = 0; c < leftFixed; c++) {
+        topRowCells.push({ col: c, text: headers[c], colSpan: 1, rowSpan: 3 });
+        bottomRow[c] = "";
+      }
+
+      let i = leftFixed;
+      while (i < headers.length) {
+        if (i === commentColIdx) {
+          topRowCells.push({ col: i, text: "Comentario", colSpan: 1, rowSpan: 3 });
+          bottomRow[i] = "";
+          i += 1;
+          continue;
+        }
+
+        const t = topLabelAt(i);
+        const m = midLabelAt(i);
+
+        if (t) {
+          let j = i;
+          while (j < headers.length && topLabelAt(j) === t) j++;
+
+          let hasMid = false;
+          for (let k = i; k < j; k++) {
+            if (midLabelAt(k)) {
+              hasMid = true;
+              break;
+            }
+          }
+
+          if (!hasMid) {
+            topRowCells.push({ col: i, text: t, colSpan: j - i, rowSpan: 2 });
+          } else {
+            topRowCells.push({ col: i, text: t, colSpan: j - i, rowSpan: 1 });
+          }
+
+          i = j;
+          continue;
+        }
+
+        if (m) {
+          topRowCells.push({ col: i, text: m, colSpan: 1, rowSpan: 2 });
+          bottomRow[i] = "";
+        } else {
+          topRowCells.push({ col: i, text: headers[i], colSpan: 1, rowSpan: 2 });
+          bottomRow[i] = "";
+        }
+
+        i += 1;
+      }
+
+      i = leftFixed;
+      while (i < headers.length) {
+        if (i === commentColIdx) {
+          i += 1;
+          continue;
+        }
+
+        const t = topLabelAt(i);
+        if (!t) {
+          i += 1;
+          continue;
+        }
+
+        const m0 = midLabelAt(i) ?? "";
+        let j = i + 1;
+        while (j < headers.length && topLabelAt(j) === t && (midLabelAt(j) ?? "") === m0) j++;
+        if (!m0) {
+          i = j;
+          continue;
+        }
+
+        midRowCells.push({ col: i, text: m0, colSpan: j - i, rowSpan: 1 });
+        i = j;
+      }
+
+      return { topRowCells, midRowCells, bottomRow, commentColIdx };
+    };
+
+    const writePdfLikeHeaders = (ws: ExcelJS.Worksheet, headers: string[], leftFixed: number) => {
+      const grid = buildHeaderGrid(headers, leftFixed);
+      const nCols = headers.length;
+
+      const banner = ws.addRow(Array(nCols).fill(""));
+      banner.getCell(1).value = "";
+      banner.getCell(Math.min(2, nCols)).value = "Balance Metalúrgico de Producción Planta MVD";
+      if (nCols >= 2) ws.mergeCells(banner.number, 2, banner.number, nCols);
+      for (let c = 1; c <= nCols; c++) applyHeaderCell(banner.getCell(c));
+
+      const rTop = ws.addRow(Array(nCols).fill(""));
+      const rMid = ws.addRow(Array(nCols).fill(""));
+      const rBot = ws.addRow(grid.bottomRow);
+
+      for (const it of grid.topRowCells) {
+        const c0 = it.col + 1;
+        rTop.getCell(c0).value = it.text;
+        const r1 = rTop.number;
+        const c1 = c0 + it.colSpan - 1;
+        const r2 = r1 + it.rowSpan - 1;
+        if (it.colSpan > 1 || it.rowSpan > 1) ws.mergeCells(r1, c0, r2, c1);
+      }
+
+      for (const it of grid.midRowCells) {
+        const c0 = it.col + 1;
+        rMid.getCell(c0).value = it.text;
+        if (it.colSpan > 1) ws.mergeCells(rMid.number, c0, rMid.number, c0 + it.colSpan - 1);
+      }
+
+      for (let rr = rTop.number; rr <= rBot.number; rr++) {
+        const row = ws.getRow(rr);
+        row.height = rr === rBot.number ? 20 : 22;
+        for (let c = 1; c <= nCols; c++) applyHeaderCell(row.getCell(c));
+      }
+
+      return { startRow: rBot.number + 1, commentColIdx: grid.commentColIdx + 1 };
     };
 
     const fileTag = `${balMode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
     const title = `MVD_Planta_Balance_${fileTag}`;
 
-    // ====== Hoja 1: GUARDIAS (granularidad por guardia, comentarios por guardia) ======
-    const headersShift = ["Fecha", "Guardia", ...cols.map((c) => c.label)];
-    const rowsShift: any[][] = [];
+    const colsPdfLabels = cols.map((c) => c.label).map((h) => {
+      if (h === `${metal} (g/t) OF Liq`) return `${metal} (g/m³) OF Liq`;
+      if (h === `${metal} (g/t) Rel Liq`) return `${metal} (g/m³) Rel Liq`;
+      return h;
+    });
 
+    const headersShift = ["Fecha", "Guardia", ...colsPdfLabels];
+    const headersDaily = ["Fecha", ...colsPdfLabels];
+
+    const rowsShift: any[][] = [];
     for (const g of groups) {
       for (const r of g.rows) {
         rowsShift.push([
@@ -627,13 +823,11 @@ export default function BalanceTable() {
                 : c.key === "ag_recu"
                 ? safeDiv((r as any).ag_prod, (r as any).ag_feed_g)
                 : (r as any)[c.key];
-
             return c.fmt ? c.fmt(v) : v ?? "";
           }),
         ]);
       }
     }
-
     rowsShift.push([
       "Total",
       "—",
@@ -643,10 +837,7 @@ export default function BalanceTable() {
       }),
     ]);
 
-    // ====== Hoja 2: DIARIO (igualito al exportPdf: 1 fila por día + total final) ======
-    const headersDaily = ["Fecha", ...cols.map((c) => c.label)];
     const rowsDaily: any[][] = [];
-
     const commentKey = String(cols.find((c) => c.key === "shift_comment")?.key ?? "shift_comment");
     for (const g of groups) {
       const dayTotals: Record<string, any> = {};
@@ -669,7 +860,6 @@ export default function BalanceTable() {
         }),
       ]);
     }
-
     rowsDaily.push([
       "Total",
       ...cols.map((c) => {
@@ -678,58 +868,76 @@ export default function BalanceTable() {
       }),
     ]);
 
-    // ====== Construcción del Excel (2 hojas) ======
     const wb = new ExcelJS.Workbook();
 
-    // --- Sheet Guardias ---
     const wsShift = wb.addWorksheet("Guardias");
-
     wsShift.addRow([title.replaceAll("_", " ")]);
     wsShift.mergeCells(1, 1, 1, headersShift.length);
     wsShift.getRow(1).font = { bold: true, size: 14 };
-
     wsShift.addRow([]);
 
-    const hdrShift = wsShift.addRow(headersShift);
-    applyHeaderStyle(hdrShift);
-
+    const headInfoShift = writePdfLikeHeaders(wsShift, headersShift, 2);
     const firstDataRowShift = wsShift.rowCount + 1;
+
     for (const r of rowsShift) wsShift.addRow(r);
 
-    const commentColShift = headersShift.length; // última
+    const commentColShift = headInfoShift.commentColIdx;
     for (let rn = firstDataRowShift; rn <= wsShift.rowCount; rn++) {
       const row = wsShift.getRow(rn);
       const isTotal = rn === wsShift.rowCount;
-      applyGridRow(row, { bold: isTotal, wrapCols: [commentColShift], rightFrom: 3 });
+      row.height = 28;
+      row.font = { ...(row.font ?? {}), ...(isTotal ? { bold: true } : {}) };
+
+      row.eachCell((cell, colNumber) => {
+        applyGridCell(cell);
+
+        if (colNumber === commentColShift) {
+          cell.alignment = { vertical: "top", horizontal: "left", wrapText: true };
+        } else if (colNumber >= 3) {
+          cell.alignment = { vertical: "top", horizontal: "right" };
+        } else {
+          cell.alignment = { vertical: "top", horizontal: "left" };
+        }
+      });
     }
 
     autosize(wsShift);
+    wsShift.getColumn(commentColShift).width = Math.max(wsShift.getColumn(commentColShift).width ?? 10, 70);
 
-    // --- Sheet Diario ---
     const wsDaily = wb.addWorksheet("Diario");
-
     wsDaily.addRow([title.replaceAll("_", " ")]);
     wsDaily.mergeCells(1, 1, 1, headersDaily.length);
     wsDaily.getRow(1).font = { bold: true, size: 14 };
-
     wsDaily.addRow([]);
 
-    const hdrDaily = wsDaily.addRow(headersDaily);
-    applyHeaderStyle(hdrDaily);
-
+    const headInfoDaily = writePdfLikeHeaders(wsDaily, headersDaily, 1);
     const firstDataRowDaily = wsDaily.rowCount + 1;
+
     for (const r of rowsDaily) wsDaily.addRow(r);
 
-    const commentColDaily = headersDaily.length; // última
+    const commentColDaily = headInfoDaily.commentColIdx;
     for (let rn = firstDataRowDaily; rn <= wsDaily.rowCount; rn++) {
       const row = wsDaily.getRow(rn);
       const isTotal = rn === wsDaily.rowCount;
-      applyGridRow(row, { bold: isTotal, wrapCols: [commentColDaily], rightFrom: 2 });
+      row.height = 28;
+      row.font = { ...(row.font ?? {}), ...(isTotal ? { bold: true } : {}) };
+
+      row.eachCell((cell, colNumber) => {
+        applyGridCell(cell);
+
+        if (colNumber === commentColDaily) {
+          cell.alignment = { vertical: "top", horizontal: "left", wrapText: true };
+        } else if (colNumber >= 2) {
+          cell.alignment = { vertical: "top", horizontal: "right" };
+        } else {
+          cell.alignment = { vertical: "top", horizontal: "left" };
+        }
+      });
     }
 
     autosize(wsDaily);
+    wsDaily.getColumn(commentColDaily).width = Math.max(wsDaily.getColumn(commentColDaily).width ?? 10, 70);
 
-    // ====== Descargar ======
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
