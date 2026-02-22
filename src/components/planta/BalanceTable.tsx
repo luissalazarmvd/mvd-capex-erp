@@ -841,7 +841,8 @@ export default function BalanceTable() {
         fontSize: headFont,
         halign: "center",
         lineWidth: 0.25,
-        lineColor: [210, 210, 210], // para que se vean las líneas en encabezados
+        lineColor: [210, 210, 210],
+        minCellHeight: pad * 2 + Math.round(headFont * 1.25), // base
       },
       columnStyles: colStyles,
       didParseCell: (data) => {
@@ -851,6 +852,10 @@ export default function BalanceTable() {
             data.cell.styles.halign = "center";
           } else {
             data.cell.styles.halign = data.column.index === 0 ? "left" : "center";
+            // DOBLE ALTO SOLO PARA "Fecha" EN FILA DE ENCABEZADOS (NO groupRow)
+            if (data.column.index === 0) {
+              data.cell.styles.minCellHeight = (data.cell.styles.minCellHeight ?? 0) * 2;
+            }
           }
           return;
         }
