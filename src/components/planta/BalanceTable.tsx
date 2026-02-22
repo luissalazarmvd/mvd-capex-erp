@@ -714,14 +714,14 @@ export default function BalanceTable() {
     try {
       const canvas = await html2canvas(wrap, {
         backgroundColor: "#ffffff",
-        scale: 2,
+        scale: 4,
         useCORS: true,
         windowWidth: totalW + 28,
         scrollX: 0,
         scrollY: 0,
       });
 
-      const imgData = canvas.toDataURL("image/png");
+      const imgData = canvas.toDataURL("image/jpeg", 0.98);
 
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
 
@@ -739,7 +739,7 @@ export default function BalanceTable() {
       const scaledH = imgH * scaleToFitW;
 
       if (scaledH <= usableH) {
-        doc.addImage(imgData, "PNG", margin, margin, usableW, scaledH, undefined, "FAST");
+        doc.addImage(imgData, "JPEG", margin, margin, usableW, scaledH);
       } else {
         const slicePxH = Math.floor(usableH / scaleToFitW);
         let yPx = 0;
@@ -755,13 +755,13 @@ export default function BalanceTable() {
           if (!ctx) break;
 
           ctx.drawImage(canvas, 0, yPx, imgW, sliceH, 0, 0, imgW, sliceH);
-          const part = c2.toDataURL("image/png");
+          const part = c2.toDataURL("image/jpeg", 0.98);
 
           if (!first) doc.addPage("a4", "landscape");
           first = false;
 
           const partHpt = sliceH * scaleToFitW;
-          doc.addImage(part, "PNG", margin, margin, usableW, partHpt, undefined, "FAST");
+          doc.addImage(part, "JPEG", margin, margin, usableW, partHpt);
 
           yPx += sliceH;
         }
