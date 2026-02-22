@@ -619,7 +619,7 @@ export default function BalanceTable() {
         const sh = String((rr as any)._shift ?? "").toUpperCase();
         const cm = String((rr as any)[commentKey] ?? "").replace(/\s+/g, " ").trim();
         if (!cm) continue;
-        commentParts.push(`${sh}: "${cm}"`);
+        commentParts.push(`${sh}: ${cm}`);
       }
       const dayComment = commentParts.join("\n");
 
@@ -632,148 +632,52 @@ export default function BalanceTable() {
       ]);
     }
 
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+
+    doc.setFontSize(12);
+    doc.text(title.replaceAll("_", " "), 24, 22);
+
+    const colStyles: Record<number, any> = {};
     const baseWidths = [120, ...cols.map((c) => c.w ?? 90)];
-    const totalW = baseWidths.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < baseWidths.length; i++) colStyles[i] = { cellWidth: baseWidths[i] };
 
-    const wrap = document.createElement("div");
-    wrap.style.position = "fixed";
-    wrap.style.left = "-100000px";
-    wrap.style.top = "0";
-    wrap.style.background = "#fff";
-    wrap.style.padding = "14px";
-    wrap.style.fontFamily = "Arial, sans-serif";
-    wrap.style.color = "#000";
-    wrap.style.width = `${totalW + 28}px`;
-
-    const titleEl = document.createElement("div");
-    titleEl.textContent = title.replaceAll("_", " ");
-    titleEl.style.fontSize = "18px";
-    titleEl.style.fontWeight = "700";
-    titleEl.style.marginBottom = "10px";
-    wrap.appendChild(titleEl);
-
-    const table = document.createElement("table");
-    table.style.borderCollapse = "collapse";
-    table.style.tableLayout = "fixed";
-    table.style.width = `${totalW}px`;
-
-    const thead = document.createElement("thead");
-    const trh = document.createElement("tr");
-    headers.forEach((h, i) => {
-      const th = document.createElement("th");
-      th.textContent = h;
-      th.style.background = "#0067ac";
-      th.style.color = "#fff";
-      th.style.fontWeight = "700";
-      th.style.fontSize = "13px";
-      th.style.padding = "9px 9px";
-      th.style.border = "1px solid #cfcfcf";
-      th.style.textAlign = i === 0 ? "left" : "center";
-      th.style.width = `${baseWidths[i]}px`;
-      th.style.verticalAlign = "top";
-      trh.appendChild(th);
-    });
-    thead.appendChild(trh);
-    table.appendChild(thead);
-
-    const tbody = document.createElement("tbody");
-    const commentIdx = headers.length - 1;
-
-    body.forEach((r) => {
-      const tr = document.createElement("tr");
-      r.forEach((cell, i) => {
-        const td = document.createElement("td");
-        let txt = String(cell ?? "");
-
-        if (i === commentIdx) {
-          txt = txt.replace(/\s+/g, " ").trim();
-          td.style.whiteSpace = "normal";
-          td.style.wordBreak = "break-word";
-          td.style.lineHeight = "15.4px";
-          td.style.maxHeight = `${15.4 * 4 + 11}px`;
-          td.style.overflow = "hidden";
-        } else {
-          td.style.whiteSpace = "nowrap";
+    autoTable(doc, {
+      head: [headers],
+      body,
+      startY: 34,
+      theme: "grid",
+      styles: {
+        fontSize: 9,
+        cellPadding: 4,
+        overflow: "linebreak",
+        valign: "top",
+        textColor: [0, 0, 0],
+        lineColor: [210, 210, 210],
+        lineWidth: 0.3,
+      },
+      headStyles: {
+        fillColor: [0, 103, 172],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        halign: "center",
+      },
+      columnStyles: colStyles,
+      margin: { left: 24, right: 24 },
+      didParseCell: (data) => {
+        if (data.section === "body") {
+          if (data.column.index === 0) data.cell.styles.halign = "left";
+          else if (data.column.index === headers.length - 1) data.cell.styles.halign = "left";
+          else data.cell.styles.halign = "right";
         }
-
-        td.textContent = txt;
-        td.style.fontSize = "13px";
-        td.style.padding = "7px 9px";
-        td.style.border = "1px solid #cfcfcf";
-        td.style.color = "#000";
-        td.style.background = "#fff";
-        td.style.textAlign = i === 0 || i === commentIdx ? "left" : "right";
-        td.style.width = `${baseWidths[i]}px`;
-        td.style.verticalAlign = "top";
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
+        if (data.section === "head") {
+          if (data.column.index === 0) data.cell.styles.halign = "left";
+          else if (data.column.index === headers.length - 1) data.cell.styles.halign = "left";
+          else data.cell.styles.halign = "center";
+        }
+      },
     });
 
-    table.appendChild(tbody);
-    wrap.appendChild(table);
-    document.body.appendChild(wrap);
-
-    try {
-      const canvas = await html2canvas(wrap, {
-        backgroundColor: "#ffffff",
-        scale: 4,
-        useCORS: true,
-        windowWidth: totalW + 28,
-        scrollX: 0,
-        scrollY: 0,
-      });
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.98);
-
-      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-
-      const margin = 24;
-      const usableW = pageW - margin * 2;
-      const usableH = pageH - margin * 2;
-
-      const imgW = canvas.width;
-      const imgH = canvas.height;
-
-      const scaleToFitW = usableW / imgW;
-      const scaledH = imgH * scaleToFitW;
-
-      if (scaledH <= usableH) {
-        doc.addImage(imgData, "JPEG", margin, margin, usableW, scaledH);
-      } else {
-        const slicePxH = Math.floor(usableH / scaleToFitW);
-        let yPx = 0;
-        let first = true;
-
-        while (yPx < imgH) {
-          const sliceH = Math.min(slicePxH, imgH - yPx);
-
-          const c2 = document.createElement("canvas");
-          c2.width = imgW;
-          c2.height = sliceH;
-          const ctx = c2.getContext("2d");
-          if (!ctx) break;
-
-          ctx.drawImage(canvas, 0, yPx, imgW, sliceH, 0, 0, imgW, sliceH);
-          const part = c2.toDataURL("image/jpeg", 0.98);
-
-          if (!first) doc.addPage("a4", "landscape");
-          first = false;
-
-          const partHpt = sliceH * scaleToFitW;
-          doc.addImage(part, "JPEG", margin, margin, usableW, partHpt);
-
-          yPx += sliceH;
-        }
-      }
-
-      doc.save(`${title}.pdf`);
-    } finally {
-      wrap.remove();
-    }
+    doc.save(`${title}.pdf`);
   }
 
   const headerBg = "rgb(6, 36, 58)";
