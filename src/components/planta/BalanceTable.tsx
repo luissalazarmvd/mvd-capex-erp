@@ -673,8 +673,92 @@ export default function BalanceTable() {
 
     const commentCellW = Math.max(40, colWidths[commentColIdx] - pad * 2);
 
+    const H = (s: string) => String(s ?? "");
+    const idxOf = (label: string) => headers.findIndex((x) => H(x) === label);
+
+    const metal = balMode === "AU" ? "Au" : "Ag";
+
+    const groupRow: any[] = [];
+    const pushBlank = () => groupRow.push({ content: "", styles: { halign: "center" } });
+
+    let i = 0;
+    while (i < headers.length) {
+      if (i === 0) {
+        pushBlank();
+        i += 1;
+        continue;
+      }
+
+      const tmsI = idxOf("TMS");
+      const agFeedGI = idxOf("Ag (g) Feed");
+      if (i === tmsI && tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
+        groupRow.push({ content: "Ley de Cabeza", colSpan: agFeedGI - tmsI + 1, styles: { halign: "center" } });
+        i = agFeedGI + 1;
+        continue;
+      }
+
+      const denI = idxOf("Den (g/l)");
+      const volI = idxOf("Vol (m³)");
+      if (i === denI && denI !== -1 && volI !== -1 && volI >= denI) {
+        groupRow.push({ content: "Datos de Operación", colSpan: volI - denI + 1, styles: { halign: "center" } });
+        i = volI + 1;
+        continue;
+      }
+
+      const ofSolGTI = idxOf(`${metal} (g/t) OF Sol`);
+      const ofSolGI = idxOf(`${metal} (g) OF Sol`);
+      if (i === ofSolGTI && ofSolGTI !== -1 && ofSolGI !== -1 && ofSolGI >= ofSolGTI) {
+        groupRow.push({ content: "Sólido", colSpan: ofSolGI - ofSolGTI + 1, styles: { halign: "center" } });
+        i = ofSolGI + 1;
+        continue;
+      }
+
+      const ofLiqGTI = idxOf(`${metal} (g/t) OF Liq`);
+      const ofLiqGI = idxOf(`${metal} (g) OF Liq`);
+      if (i === ofLiqGTI && ofLiqGTI !== -1 && ofLiqGI !== -1 && ofLiqGI >= ofLiqGTI) {
+        groupRow.push({ content: "Solución", colSpan: ofLiqGI - ofLiqGTI + 1, styles: { halign: "center" } });
+        i = ofLiqGI + 1;
+        continue;
+      }
+
+      const ofTotGI = idxOf(`${metal} (g) OF Tot`);
+      if (i === ofTotGI && ofTotGI !== -1) {
+        groupRow.push({ content: "Solid. + Soluc.", colSpan: 1, styles: { halign: "center" } });
+        i += 1;
+        continue;
+      }
+
+      const relSolGTI = idxOf(`${metal} (g/t) Rel Sol`);
+      const relSolGI = idxOf(`${metal} (g) Rel Sol`);
+      if (i === relSolGTI && relSolGTI !== -1 && relSolGI !== -1 && relSolGI >= relSolGTI) {
+        groupRow.push({ content: "Sólido", colSpan: relSolGI - relSolGTI + 1, styles: { halign: "center" } });
+        i = relSolGI + 1;
+        continue;
+      }
+
+      const relLiqGTI = idxOf(`${metal} (g/t) Rel Liq`);
+      const relLiqGI = idxOf(`${metal} (g) Rel Liq`);
+      if (i === relLiqGTI && relLiqGTI !== -1 && relLiqGI !== -1 && relLiqGI >= relLiqGTI) {
+        groupRow.push({ content: "Solución", colSpan: relLiqGI - relLiqGTI + 1, styles: { halign: "center" } });
+        i = relLiqGI + 1;
+        continue;
+      }
+
+      const relTotGTI = idxOf(`${metal} (g/t) Rel Tot`);
+      const relTotGI = idxOf(`${metal} (g) Rel Tot`);
+      if (i === relTotGTI && relTotGTI !== -1) {
+        const end = relTotGI !== -1 && relTotGI >= relTotGTI ? relTotGI : relTotGTI;
+        groupRow.push({ content: "Solid. + Soluc.", colSpan: end - relTotGTI + 1, styles: { halign: "center" } });
+        i = end + 1;
+        continue;
+      }
+
+      pushBlank();
+      i += 1;
+    }
+
     autoTable(doc, {
-      head: [headers],
+      head: [groupRow, headers],
       body,
       startY: 28,
       theme: "plain",
@@ -702,7 +786,12 @@ export default function BalanceTable() {
       columnStyles: colStyles,
       didParseCell: (data) => {
         if (data.section === "head") {
-          data.cell.styles.halign = data.column.index === 0 ? "left" : "center";
+          const isTopGroupRow = data.row.index === 0;
+          if (isTopGroupRow) {
+            data.cell.styles.halign = "center";
+          } else {
+            data.cell.styles.halign = data.column.index === 0 ? "left" : "center";
+          }
           return;
         }
 
