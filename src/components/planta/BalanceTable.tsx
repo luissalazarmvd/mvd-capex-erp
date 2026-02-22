@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
-
+import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
@@ -601,8 +601,8 @@ export default function BalanceTable() {
     URL.revokeObjectURL(url);
   }
 
-  function exportPdf() {
-    const SCALE = 0.7;
+  async function exportPdf() {
+    const SCALE_PDF = 0.7; // 30% menor manteniendo ratio
 
     const fileTag = `${balMode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
     const title = `MVD_Planta_Balance_${fileTag}`;
@@ -632,103 +632,107 @@ export default function BalanceTable() {
     ]);
 
     const baseWidths = [120, ...cols.map((c) => c.w ?? 90)];
-    const widths = baseWidths.map((w) => Math.max(40, Math.round(w * SCALE)));
-    const totalTableW = widths.reduce((a, b) => a + b, 0);
 
-    const marginL = Math.round(20 * SCALE);
-    const marginR = Math.round(20 * SCALE);
-    const pageW = marginL + totalTableW + marginR;
+    const wrap = document.createElement("div");
+    wrap.style.position = "fixed";
+    wrap.style.left = "-100000px";
+    wrap.style.top = "0";
+    wrap.style.background = "#fff";
+    wrap.style.padding = "14px";
+    wrap.style.fontFamily = "Arial, sans-serif";
+    wrap.style.color = "#000";
 
-    const titleFont = Math.max(10, Math.round(12 * SCALE));
-    const bodyFont = Math.max(6, Math.round(9 * SCALE));
-    const pad = Math.max(2, Math.round(4 * SCALE));
-    const lineH = Math.max(8, Math.round(bodyFont * 1.25));
+    const titleEl = document.createElement("div");
+    titleEl.textContent = title.replaceAll("_", " ");
+    titleEl.style.fontSize = "16px";
+    titleEl.style.fontWeight = "700";
+    titleEl.style.marginBottom = "10px";
+    wrap.appendChild(titleEl);
 
-    const commentColIdx = widths.length - 1;
-    const commentCellW = Math.max(40, widths[commentColIdx] - pad * 2);
+    const table = document.createElement("table");
+    table.style.borderCollapse = "collapse";
+    table.style.tableLayout = "fixed";
 
-    const meas = new jsPDF({ unit: "pt", format: [100, 100] });
-    meas.setFontSize(bodyFont);
+    const totalW = baseWidths.reduce((a, b) => a + b, 0);
+    table.style.width = `${totalW}px`;
 
-    const rowHeights: number[] = [];
-    for (const r of body) {
-      const raw = String(r[commentColIdx] ?? "");
-      const clean = raw.replace(/\s+/g, " ").trim();
-      const lines = clean ? meas.splitTextToSize(clean, commentCellW) : [""];
-      const nLines = Math.min(4, Math.max(1, Array.isArray(lines) ? lines.length : 1));
-      rowHeights.push(pad * 2 + lineH * nLines);
-    }
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+    headers.forEach((h, i) => {
+      const th = document.createElement("th");
+      th.textContent = h;
+      th.style.background = "#0067ac";
+      th.style.color = "#fff";
+      th.style.fontWeight = "700";
+      th.style.fontSize = "12px";
+      th.style.padding = "8px 8px";
+      th.style.border = "1px solid #cfcfcf";
+      th.style.textAlign = i === 0 ? "left" : "center";
+      th.style.width = `${baseWidths[i]}px`;
+      th.style.verticalAlign = "top";
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    table.appendChild(thead);
 
-    const topTitleH = Math.max(28, Math.round(34 * SCALE));
-    const topGap = Math.max(6, Math.round(10 * SCALE));
-    const headH = pad * 2 + lineH;
-    const bottomPad = Math.max(18, Math.round(26 * SCALE));
-    const pageH = Math.max(220, topTitleH + topGap + headH + rowHeights.reduce((a, b) => a + b, 0) + bottomPad);
+    const tbody = document.createElement("tbody");
+    const commentIdx = headers.length - 1;
 
-    const doc = new jsPDF({ unit: "pt", format: [pageW, pageH] });
-
-    doc.setFontSize(titleFont);
-    doc.text(title.replaceAll("_", " "), marginL, Math.max(18, Math.round(22 * SCALE)));
-
-    const colStyles: Record<number, any> = {};
-    for (let i = 0; i < widths.length; i++) colStyles[i] = { cellWidth: widths[i] };
-
-    autoTable(doc, {
-      head: [headers],
-      body,
-      startY: topTitleH + topGap,
-      theme: "plain",
-      tableWidth: totalTableW,
-      margin: { left: marginL, right: marginR },
-      styles: {
-        fontSize: bodyFont,
-        cellPadding: pad,
-        overflow: "linebreak",
-        textColor: [0, 0, 0],
-        fillColor: [255, 255, 255],
-        lineWidth: 0.25,
-        lineColor: [210, 210, 210],
-        valign: "top",
-        minCellHeight: pad * 2 + lineH,
-      },
-      headStyles: {
-        fillColor: [0, 103, 172],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        halign: "center",
-        lineWidth: 0.25,
-        lineColor: [0, 103, 172],
-      },
-      columnStyles: colStyles,
-      didParseCell: (data) => {
-        if (data.section === "head") {
-          data.cell.styles.fillColor = [0, 103, 172];
-          data.cell.styles.textColor = [255, 255, 255];
-          data.cell.styles.fontStyle = "bold";
-          data.cell.styles.halign = data.column.index === 0 ? "left" : "center";
-          return;
+    body.forEach((r) => {
+      const tr = document.createElement("tr");
+      r.forEach((cell, i) => {
+        const td = document.createElement("td");
+        let txt = String(cell ?? "");
+        if (i === commentIdx) {
+          txt = txt.replace(/\s+/g, " ").trim();
+          td.style.whiteSpace = "normal";
+          td.style.wordBreak = "break-word";
+          td.style.lineHeight = "14px";
+          td.style.maxHeight = `${14 * 4 + 8}px`;
+          td.style.overflow = "hidden";
+        } else {
+          td.style.whiteSpace = "nowrap";
         }
 
-        if (data.section === "body") {
-          data.cell.styles.fillColor = [255, 255, 255];
-          data.cell.styles.textColor = [0, 0, 0];
-
-          if (data.column.index === 0) data.cell.styles.halign = "left";
-          else if (data.column.index === commentColIdx) data.cell.styles.halign = "left";
-          else data.cell.styles.halign = "right";
-
-          if (data.column.index === commentColIdx) {
-            const raw = String((data.cell.raw ?? "") as any);
-            const clean = raw.replace(/\s+/g, " ").trim();
-            const lines = clean ? doc.splitTextToSize(clean, commentCellW) : [""];
-            const clamped = (Array.isArray(lines) ? lines : [String(lines)]).slice(0, 4);
-            data.cell.text = clamped;
-          }
-        }
-      },
+        td.textContent = txt;
+        td.style.fontSize = "12px";
+        td.style.padding = "6px 8px";
+        td.style.border = "1px solid #cfcfcf";
+        td.style.color = "#000";
+        td.style.background = "#fff";
+        td.style.textAlign = i === 0 || i === commentIdx ? "left" : "right";
+        td.style.width = `${baseWidths[i]}px`;
+        td.style.verticalAlign = "top";
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
     });
 
-    doc.save(`${title}.pdf`);
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    document.body.appendChild(wrap);
+
+    try {
+      const canvas = await html2canvas(wrap, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdfW = canvas.width * SCALE_PDF;
+      const pdfH = canvas.height * SCALE_PDF;
+
+      const doc = new jsPDF({
+        unit: "pt",
+        format: [pdfW, pdfH],
+      });
+
+      doc.addImage(imgData, "PNG", 0, 0, pdfW, pdfH, undefined, "FAST");
+      doc.save(`${title}.pdf`);
+    } finally {
+      wrap.remove();
+    }
   }
 
   const headerBg = "rgb(6, 36, 58)";
