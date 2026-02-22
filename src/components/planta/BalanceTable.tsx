@@ -655,7 +655,6 @@ export default function BalanceTable() {
 
     const baseFont = Math.round(9 * fontScale);
     const headFont = Math.round(9 * fontScale);
-    const titleFont = Math.round(12 * fontScale);
     const bannerFont = Math.round(headFont * 1.2);
 
     const pad = Math.max(3, Math.round(4 * fontScale));
@@ -682,6 +681,12 @@ export default function BalanceTable() {
       if (idx === 0) return Math.max(wText, dateTextW) + extraPxPerSide * 2;
       return Math.ceil(wText + extraPxPerSide * 2);
     });
+
+    const tmsIdx = idxOf("TMS");
+    if (tmsIdx !== -1) {
+      const need = textW("14,804.00") + extraPxPerSide * 2;
+      colWidths[tmsIdx] = Math.max(colWidths[tmsIdx], Math.ceil(need));
+    }
 
     const ratioIdx = idxOf("Ratio (t/h)");
     if (ratioIdx !== -1) {
@@ -715,9 +720,6 @@ export default function BalanceTable() {
     } catch {
       logoDataUrl = null;
     }
-
-    doc.setFontSize(titleFont);
-    doc.text(title.replaceAll("_", " "), margin, 18);
 
     const colStyles: Record<number, any> = {};
     for (let i = 0; i < colWidths.length; i++) colStyles[i] = { cellWidth: colWidths[i] };
