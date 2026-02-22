@@ -807,9 +807,7 @@ export default function BalanceTable() {
       },
     ];
 
-    const topRow: any[] = [
-      { content: "Fecha", rowSpan: 3, styles: { halign: "center", valign: "middle" } },
-    ];
+    const topRow: any[] = [{ content: "Fecha", rowSpan: 3, styles: { halign: "center", valign: "middle" } }];
 
     const bottomRow: any[] = headers.slice(1);
 
@@ -900,6 +898,21 @@ export default function BalanceTable() {
 
     const headGridLineColor: [number, number, number] = [210, 210, 210];
     const orange: [number, number, number] = [255, 140, 0];
+    const blue: [number, number, number] = [0, 103, 172];
+
+    const thickBoundaries = new Set<number>();
+    const addB = (x: number) => {
+      if (x !== -1) thickBoundaries.add(x);
+    };
+
+    addB(agFeedGI);
+    addB(rtI);
+    addB(ofTotGI);
+    addB(relTotGI);
+    addB(auProdI);
+    addB(auRecI);
+    addB(agRecI);
+    addB(bolasI);
 
     autoTable(doc, {
       head: [bannerRow, topRow, midRow, bottomRow],
@@ -953,6 +966,15 @@ export default function BalanceTable() {
             (data.cell.styles as any).textColor = orange;
           }
 
+          if (
+            data.column.index === ofSolGTI ||
+            data.column.index === ofLiqGTI ||
+            data.column.index === relSolGTI ||
+            data.column.index === relLiqGTI
+          ) {
+            (data.cell.styles as any).textColor = blue;
+          }
+
           if (data.column.index === commentColIdx) {
             const raw = String((data.cell.raw ?? "") as any).replace(/\s+\n/g, "\n").trim();
             if (!raw) {
@@ -985,6 +1007,18 @@ export default function BalanceTable() {
           try {
             doc.addImage(logoDataUrl, logoFmt, x, y, w, h);
           } catch {}
+        }
+
+        const cs = (data.cell as any).colSpan ?? 1;
+        const endCol = data.column.index + cs - 1;
+        if (thickBoundaries.has(endCol)) {
+          const x = data.cell.x + data.cell.width;
+          const y0 = data.cell.y;
+          const y1 = data.cell.y + data.cell.height;
+
+          doc.setDrawColor(210, 210, 210);
+          doc.setLineWidth(0.5);
+          doc.line(x, y0, x, y1);
         }
       },
     });
