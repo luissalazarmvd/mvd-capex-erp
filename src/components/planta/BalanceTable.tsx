@@ -900,19 +900,29 @@ export default function BalanceTable() {
     const orange: [number, number, number] = [255, 140, 0];
     const blue: [number, number, number] = [0, 103, 172];
 
-    const thickBoundaries = new Set<number>();
-    const addB = (x: number) => {
-      if (x !== -1) thickBoundaries.add(x);
+    const thickAfterCol = new Set<number>();
+    const addAfter = (x: number) => {
+      if (x !== -1) thickAfterCol.add(x);
     };
 
-    addB(agFeedGI);
-    addB(rtI);
-    addB(ofTotGI);
-    addB(relTotGI);
-    addB(auProdI);
-    addB(auRecI);
-    addB(agRecI);
-    addB(bolasI);
+    addAfter(agFeedGI);
+    addAfter(rtI);
+    addAfter(ofTotGI);
+    addAfter(relTotGI);
+    addAfter(auRecI);
+    addAfter(agRecI);
+    addAfter(bolasI);
+
+    const thickX = new Set<number>();
+    const buildThickX = () => {
+      thickX.clear();
+      let x = margin;
+      for (let c = 0; c < colWidths.length; c++) {
+        x += colWidths[c];
+        if (thickAfterCol.has(c)) thickX.add(Math.round(x * 1000) / 1000);
+      }
+    };
+    buildThickX();
 
     autoTable(doc, {
       head: [bannerRow, topRow, midRow, bottomRow],
@@ -1009,17 +1019,19 @@ export default function BalanceTable() {
           } catch {}
         }
 
-        const cs = (data.cell as any).colSpan ?? 1;
-        const endCol = data.column.index + cs - 1;
-        if (thickBoundaries.has(endCol)) {
-          const x = data.cell.x + data.cell.width;
-          const y0 = data.cell.y;
-          const y1 = data.cell.y + data.cell.height;
+        if (!thickX.size) return;
 
-          doc.setDrawColor(210, 210, 210);
-          doc.setLineWidth(0.5);
-          doc.line(x, y0, x, y1);
-        }
+        const left = Math.round(data.cell.x * 1000) / 1000;
+        const right = Math.round((data.cell.x + data.cell.width) * 1000) / 1000;
+        const x = thickX.has(left) ? data.cell.x : thickX.has(right) ? data.cell.x + data.cell.width : null;
+        if (x === null) return;
+
+        const y0 = data.cell.y;
+        const y1 = data.cell.y + data.cell.height;
+
+        doc.setDrawColor(210, 210, 210);
+        doc.setLineWidth(0.5);
+        doc.line(x, y0, x, y1);
       },
     });
 
