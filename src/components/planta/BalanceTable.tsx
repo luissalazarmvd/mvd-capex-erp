@@ -545,47 +545,191 @@ export default function BalanceTable() {
   }
 
   async function exportExcel() {
-    const { headers, rows, title, totalRowIdxs } = buildExportMatrix({
-      groups,
-      cols,
-      mode: balMode,
-      dateFrom,
-      dateTo,
-      overallTotals,
-    });
+    // === Helpers de estilo (mismo look en ambas hojas) ===
+    const BLUE = "0067AC";
+    const GRID = "D2D2D2";
 
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet("Balance");
+    const applyHeaderStyle = (row: ExcelJS.Row) => {
+      row.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      row.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      row.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
+        cell.border = {
+          top: { style: "thin", color: { argb: GRID } },
+          left: { style: "thin", color: { argb: GRID } },
+          bottom: { style: "thin", color: { argb: GRID } },
+          right: { style: "thin", color: { argb: GRID } },
+        };
+      });
+    };
 
-    ws.addRow([title.replaceAll("_", " ")]);
-    ws.mergeCells(1, 1, 1, headers.length);
-    ws.getRow(1).font = { bold: true, size: 14 };
+    const applyGridRow = (row: ExcelJS.Row, opts?: { bold?: boolean; wrapCols?: number[]; rightFrom?: number }) => {
+      if (opts?.bold) row.font = { ...(row.font ?? {}), bold: true };
+      row.alignment = { vertical: "top" };
 
-    ws.addRow([]);
+      row.eachCell((cell, colNumber) => {
+        cell.border = {
+          top: { style: "thin", color: { argb: GRID } },
+          left: { style: "thin", color: { argb: GRID } },
+          bottom: { style: "thin", color: { argb: GRID } },
+          right: { style: "thin", color: { argb: GRID } },
+        };
 
-    const headerRow = ws.addRow(headers);
-    headerRow.font = { bold: true };
+        if (opts?.wrapCols?.includes(colNumber)) {
+          cell.alignment = { ...(cell.alignment ?? {}), wrapText: true, vertical: "top", horizontal: "left" };
+        } else if (opts?.rightFrom && colNumber >= opts.rightFrom) {
+          cell.alignment = { ...(cell.alignment ?? {}), horizontal: "right", vertical: "top" };
+        }
+      });
+    };
 
-    const firstDataRow = ws.rowCount + 1;
-    for (const r of rows) ws.addRow(r);
+    const autosize = (ws: ExcelJS.Worksheet, maxW = 48) => {
+      const n = ws.columnCount || (ws.columns?.length ?? 0);
+      for (let i = 1; i <= n; i++) {
+        const col = ws.getColumn(i);
+        let maxLen = 10;
 
-    for (const idx of totalRowIdxs) {
-      const excelRowNum = firstDataRow + idx;
-      const rr = ws.getRow(excelRowNum);
-      rr.font = { ...(rr.font ?? {}), bold: true };
+        col.eachCell({ includeEmpty: true }, (cell) => {
+          const v = cell.value as any;
+
+          const s =
+            v === null || v === undefined
+              ? ""
+              : typeof v === "object" && (v as any).richText
+              ? String((v as any).richText?.map((x: any) => x.text).join("") ?? "")
+              : String(v);
+
+          maxLen = Math.max(maxLen, s.length);
+        });
+
+        col.width = Math.min(maxW, Math.max(10, maxLen + 2));
+      }
+    };
+
+    const fileTag = `${balMode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
+    const title = `MVD_Planta_Balance_${fileTag}`;
+
+    // ====== Hoja 1: GUARDIAS (granularidad por guardia, comentarios por guardia) ======
+    const headersShift = ["Fecha", "Guardia", ...cols.map((c) => c.label)];
+    const rowsShift: any[][] = [];
+
+    for (const g of groups) {
+      for (const r of g.rows) {
+        rowsShift.push([
+          fmtDateDdMm(g.dateIso),
+          String((r as any)._shift || "").toUpperCase(),
+          ...cols.map((c) => {
+            const v =
+              c.key === "prod_ratio"
+                ? safeDiv((r as any).tms, (r as any).operation_hr)
+                : c.key === "au_recu"
+                ? safeDiv((r as any).au_prod, (r as any).au_feed_g)
+                : c.key === "ag_recu"
+                ? safeDiv((r as any).ag_prod, (r as any).ag_feed_g)
+                : (r as any)[c.key];
+
+            return c.fmt ? c.fmt(v) : v ?? "";
+          }),
+        ]);
+      }
     }
 
-    ws.columns = headers.map((h, idx) => {
-      const maxLen = Math.max(
-        h.length,
-        ...ws
-          .getColumn(idx + 1)
-          .values.filter((v) => typeof v === "string" || typeof v === "number")
-          .map((v: any) => String(v).length)
-      );
-      return { width: Math.min(48, Math.max(10, maxLen + 2)) };
-    });
+    rowsShift.push([
+      "Total",
+      "—",
+      ...cols.map((c) => {
+        const v = overallTotals[String(c.key)];
+        return c.fmt ? c.fmt(v) : v ?? "";
+      }),
+    ]);
 
+    // ====== Hoja 2: DIARIO (igualito al exportPdf: 1 fila por día + total final) ======
+    const headersDaily = ["Fecha", ...cols.map((c) => c.label)];
+    const rowsDaily: any[][] = [];
+
+    const commentKey = String(cols.find((c) => c.key === "shift_comment")?.key ?? "shift_comment");
+    for (const g of groups) {
+      const dayTotals: Record<string, any> = {};
+      for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
+
+      const commentParts: string[] = [];
+      for (const rr of g.rows) {
+        const sh = String((rr as any)._shift ?? "").toUpperCase();
+        const cm = String((rr as any)[commentKey] ?? "").replace(/\s+/g, " ").trim();
+        if (!cm) continue;
+        commentParts.push(`${sh}: ${cm}`);
+      }
+      const dayComment = commentParts.join("\n");
+
+      rowsDaily.push([
+        fmtDateDdMm(g.dateIso),
+        ...cols.map((c) => {
+          const v = c.key === "shift_comment" ? dayComment : dayTotals[String(c.key)];
+          return c.fmt ? c.fmt(v) : v ?? "";
+        }),
+      ]);
+    }
+
+    rowsDaily.push([
+      "Total",
+      ...cols.map((c) => {
+        const v = c.key === "shift_comment" ? "" : overallTotals[String(c.key)];
+        return c.fmt ? c.fmt(v) : v ?? "";
+      }),
+    ]);
+
+    // ====== Construcción del Excel (2 hojas) ======
+    const wb = new ExcelJS.Workbook();
+
+    // --- Sheet Guardias ---
+    const wsShift = wb.addWorksheet("Guardias");
+
+    wsShift.addRow([title.replaceAll("_", " ")]);
+    wsShift.mergeCells(1, 1, 1, headersShift.length);
+    wsShift.getRow(1).font = { bold: true, size: 14 };
+
+    wsShift.addRow([]);
+
+    const hdrShift = wsShift.addRow(headersShift);
+    applyHeaderStyle(hdrShift);
+
+    const firstDataRowShift = wsShift.rowCount + 1;
+    for (const r of rowsShift) wsShift.addRow(r);
+
+    const commentColShift = headersShift.length; // última
+    for (let rn = firstDataRowShift; rn <= wsShift.rowCount; rn++) {
+      const row = wsShift.getRow(rn);
+      const isTotal = rn === wsShift.rowCount;
+      applyGridRow(row, { bold: isTotal, wrapCols: [commentColShift], rightFrom: 3 });
+    }
+
+    autosize(wsShift);
+
+    // --- Sheet Diario ---
+    const wsDaily = wb.addWorksheet("Diario");
+
+    wsDaily.addRow([title.replaceAll("_", " ")]);
+    wsDaily.mergeCells(1, 1, 1, headersDaily.length);
+    wsDaily.getRow(1).font = { bold: true, size: 14 };
+
+    wsDaily.addRow([]);
+
+    const hdrDaily = wsDaily.addRow(headersDaily);
+    applyHeaderStyle(hdrDaily);
+
+    const firstDataRowDaily = wsDaily.rowCount + 1;
+    for (const r of rowsDaily) wsDaily.addRow(r);
+
+    const commentColDaily = headersDaily.length; // última
+    for (let rn = firstDataRowDaily; rn <= wsDaily.rowCount; rn++) {
+      const row = wsDaily.getRow(rn);
+      const isTotal = rn === wsDaily.rowCount;
+      applyGridRow(row, { bold: isTotal, wrapCols: [commentColDaily], rightFrom: 2 });
+    }
+
+    autosize(wsDaily);
+
+    // ====== Descargar ======
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
