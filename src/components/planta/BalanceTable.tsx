@@ -602,8 +602,6 @@ export default function BalanceTable() {
   }
 
   async function exportPdf() {
-    const SCALE_PDF = 0.7; // 30% menor manteniendo ratio
-
     const fileTag = `${balMode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
     const title = `MVD_Planta_Balance_${fileTag}`;
 
@@ -632,6 +630,7 @@ export default function BalanceTable() {
     ]);
 
     const baseWidths = [120, ...cols.map((c) => c.w ?? 90)];
+    const totalW = baseWidths.reduce((a, b) => a + b, 0);
 
     const wrap = document.createElement("div");
     wrap.style.position = "fixed";
@@ -641,6 +640,7 @@ export default function BalanceTable() {
     wrap.style.padding = "14px";
     wrap.style.fontFamily = "Arial, sans-serif";
     wrap.style.color = "#000";
+    wrap.style.width = `${totalW + 28}px`; // 14px padding x2
 
     const titleEl = document.createElement("div");
     titleEl.textContent = title.replaceAll("_", " ");
@@ -652,8 +652,6 @@ export default function BalanceTable() {
     const table = document.createElement("table");
     table.style.borderCollapse = "collapse";
     table.style.tableLayout = "fixed";
-
-    const totalW = baseWidths.reduce((a, b) => a + b, 0);
     table.style.width = `${totalW}px`;
 
     const thead = document.createElement("thead");
@@ -683,12 +681,13 @@ export default function BalanceTable() {
       r.forEach((cell, i) => {
         const td = document.createElement("td");
         let txt = String(cell ?? "");
+
         if (i === commentIdx) {
           txt = txt.replace(/\s+/g, " ").trim();
           td.style.whiteSpace = "normal";
           td.style.wordBreak = "break-word";
           td.style.lineHeight = "14px";
-          td.style.maxHeight = `${14 * 4 + 8}px`;
+          td.style.maxHeight = `${14 * 4 + 10}px`;
           td.style.overflow = "hidden";
         } else {
           td.style.whiteSpace = "nowrap";
@@ -717,18 +716,57 @@ export default function BalanceTable() {
         backgroundColor: "#ffffff",
         scale: 2,
         useCORS: true,
+        windowWidth: totalW + 28,
+        scrollX: 0,
+        scrollY: 0,
       });
 
       const imgData = canvas.toDataURL("image/png");
-      const pdfW = canvas.width * SCALE_PDF;
-      const pdfH = canvas.height * SCALE_PDF;
 
-      const doc = new jsPDF({
-        unit: "pt",
-        format: [pdfW, pdfH],
-      });
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a3" });
 
-      doc.addImage(imgData, "PNG", 0, 0, pdfW, pdfH, undefined, "FAST");
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+
+      const margin = 24;
+      const usableW = pageW - margin * 2;
+      const usableH = pageH - margin * 2;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const scaleToFitW = usableW / imgW;
+      const scaledH = imgH * scaleToFitW;
+
+      if (scaledH <= usableH) {
+        doc.addImage(imgData, "PNG", margin, margin, usableW, scaledH, undefined, "FAST");
+      } else {
+        const slicePxH = Math.floor(usableH / scaleToFitW);
+        let yPx = 0;
+        let first = true;
+
+        while (yPx < imgH) {
+          const sliceH = Math.min(slicePxH, imgH - yPx);
+
+          const c2 = document.createElement("canvas");
+          c2.width = imgW;
+          c2.height = sliceH;
+          const ctx = c2.getContext("2d");
+          if (!ctx) break;
+
+          ctx.drawImage(canvas, 0, yPx, imgW, sliceH, 0, 0, imgW, sliceH);
+          const part = c2.toDataURL("image/png");
+
+          if (!first) doc.addPage("a3", "landscape");
+          first = false;
+
+          const partHpt = sliceH * scaleToFitW;
+          doc.addImage(part, "PNG", margin, margin, usableW, partHpt, undefined, "FAST");
+
+          yPx += sliceH;
+        }
+      }
+
       doc.save(`${title}.pdf`);
     } finally {
       wrap.remove();
