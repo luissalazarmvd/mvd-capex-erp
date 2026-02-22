@@ -608,9 +608,6 @@ export default function BalanceTable() {
     const headers = ["Fecha", ...cols.map((c) => c.label)];
     const body: any[][] = [];
 
-    const baseWidths = [120, ...cols.map((c) => c.w ?? 90)];
-    const totalW = baseWidths.reduce((a, b) => a + b, 0);
-
     const commentKey = String(cols.find((c) => c.key === "shift_comment")?.key ?? "shift_comment");
 
     for (const g of groups) {
@@ -636,22 +633,43 @@ export default function BalanceTable() {
     }
 
     const margin = 24;
-    const isoRatio = 595.28 / 841.89; // A4 landscape H/W (mismo ratio ISO para A3, etc.)
+    const isoRatio = 595.28 / 841.89;
 
+    const fontScale = 1.3;
+
+    const baseFont = Math.round(9 * fontScale);
+    const headFont = Math.round(9 * fontScale);
+    const titleFont = Math.round(12 * fontScale);
+
+    const pad = Math.max(3, Math.round(4 * fontScale));
+    const extraPxPerSide = Math.max(6, Math.round(8 * fontScale));
+
+    const meas = new jsPDF({ orientation: "landscape", unit: "pt", format: [200, 200] });
+    meas.setFont("helvetica", "normal");
+    meas.setFontSize(headFont);
+
+    const colWidths: number[] = headers.map((h, idx) => {
+      const wText = meas.getTextWidth(String(h ?? ""));
+      const minW = idx === 0 ? meas.getTextWidth("00/00/0000") : 0;
+      return Math.max(minW, Math.ceil(wText + extraPxPerSide * 2));
+    });
+
+    const commentColIdx = colWidths.length - 1;
+    colWidths[commentColIdx] = Math.max(colWidths[commentColIdx], 260);
+
+    const totalW = colWidths.reduce((a, b) => a + b, 0);
     const pageW = totalW + margin * 2;
     const pageH = Math.round(pageW * isoRatio);
 
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: [pageW, pageH] });
 
-    doc.setFontSize(12);
+    doc.setFontSize(titleFont);
     doc.text(title.replaceAll("_", " "), margin, 18);
 
     const colStyles: Record<number, any> = {};
-    for (let i = 0; i < baseWidths.length; i++) colStyles[i] = { cellWidth: baseWidths[i] };
+    for (let i = 0; i < colWidths.length; i++) colStyles[i] = { cellWidth: colWidths[i] };
 
-    const commentColIdx = baseWidths.length - 1;
-    const pad = 4;
-    const commentCellW = Math.max(40, baseWidths[commentColIdx] - pad * 2);
+    const commentCellW = Math.max(40, colWidths[commentColIdx] - pad * 2);
 
     autoTable(doc, {
       head: [headers],
@@ -661,7 +679,7 @@ export default function BalanceTable() {
       tableWidth: totalW,
       margin: { left: margin, right: margin, top: margin, bottom: margin },
       styles: {
-        fontSize: 9,
+        fontSize: baseFont,
         cellPadding: pad,
         overflow: "linebreak",
         textColor: [0, 0, 0],
@@ -674,7 +692,7 @@ export default function BalanceTable() {
         fillColor: [0, 103, 172],
         textColor: [255, 255, 255],
         fontStyle: "bold",
-        fontSize: 9,
+        fontSize: headFont,
         halign: "center",
         lineWidth: 0.25,
         lineColor: [0, 103, 172],
@@ -692,13 +710,13 @@ export default function BalanceTable() {
           else data.cell.styles.halign = "right";
 
           if (data.column.index === commentColIdx) {
-            const raw = String((data.cell.raw ?? "") as any).trim();
+            const raw = String((data.cell.raw ?? "") as any).replace(/\s+\n/g, "\n").trim();
             if (!raw) {
               data.cell.text = [""];
               return;
             }
             const lines = doc.splitTextToSize(raw, commentCellW);
-            data.cell.text = (Array.isArray(lines) ? lines : [String(lines)]).slice(0, 4);
+            data.cell.text = Array.isArray(lines) ? lines : [String(lines)];
           }
         }
       },
