@@ -640,11 +640,11 @@ export default function BalanceTable() {
     wrap.style.padding = "14px";
     wrap.style.fontFamily = "Arial, sans-serif";
     wrap.style.color = "#000";
-    wrap.style.width = `${totalW + 28}px`; // 14px padding x2
+    wrap.style.width = `${totalW + 28}px`;
 
     const titleEl = document.createElement("div");
     titleEl.textContent = title.replaceAll("_", " ");
-    titleEl.style.fontSize = "16px";
+    titleEl.style.fontSize = "18px";
     titleEl.style.fontWeight = "700";
     titleEl.style.marginBottom = "10px";
     wrap.appendChild(titleEl);
@@ -662,8 +662,8 @@ export default function BalanceTable() {
       th.style.background = "#0067ac";
       th.style.color = "#fff";
       th.style.fontWeight = "700";
-      th.style.fontSize = "12px";
-      th.style.padding = "8px 8px";
+      th.style.fontSize = "13px";
+      th.style.padding = "9px 9px";
       th.style.border = "1px solid #cfcfcf";
       th.style.textAlign = i === 0 ? "left" : "center";
       th.style.width = `${baseWidths[i]}px`;
@@ -686,16 +686,16 @@ export default function BalanceTable() {
           txt = txt.replace(/\s+/g, " ").trim();
           td.style.whiteSpace = "normal";
           td.style.wordBreak = "break-word";
-          td.style.lineHeight = "14px";
-          td.style.maxHeight = `${14 * 4 + 10}px`;
+          td.style.lineHeight = "15.4px";
+          td.style.maxHeight = `${15.4 * 4 + 11}px`;
           td.style.overflow = "hidden";
         } else {
           td.style.whiteSpace = "nowrap";
         }
 
         td.textContent = txt;
-        td.style.fontSize = "12px";
-        td.style.padding = "6px 8px";
+        td.style.fontSize = "13px";
+        td.style.padding = "7px 9px";
         td.style.border = "1px solid #cfcfcf";
         td.style.color = "#000";
         td.style.background = "#fff";
@@ -723,7 +723,7 @@ export default function BalanceTable() {
 
       const imgData = canvas.toDataURL("image/png");
 
-      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a3" });
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
 
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
@@ -757,7 +757,7 @@ export default function BalanceTable() {
           ctx.drawImage(canvas, 0, yPx, imgW, sliceH, 0, 0, imgW, sliceH);
           const part = c2.toDataURL("image/png");
 
-          if (!first) doc.addPage("a3", "landscape");
+          if (!first) doc.addPage("a4", "landscape");
           first = false;
 
           const partHpt = sliceH * scaleToFitW;
