@@ -397,6 +397,13 @@ function buildExportMatrix(args: {
   return { headers, rows, title, totalRowIdxs };
 }
 
+function clampPdfText(v: any, maxChars: number) {
+  const s = String(v ?? "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  if (s.length <= maxChars) return s;
+  return s.slice(0, Math.max(0, maxChars - 1)).trimEnd() + "…";
+}
+
 export default function BalanceTable() {
   const [balMode, setBalMode] = useState<"AU" | "AG">("AU");
   const [allRows, setAllRows] = useState<BalRow[]>([]);
@@ -595,37 +602,104 @@ export default function BalanceTable() {
   }
 
   function exportPdf() {
-    const { headers, rows, title, totalRowIdxs } = buildExportMatrix({
-      groups,
-      cols,
-      mode: balMode,
-      dateFrom,
-      dateTo,
-      overallTotals,
-    });
+    const fileTag = `${balMode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
+    const title = `MVD_Planta_Balance_${fileTag}`;
 
-    const totalIdxSet = new Set<number>(totalRowIdxs);
+    const headers = ["Fecha", ...cols.map((c) => c.label)];
+    const body: any[][] = [];
+
+    for (const g of groups) {
+      const dayTotals: Record<string, any> = {};
+      for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
+
+      body.push([
+        fmtDateDdMm(g.dateIso),
+        ...cols.map((c) => {
+          const v = c.key === "shift_comment" ? clampPdfText(dayTotals[String(c.key)], 220) : dayTotals[String(c.key)];
+          return c.fmt ? c.fmt(v) : v ?? "";
+        }),
+      ]);
+    }
+
+    body.push([
+      "Total",
+      ...cols.map((c) => {
+        const v = c.key === "shift_comment" ? clampPdfText(overallTotals[String(c.key)], 220) : overallTotals[String(c.key)];
+        return c.fmt ? c.fmt(v) : v ?? "";
+      }),
+    ]);
+
+    const W_FECHA = 120;
+    const widths = [W_FECHA, ...cols.map((c) => c.w ?? 90)];
+    const totalTableW = widths.reduce((a, b) => a + b, 0);
+
+    const marginL = 20;
+    const marginR = 20;
+    const topTitleH = 34;
+    const topGap = 10;
+
+    const pageW = marginL + totalTableW + marginR;
+    const approxRowH = 18;
+    const pageH = Math.max(260, topTitleH + topGap + 24 + body.length * approxRowH + 30);
 
     const doc = new jsPDF({
-      orientation: "landscape",
       unit: "pt",
-      format: "a4",
+      format: [pageW, pageH],
     });
 
-    doc.setFontSize(11);
-    doc.text(title.replaceAll("_", " "), 40, 30);
+    doc.setFontSize(12);
+    doc.text(title.replaceAll("_", " "), marginL, 22);
+
+    const colStyles: Record<number, any> = {};
+    for (let i = 0; i < widths.length; i++) colStyles[i] = { cellWidth: widths[i] };
 
     autoTable(doc, {
       head: [headers],
-      body: rows,
-      startY: 45,
-      styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak" },
-      headStyles: { fontSize: 7, fontStyle: "bold" },
-      margin: { left: 20, right: 20 },
-      tableWidth: "auto",
+      body,
+      startY: topTitleH + topGap,
+      theme: "plain",
+      tableWidth: totalTableW,
+      margin: { left: marginL, right: marginR },
+      styles: {
+        fontSize: 9,
+        cellPadding: 4,
+        overflow: "linebreak",
+        textColor: [0, 0, 0],
+        fillColor: [255, 255, 255],
+        lineWidth: 0.2,
+        lineColor: [220, 220, 220],
+        valign: "top",
+      },
+      headStyles: {
+        fillColor: [0, 103, 172],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        halign: "center",
+        lineWidth: 0.2,
+        lineColor: [0, 103, 172],
+      },
+      columnStyles: colStyles,
       didParseCell: (data) => {
-        if (data.section === "body" && totalIdxSet.has(data.row.index)) {
-          data.cell.styles.fontStyle = "bold";
+        if (data.section === "body") {
+          data.cell.styles.fillColor = [255, 255, 255];
+          data.cell.styles.textColor = [0, 0, 0];
+          if (data.column.index === 0) data.cell.styles.halign = "left";
+          else data.cell.styles.halign = data.column.index === widths.length - 1 ? "left" : "right";
+        }
+        if (data.section === "head") {
+          if (data.column.index === 0) data.cell.styles.halign = "left";
+          else data.cell.styles.halign = "center";
+        }
+      },
+      didDrawCell: (data) => {
+        if (data.section !== "body") return;
+        if (data.column.index !== widths.length - 1) return;
+        const raw = String((data.cell.raw ?? "") as any);
+        if (!raw) return;
+        const lines = raw.split("\n");
+        if (lines.length > 4) {
+          const clamped = lines.slice(0, 4).join("\n");
+          data.cell.text = doc.splitTextToSize(clamped, data.cell.width - data.cell.padding("horizontal"));
         }
       },
     });
@@ -663,10 +737,10 @@ export default function BalanceTable() {
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
 
   const commentCell: React.CSSProperties = {
-  ...cellBase,
-  textAlign: "left",
-  verticalAlign: "top",
-  whiteSpace: "normal",
+    ...cellBase,
+    textAlign: "left",
+    verticalAlign: "top",
+    whiteSpace: "normal",
   };
 
   const W_FECHA = 120;
