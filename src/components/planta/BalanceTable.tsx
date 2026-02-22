@@ -828,7 +828,26 @@ export default function BalanceTable() {
       if (t) {
         let j = i;
         while (j < headers.length && topLabelAt(j) === t) j++;
-        pushTop(t, j - i);
+
+        let hasMid = false;
+        for (let k = i; k < j; k++) {
+          if (midLabelAt(k)) {
+            hasMid = true;
+            break;
+          }
+        }
+
+        if (!hasMid) {
+          topRow.push({
+            content: t,
+            colSpan: j - i,
+            rowSpan: 2,
+            styles: { halign: "center", valign: "middle" },
+          });
+        } else {
+          pushTop(t, j - i);
+        }
+
         i = j;
         continue;
       }
@@ -863,6 +882,10 @@ export default function BalanceTable() {
       const m0 = midLabelAt(i) ?? "";
       let j = i + 1;
       while (j < headers.length && topLabelAt(j) === t && (midLabelAt(j) ?? "") === m0) j++;
+      if (!m0) {
+        i = j;
+        continue;
+      }
 
       pushMid(m0, j - i);
       i = j;
