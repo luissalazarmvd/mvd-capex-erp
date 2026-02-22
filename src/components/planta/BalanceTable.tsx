@@ -217,13 +217,13 @@ function buildColumns(mode: "AU" | "AG"): ColDef[] {
   const auBlock: ColDef[] = [
     { key: "au_solid_of", label: "Au (g/t) OF Sol", w: 110, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
     { key: "au_solid_of_g", label: "Au (g) OF Sol", w: 106, agg: "sum", fmt: (v) => fmtInt(v) },
-    { key: "au_solu_of", label: "Au (g/t) OF Liq", w: 110, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
+    { key: "au_solu_of", label: "Au (g/m³) OF Liq", w: 110, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
     { key: "au_solu_of_g", label: "Au (g) OF Liq", w: 106, agg: "sum", fmt: (v) => fmtInt(v) },
     { key: "au_soli_solu_of_g", label: "Au (g) OF Tot", w: 112, agg: "sum", fmt: (v) => fmtInt(v) },
 
     { key: "au_solid_tail", label: "Au (g/t) Rel Sol", w: 116, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
     { key: "au_solid_tail_g", label: "Au (g) Rel Sol", w: 112, agg: "sum", fmt: (v) => fmtInt(v) },
-    { key: "au_solu_tail", label: "Au (g/t) Rel Liq", w: 116, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
+    { key: "au_solu_tail", label: "Au (g/m³) Rel Liq", w: 116, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
     { key: "au_solu_tail_g", label: "Au (g) Rel Liq", w: 112, agg: "sum", fmt: (v) => fmtInt(v) },
     { key: "au_soli_solu_tail", label: "Au (g/t) Rel Tot", w: 122, agg: "wavg_tms", fmt: (v) => fmtFixed(v, 2) },
     { key: "au_soli_solu_tail_g", label: "Au (g) Rel Tot", w: 112, agg: "sum", fmt: (v) => fmtInt(v) },
@@ -639,6 +639,16 @@ export default function BalanceTable() {
       ]);
     }
 
+    body.push([
+      "Total",
+      ...cols.map((c) => {
+        const v = c.key === "shift_comment" ? "" : overallTotals[String(c.key)];
+        return c.fmt ? c.fmt(v) : v ?? "";
+      }),
+    ]);
+
+    const totalBodyIdx = body.length - 1;
+
     const margin = 24;
     const isoRatio = 595.28 / 841.89;
     const fontScale = 1.67;
@@ -953,6 +963,10 @@ export default function BalanceTable() {
         }
 
         if (data.section === "body") {
+          if (data.row.index === totalBodyIdx) {
+            data.cell.styles.fontStyle = "bold";
+          }
+
           if (data.column.index === 0) {
             data.cell.styles.halign = "left";
             data.cell.styles.overflow = "hidden";
