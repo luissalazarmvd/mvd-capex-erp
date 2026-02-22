@@ -655,6 +655,15 @@ export default function BalanceTable() {
       return Math.ceil(wText + extraPxPerSide * 2);
     });
 
+    const H = (s: any) => String(s ?? "");
+    const idxOf = (label: string) => headers.findIndex((x) => H(x) === label);
+
+    const ratioIdx = idxOf("Ratio (t/h)");
+    if (ratioIdx !== -1) {
+      const need = meas.getTextWidth("Ratio de Tratamiento") + extraPxPerSide * 2;
+      colWidths[ratioIdx] = Math.max(colWidths[ratioIdx], Math.ceil(need));
+    }
+
     const commentColIdx = colWidths.length - 1;
     colWidths[commentColIdx] = Math.max(colWidths[commentColIdx], 260);
 
@@ -672,156 +681,143 @@ export default function BalanceTable() {
 
     const commentCellW = Math.max(40, colWidths[commentColIdx] - pad * 2);
 
-    const H = (s: any) => String(s ?? "");
-    const idxOf = (label: string) => headers.findIndex((x) => H(x) === label);
-
     const metal = balMode === "AU" ? "Au" : "Ag";
 
-    const groupRow: any[] = [
-      {
-        content: "Fecha",
-        rowSpan: 2,
-        styles: { halign: "left", valign: "middle" },
-      },
+    const tmsI = idxOf("TMS");
+    const agFeedGI = idxOf("Ag (g) Feed");
+
+    const opI = idxOf("Operación (h)");
+    const rtI = idxOf("Ratio (t/h)");
+
+    const denI = idxOf("Den (g/l)");
+    const volI = idxOf("Vol (m³)");
+    const ofTotGI = idxOf(`${metal} (g) OF Tot`);
+
+    const ofSolGTI = idxOf(`${metal} (g/t) OF Sol`);
+    const ofSolGI = idxOf(`${metal} (g) OF Sol`);
+    const ofLiqGTI = idxOf(`${metal} (g/t) OF Liq`);
+    const ofLiqGI = idxOf(`${metal} (g) OF Liq`);
+
+    const relSolGTI = idxOf(`${metal} (g/t) Rel Sol`);
+    const relSolGI = idxOf(`${metal} (g) Rel Sol`);
+    const relLiqGTI = idxOf(`${metal} (g/t) Rel Liq`);
+    const relLiqGI = idxOf(`${metal} (g) Rel Liq`);
+    const relTotGTI = idxOf(`${metal} (g/t) Rel Tot`);
+    const relTotGI = idxOf(`${metal} (g) Rel Tot`);
+
+    const nacnI = idxOf("NaCN (kg/t)");
+    const naohI = idxOf("NaOH (kg/t)");
+    const bolasI = idxOf("Bolas (kg/t)");
+
+    const auProdI = idxOf("Au Prod (g)");
+    const auRecI = idxOf("Au Rec (%)");
+    const agProdI = idxOf("Ag Prod (g)");
+    const agRecI = idxOf("Ag Rec (%)");
+
+    const inRange = (x: number, a: number, b: number) => a !== -1 && b !== -1 && x >= a && x <= b;
+
+    const topRanges: Array<{ label: string; from: number; to: number }> = [];
+
+    if (tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
+      topRanges.push({ label: "Ley de Cabeza", from: tmsI, to: agFeedGI });
+    }
+
+    if (denI !== -1 && ofTotGI !== -1 && ofTotGI >= denI) {
+      topRanges.push({
+        label: "Overflow O/F (ingreso a TQs de lixiviación-adsorción)",
+        from: denI,
+        to: ofTotGI,
+      });
+    }
+
+    if (relSolGTI !== -1 && relTotGI !== -1 && relTotGI >= relSolGTI) {
+      topRanges.push({ label: "Relave", from: relSolGTI, to: relTotGI });
+    }
+
+    if (nacnI !== -1 && bolasI !== -1 && bolasI >= nacnI) {
+      topRanges.push({ label: "Consumo reactivos/insumos", from: nacnI, to: bolasI });
+    }
+
+    const topLabelAt = (col: number) => {
+      for (const r of topRanges) if (inRange(col, r.from, r.to)) return r.label;
+      return null;
+    };
+
+    const midLabelAt = (col: number) => {
+      if (col === opI) return "Operación";
+      if (col === rtI) return "Ratio de Tratamiento";
+      if (col === auProdI || col === agProdI) return "Producción";
+      if (col === auRecI || col === agRecI) return "Recup.";
+      if (col === nacnI) return "Cianuro de Sodio";
+      if (col === naohI) return "Soda Caústica";
+      if (col === bolasI) return "Bolas de Acero";
+      if (denI !== -1 && volI !== -1 && inRange(col, denI, volI)) return "Datos de Operación";
+      if (ofSolGTI !== -1 && ofSolGI !== -1 && inRange(col, ofSolGTI, ofSolGI)) return "Sólido";
+      if (ofLiqGTI !== -1 && ofLiqGI !== -1 && inRange(col, ofLiqGTI, ofLiqGI)) return "Solución";
+      if (col === ofTotGI) return "Solid. + Soluc.";
+      if (relSolGTI !== -1 && relSolGI !== -1 && inRange(col, relSolGTI, relSolGI)) return "Sólido";
+      if (relLiqGTI !== -1 && relLiqGI !== -1 && inRange(col, relLiqGTI, relLiqGI)) return "Solución";
+      if (relTotGTI !== -1 && relTotGI !== -1 && inRange(col, relTotGTI, relTotGI)) return "Solid. + Soluc.";
+
+      return null;
+    };
+
+    const topRow: any[] = [
+      { content: "Fecha", rowSpan: 3, styles: { halign: "left", valign: "middle" } },
     ];
 
-    const pushBlank = () => groupRow.push({ content: "", styles: { halign: "center" } });
-    const pushOne = (label: string) => groupRow.push({ content: label, colSpan: 1, styles: { halign: "center" } });
-    const pushSpan = (label: string, from: number, to: number) =>
-      groupRow.push({ content: label, colSpan: Math.max(1, to - from + 1), styles: { halign: "center" } });
+    const pushTop = (content: string, colSpan: number) =>
+      topRow.push({ content, colSpan, styles: { halign: "center", valign: "middle" } });
+    const pushTopRowSpan2 = (content: string) =>
+      topRow.push({ content, rowSpan: 2, styles: { halign: "center", valign: "middle" } });
 
-    let i = 1; // arrancamos en TMS (porque Fecha ya está como rowSpan=2)
+    let i = 1;
     while (i < headers.length) {
-      const tmsI = idxOf("TMS");
-      const agFeedGI = idxOf("Ag (g) Feed");
-      if (i === tmsI && tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
-        pushSpan("Ley de Cabeza", tmsI, agFeedGI);
-        i = agFeedGI + 1;
+      const t = topLabelAt(i);
+      const m = midLabelAt(i);
+
+      if (t) {
+        let j = i;
+        while (j < headers.length && topLabelAt(j) === t) j++;
+        pushTop(t, j - i);
+        i = j;
         continue;
       }
 
-      const opI = idxOf("Operación (h)");
-      if (i === opI && opI !== -1) {
-        pushOne("Operación");
-        i += 1;
-        continue;
+      if (m) {
+        pushTopRowSpan2(m);
+      } else {
+        pushTopRowSpan2("");
       }
-
-      const ratioI = idxOf("Ratio (t/h)");
-      if (i === ratioI && ratioI !== -1) {
-        pushOne("Ratio de Tratamiento");
-        i += 1;
-        continue;
-      }
-
-      const denI = idxOf("Den (g/l)");
-      const volI = idxOf("Vol (m³)");
-      if (i === denI && denI !== -1 && volI !== -1 && volI >= denI) {
-        pushSpan("Datos de Operación", denI, volI);
-        i = volI + 1;
-        continue;
-      }
-
-      const ofSolGTI = idxOf(`${metal} (g/t) OF Sol`);
-      const ofSolGI = idxOf(`${metal} (g) OF Sol`);
-      if (i === ofSolGTI && ofSolGTI !== -1 && ofSolGI !== -1 && ofSolGI >= ofSolGTI) {
-        pushSpan("Sólido", ofSolGTI, ofSolGI);
-        i = ofSolGI + 1;
-        continue;
-      }
-
-      const ofLiqGTI = idxOf(`${metal} (g/t) OF Liq`);
-      const ofLiqGI = idxOf(`${metal} (g) OF Liq`);
-      if (i === ofLiqGTI && ofLiqGTI !== -1 && ofLiqGI !== -1 && ofLiqGI >= ofLiqGTI) {
-        pushSpan("Solución", ofLiqGTI, ofLiqGI);
-        i = ofLiqGI + 1;
-        continue;
-      }
-
-      const ofTotGI = idxOf(`${metal} (g) OF Tot`);
-      if (i === ofTotGI && ofTotGI !== -1) {
-        pushOne("Solid. + Soluc.");
-        i += 1;
-        continue;
-      }
-
-      const relSolGTI = idxOf(`${metal} (g/t) Rel Sol`);
-      const relSolGI = idxOf(`${metal} (g) Rel Sol`);
-      if (i === relSolGTI && relSolGTI !== -1 && relSolGI !== -1 && relSolGI >= relSolGTI) {
-        pushSpan("Sólido", relSolGTI, relSolGI);
-        i = relSolGI + 1;
-        continue;
-      }
-
-      const relLiqGTI = idxOf(`${metal} (g/t) Rel Liq`);
-      const relLiqGI = idxOf(`${metal} (g) Rel Liq`);
-      if (i === relLiqGTI && relLiqGTI !== -1 && relLiqGI !== -1 && relLiqGI >= relLiqGTI) {
-        pushSpan("Solución", relLiqGTI, relLiqGI);
-        i = relLiqGI + 1;
-        continue;
-      }
-
-      const relTotGTI = idxOf(`${metal} (g/t) Rel Tot`);
-      const relTotGI = idxOf(`${metal} (g) Rel Tot`);
-      if (i === relTotGTI && relTotGTI !== -1) {
-        const end = relTotGI !== -1 && relTotGI >= relTotGTI ? relTotGI : relTotGTI;
-        pushSpan("Solid. + Soluc.", relTotGTI, end);
-        i = end + 1;
-        continue;
-      }
-
-      const auProdI = idxOf("Au Prod (g)");
-      if (i === auProdI && auProdI !== -1) {
-        pushOne("Producción");
-        i += 1;
-        continue;
-      }
-      const agProdI = idxOf("Ag Prod (g)");
-      if (i === agProdI && agProdI !== -1) {
-        pushOne("Producción");
-        i += 1;
-        continue;
-      }
-      const auRecI = idxOf("Au Rec (%)");
-      if (i === auRecI && auRecI !== -1) {
-        pushOne("Recup.");
-        i += 1;
-        continue;
-      }
-      const agRecI = idxOf("Ag Rec (%)");
-      if (i === agRecI && agRecI !== -1) {
-        pushOne("Recup.");
-        i += 1;
-        continue;
-      }
-
-      const nacnI = idxOf("NaCN (kg/t)");
-      if (i === nacnI && nacnI !== -1) {
-        pushOne("Cianuro de Sodio");
-        i += 1;
-        continue;
-      }
-      const naohI = idxOf("NaOH (kg/t)");
-      if (i === naohI && naohI !== -1) {
-        pushOne("Soda Caústica");
-        i += 1;
-        continue;
-      }
-      const bolasI = idxOf("Bolas (kg/t)");
-      if (i === bolasI && bolasI !== -1) {
-        pushOne("Bolas de Acero");
-        i += 1;
-        continue;
-      }
-
-      pushBlank();
       i += 1;
     }
 
-    const headerRow = headers.slice(1); // sin "Fecha" (porque arriba está rowSpan=2)
+    const midRow: any[] = [];
+
+    const pushMid = (content: string, colSpan: number) =>
+      midRow.push({ content, colSpan, styles: { halign: "center", valign: "middle" } });
+
+    i = 1;
+    while (i < headers.length) {
+      const t = topLabelAt(i);
+
+      if (!t) {
+        i += 1;
+        continue;
+      }
+
+      const m0 = midLabelAt(i) ?? "";
+      let j = i + 1;
+      while (j < headers.length && topLabelAt(j) === t && (midLabelAt(j) ?? "") === m0) j++;
+
+      pushMid(m0, j - i);
+      i = j;
+    }
+
+    const bottomRow = headers.slice(1);
 
     autoTable(doc, {
-      head: [groupRow, headerRow],
+      head: [topRow, midRow, bottomRow],
       body,
       startY: 28,
       theme: "plain",
@@ -845,21 +841,17 @@ export default function BalanceTable() {
         halign: "center",
         lineWidth: 0.25,
         lineColor: [210, 210, 210],
+        valign: "middle",
       },
       columnStyles: colStyles,
       didParseCell: (data) => {
         if (data.section === "head") {
-          const isTopGroupRow = data.row.index === 0;
-          if (isTopGroupRow) {
-            if (data.column.index === 0) {
-              data.cell.styles.halign = "left";
-              data.cell.styles.valign = "middle";
-            } else {
-              data.cell.styles.halign = "center";
-            }
+          if (data.row.index === 0 && data.column.index === 0) {
+            data.cell.styles.halign = "left";
+            data.cell.styles.valign = "middle";
           } else {
-            // en esta fila ya no existe la columna 0 (Fecha), así que index 0 aquí es "TMS"
             data.cell.styles.halign = "center";
+            data.cell.styles.valign = "middle";
           }
           return;
         }
