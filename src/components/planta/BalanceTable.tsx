@@ -605,7 +605,15 @@ export default function BalanceTable() {
     const fileTag = `${balMode}_${dateFrom || "inicio"}_${dateTo || "fin"}`.replaceAll("/", "-");
     const title = `MVD_Planta_Balance_${fileTag}`;
 
-    const headers = ["Fecha", ...cols.map((c) => c.label)];
+    const metal = balMode === "AU" ? "Au" : "Ag";
+
+    const baseHeaders = ["Fecha", ...cols.map((c) => c.label)];
+    const headers = baseHeaders.map((h) => {
+      if (h === `${metal} (g/t) OF Liq`) return `${metal} (g/m³) OF Liq`;
+      if (h === `${metal} (g/t) Rel Sol`) return `${metal} (g/m³) Rel Sol`;
+      return h;
+    });
+
     const body: any[][] = [];
 
     const commentKey = String(cols.find((c) => c.key === "shift_comment")?.key ?? "shift_comment");
@@ -700,8 +708,6 @@ export default function BalanceTable() {
 
     const commentCellW = Math.max(40, colWidths[commentColIdx] - pad * 2);
 
-    const metal = balMode === "AU" ? "Au" : "Ag";
-
     const tmsI = idxOf("TMS");
     const agFeedGI = idxOf("Ag (g) Feed");
 
@@ -709,15 +715,16 @@ export default function BalanceTable() {
     const rtI = idxOf("Ratio (t/h)");
 
     const denI = idxOf("Den (g/l)");
+    const pct200I = idxOf("%m-200");
     const volI = idxOf("Vol (m³)");
     const ofTotGI = idxOf(`${metal} (g) OF Tot`);
 
     const ofSolGTI = idxOf(`${metal} (g/t) OF Sol`);
     const ofSolGI = idxOf(`${metal} (g) OF Sol`);
-    const ofLiqGTI = idxOf(`${metal} (g/t) OF Liq`);
+    const ofLiqGTI = idxOf(`${metal} (g/m³) OF Liq`);
     const ofLiqGI = idxOf(`${metal} (g) OF Liq`);
 
-    const relSolGTI = idxOf(`${metal} (g/t) Rel Sol`);
+    const relSolGTI = idxOf(`${metal} (g/m³) Rel Sol`);
     const relSolGI = idxOf(`${metal} (g) Rel Sol`);
     const relLiqGTI = idxOf(`${metal} (g/t) Rel Liq`);
     const relLiqGI = idxOf(`${metal} (g) Rel Liq`);
@@ -736,10 +743,6 @@ export default function BalanceTable() {
     const inRange = (x: number, a: number, b: number) => a !== -1 && b !== -1 && x >= a && x <= b;
 
     const topRanges: Array<{ label: string; from: number; to: number }> = [];
-
-    if (tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
-      topRanges.push({ label: "Ley de Cabeza", from: tmsI, to: agFeedGI });
-    }
 
     if (denI !== -1 && ofTotGI !== -1 && ofTotGI >= denI) {
       topRanges.push({
@@ -795,15 +798,31 @@ export default function BalanceTable() {
     ];
 
     const topRow: any[] = [{ content: "Fecha", rowSpan: 3, styles: { halign: "center", valign: "middle" } }];
+
     const bottomRow: any[] = headers.slice(1);
 
     const pushTop = (content: string, colSpan: number) =>
       topRow.push({ content, colSpan, styles: { halign: "center", valign: "middle" } });
     const pushTopRowSpan2 = (content: string) =>
       topRow.push({ content, rowSpan: 2, styles: { halign: "center", valign: "middle" } });
+    const pushTopRowSpan3 = (content: string) =>
+      topRow.push({ content, rowSpan: 3, styles: { halign: "center", valign: "middle" } });
 
     let i = 1;
     while (i < headers.length) {
+      if (i === commentColIdx) {
+        pushTopRowSpan3("Comentario");
+        bottomRow[i - 1] = "";
+        i += 1;
+        continue;
+      }
+
+      if (i === tmsI && tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
+        pushTop("Ley de Cabeza", agFeedGI - tmsI + 1);
+        i = agFeedGI + 1;
+        continue;
+      }
+
       const t = topLabelAt(i);
       const m = midLabelAt(i);
 
@@ -831,6 +850,16 @@ export default function BalanceTable() {
 
     i = 1;
     while (i < headers.length) {
+      if (i === commentColIdx) {
+        i += 1;
+        continue;
+      }
+
+      if (i === tmsI && tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
+        i = agFeedGI + 1;
+        continue;
+      }
+
       const t = topLabelAt(i);
       if (!t) {
         i += 1;
@@ -846,6 +875,7 @@ export default function BalanceTable() {
     }
 
     const headGridLineColor: [number, number, number] = [210, 210, 210];
+    const orange: [number, number, number] = [255, 140, 0];
 
     autoTable(doc, {
       head: [bannerRow, topRow, midRow, bottomRow],
@@ -881,24 +911,6 @@ export default function BalanceTable() {
           data.cell.styles.valign = "middle";
           data.cell.styles.lineColor = headGridLineColor;
           data.cell.styles.lineWidth = 0.25;
-
-          if (data.row.index === 0 && data.column.index === 0) {
-            data.cell.styles.halign = "center";
-          }
-
-          if (data.row.index === 1 && data.column.index === 0) {
-            data.cell.styles.halign = "center";
-            data.cell.styles.valign = "middle";
-          }
-
-          if (data.row.index === 1 && data.column.index >= 1) {
-            const colInHeaders = data.column.index;
-            const t = topLabelAt(colInHeaders);
-            if (t === "Ley de Cabeza") {
-              (data.cell as any).rowSpan = 2;
-            }
-          }
-
           return;
         }
 
@@ -911,6 +923,10 @@ export default function BalanceTable() {
             data.cell.styles.halign = "left";
           } else {
             data.cell.styles.halign = "right";
+          }
+
+          if (data.column.index === denI || data.column.index === pct200I) {
+            data.cell.styles.textColor = orange as any;
           }
 
           if (data.column.index === commentColIdx) {
@@ -934,8 +950,8 @@ export default function BalanceTable() {
           const imgProps = (doc as any).getImageProperties ? (doc as any).getImageProperties(logoDataUrl) : null;
           const iw = imgProps?.width ?? 1;
           const ih = imgProps?.height ?? 1;
-          const scale = Math.min(maxW / iw, maxH / ih);
 
+          const scale = Math.min(maxW / iw, maxH / ih);
           const w = iw * scale;
           const h = ih * scale;
 
