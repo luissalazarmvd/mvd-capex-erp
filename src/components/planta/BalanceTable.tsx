@@ -635,7 +635,7 @@ export default function BalanceTable() {
     const margin = 24;
     const isoRatio = 595.28 / 841.89;
 
-    const fontScale = 1.45; // +15% vs 1.30
+    const fontScale = 1.67;
 
     const baseFont = Math.round(9 * fontScale);
     const headFont = Math.round(9 * fontScale);
@@ -648,13 +648,13 @@ export default function BalanceTable() {
     meas.setFont("helvetica", "normal");
     meas.setFontSize(headFont);
 
+    const dateTextW = meas.getTextWidth("15/02/2026");
+
     const colWidths: number[] = headers.map((h, idx) => {
       const wText = meas.getTextWidth(String(h ?? ""));
-      const minW = idx === 0 ? meas.getTextWidth("15/02/2026") : 0;
-      return Math.max(minW, Math.ceil(wText + extraPxPerSide * 2));
+      if (idx === 0) return Math.max(wText, dateTextW) + extraPxPerSide * 2;
+      return Math.ceil(wText + extraPxPerSide * 2);
     });
-
-    colWidths[0] = Math.max(colWidths[0], Math.ceil(meas.getTextWidth("15/02/2026") + extraPxPerSide * 2 + 14));
 
     const commentColIdx = colWidths.length - 1;
     colWidths[commentColIdx] = Math.max(colWidths[commentColIdx], 260);
@@ -707,9 +707,15 @@ export default function BalanceTable() {
         }
 
         if (data.section === "body") {
-          if (data.column.index === 0) data.cell.styles.halign = "left";
-          else if (data.column.index === commentColIdx) data.cell.styles.halign = "left";
-          else data.cell.styles.halign = "right";
+          if (data.column.index === 0) {
+            data.cell.styles.halign = "left";
+            data.cell.styles.overflow = "hidden";
+            (data.cell.styles as any).whiteSpace = "nowrap";
+          } else if (data.column.index === commentColIdx) {
+            data.cell.styles.halign = "left";
+          } else {
+            data.cell.styles.halign = "right";
+          }
 
           if (data.column.index === commentColIdx) {
             const raw = String((data.cell.raw ?? "") as any).replace(/\s+\n/g, "\n").trim();
