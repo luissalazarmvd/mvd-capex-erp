@@ -723,9 +723,7 @@ export default function BalanceTable() {
     const relSolGTI = idxOf(`${metal} (g/t) Rel Sol`);
     const relTotGI = idxOf(`${metal} (g) Rel Tot`);
 
-    const auProdI = idxOf("Au Prod (g)");
     const auRecI = idxOf("Au Rec (%)");
-    const agProdI = idxOf("Ag Prod (g)");
     const agRecI = idxOf("Ag Rec (%)");
 
     const nacnI = idxOf("NaCN (kg/t)");
@@ -776,8 +774,8 @@ export default function BalanceTable() {
       if (col === opI) return "Operación";
       if (col === rtI) return "Ratio de\nTratamiento";
 
-      if (col === auProdI || col === agProdI) return "Producción";
-      if (col === auRecI || col === agRecI) return "Recup.";
+      if (col === idxOf("Au Prod (g)") || col === idxOf("Ag Prod (g)")) return "Producción";
+      if (col === idxOf("Au Rec (%)") || col === idxOf("Ag Rec (%)")) return "Recup.";
 
       if (col === nacnI) return "Cianuro de Sodio";
       if (col === idxOf("NaOH (kg/t)")) return "Soda Caústica";
@@ -896,9 +894,9 @@ export default function BalanceTable() {
     const orange: [number, number, number] = [255, 140, 0];
     const blue: [number, number, number] = [0, 103, 172];
 
-    const thickAfterCol = new Set<number>();
+    const keepAfterCol = new Set<number>();
     const addAfter = (x: number) => {
-      if (x !== -1) thickAfterCol.add(x);
+      if (x !== -1) keepAfterCol.add(x);
     };
 
     addAfter(agFeedGI);
@@ -928,7 +926,7 @@ export default function BalanceTable() {
         overflow: "linebreak",
         textColor: [0, 0, 0],
         fillColor: [255, 255, 255],
-        lineWidth: 0.25,
+        lineWidth: { top: 0.25, right: 0, bottom: 0.25, left: 0 },
         lineColor: [210, 210, 210],
         valign: "top",
       },
@@ -938,7 +936,7 @@ export default function BalanceTable() {
         fontStyle: "bold",
         fontSize: headFont,
         halign: "center",
-        lineWidth: 0.25,
+        lineWidth: { top: 0.25, right: 0, bottom: 0.25, left: 0 },
         lineColor: headGridLineColor,
         valign: "middle",
       },
@@ -947,8 +945,8 @@ export default function BalanceTable() {
         if (data.section === "head") {
           data.cell.styles.halign = "center";
           data.cell.styles.valign = "middle";
+          (data.cell.styles as any).lineWidth = { top: 0.25, right: 0, bottom: 0.25, left: 0 };
           data.cell.styles.lineColor = headGridLineColor;
-          data.cell.styles.lineWidth = 0.25;
           return;
         }
 
@@ -1018,7 +1016,7 @@ export default function BalanceTable() {
         doc.setDrawColor(210, 210, 210);
         doc.setLineWidth(0.5);
 
-        for (const colIdx of thickAfterCol) {
+        for (const colIdx of keepAfterCol) {
           const x = xAfter(colIdx);
           doc.line(x, y0, x, y1);
         }
