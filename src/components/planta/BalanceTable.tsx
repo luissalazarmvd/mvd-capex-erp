@@ -608,6 +608,9 @@ export default function BalanceTable() {
     const headers = ["Fecha", ...cols.map((c) => c.label)];
     const body: any[][] = [];
 
+    const baseWidths = [120, ...cols.map((c) => c.w ?? 90)];
+    const totalW = baseWidths.reduce((a, b) => a + b, 0);
+
     const commentKey = String(cols.find((c) => c.key === "shift_comment")?.key ?? "shift_comment");
 
     for (const g of groups) {
@@ -634,45 +637,80 @@ export default function BalanceTable() {
 
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
 
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    const margin = 24;
+    const usableW = pageW - margin * 2;
+
+    const scaleW = usableW / totalW;
+    const widths = baseWidths.map((w) => Math.max(40, Math.round(w * scaleW)));
+
+    const fontBody = Math.max(6, Math.round(9 * scaleW));
+    const fontHead = Math.max(6, Math.round(9 * scaleW));
+    const pad = Math.max(2, Math.round(4 * scaleW));
+    const lineH = Math.max(8, Math.round(fontBody * 1.25));
+
     doc.setFontSize(12);
-    doc.text(title.replaceAll("_", " "), 24, 22);
+    doc.text(title.replaceAll("_", " "), margin, 18);
 
     const colStyles: Record<number, any> = {};
-    const baseWidths = [120, ...cols.map((c) => c.w ?? 90)];
-    for (let i = 0; i < baseWidths.length; i++) colStyles[i] = { cellWidth: baseWidths[i] };
+    for (let i = 0; i < widths.length; i++) colStyles[i] = { cellWidth: widths[i] };
+
+    const commentColIdx = widths.length - 1;
+    const commentCellW = Math.max(40, widths[commentColIdx] - pad * 2);
 
     autoTable(doc, {
       head: [headers],
       body,
-      startY: 34,
-      theme: "grid",
+      startY: 28,
+      theme: "plain",
+      tableWidth: usableW,
+      margin: { left: margin, right: margin, top: margin, bottom: margin },
       styles: {
-        fontSize: 9,
-        cellPadding: 4,
+        fontSize: fontBody,
+        cellPadding: pad,
         overflow: "linebreak",
-        valign: "top",
         textColor: [0, 0, 0],
+        fillColor: [255, 255, 255],
+        lineWidth: 0.25,
         lineColor: [210, 210, 210],
-        lineWidth: 0.3,
+        valign: "top",
+        minCellHeight: pad * 2 + lineH,
       },
       headStyles: {
         fillColor: [0, 103, 172],
         textColor: [255, 255, 255],
         fontStyle: "bold",
+        fontSize: fontHead,
         halign: "center",
+        lineWidth: 0.25,
+        lineColor: [0, 103, 172],
       },
       columnStyles: colStyles,
-      margin: { left: 24, right: 24 },
       didParseCell: (data) => {
+        if (data.section === "head") {
+          data.cell.styles.fillColor = [0, 103, 172];
+          data.cell.styles.textColor = [255, 255, 255];
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.halign = data.column.index === 0 ? "left" : "center";
+          return;
+        }
+
         if (data.section === "body") {
           if (data.column.index === 0) data.cell.styles.halign = "left";
-          else if (data.column.index === headers.length - 1) data.cell.styles.halign = "left";
+          else if (data.column.index === commentColIdx) data.cell.styles.halign = "left";
           else data.cell.styles.halign = "right";
-        }
-        if (data.section === "head") {
-          if (data.column.index === 0) data.cell.styles.halign = "left";
-          else if (data.column.index === headers.length - 1) data.cell.styles.halign = "left";
-          else data.cell.styles.halign = "center";
+
+          if (data.column.index === commentColIdx) {
+            const raw = String((data.cell.raw ?? "") as any).replace(/\s+\n/g, "\n").trim();
+            if (!raw) {
+              data.cell.text = [""];
+              return;
+            }
+            const lines = doc.splitTextToSize(raw, commentCellW);
+            data.cell.text = (Array.isArray(lines) ? lines : [String(lines)]).slice(0, 4);
+          }
         }
       },
     });
