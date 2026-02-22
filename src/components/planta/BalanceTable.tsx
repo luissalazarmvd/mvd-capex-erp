@@ -714,58 +714,46 @@ export default function BalanceTable() {
 
     const commentCellW = Math.max(40, colWidths[commentColIdx] - pad * 2);
 
-    const tmsI = idxOf("TMS");
     const agFeedGI = idxOf("Ag (g) Feed");
-
-    const opI = idxOf("Operación (h)");
     const rtI = idxOf("Ratio (t/h)");
-
     const denI = idxOf("Den (g/l)");
     const pct200I = idxOf("%m-200");
-    const volI = idxOf("Vol (m³)");
+
     const ofTotGI = idxOf(`${metal} (g) OF Tot`);
-
-    const ofSolGTI = idxOf(`${metal} (g/t) OF Sol`);
-    const ofSolGI = idxOf(`${metal} (g) OF Sol`);
-    const ofLiqGTI = idxOf(`${metal} (g/m³) OF Liq`);
-    const ofLiqGI = idxOf(`${metal} (g) OF Liq`);
-
     const relSolGTI = idxOf(`${metal} (g/t) Rel Sol`);
-    const relSolGI = idxOf(`${metal} (g) Rel Sol`);
-    const relLiqGTI = idxOf(`${metal} (g/m³) Rel Liq`);
-    const relLiqGI = idxOf(`${metal} (g) Rel Liq`);
-    const relTotGTI = idxOf(`${metal} (g/t) Rel Tot`);
     const relTotGI = idxOf(`${metal} (g) Rel Tot`);
-
-    const nacnI = idxOf("NaCN (kg/t)");
-    const naohI = idxOf("NaOH (kg/t)");
-    const bolasI = idxOf("Bolas (kg/t)");
 
     const auProdI = idxOf("Au Prod (g)");
     const auRecI = idxOf("Au Rec (%)");
     const agProdI = idxOf("Ag Prod (g)");
     const agRecI = idxOf("Ag Rec (%)");
 
+    const nacnI = idxOf("NaCN (kg/t)");
+    const bolasI = idxOf("Bolas (kg/t)");
+
+    const ofSolGTI = idxOf(`${metal} (g/t) OF Sol`);
+    const ofLiqGTI = idxOf(`${metal} (g/m³) OF Liq`);
+    const relLiqGTI = idxOf(`${metal} (g/m³) Rel Liq`);
+
     const inRange = (x: number, a: number, b: number) => a !== -1 && b !== -1 && x >= a && x <= b;
 
     const topRanges: Array<{ label: string; from: number; to: number }> = [];
-
+    const tmsI = idxOf("TMS");
     if (tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
       topRanges.push({ label: "Ley de Cabeza", from: tmsI, to: agFeedGI });
     }
-
-    if (denI !== -1 && ofTotGI !== -1 && ofTotGI >= denI) {
+    const ofDataFrom = denI;
+    const ofDataTo = ofTotGI;
+    if (ofDataFrom !== -1 && ofDataTo !== -1 && ofDataTo >= ofDataFrom) {
       topRanges.push({
         label: "Overflow O/F (ingreso a TQs de lixiviación-adsorción)",
-        from: denI,
-        to: ofTotGI,
+        from: ofDataFrom,
+        to: ofDataTo,
       });
     }
-
     if (relSolGTI !== -1 && relTotGI !== -1 && relTotGI >= relSolGTI) {
       topRanges.push({ label: "Relave", from: relSolGTI, to: relTotGI });
     }
-
     if (nacnI !== -1 && bolasI !== -1 && bolasI >= nacnI) {
       topRanges.push({ label: "Consumo reactivos/insumos", from: nacnI, to: bolasI });
     }
@@ -775,6 +763,15 @@ export default function BalanceTable() {
       return null;
     };
 
+    const opI = idxOf("Operación (h)");
+
+    const ofSolGI = idxOf(`${metal} (g) OF Sol`);
+    const ofLiqGI = idxOf(`${metal} (g) OF Liq`);
+    const volI = idxOf("Vol (m³)");
+
+    const relSolGI = idxOf(`${metal} (g) Rel Sol`);
+    const relLiqGI = idxOf(`${metal} (g) Rel Liq`);
+
     const midLabelAt = (col: number) => {
       if (col === opI) return "Operación";
       if (col === rtI) return "Ratio de\nTratamiento";
@@ -783,7 +780,7 @@ export default function BalanceTable() {
       if (col === auRecI || col === agRecI) return "Recup.";
 
       if (col === nacnI) return "Cianuro de Sodio";
-      if (col === naohI) return "Soda Caústica";
+      if (col === idxOf("NaOH (kg/t)")) return "Soda Caústica";
       if (col === bolasI) return "Bolas de Acero";
 
       if (denI !== -1 && volI !== -1 && inRange(col, denI, volI)) return "Datos de Operación";
@@ -793,7 +790,7 @@ export default function BalanceTable() {
 
       if (relSolGTI !== -1 && relSolGI !== -1 && inRange(col, relSolGTI, relSolGI)) return "Sólido";
       if (relLiqGTI !== -1 && relLiqGI !== -1 && inRange(col, relLiqGTI, relLiqGI)) return "Solución";
-      if (relTotGTI !== -1 && relTotGI !== -1 && inRange(col, relTotGTI, relTotGI)) return "Solid. + Soluc.";
+      if (col === relTotGI) return "Solid. + Soluc.";
 
       return null;
     };
@@ -808,7 +805,6 @@ export default function BalanceTable() {
     ];
 
     const topRow: any[] = [{ content: "Fecha", rowSpan: 3, styles: { halign: "center", valign: "middle" } }];
-
     const bottomRow: any[] = headers.slice(1);
 
     const pushTop = (content: string, colSpan: number) =>
@@ -913,16 +909,11 @@ export default function BalanceTable() {
     addAfter(agRecI);
     addAfter(bolasI);
 
-    const thickX = new Set<number>();
-    const buildThickX = () => {
-      thickX.clear();
+    const xAfter = (colIdx: number) => {
       let x = margin;
-      for (let c = 0; c < colWidths.length; c++) {
-        x += colWidths[c];
-        if (thickAfterCol.has(c)) thickX.add(Math.round(x * 1000) / 1000);
-      }
+      for (let c = 0; c <= colIdx; c++) x += colWidths[c];
+      return x;
     };
-    buildThickX();
 
     autoTable(doc, {
       head: [bannerRow, topRow, midRow, bottomRow],
@@ -1018,20 +1009,19 @@ export default function BalanceTable() {
             doc.addImage(logoDataUrl, logoFmt, x, y, w, h);
           } catch {}
         }
-
-        if (!thickX.size) return;
-
-        const left = Math.round(data.cell.x * 1000) / 1000;
-        const right = Math.round((data.cell.x + data.cell.width) * 1000) / 1000;
-        const x = thickX.has(left) ? data.cell.x : thickX.has(right) ? data.cell.x + data.cell.width : null;
-        if (x === null) return;
-
-        const y0 = data.cell.y;
-        const y1 = data.cell.y + data.cell.height;
+      },
+      didDrawPage: (data) => {
+        const tableAny: any = data.table as any;
+        const y0 = tableAny?.startY ?? 0;
+        const y1 = tableAny?.finalY ?? tableAny?.cursor?.y ?? y0;
 
         doc.setDrawColor(210, 210, 210);
         doc.setLineWidth(0.5);
-        doc.line(x, y0, x, y1);
+
+        for (const colIdx of thickAfterCol) {
+          const x = xAfter(colIdx);
+          doc.line(x, y0, x, y1);
+        }
       },
     });
 
