@@ -660,15 +660,22 @@ export default function BalanceTable() {
 
     const dateTextW = meas.getTextWidth("15/02/2026");
 
+    const textW = (s: any) => {
+      const parts = String(s ?? "").split("\n");
+      let mx = 0;
+      for (const p of parts) mx = Math.max(mx, meas.getTextWidth(p));
+      return mx;
+    };
+
     const colWidths: number[] = headers.map((h, idx) => {
-      const wText = meas.getTextWidth(String(h ?? ""));
+      const wText = textW(h);
       if (idx === 0) return Math.max(wText, dateTextW) + extraPxPerSide * 2;
       return Math.ceil(wText + extraPxPerSide * 2);
     });
 
     const ratioIdx = idxOf("Ratio (t/h)");
     if (ratioIdx !== -1) {
-      const need = meas.getTextWidth("Ratio de Tratamiento") + extraPxPerSide * 2;
+      const need = textW("Ratio de\nTratamiento") + extraPxPerSide * 2;
       colWidths[ratioIdx] = Math.max(colWidths[ratioIdx], Math.ceil(need));
     }
 
@@ -770,7 +777,7 @@ export default function BalanceTable() {
 
     const midLabelAt = (col: number) => {
       if (col === opI) return "Operación";
-      if (col === rtI) return "Ratio de Tratamiento";
+      if (col === rtI) return "Ratio de\nTratamiento";
 
       if (col === auProdI || col === agProdI) return "Producción";
       if (col === auRecI || col === agRecI) return "Recup.";
