@@ -677,20 +677,21 @@ export default function BalanceTable() {
 
     const metal = balMode === "AU" ? "Au" : "Ag";
 
-    const groupRow: any[] = [];
+    const groupRow: any[] = [
+      {
+        content: "Fecha",
+        rowSpan: 2,
+        styles: { halign: "left", valign: "middle" },
+      },
+    ];
+
     const pushBlank = () => groupRow.push({ content: "", styles: { halign: "center" } });
     const pushOne = (label: string) => groupRow.push({ content: label, colSpan: 1, styles: { halign: "center" } });
     const pushSpan = (label: string, from: number, to: number) =>
       groupRow.push({ content: label, colSpan: Math.max(1, to - from + 1), styles: { halign: "center" } });
 
-    let i = 0;
+    let i = 1; // arrancamos en TMS (porque Fecha ya está como rowSpan=2)
     while (i < headers.length) {
-      if (i === 0) {
-        pushBlank();
-        i += 1;
-        continue;
-      }
-
       const tmsI = idxOf("TMS");
       const agFeedGI = idxOf("Ag (g) Feed");
       if (i === tmsI && tmsI !== -1 && agFeedGI !== -1 && agFeedGI >= tmsI) {
@@ -817,8 +818,10 @@ export default function BalanceTable() {
       i += 1;
     }
 
+    const headerRow = headers.slice(1); // sin "Fecha" (porque arriba está rowSpan=2)
+
     autoTable(doc, {
-      head: [groupRow, headers],
+      head: [groupRow, headerRow],
       body,
       startY: 28,
       theme: "plain",
@@ -842,20 +845,21 @@ export default function BalanceTable() {
         halign: "center",
         lineWidth: 0.25,
         lineColor: [210, 210, 210],
-        minCellHeight: pad * 2 + Math.round(headFont * 1.25), // base
       },
       columnStyles: colStyles,
       didParseCell: (data) => {
         if (data.section === "head") {
           const isTopGroupRow = data.row.index === 0;
           if (isTopGroupRow) {
-            data.cell.styles.halign = "center";
-          } else {
-            data.cell.styles.halign = data.column.index === 0 ? "left" : "center";
-            // DOBLE ALTO SOLO PARA "Fecha" EN FILA DE ENCABEZADOS (NO groupRow)
             if (data.column.index === 0) {
-              data.cell.styles.minCellHeight = (data.cell.styles.minCellHeight ?? 0) * 2;
+              data.cell.styles.halign = "left";
+              data.cell.styles.valign = "middle";
+            } else {
+              data.cell.styles.halign = "center";
             }
+          } else {
+            // en esta fila ya no existe la columna 0 (Fecha), así que index 0 aquí es "TMS"
+            data.cell.styles.halign = "center";
           }
           return;
         }
