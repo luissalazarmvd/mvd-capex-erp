@@ -90,11 +90,9 @@ function uniqSorted(a: string[]) {
 }
 
 function colWidth(key: string) {
-  if (key === "campaign_id") return 120;
   if (key === "reagent_name") return 220;
   if (key === "stock") return 110;
   if (key === "__total__") return 140;
-
   const s = String(key || "");
   return Math.max(150, Math.min(220, 90 + s.length * 4));
 }
@@ -405,42 +403,6 @@ function SearchableDropdown({
   );
 }
 
-function DatePicker({
-  valueIso,
-  onChangeIso,
-  disabled,
-}: {
-  valueIso: string;
-  onChangeIso: (iso: string) => void;
-  disabled?: boolean;
-}) {
-  const max = useMemo(() => isoTodayPe(), []);
-  return (
-    <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>Fecha de Consumo</div>
-      <input
-        type="date"
-        value={valueIso}
-        max={max}
-        disabled={disabled}
-        onChange={(e) => onChangeIso(e.target.value)}
-        style={{
-          width: "100%",
-          background: "rgba(0,0,0,.10)",
-          border: "1px solid var(--border)",
-          color: "var(--text)",
-          borderRadius: 10,
-          padding: "10px 12px",
-          outline: "none",
-          fontWeight: 900,
-          cursor: disabled ? "not-allowed" : "pointer",
-          opacity: disabled ? 0.7 : 1,
-        }}
-      />
-    </div>
-  );
-}
-
 export default function RefineryConsumptionPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -454,10 +416,10 @@ export default function RefineryConsumptionPage() {
   const [rows, setRows] = useState<ViewRow[]>([]);
 
   const [campaignId, setCampaignId] = useState<string>("");
-  const [reagent, setReagent] = useState<string>(""); // "" = todos
-  const [consDate, setConsDate] = useState<string>(isoTodayPe());
+  const [reagent, setReagent] = useState<string>("");
 
-  // edit state por celda (reagent||subpro)
+  const consDate = useMemo(() => isoTodayPe(), []);
+
   const [orig, setOrig] = useState<Record<string, number | null>>({});
   const [edit, setEdit] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
@@ -550,10 +512,8 @@ export default function RefineryConsumptionPage() {
     loadMeta();
   }, []);
 
-  // recarga tabla cuando cambia campaña o insumo
   useEffect(() => {
     loadRows(campaignId, reagent);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, reagent]);
 
   const reagentOptions = useMemo(() => {
@@ -621,7 +581,6 @@ export default function RefineryConsumptionPage() {
     };
   }, [visibleSubpros]);
 
-  // init edit maps cuando cambia rows/visibleSubpros
   useEffect(() => {
     const o: Record<string, number | null> = {};
     const e: Record<string, string> = {};
@@ -654,10 +613,12 @@ export default function RefineryConsumptionPage() {
       const trimmed = raw.trim();
       const parseable = trimmed === "" ? true : toDecimalStrOrNullFront(trimmed, 9) !== null;
 
-      const newNum = toNum(raw); // "" => null
+      const newNum = toNum(raw);
       const oldNum = orig[k] ?? null;
 
-      const isDirty = !parseable ? true : (newNum ?? null) !== (oldNum ?? null) || (trimmed === "" && (oldNum ?? null) !== null);
+      const isDirty =
+        !parseable ? true : (newNum ?? null) !== (oldNum ?? null) || (trimmed === "" && (oldNum ?? null) !== null);
+
       return { ...m, [k]: isDirty };
     });
   }
@@ -694,7 +655,7 @@ export default function RefineryConsumptionPage() {
           if (!dirty[k]) continue;
 
           const raw = String(edit[k] ?? "").trim();
-          if (!raw) continue; // no borrado
+          if (!raw) continue;
 
           const q = toDecimalStrOrNullFront(raw, 9);
           if (q === null) {
@@ -732,7 +693,6 @@ export default function RefineryConsumptionPage() {
 
   const cols = useMemo(() => {
     const base = [
-      { key: "campaign_id", label: "Campaña", w: colWidth("campaign_id") },
       { key: "reagent_name", label: "Insumo", w: colWidth("reagent_name") },
       { key: "stock", label: "Stock", w: colWidth("stock") },
     ];
@@ -766,7 +726,17 @@ export default function RefineryConsumptionPage() {
     boxShadow: headerShadow,
   };
 
-  const stickyRightHead: React.CSSProperties = { ...stickyHead, right: 0, zIndex: 12 };
+  const stickyLeftHead: React.CSSProperties = {
+    ...stickyHead,
+    left: 0,
+    zIndex: 13,
+  };
+
+  const stickyRightHead: React.CSSProperties = {
+    ...stickyHead,
+    right: 0,
+    zIndex: 12,
+  };
 
   const stickyRightCell: React.CSSProperties = {
     position: "sticky",
@@ -774,6 +744,14 @@ export default function RefineryConsumptionPage() {
     zIndex: 6,
     background: "rgb(5, 40, 63)",
     boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
+  };
+
+  const stickyLeftCell: React.CSSProperties = {
+    position: "sticky",
+    left: 0,
+    zIndex: 7,
+    background: "rgb(5, 40, 63)",
+    boxShadow: " 10px 0 18px rgba(0,0,0,.22)",
   };
 
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right", whiteSpace: "nowrap" };
@@ -822,7 +800,13 @@ export default function RefineryConsumptionPage() {
               {loadingMeta || loadingTable ? "Cargando..." : "Refrescar"}
             </Button>
 
-            <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={!dirtyCount || saving || !canQuery}>
+            <Button
+              type="button"
+              size="sm"
+              variant="primary"
+              onClick={onSaveAll}
+              disabled={!dirtyCount || saving || !canQuery}
+            >
               {saving ? "Guardando…" : `Guardar${dirtyCount ? ` (${dirtyCount})` : ""}`}
             </Button>
           </div>
@@ -862,8 +846,6 @@ export default function RefineryConsumptionPage() {
               disabled={loadingMeta || saving || !reagentOptions.length}
               options={[{ value: "", label: "— Todos —" }, ...reagentOptions]}
             />
-
-            <DatePicker valueIso={consDate} onChangeIso={setConsDate} disabled={saving} />
           </div>
         </div>
       </div>
@@ -884,13 +866,15 @@ export default function RefineryConsumptionPage() {
               <thead>
                 <tr>
                   {cols.map((c) => {
-                    const isTotal = String(c.key) === "__total__";
+                    const k = String(c.key);
+                    const isTotal = k === "__total__";
+                    const isReagent = k === "reagent_name";
                     return (
                       <th
-                        key={String(c.key)}
+                        key={k}
                         className="capex-th"
                         style={{
-                          ...(isTotal ? stickyRightHead : stickyHead),
+                          ...(isTotal ? stickyRightHead : isReagent ? stickyLeftHead : stickyHead),
                           width: c.w ?? 160,
                           minWidth: c.w ?? 160,
                           border: headerBorder,
@@ -931,7 +915,7 @@ export default function RefineryConsumptionPage() {
                   <tr key={`${String(row.reagent_name || ridx)}-${ridx}`} className="capex-tr">
                     {cols.map((c) => {
                       const key = String(c.key);
-                      const isText = key === "campaign_id" || key === "reagent_name";
+                      const isReagent = key === "reagent_name";
                       const isTotal = key === "__total__";
 
                       if (isTotal) {
@@ -960,7 +944,7 @@ export default function RefineryConsumptionPage() {
                         );
                       }
 
-                      if (isText) {
+                      if (isReagent) {
                         const txt = String((row as any)[key] ?? "");
                         return (
                           <td
@@ -968,10 +952,11 @@ export default function RefineryConsumptionPage() {
                             className="capex-td"
                             style={{
                               ...textCell,
+                              ...stickyLeftCell,
                               width: c.w ?? 160,
                               minWidth: c.w ?? 160,
                               padding: "6px 6px",
-                              background: "rgba(0,0,0,.10)",
+                              background: stickyLeftCell.background as any,
                               borderBottom: "1px solid rgba(255,255,255,.06)",
                               fontWeight: 900,
                             }}
@@ -1004,7 +989,6 @@ export default function RefineryConsumptionPage() {
                         );
                       }
 
-                      // editable subpro
                       const rn = String(row.reagent_name || "").trim();
                       const sp = key;
                       const k = cellKey(rn, sp);
