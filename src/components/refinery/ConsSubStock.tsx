@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPost } from "../../lib/apiClient";
+import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 
@@ -24,8 +24,9 @@ type ViewRow = {
   campaign_id: string;
   reagent_name: string;
   stock: any;
-  [k: string]: any; // subpro cols
+  [k: string]: any;
 };
+
 type ViewResp = { ok: boolean; rows: ViewRow[] };
 
 const SUBPRO_COLS = [
@@ -82,86 +83,23 @@ function colWidth(key: string) {
   return Math.max(150, Math.min(220, 90 + s.length * 4));
 }
 
-function isIsoDate(s: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim());
-}
-
-/**
- * Igual que tu page: parsea "1,234.56" / "1.234,56" / etc.
- * Retorna string decimal con scale fijo, o null si inválido.
- *
- * NOTA: acá permitimos > 0 (mismo criterio que tu page actual).
- */
-function toDecimalStrOrNullFront(v: string, scale = 9) {
-  const s0 = String(v ?? "").trim();
-  if (!s0) return null;
-
-  let s = s0.replace(/\s+/g, "");
-
-  const hasComma = s.includes(",");
-  const hasDot = s.includes(".");
-
-  if (hasComma && hasDot) {
-    const lastComma = s.lastIndexOf(",");
-    const lastDot = s.lastIndexOf(".");
-    const decSep = lastComma > lastDot ? "," : ".";
-    const thouSep = decSep === "," ? "." : ",";
-    s = s.split(thouSep).join("");
-    if (decSep === ",") s = s.replace(",", ".");
-  } else if (hasComma && !hasDot) {
-    const parts = s.split(",");
-    if (parts.length === 2 && parts[1].length === 3) s = parts.join("");
-    else s = s.replace(",", ".");
-  } else {
-    const parts = s.split(".");
-    if (parts.length > 2) s = parts.join("");
-  }
-
-  const n = Number(s);
-  if (!Number.isFinite(n)) return null;
-  if (n <= 0) return null;
-  if (Math.abs(n) > 9e15) return null;
-
-  const f = Math.pow(10, scale);
-  const rounded = Math.round(n * f) / f;
-  return rounded.toFixed(scale);
-}
-
-function cellKey(reagent_name: string, subprocess_name: string) {
-  return `${reagent_name}||${subprocess_name}`;
-}
-
 export default function ConsSubStock({
   campaignId,
   reagentName = "",
-  consumptionDateIso,
   autoLoad = true,
   refreshKey = 0,
-  onSaved,
 }: {
   campaignId: string;
   reagentName?: string;
-  consumptionDateIso: string; // <- viene del page
   autoLoad?: boolean;
   refreshKey?: number;
-  onSaved?: () => void; // opcional: para que el page refresque otras cosas
 }) {
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const [mapping, setMapping] = useState<MapRow[]>([]);
   const [reagents, setReagents] = useState<ReagentRow[]>([]);
   const [rows, setRows] = useState<ViewRow[]>([]);
-
-  // valores originales (número) por celda para detectar "dirty"
-  const [orig, setOrig] = useState<Record<string, number | null>>({});
-  // valores editables (string) por celda
-  const [edit, setEdit] = useState<Record<string, string>>({});
-  // dirty flag
-  const [dirty, setDirty] = useState<Record<string, boolean>>({});
-
-  const modeAllReagents = !String(reagentName || "").trim();
 
   async function loadMapping() {
     const r = (await apiGet("/api/refineria/mapping")) as MappingResp;
@@ -218,6 +156,8 @@ export default function ConsSubStock({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, reagentName, autoLoad, refreshKey]);
 
+  const modeAllReagents = !String(reagentName || "").trim();
+
   const unitByReagent = useMemo(() => {
     const m = new Map<string, string>();
     for (const r of reagents || []) {
@@ -241,13 +181,19 @@ export default function ConsSubStock({
     return u ? `${s} ${u}` : s;
   }
 
-  // subprocesos visibles:
-  // - sin insumo seleccionado: mostrar TODOS los subprocesos (requisito)
-  // - con insumo seleccionado: igual que ahora (mapping -> fallback noZero)
   const mappedSubpros = useMemo(() => {
     const colsInView = new Set<string>(SUBPRO_COLS as any);
 
-    if (modeAllReagents) return []; // no se usa en ese modo
+    if (modeAllReagents) {
+      const reagentsInRows = new Set((rows || []).map((x) => String(x.reagent_name || "").trim()).filter((x) => !!x));
+
+      const fromMap = mapping
+        .filter((m) => reagentsInRows.has(String(m.reagent_name || "").trim()))
+        .map((m) => String(m.subprocess_name || "").trim())
+        .filter((s) => !!s);
+
+      return uniqSorted(fromMap).filter((s) => colsInView.has(s));
+    }
 
     const r = String(reagentName || "").trim();
     const fromMap = mapping
@@ -256,7 +202,7 @@ export default function ConsSubStock({
       .filter((s) => !!s);
 
     return uniqSorted(fromMap).filter((s) => colsInView.has(s));
-  }, [mapping, reagentName, modeAllReagents]);
+  }, [mapping, reagentName, rows, modeAllReagents]);
 
   const nonZeroSubpros = useMemo(() => {
     if (!rows.length) return [];
@@ -268,10 +214,10 @@ export default function ConsSubStock({
     );
   }, [rows]);
 
-  const visibleSubpros = useMemo(() => {
-    if (modeAllReagents) return SUBPRO_COLS as any as string[];
-    return mappedSubpros.length ? mappedSubpros : nonZeroSubpros;
-  }, [modeAllReagents, mappedSubpros, nonZeroSubpros]);
+  const visibleSubpros = useMemo(
+    () => (mappedSubpros.length ? mappedSubpros : nonZeroSubpros),
+    [mappedSubpros, nonZeroSubpros]
+  );
 
   const rowTotal = useMemo(() => {
     const keys = visibleSubpros || [];
@@ -291,140 +237,32 @@ export default function ConsSubStock({
 
   const cols = useMemo(() => {
     const base = [
-      { key: "campaign_id", label: "Campaña", w: colWidth("campaign_id"), kind: "text" as const },
-      { key: "reagent_name", label: "Insumo", w: colWidth("reagent_name"), kind: "text" as const },
-      { key: "stock", label: "Stock", w: colWidth("stock"), kind: "ro-num" as const },
+      { key: "campaign_id", label: "Campaña", w: colWidth("campaign_id"), fmt: (v: any) => String(v ?? "") },
+      { key: "reagent_name", label: "Insumo", w: colWidth("reagent_name"), fmt: (v: any) => String(v ?? "") },
+      { key: "stock", label: "Stock", w: colWidth("stock"), fmt: (v: any) => fmtFixed(v, 2) },
     ];
 
     const subs = visibleSubpros.map((name) => ({
       key: name,
       label: name,
       w: colWidth(name),
-      kind: "edit-num" as const,
+      fmt: (v: any) => fmtFixed(v, 2),
     }));
 
+    // CAMBIO: total sticky con unidad por insumo
     const totalCol = {
       key: "__total__",
       label: "Total",
       w: colWidth("__total__"),
-      kind: "ro-total" as const,
+      fmt: (_: any, r?: ViewRow) => {
+        const total = r ? rowTotal(r) : null;
+        const unit = r ? unitForReagentName(r.reagent_name) : "";
+        return fmtWithUnit(total, 2, unit);
+      },
     };
 
     return [...base, ...subs, totalCol];
-  }, [visibleSubpros]);
-
-  // Inicializa maps (orig/edit) cuando cambian rows o columnas visibles
-  useEffect(() => {
-    const o: Record<string, number | null> = {};
-    const e: Record<string, string> = {};
-    const d: Record<string, boolean> = {};
-
-    for (const r of rows || []) {
-      const rn = String(r.reagent_name || "").trim();
-      if (!rn) continue;
-      for (const sp of visibleSubpros || []) {
-        const key = cellKey(rn, sp);
-        const n = toNum((r as any)[sp]);
-        o[key] = n;
-        e[key] = n === null ? "" : String(n);
-        d[key] = false;
-      }
-    }
-
-    setOrig(o);
-    setEdit(e);
-    setDirty(d);
-  }, [rows, visibleSubpros]);
-
-  const dirtyCount = useMemo(() => Object.values(dirty || {}).filter(Boolean).length, [dirty]);
-
-  const canQuery = !!String(campaignId || "").trim();
-  const dateOk = useMemo(() => !!consumptionDateIso && isIsoDate(consumptionDateIso), [consumptionDateIso]);
-  const canSave = canQuery && dateOk && dirtyCount > 0 && !saving;
-
-  function onChangeCell(reagent: string, sp: string, v: string) {
-    const k = cellKey(reagent, sp);
-    setEdit((m) => ({ ...m, [k]: v }));
-    setDirty((m) => {
-      // dirty = (parsed new) != (orig) OR raw empty vs orig null, etc.
-      const newRaw = String(v ?? "");
-      const newNum = toNum(newRaw); // ojo: esto interpreta "" => null
-      const o = orig[k] ?? null;
-
-      // si el usuario escribió algo no parseable, lo marcamos dirty igual (para no perder)
-      const trimmed = newRaw.trim();
-      const parseable = trimmed === "" ? true : toDecimalStrOrNullFront(trimmed, 9) !== null;
-
-      const isDirty = !parseable ? true : (newNum ?? null) !== (o ?? null) || (trimmed === "" && (o ?? null) !== null);
-
-      return { ...m, [k]: isDirty };
-    });
-  }
-
-  async function onSaveAll() {
-    if (!canSave) return;
-
-    setSaving(true);
-    setMsg(null);
-
-    try {
-      // Validación rápida de fecha
-      const iso = String(consumptionDateIso || "").trim();
-      if (!isIsoDate(iso)) {
-        setMsg("ERROR: fecha de consumo inválida");
-        return;
-      }
-
-      // arma payloads por celda dirty
-      const payloads: any[] = [];
-      for (const r of rows || []) {
-        const rn = String(r.reagent_name || "").trim();
-        if (!rn) continue;
-        for (const sp of visibleSubpros || []) {
-          const k = cellKey(rn, sp);
-          if (!dirty[k]) continue;
-
-          const raw = String(edit[k] ?? "").trim();
-          // si está vacío: no guardamos (no se solicitó borrar)
-          if (!raw) continue;
-
-          const q = toDecimalStrOrNullFront(raw, 9);
-          if (q === null) {
-            setMsg(`ERROR: valor inválido en "${rn}" · "${sp}" (debe ser > 0)`);
-            return;
-          }
-
-          payloads.push({
-            campaign_id: String(campaignId || "").trim().toUpperCase(),
-            reagent_name: rn,
-            subprocess_name: sp,
-            consumption_date: iso,
-            consumption_qty: q,
-          });
-        }
-      }
-
-      if (!payloads.length) {
-        setMsg("Nada que guardar (no se guardan celdas vacías).");
-        return;
-      }
-
-      // inserta / upsert por celda (igual que tu page actual)
-      // si luego quieres batch en backend, se cambia acá a un solo POST
-      for (const p of payloads) {
-        await apiPost("/api/refineria/consumption/insert", p);
-      }
-
-      setMsg(`OK: guardado (${payloads.length} celdas) · Fecha ${consumptionDateIso}`);
-      await loadRows(campaignId, reagentName);
-
-      if (onSaved) onSaved();
-    } catch (e: any) {
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando");
-    } finally {
-      setSaving(false);
-    }
-  }
+  }, [visibleSubpros, rowTotal, unitByReagent]);
 
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
@@ -468,158 +306,22 @@ export default function ConsSubStock({
     textOverflow: "ellipsis",
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    textAlign: "right",
-    background: "rgba(0,0,0,.10)",
-    border: "1px solid rgba(255,255,255,.10)",
-    color: "var(--text)",
-    borderRadius: 8,
-    padding: "6px 8px",
-    outline: "none",
-    fontWeight: 900,
-    fontSize: 12,
-  };
-
-  function renderCell(row: ViewRow, c: (typeof cols)[number], ridx: number) {
-    const key = String(c.key);
-    const isTotal = key === "__total__";
-    const isText = key === "campaign_id" || key === "reagent_name";
-
-    if (isTotal) {
-      const total = rowTotal(row);
-      const unit = unitForReagentName(row.reagent_name);
-      const txt = fmtWithUnit(total, 2, unit);
-      return (
-        <td
-          key={`${ridx}-${key}`}
-          className="capex-td"
-          style={{
-            ...numCell,
-            ...stickyRightCell,
-            width: (c as any).w ?? 160,
-            minWidth: (c as any).w ?? 160,
-            padding: "6px 6px",
-            background: stickyRightCell.background as any,
-            borderBottom: "1px solid rgba(255,255,255,.06)",
-            fontWeight: 900,
-          }}
-          title={String(txt)}
-        >
-          {txt}
-        </td>
-      );
-    }
-
-    if (isText) {
-      const txt = String((row as any)[key] ?? "");
-      return (
-        <td
-          key={`${ridx}-${key}`}
-          className="capex-td"
-          style={{
-            ...textCell,
-            width: (c as any).w ?? 160,
-            minWidth: (c as any).w ?? 160,
-            padding: "6px 6px",
-            background: "rgba(0,0,0,.10)",
-            borderBottom: "1px solid rgba(255,255,255,.06)",
-            fontWeight: 900,
-          }}
-          title={txt}
-        >
-          {txt}
-        </td>
-      );
-    }
-
-    if (key === "stock") {
-      const txt = fmtFixed((row as any)[key], 2);
-      return (
-        <td
-          key={`${ridx}-${key}`}
-          className="capex-td"
-          style={{
-            ...numCell,
-            width: (c as any).w ?? 160,
-            minWidth: (c as any).w ?? 160,
-            padding: "6px 6px",
-            background: "rgba(0,0,0,.10)",
-            borderBottom: "1px solid rgba(255,255,255,.06)",
-            fontWeight: 900,
-          }}
-          title={txt}
-        >
-          {txt}
-        </td>
-      );
-    }
-
-    // editable cell (subpro)
-    const rn = String(row.reagent_name || "").trim();
-    const sp = key;
-    const k = cellKey(rn, sp);
-    const v = String(edit[k] ?? "");
-    const isDirty = !!dirty[k];
-
-    return (
-      <td
-        key={`${ridx}-${key}`}
-        className="capex-td"
-        style={{
-          ...numCell,
-          width: (c as any).w ?? 160,
-          minWidth: (c as any).w ?? 160,
-          padding: "6px 6px",
-          background: isDirty ? "rgba(102,199,255,.08)" : "rgba(0,0,0,.10)",
-          borderBottom: "1px solid rgba(255,255,255,.06)",
-          fontWeight: 800,
-        }}
-        title={v}
-      >
-        <input
-          value={v}
-          disabled={saving}
-          placeholder=""
-          onChange={(e) => onChangeCell(rn, sp, e.target.value)}
-          style={{
-            ...inputStyle,
-            border: isDirty ? "1px solid rgba(102,199,255,.55)" : inputStyle.border,
-            opacity: saving ? 0.7 : 1,
-            cursor: saving ? "not-allowed" : "text",
-          }}
-        />
-      </td>
-    );
-  }
+  const canQuery = !!String(campaignId || "").trim();
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>
-          Consumo por Subproceso + Stock
-          {dateOk ? (
-            <span style={{ opacity: 0.85, fontWeight: 900 }}> · Fecha: {consumptionDateIso}</span>
-          ) : (
-            <span style={{ opacity: 0.75, fontWeight: 900 }}> · Fecha inválida</span>
-          )}
-        </div>
+        <div style={{ fontWeight: 900 }}>Consumo por Subproceso + Stock</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <div style={{ fontWeight: 900, opacity: 0.85 }}>{dirtyCount ? `${dirtyCount} cambios` : "Sin cambios"}</div>
-
           <Button
             type="button"
             size="sm"
             variant="ghost"
             onClick={() => loadRows(campaignId, reagentName)}
-            disabled={loading || saving || !canQuery}
+            disabled={loading || !canQuery}
           >
             {loading ? "Cargando..." : "Refrescar"}
-          </Button>
-
-          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={!canSave}>
-            {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
       </div>
@@ -629,8 +331,8 @@ export default function ConsSubStock({
           className="panel-inner"
           style={{
             padding: 10,
-            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            border: "1px solid rgba(255,80,80,.45)",
+            background: "rgba(255,80,80,.10)",
             fontWeight: 800,
           }}
         >
@@ -660,8 +362,8 @@ export default function ConsSubStock({
                         className="capex-th"
                         style={{
                           ...(isTotal ? stickyRightHead : stickyHead),
-                          width: (c as any).w ?? 160,
-                          minWidth: (c as any).w ?? 160,
+                          width: c.w ?? 160,
+                          minWidth: c.w ?? 160,
                           border: headerBorder,
                           borderBottom: headerBorder,
                           textAlign: "center",
@@ -698,7 +400,38 @@ export default function ConsSubStock({
               <tbody>
                 {rows.map((row, ridx) => (
                   <tr key={`${String(row.reagent_name || ridx)}-${ridx}`} className="capex-tr">
-                    {cols.map((c) => renderCell(row, c as any, ridx))}
+                    {cols.map((c) => {
+                      const isText = c.key === "campaign_id" || c.key === "reagent_name";
+                      const isTotal = String(c.key) === "__total__";
+
+                      let txt = "";
+                      if (isTotal) {
+                        txt = (c as any).fmt(null, row);
+                      } else {
+                        const v = (row as any)[c.key];
+                        txt = (c as any).fmt(v);
+                      }
+
+                      return (
+                        <td
+                          key={`${ridx}-${String(c.key)}`}
+                          className="capex-td"
+                          style={{
+                            ...(isText ? textCell : numCell),
+                            ...(isTotal ? stickyRightCell : null),
+                            width: c.w ?? 160,
+                            minWidth: c.w ?? 160,
+                            padding: "6px 6px",
+                            background: isTotal ? (stickyRightCell.background as any) : "rgba(0,0,0,.10)",
+                            borderBottom: "1px solid rgba(255,255,255,.06)",
+                            fontWeight: isTotal || c.key === "stock" ? 900 : 800,
+                          }}
+                          title={String(txt)}
+                        >
+                          {txt}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -713,7 +446,7 @@ export default function ConsSubStock({
 
       {rows.length && !visibleSubpros.length ? (
         <div className="panel-inner" style={{ padding: 12, fontWeight: 800, opacity: 0.9 }}>
-          No hay subprocesos visibles para esta campaña (según mapping/valores).
+          No hay subprocesos con consumo para esta campaña (según mapping/valores).
         </div>
       ) : null}
     </div>
