@@ -334,7 +334,7 @@ export default function RefineryConsumptionPage() {
   const [mapping, setMapping] = useState<MapRow[]>([]);
 
   const [campaignId, setCampaignId] = useState<string>("");
-  const [reagent, setReagent] = useState<string>(""); // opcional: vacío = todos
+  const [reagent, setReagent] = useState<string>(""); // vacío = todos
 
   const [consDate, setConsDate] = useState<string>(isoTodayPe());
   const [subStockRefreshKey, setSubStockRefreshKey] = useState<number>(0);
@@ -462,11 +462,7 @@ export default function RefineryConsumptionPage() {
           reagentName={reagent}
           consumptionDateIso={consDate}
           refreshKey={subStockRefreshKey}
-          onSaved={() => {
-            // si quieres, el componente puede pedir refrescar meta/campañas, etc.
-            // acá solo refrescamos la tabla:
-            setSubStockRefreshKey((k) => k + 1);
-          }}
+          onSaved={() => setSubStockRefreshKey((k) => k + 1)}
         />
       </div>
     </div>
