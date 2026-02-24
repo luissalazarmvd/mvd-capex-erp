@@ -3,9 +3,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
-import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
-import ConsSubStock from "../../../components/refinery/ConsSubStock";
+import { Table } from "../../../components/ui/Table";
 
 type CampaignRow = { campaign_id: string };
 type CampaignsResp = { ok: boolean; rows: CampaignRow[] };
@@ -25,14 +24,38 @@ type ReagentRow = {
 };
 type ReagentsResp = { ok: boolean; rows: ReagentRow[] };
 
-type ConsRow = {
+type ViewRow = {
   campaign_id: string;
   reagent_name: string;
-  consumption_date: string | null;
-  subprocess_name: string;
-  consumption_qty: any;
+  stock: any;
+  [k: string]: any;
 };
-type ConsumptionResp = { ok: boolean; rows: ConsRow[] };
+type ViewResp = { ok: boolean; rows: ViewRow[] };
+
+const SUBPRO_COLS = [
+  "Ablandador de Agua",
+  "Agua Regia - Disolución",
+  "Agua Regia - Neutralización",
+  "Agua Regia - Precipitación",
+  "Ataque de Lanillas",
+  "Ataque Químico",
+  "Desorción",
+  "Filtrado - Au",
+  "Filtrado - Ag",
+  "Fundición",
+  "Fundición - Au",
+  "Fundición - Ag",
+  "Guantes",
+  "Mandiles",
+  "Metalización - Ag",
+  "Neutralización - Gases",
+  "Neutralización de Pozas de Solución Barren - Solución",
+  "Neutralización - Solución",
+  "Otros",
+  "Reactivación Química",
+  "Regeneración Resinas Desionizador",
+  "Torres de Neutralización - Gases",
+] as const;
 
 function isoTodayPe(): string {
   const now = new Date();
@@ -45,6 +68,35 @@ function isoTodayPe(): string {
 
 function isIsoDate(s: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim());
+}
+
+function toNum(v: any) {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const n = Number(s.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+function fmtFixed(v: any, digits: number) {
+  const n = toNum(v);
+  if (n === null) return "";
+  return n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function uniqSorted(a: string[]) {
+  return Array.from(new Set(a.filter((x) => !!String(x || "").trim()))).sort((x, y) => x.localeCompare(y));
+}
+
+function colWidth(key: string) {
+  if (key === "campaign_id") return 120;
+  if (key === "reagent_name") return 220;
+  if (key === "stock") return 110;
+  if (key === "__total__") return 140;
+
+  const s = String(key || "");
+  return Math.max(150, Math.min(220, 90 + s.length * 4));
 }
 
 function toDecimalStrOrNullFront(v: string, scale = 9) {
@@ -82,8 +134,8 @@ function toDecimalStrOrNullFront(v: string, scale = 9) {
   return rounded.toFixed(scale);
 }
 
-function qtyOkGt0(v: string) {
-  return toDecimalStrOrNullFront(v, 9) !== null;
+function cellKey(reagent_name: string, subprocess_name: string) {
+  return `${reagent_name}||${subprocess_name}`;
 }
 
 function Select({
@@ -392,22 +444,117 @@ function DatePicker({
 export default function RefineryConsumptionPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loadingMeta, setLoadingMeta] = useState<boolean>(true);
+  const [loadingTable, setLoadingTable] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
-  const [loadingExisting, setLoadingExisting] = useState<boolean>(false);
 
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [mapping, setMapping] = useState<MapRow[]>([]);
-  const [consRows, setConsRows] = useState<ConsRow[]>([]);
-
   const [reagents, setReagents] = useState<ReagentRow[]>([]);
+  const [rows, setRows] = useState<ViewRow[]>([]);
 
   const [campaignId, setCampaignId] = useState<string>("");
-  const [reagent, setReagent] = useState<string>("");
-  const [subprocess, setSubprocess] = useState<string>("");
+  const [reagent, setReagent] = useState<string>(""); // "" = todos
   const [consDate, setConsDate] = useState<string>(isoTodayPe());
-  const [qty, setQty] = useState<string>("");
-  const [subStockRefreshKey, setSubStockRefreshKey] = useState<number>(0);
+
+  // edit state por celda (reagent||subpro)
+  const [orig, setOrig] = useState<Record<string, number | null>>({});
+  const [edit, setEdit] = useState<Record<string, string>>({});
+  const [dirty, setDirty] = useState<Record<string, boolean>>({});
+
+  const modeAllReagents = !String(reagent || "").trim();
+
+  const unitByReagent = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of reagents || []) {
+      const name = String(r.reagent_name || "").trim();
+      const unit = String(r.unit_name || "").trim();
+      if (name && unit) m.set(name, unit);
+    }
+    return m;
+  }, [reagents]);
+
+  function unitForReagentName(name: any) {
+    const key = String(name || "").trim();
+    if (!key) return "";
+    return unitByReagent.get(key) || unitByReagent.get(key.toLowerCase()) || "";
+  }
+
+  function fmtWithUnit(v: any, digits: number, unit?: string | null) {
+    const s = fmtFixed(v, digits);
+    const u = String(unit || "").trim();
+    if (!s) return "";
+    return u ? `${s} ${u}` : s;
+  }
+
+  async function loadLatestCampaignId() {
+    try {
+      const r = (await apiGet("/api/refineria/campaigns/latest")) as LatestResp;
+      const latest = String(r?.campaign_id || "").trim().toUpperCase();
+      if (latest) setCampaignId(latest);
+    } catch {}
+  }
+
+  async function loadMeta() {
+    setLoadingMeta(true);
+    setMsg(null);
+    try {
+      const [c, m, rr] = await Promise.all([
+        apiGet("/api/refineria/campaigns") as Promise<CampaignsResp>,
+        apiGet("/api/refineria/mapping") as Promise<MappingResp>,
+        apiGet("/api/refineria/reagents") as Promise<ReagentsResp>,
+      ]);
+
+      setCampaigns(Array.isArray(c.rows) ? c.rows : []);
+      setMapping(Array.isArray(m.rows) ? m.rows : []);
+      setReagents(Array.isArray((rr as any)?.rows) ? (rr as any).rows : []);
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando meta");
+    } finally {
+      setLoadingMeta(false);
+    }
+  }
+
+  async function loadRows(cId: string, rName?: string) {
+    const c = String(cId || "").trim().toUpperCase();
+    const rn = String(rName || "").trim();
+
+    if (!c) {
+      setRows([]);
+      setMsg(null);
+      return;
+    }
+
+    setLoadingTable(true);
+    setMsg(null);
+    try {
+      const q = rn
+        ? `?campaign_id=${encodeURIComponent(c)}&reagent_name=${encodeURIComponent(rn)}`
+        : `?campaign_id=${encodeURIComponent(c)}`;
+
+      const r = (await apiGet(`/api/refineria/cons-stock-subpro${q}`)) as ViewResp;
+      const rr = Array.isArray(r?.rows) ? r.rows : [];
+      setRows(rr);
+
+      if (!rr.length) setMsg(rn ? "Sin datos para esa campaña/insumo." : "Sin datos para esa campaña.");
+    } catch (e: any) {
+      setRows([]);
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando");
+    } finally {
+      setLoadingTable(false);
+    }
+  }
+
+  useEffect(() => {
+    loadLatestCampaignId();
+    loadMeta();
+  }, []);
+
+  // recarga tabla cuando cambia campaña o insumo
+  useEffect(() => {
+    loadRows(campaignId, reagent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, reagent]);
 
   const reagentOptions = useMemo(() => {
     const set = new Set<string>();
@@ -420,181 +567,239 @@ export default function RefineryConsumptionPage() {
       .map((x) => ({ value: x, label: x }));
   }, [mapping]);
 
-  const subprocessOptions = useMemo(() => {
-    const set = new Set<string>();
+  const mappedSubpros = useMemo(() => {
+    const colsInView = new Set<string>(SUBPRO_COLS as any);
+
+    if (modeAllReagents) {
+      const reagentsInRows = new Set((rows || []).map((x) => String(x.reagent_name || "").trim()).filter((x) => !!x));
+
+      const fromMap = mapping
+        .filter((m) => reagentsInRows.has(String(m.reagent_name || "").trim()))
+        .map((m) => String(m.subprocess_name || "").trim())
+        .filter((s) => !!s);
+
+      return uniqSorted(fromMap).filter((s) => colsInView.has(s));
+    }
+
     const r0 = String(reagent || "").trim();
-    for (const m of mapping || []) {
-      if (String(m.reagent_name || "").trim() === r0) {
-        const sp = String(m.subprocess_name || "").trim();
-        if (sp) set.add(sp);
+    const fromMap = mapping
+      .filter((m) => String(m.reagent_name || "").trim() === r0)
+      .map((m) => String(m.subprocess_name || "").trim())
+      .filter((s) => !!s);
+
+    return uniqSorted(fromMap).filter((s) => colsInView.has(s));
+  }, [mapping, reagent, rows, modeAllReagents]);
+
+  const nonZeroSubpros = useMemo(() => {
+    if (!rows.length) return [];
+    return (SUBPRO_COLS as any as string[]).filter((c) =>
+      (rows || []).some((r) => {
+        const n = toNum((r as any)[c]);
+        return n !== null && n !== 0;
+      })
+    );
+  }, [rows]);
+
+  const visibleSubpros = useMemo(
+    () => (mappedSubpros.length ? mappedSubpros : nonZeroSubpros),
+    [mappedSubpros, nonZeroSubpros]
+  );
+
+  const rowTotal = useMemo(() => {
+    const keys = visibleSubpros || [];
+    return (r: ViewRow) => {
+      let sum = 0;
+      let any = false;
+      for (const k of keys) {
+        const n = toNum((r as any)[k]);
+        if (n !== null) {
+          sum += n;
+          any = true;
+        }
+      }
+      return any ? sum : null;
+    };
+  }, [visibleSubpros]);
+
+  // init edit maps cuando cambia rows/visibleSubpros
+  useEffect(() => {
+    const o: Record<string, number | null> = {};
+    const e: Record<string, string> = {};
+    const d: Record<string, boolean> = {};
+
+    for (const r of rows || []) {
+      const rn = String(r.reagent_name || "").trim();
+      if (!rn) continue;
+      for (const sp of visibleSubpros || []) {
+        const k = cellKey(rn, sp);
+        const n = toNum((r as any)[sp]);
+        o[k] = n;
+        e[k] = n === null ? "" : String(n);
+        d[k] = false;
       }
     }
-    return Array.from(set)
-      .sort((a, b) => a.localeCompare(b))
-      .map((x) => ({ value: x, label: x }));
-  }, [mapping, reagent]);
 
-  const dateOk = useMemo(() => !!consDate && isIsoDate(consDate) && consDate <= isoTodayPe(), [consDate]);
+    setOrig(o);
+    setEdit(e);
+    setDirty(d);
+  }, [rows, visibleSubpros]);
 
-  const canSave = useMemo(() => {
-    return !!campaignId && !!reagent && !!subprocess && dateOk && qtyOkGt0(qty) && !saving;
-  }, [campaignId, reagent, subprocess, dateOk, qty, saving]);
+  const dirtyCount = useMemo(() => Object.values(dirty || {}).filter(Boolean).length, [dirty]);
 
-  const selectedUnit = useMemo(() => {
-    const r = String(reagent || "").trim();
-    if (!r) return null;
+  function onChangeCell(reagent_name: string, sp: string, v: string) {
+    const k = cellKey(reagent_name, sp);
+    setEdit((m) => ({ ...m, [k]: v }));
+    setDirty((m) => {
+      const raw = String(v ?? "");
+      const trimmed = raw.trim();
+      const parseable = trimmed === "" ? true : toDecimalStrOrNullFront(trimmed, 9) !== null;
 
-    const hit =
-      (reagents || []).find((x) => String(x.reagent_name || "").trim() === r) ??
-      (reagents || []).find((x) => String(x.reagent_name || "").trim().toLowerCase() === r.toLowerCase()) ??
-      null;
+      const newNum = toNum(raw); // "" => null
+      const oldNum = orig[k] ?? null;
 
-    const u = String(hit?.unit_name || "").trim();
-    return u ? u : null;
-  }, [reagent, reagents]);
-
-  const qtyLabel = useMemo(() => {
-    return selectedUnit ? `Cantidad (${selectedUnit})` : "Cantidad";
-  }, [selectedUnit]);
-
-  async function loadLatestCampaignId() {
-    try {
-      const r = (await apiGet("/api/refineria/campaigns/latest")) as LatestResp;
-      const latest = String(r?.campaign_id || "").trim().toUpperCase();
-      if (latest) setCampaignId(latest);
-    } catch {}
+      const isDirty = !parseable ? true : (newNum ?? null) !== (oldNum ?? null) || (trimmed === "" && (oldNum ?? null) !== null);
+      return { ...m, [k]: isDirty };
+    });
   }
 
-  async function loadMeta(opts?: { keepMsg?: boolean }) {
-    setLoading(true);
-    if (!opts?.keepMsg) setMsg(null);
+  async function onSaveAll() {
+    if (saving) return;
 
-    try {
-      const [c, m, r] = await Promise.all([
-        apiGet("/api/refineria/campaigns") as Promise<CampaignsResp>,
-        apiGet("/api/refineria/mapping") as Promise<MappingResp>,
-        apiGet("/api/refineria/reagents") as Promise<ReagentsResp>,
-      ]);
-
-      const cRows = Array.isArray(c.rows) ? c.rows : [];
-      const mRows = Array.isArray(m.rows) ? m.rows : [];
-      const rRows = Array.isArray((r as any)?.rows) ? (r as any).rows : [];
-
-      setCampaigns(cRows);
-      setMapping(mRows);
-      setReagents(rRows);
-    } catch (e: any) {
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando datos");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadConsumptionForCampaign(cId: string) {
-    const id = String(cId || "").trim().toUpperCase();
-    if (!id) {
-      setConsRows([]);
+    const cId = String(campaignId || "").trim().toUpperCase();
+    if (!cId) {
+      setMsg("ERROR: selecciona campaña");
       return;
     }
-    try {
-      const r = (await apiGet(`/api/refineria/consumption?campaign_id=${encodeURIComponent(id)}`)) as ConsumptionResp;
-      setConsRows(Array.isArray(r.rows) ? r.rows : []);
-    } catch {
-      setConsRows([]);
+    if (!consDate || !isIsoDate(consDate)) {
+      setMsg("ERROR: fecha inválida");
+      return;
     }
-  }
-
-  function findExisting(cId: string, r: string, sp: string) {
-    const a = String(cId || "").trim().toUpperCase();
-    const b = String(r || "").trim();
-    const c = String(sp || "").trim();
-    if (!a || !b || !c) return null;
-    return (
-      (consRows || []).find(
-        (x) =>
-          String(x.campaign_id || "").trim().toUpperCase() === a &&
-          String(x.reagent_name || "").trim() === b &&
-          String(x.subprocess_name || "").trim() === c
-      ) ?? null
-    );
-  }
-
-  function numToStr(v: any) {
-    if (v === null || v === undefined) return "";
-    const n = Number(v);
-    return Number.isFinite(n) ? String(n) : "";
-  }
-
-  useEffect(() => {
-    loadLatestCampaignId();
-    loadMeta();
-  }, []);
-
-  useEffect(() => {
-    loadConsumptionForCampaign(campaignId);
-  }, [campaignId]);
-
-  useEffect(() => {
-    const opts = new Set(subprocessOptions.map((x) => x.value));
-    if (subprocess && !opts.has(subprocess)) setSubprocess("");
-  }, [subprocessOptions]);
-
-  useEffect(() => {
-    if (!campaignId || !reagent || !subprocess) return;
-
-    setLoadingExisting(true);
-    setMsg(null);
-
-    const hit = findExisting(campaignId, reagent, subprocess);
-    if (hit) {
-      const d = String(hit.consumption_date || "").trim();
-      setConsDate(isIsoDate(d) ? d : isoTodayPe());
-
-      const s = numToStr(hit.consumption_qty);
-      setQty(s.includes("e") || s.includes("E") ? Number(hit.consumption_qty).toFixed(9) : s);
-
-      setMsg(`OK: cargado ${campaignId} · ${reagent} · ${subprocess}`);
-    } else {
-      setConsDate(isoTodayPe());
-      setQty("");
-      setMsg(null);
+    if (!dirtyCount) {
+      setMsg("Nada que guardar.");
+      return;
     }
 
-    setLoadingExisting(false);
-  }, [campaignId, reagent, subprocess, consRows]);
-
-  async function onSave() {
     setSaving(true);
     setMsg(null);
+
     try {
-      const q = toDecimalStrOrNullFront(qty, 9);
-      if (!canSave || q === null) {
-        setMsg("ERROR: valida los campos");
+      const payloads: any[] = [];
+
+      for (const r of rows || []) {
+        const rn = String(r.reagent_name || "").trim();
+        if (!rn) continue;
+
+        for (const sp of visibleSubpros || []) {
+          const k = cellKey(rn, sp);
+          if (!dirty[k]) continue;
+
+          const raw = String(edit[k] ?? "").trim();
+          if (!raw) continue; // no borrado
+
+          const q = toDecimalStrOrNullFront(raw, 9);
+          if (q === null) {
+            setMsg(`ERROR: valor inválido en "${rn}" · "${sp}" (debe ser > 0)`);
+            return;
+          }
+
+          payloads.push({
+            campaign_id: cId,
+            reagent_name: rn,
+            subprocess_name: sp,
+            consumption_date: consDate,
+            consumption_qty: q,
+          });
+        }
+      }
+
+      if (!payloads.length) {
+        setMsg("Nada que guardar (no se guardan celdas vacías).");
         return;
       }
 
-      const payload = {
-        campaign_id: campaignId,
-        reagent_name: reagent,
-        subprocess_name: subprocess,
-        consumption_date: consDate,
-        consumption_qty: q,
-      };
+      for (const p of payloads) {
+        await apiPost("/api/refineria/consumption/insert", p);
+      }
 
-      await apiPost("/api/refineria/consumption/insert", payload);
-      setMsg(`OK: guardado ${campaignId} · ${reagent} · ${subprocess}`);
-      await loadLatestCampaignId();
-      await loadMeta({ keepMsg: true });
-      await loadConsumptionForCampaign(campaignId);
-      setSubStockRefreshKey((k) => k + 1);
+      setMsg(`OK: guardado (${payloads.length} celdas) · Fecha ${consDate}`);
+      await loadRows(campaignId, reagent);
     } catch (e: any) {
-      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando consumo");
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando");
     } finally {
       setSaving(false);
     }
   }
 
+  const cols = useMemo(() => {
+    const base = [
+      { key: "campaign_id", label: "Campaña", w: colWidth("campaign_id") },
+      { key: "reagent_name", label: "Insumo", w: colWidth("reagent_name") },
+      { key: "stock", label: "Stock", w: colWidth("stock") },
+    ];
+
+    const subs = visibleSubpros.map((name) => ({
+      key: name,
+      label: name,
+      w: colWidth(name),
+    }));
+
+    const totalCol = { key: "__total__", label: "Total", w: colWidth("__total__") };
+    return [...base, ...subs, totalCol];
+  }, [visibleSubpros]);
+
+  const cellBase: React.CSSProperties = {
+    padding: "8px 10px",
+    fontSize: 12,
+    lineHeight: "16px",
+    wordBreak: "normal",
+  };
+
+  const headerBg = "rgb(6, 36, 58)";
+  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
+
+  const stickyHead: React.CSSProperties = {
+    position: "sticky",
+    top: 0,
+    zIndex: 8,
+    background: headerBg,
+    boxShadow: headerShadow,
+  };
+
+  const stickyRightHead: React.CSSProperties = { ...stickyHead, right: 0, zIndex: 12 };
+
+  const stickyRightCell: React.CSSProperties = {
+    position: "sticky",
+    right: 0,
+    zIndex: 6,
+    background: "rgb(5, 40, 63)",
+    boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
+  };
+
+  const numCell: React.CSSProperties = { ...cellBase, textAlign: "right", whiteSpace: "nowrap" };
+  const textCell: React.CSSProperties = {
+    ...cellBase,
+    textAlign: "left",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    textAlign: "right",
+    background: "rgba(0,0,0,.10)",
+    border: "1px solid rgba(255,255,255,.10)",
+    color: "var(--text)",
+    borderRadius: 8,
+    padding: "6px 8px",
+    outline: "none",
+    fontWeight: 900,
+    fontSize: 12,
+  };
+
   const campaignLabel = (x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase();
+  const canQuery = !!String(campaignId || "").trim();
 
   return (
     <div style={{ display: "grid", gap: 12, width: "100%" }}>
@@ -610,13 +815,15 @@ export default function RefineryConsumptionPage() {
               onClick={() => {
                 loadLatestCampaignId();
                 loadMeta();
+                loadRows(campaignId, reagent);
               }}
-              disabled={loading || saving}
+              disabled={loadingMeta || loadingTable || saving}
             >
-              {loading ? "Cargando..." : "Refrescar"}
+              {loadingMeta || loadingTable ? "Cargando..." : "Refrescar"}
             </Button>
-            <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
-              {saving ? "Guardando…" : "Guardar"}
+
+            <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={!dirtyCount || saving || !canQuery}>
+              {saving ? "Guardando…" : `Guardar${dirtyCount ? ` (${dirtyCount})` : ""}`}
             </Button>
           </div>
         </div>
@@ -639,59 +846,218 @@ export default function RefineryConsumptionPage() {
           <div style={{ display: "grid", gap: 12 }}>
             <SearchableDropdown
               label="Campaña"
-              placeholder={loading ? "Cargando campañas..." : "Find items"}
+              placeholder={loadingMeta ? "Cargando campañas..." : "Find items"}
               value={campaignId}
               items={campaigns}
               getKey={(x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase()}
               getLabel={(x: CampaignRow) => campaignLabel(x)}
               onSelect={(x: CampaignRow) => setCampaignId(String(x.campaign_id || "").trim().toUpperCase())}
-              disabled={saving}
+              disabled={loadingMeta || saving}
             />
 
             <Select
-              label="Insumo"
+              label="Insumo (opcional)"
               value={reagent}
               onChange={(v) => setReagent(String(v || "").trim())}
-              disabled={saving || !reagentOptions.length}
-              options={[{ value: "", label: "— Selecciona —" }, ...reagentOptions]}
-            />
-
-            <Select
-              label="Subproceso"
-              value={subprocess}
-              onChange={(v) => setSubprocess(String(v || "").trim())}
-              disabled={saving || !reagent || !subprocessOptions.length}
-              options={[
-                { value: "", label: reagent ? "— Selecciona —" : "Selecciona un insumo primero" },
-                ...subprocessOptions,
-              ]}
+              disabled={loadingMeta || saving || !reagentOptions.length}
+              options={[{ value: "", label: "— Todos —" }, ...reagentOptions]}
             />
 
             <DatePicker valueIso={consDate} onChangeIso={setConsDate} disabled={saving} />
-
-            {/* CAMBIO: título dinámico según unidad */}
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>{qtyLabel}</div>
-              <Input
-                placeholder=""
-                value={qty}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQty(e.target.value)}
-                hint="Cantidad > 0"
-              />
-            </div>
-
-            {loadingExisting ? (
-              <div className="muted" style={{ fontWeight: 800 }}>
-                Cargando datos existentes…
-              </div>
-            ) : null}
           </div>
         </div>
       </div>
 
-      <div className="panel-inner" style={{ padding: 0, width: "100%", overflow: "hidden" }}>
-        <ConsSubStock campaignId={campaignId} reagentName={reagent} refreshKey={subStockRefreshKey} />
+      <div
+        className="panel-inner"
+        style={{
+          padding: 0,
+          width: "100%",
+          overflowX: "auto",
+          overflowY: "hidden",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {rows.length ? (
+          <div style={{ display: "inline-block", width: "max-content", maxWidth: "100%" }}>
+            <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
+              <thead>
+                <tr>
+                  {cols.map((c) => {
+                    const isTotal = String(c.key) === "__total__";
+                    return (
+                      <th
+                        key={String(c.key)}
+                        className="capex-th"
+                        style={{
+                          ...(isTotal ? stickyRightHead : stickyHead),
+                          width: c.w ?? 160,
+                          minWidth: c.w ?? 160,
+                          border: headerBorder,
+                          borderBottom: headerBorder,
+                          textAlign: "center",
+                          padding: "6px 4px",
+                          fontSize: 12,
+                          fontWeight: 900,
+                          whiteSpace: "normal",
+                          lineHeight: "14px",
+                          verticalAlign: "middle",
+                          height: 42,
+                        }}
+                        title={c.label}
+                      >
+                        <div
+                          style={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            margin: "0 auto",
+                            padding: 0,
+                            textAlign: "center",
+                          }}
+                        >
+                          {c.label}
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+
+              <tbody>
+                {rows.map((row, ridx) => (
+                  <tr key={`${String(row.reagent_name || ridx)}-${ridx}`} className="capex-tr">
+                    {cols.map((c) => {
+                      const key = String(c.key);
+                      const isText = key === "campaign_id" || key === "reagent_name";
+                      const isTotal = key === "__total__";
+
+                      if (isTotal) {
+                        const total = rowTotal(row);
+                        const unit = unitForReagentName(row.reagent_name);
+                        const txt = fmtWithUnit(total, 2, unit);
+
+                        return (
+                          <td
+                            key={`${ridx}-${key}`}
+                            className="capex-td"
+                            style={{
+                              ...numCell,
+                              ...stickyRightCell,
+                              width: c.w ?? 160,
+                              minWidth: c.w ?? 160,
+                              padding: "6px 6px",
+                              background: stickyRightCell.background as any,
+                              borderBottom: "1px solid rgba(255,255,255,.06)",
+                              fontWeight: 900,
+                            }}
+                            title={txt}
+                          >
+                            {txt}
+                          </td>
+                        );
+                      }
+
+                      if (isText) {
+                        const txt = String((row as any)[key] ?? "");
+                        return (
+                          <td
+                            key={`${ridx}-${key}`}
+                            className="capex-td"
+                            style={{
+                              ...textCell,
+                              width: c.w ?? 160,
+                              minWidth: c.w ?? 160,
+                              padding: "6px 6px",
+                              background: "rgba(0,0,0,.10)",
+                              borderBottom: "1px solid rgba(255,255,255,.06)",
+                              fontWeight: 900,
+                            }}
+                            title={txt}
+                          >
+                            {txt}
+                          </td>
+                        );
+                      }
+
+                      if (key === "stock") {
+                        const txt = fmtFixed((row as any)[key], 2);
+                        return (
+                          <td
+                            key={`${ridx}-${key}`}
+                            className="capex-td"
+                            style={{
+                              ...numCell,
+                              width: c.w ?? 160,
+                              minWidth: c.w ?? 160,
+                              padding: "6px 6px",
+                              background: "rgba(0,0,0,.10)",
+                              borderBottom: "1px solid rgba(255,255,255,.06)",
+                              fontWeight: 900,
+                            }}
+                            title={txt}
+                          >
+                            {txt}
+                          </td>
+                        );
+                      }
+
+                      // editable subpro
+                      const rn = String(row.reagent_name || "").trim();
+                      const sp = key;
+                      const k = cellKey(rn, sp);
+                      const v = String(edit[k] ?? "");
+                      const isDirty = !!dirty[k];
+
+                      return (
+                        <td
+                          key={`${ridx}-${key}`}
+                          className="capex-td"
+                          style={{
+                            ...numCell,
+                            width: c.w ?? 160,
+                            minWidth: c.w ?? 160,
+                            padding: "6px 6px",
+                            background: isDirty ? "rgba(102,199,255,.08)" : "rgba(0,0,0,.10)",
+                            borderBottom: "1px solid rgba(255,255,255,.06)",
+                            fontWeight: 800,
+                          }}
+                          title={v}
+                        >
+                          <input
+                            value={v}
+                            disabled={saving}
+                            placeholder=""
+                            onChange={(e) => onChangeCell(rn, sp, e.target.value)}
+                            style={{
+                              ...inputStyle,
+                              border: isDirty ? "1px solid rgba(102,199,255,.55)" : inputStyle.border,
+                              opacity: saving ? 0.7 : 1,
+                              cursor: saving ? "not-allowed" : "text",
+                            }}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        ) : (
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
+            {loadingTable ? "Cargando…" : canQuery ? "Sin datos." : "Selecciona una campaña arriba."}
+          </div>
+        )}
       </div>
+
+      {rows.length && !visibleSubpros.length ? (
+        <div className="panel-inner" style={{ padding: 12, fontWeight: 800, opacity: 0.9 }}>
+          No hay subprocesos con consumo para esta campaña (según mapping/valores).
+        </div>
+      ) : null}
     </div>
   );
 }
