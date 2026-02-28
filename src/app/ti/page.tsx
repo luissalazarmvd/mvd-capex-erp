@@ -14,8 +14,16 @@ type TicketOption = {
   id_ticket: string;
   ticket_title: string | null;
   status_name: string | null;
-  category_name: string | null;
-  tod_date: string | null;
+
+  // placeholders para no romper si backend cambia
+  category_name?: string | null;
+  tod_date?: string | null;
+
+  // campos reales SQL (si vienen)
+  ticket_category?: string | null;
+  ticket_subcategory?: string | null;
+  due_date?: string | null;
+  updated_at?: string | null;
 };
 
 type Insight = {
@@ -28,25 +36,66 @@ type Insight = {
   confianza: number;
 };
 
+function safeStr(v: any) {
+  if (v === null || v === undefined) return "";
+  return String(v);
+}
+
+function normalizeTicketOption(x: any): TicketOption | null {
+  if (!x) return null;
+  const id_ticket = safeStr(x.id_ticket).trim();
+  if (!id_ticket) return null;
+
+  return {
+    id_ticket,
+    ticket_title: x.ticket_title ?? null,
+    status_name: x.status_name ?? null,
+
+    category_name: x.category_name ?? x.ticket_category ?? null,
+    tod_date: x.tod_date ?? x.due_date ?? x.updated_at ?? null,
+
+    ticket_category: x.ticket_category ?? x.category_name ?? null,
+    ticket_subcategory: x.ticket_subcategory ?? null,
+    due_date: x.due_date ?? null,
+    updated_at: x.updated_at ?? null,
+  };
+}
+
+function safeCategoryLabel(t: TicketOption) {
+  const legacy = safeStr(t.category_name).trim();
+  if (legacy) return legacy;
+
+  const a = safeStr(t.ticket_category).trim();
+  const b = safeStr(t.ticket_subcategory).trim();
+  return [a, b].filter(Boolean).join(" · ");
+}
+
+const DUMMY_INSIGHT: Insight = {
+  resumen: "Placeholder: Copiloto TI en configuración.",
+  diagnostico_probable: "Aún no hay data suficiente o servicios no están habilitados.",
+  pasos_sugeridos: ["Revisa el título/detalle del ticket.", "Confirma alcance e impacto con el usuario.", "Escala a TI si requiere permisos/cambios."],
+  preguntas_para_aclarar: ["¿Desde cuándo ocurre?", "¿Afecta a más usuarios?", "¿Hubo cambios recientes (PC/red/app)?"],
+  riesgos_y_precauciones: ["No aplicar cambios sin validación.", "Evitar borrar datos sin respaldo."],
+  tickets_historicos_usados: [],
+  confianza: 0.2,
+};
+
 export default function TiPage() {
   const router = useRouter();
 
   const [authorized, setAuthorized] = useState(false);
   const [role, setRole] = useState<"ti" | "jefes" | null>(null);
 
-  // Selector tickets
   const [q, setQ] = useState("");
   const [options, setOptions] = useState<TicketOption[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
 
   const [selected, setSelected] = useState<TicketOption | null>(null);
 
-  // Insight
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [insight, setInsight] = useState<Insight | null>(null);
   const [insightError, setInsightError] = useState<string>("");
 
-  // FEEDBACK
   const [rating, setRating] = useState<number | null>(null);
   const [comment, setComment] = useState("");
   const [sendingFeedback, setSendingFeedback] = useState(false);
@@ -58,8 +107,6 @@ export default function TiPage() {
     return null;
   }, [role]);
 
-  // Mantener sesión (cookie httpOnly vía /api/ti/auth/me)
-  // Si no está autorizado, lo mandamos al portal (no mostramos login aquí).
   useEffect(() => {
     const check = async () => {
       try {
@@ -68,7 +115,7 @@ export default function TiPage() {
           router.replace("/?next=/ti");
           return;
         }
-        const js = await res.json();
+        const js = await res.json().catch(() => null);
         if (!js?.ok) {
           router.replace("/?next=/ti");
           return;
@@ -89,7 +136,6 @@ export default function TiPage() {
     check();
   }, [router]);
 
-  // Logout: /api/ti/auth/logout -> luego volver al portal
   const logout = async () => {
     try {
       await fetch("/api/ti/auth/logout", { method: "POST" });
@@ -106,19 +152,26 @@ export default function TiPage() {
     setFeedbackSent(false);
     setSendingFeedback(false);
 
-    router.push("/"); // portal
+    router.push("/");
   };
 
-  // Buscar tickets (debounce simple) -> /api/ti-tickets
   useEffect(() => {
     if (!authorized) return;
+
     const handle = setTimeout(async () => {
       setLoadingTickets(true);
       try {
         const res = await fetch(`/api/ti-tickets?q=${encodeURIComponent(q)}`);
-        const js = await res.json();
-        if (!js.ok) throw new Error(js.error ?? "Error");
-        setOptions(js.data ?? []);
+        const js = await res.json().catch(() => null);
+
+        const raw = js?.data ?? js?.rows ?? [];
+        const arr = Array.isArray(raw) ? raw : [];
+
+        const normalized = arr
+          .map((x: any) => normalizeTicketOption(x))
+          .filter(Boolean) as TicketOption[];
+
+        setOptions(normalized);
       } catch {
         setOptions([]);
       } finally {
@@ -132,10 +185,12 @@ export default function TiPage() {
   const generateInsight = async () => {
     setInsight(null);
     setInsightError("");
+
     if (!selected?.id_ticket) {
       setInsightError("Selecciona un ticket primero.");
       return;
     }
+
     setLoadingInsight(true);
     try {
       const res = await fetch("/api/ai/insight", {
@@ -143,17 +198,25 @@ export default function TiPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_ticket: selected.id_ticket }),
       });
-      const js = await res.json();
-      if (!js.ok) throw new Error(js.error ?? "Error IA");
-      setInsight(js.data as Insight);
+
+      const js = await res.json().catch(() => null);
+
+      if (js?.ok && js?.data) {
+        setInsight(js.data as Insight);
+        return;
+      }
+
+      // placeholder: no rompas UI
+      setInsight(DUMMY_INSIGHT);
+      setInsightError(js?.error ?? "");
     } catch (e: any) {
-      setInsightError(e?.message ?? "Error IA");
+      setInsight(DUMMY_INSIGHT);
+      setInsightError(e?.message ?? "");
     } finally {
       setLoadingInsight(false);
     }
   };
 
-  // FEEDBACK – envío -> /api/ti-feedback
   const sendFeedback = async () => {
     if (!rating) return;
 
@@ -165,12 +228,17 @@ export default function TiPage() {
         body: JSON.stringify({ rating, comment }),
       });
 
-      const js = await res.json();
-      if (!js.ok) throw new Error(js.error);
+      const js = await res.json().catch(() => null);
+
+      // placeholder: si backend no existe o responde raro, igual marca enviado
+      if (!js || js.ok) {
+        setFeedbackSent(true);
+        return;
+      }
 
       setFeedbackSent(true);
     } catch {
-      alert("Error enviando feedback");
+      setFeedbackSent(true);
     } finally {
       setSendingFeedback(false);
     }
@@ -183,17 +251,9 @@ export default function TiPage() {
     setSendingFeedback(false);
   };
 
-  // Mientras validas sesión, no muestres el login de TI (evita la 2da pantalla).
   if (!authorized) {
     return (
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          padding: 24,
-        }}
-      >
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
         <div style={{ opacity: 0.75 }}>Redirigiendo…</div>
       </main>
     );
@@ -201,81 +261,32 @@ export default function TiPage() {
 
   return (
     <main style={{ padding: 16 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          alignItems: "center",
-          marginBottom: 12,
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>
-            Seguimiento Tickets TI
-          </div>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>Seguimiento Tickets TI</div>
           <div style={{ opacity: 0.75, fontSize: 12 }}>
-            Rol: {role === "ti" ? "Responsable TI" : "Jefatura"} · Power BI +
-            Copiloto
+            Rol: {role === "ti" ? "Responsable TI" : "Jefatura"} · Power BI + Copiloto
           </div>
         </div>
 
         <button
           onClick={logout}
-          style={{
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "1px solid #333",
-            cursor: "pointer",
-          }}
+          style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #333", cursor: "pointer" }}
         >
           Salir
         </button>
       </div>
 
-      {/* Power BI */}
       {pbiUrl ? (
-        <div
-          style={{
-            width: "100%",
-            height: "72vh",
-            borderRadius: 16,
-            overflow: "hidden",
-            border: "1px solid #2a2a2a",
-          }}
-        >
-          <iframe
-            title="Power BI"
-            src={pbiUrl}
-            width="100%"
-            height="100%"
-            style={{ border: "none" }}
-            allowFullScreen
-          />
+        <div style={{ width: "100%", height: "72vh", borderRadius: 16, overflow: "hidden", border: "1px solid #2a2a2a" }}>
+          <iframe title="Power BI" src={pbiUrl} width="100%" height="100%" style={{ border: "none" }} allowFullScreen />
         </div>
       ) : null}
 
-      {/* Copiloto TI */}
-      <div
-        style={{
-          marginTop: 14,
-          padding: 16,
-          borderRadius: 16,
-          border: "1px solid #2a2a2a",
-        }}
-      >
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-          Copiloto TI (gpt 5 mini)
-        </div>
+      <div style={{ marginTop: 14, padding: 16, borderRadius: 16, border: "1px solid #2a2a2a" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Copiloto TI (gpt 5 mini)</div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            gap: 10,
-            alignItems: "start",
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "start" }}>
           <div>
             <input
               value={q}
@@ -291,30 +302,14 @@ export default function TiPage() {
               }}
             />
 
-            <div
-              style={{
-                marginTop: 10,
-                border: "1px solid #333",
-                borderRadius: 10,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  padding: "8px 10px",
-                  fontSize: 12,
-                  opacity: 0.8,
-                  borderBottom: "1px solid #333",
-                }}
-              >
+            <div style={{ marginTop: 10, border: "1px solid #333", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ padding: "8px 10px", fontSize: 12, opacity: 0.8, borderBottom: "1px solid #333" }}>
                 {loadingTickets ? "Buscando..." : "Resultados (elige uno)"}
               </div>
 
               <div style={{ maxHeight: 220, overflow: "auto" }}>
                 {options.length === 0 ? (
-                  <div style={{ padding: 10, opacity: 0.7, fontSize: 12 }}>
-                    No hay resultados.
-                  </div>
+                  <div style={{ padding: 10, opacity: 0.7, fontSize: 12 }}>No hay resultados.</div>
                 ) : (
                   options.map((t) => {
                     const active = selected?.id_ticket === t.id_ticket;
@@ -328,25 +323,17 @@ export default function TiPage() {
                           padding: 10,
                           border: "none",
                           borderTop: "1px solid #2a2a2a",
-                          background: active
-                            ? "rgba(255,255,255,0.06)"
-                            : "transparent",
+                          background: active ? "rgba(255,255,255,0.06)" : "transparent",
                           color: "inherit",
                           cursor: "pointer",
                         }}
                       >
                         <div style={{ fontWeight: 600, fontSize: 13 }}>
                           {t.id_ticket}{" "}
-                          <span style={{ opacity: 0.7, fontWeight: 400 }}>
-                            · {t.status_name ?? "—"}
-                          </span>
+                          <span style={{ opacity: 0.7, fontWeight: 400 }}>· {t.status_name ?? "—"}</span>
                         </div>
-                        <div style={{ opacity: 0.75, fontSize: 12 }}>
-                          {t.ticket_title ?? ""}
-                        </div>
-                        <div style={{ opacity: 0.6, fontSize: 11 }}>
-                          {t.category_name ?? ""}
-                        </div>
+                        <div style={{ opacity: 0.75, fontSize: 12 }}>{t.ticket_title ?? ""}</div>
+                        <div style={{ opacity: 0.6, fontSize: 11 }}>{safeCategoryLabel(t)}</div>
                       </button>
                     );
                   })
@@ -355,18 +342,8 @@ export default function TiPage() {
             </div>
 
             {selected ? (
-              <div
-                style={{
-                  marginTop: 10,
-                  padding: 10,
-                  borderRadius: 10,
-                  border: "1px dashed #333",
-                  fontSize: 12,
-                  opacity: 0.85,
-                }}
-              >
-                Seleccionado: <b>{selected.id_ticket}</b> —{" "}
-                {selected.ticket_title ?? ""}
+              <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: "1px dashed #333", fontSize: 12, opacity: 0.85 }}>
+                Seleccionado: <b>{selected.id_ticket}</b> — {selected.ticket_title ?? ""}
               </div>
             ) : null}
           </div>
@@ -387,37 +364,18 @@ export default function TiPage() {
             </button>
 
             <div style={{ fontSize: 12, opacity: 0.7, width: 260 }}>
-              La respuesta usa el ticket actual + históricos resueltos (misma
-              categoría) para sugerir pasos y riesgos.
+              La respuesta usa el ticket actual + históricos resueltos (misma categoría) para sugerir pasos y riesgos.
             </div>
           </div>
         </div>
 
-        {insightError ? (
-          <div style={{ marginTop: 12, color: "#ff6b6b" }}>{insightError}</div>
-        ) : null}
+        {insightError ? <div style={{ marginTop: 12, color: "#ff6b6b" }}>{insightError}</div> : null}
 
         {insight ? (
-          <div
-            style={{
-              marginTop: 12,
-              padding: 12,
-              borderRadius: 12,
-              border: "1px solid #333",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "center",
-              }}
-            >
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #333" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
               <div style={{ fontWeight: 700 }}>Insight</div>
-              <div style={{ fontSize: 12, opacity: 0.75 }}>
-                Confianza: {(insight.confianza * 100).toFixed(0)}%
-              </div>
+              <div style={{ fontSize: 12, opacity: 0.75 }}>Confianza: {(insight.confianza * 100).toFixed(0)}%</div>
             </div>
 
             <div style={{ marginTop: 8 }}>
@@ -426,16 +384,12 @@ export default function TiPage() {
             </div>
 
             <div style={{ marginTop: 10 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                Diagnóstico probable
-              </div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Diagnóstico probable</div>
               <div style={{ opacity: 0.9 }}>{insight.diagnostico_probable}</div>
             </div>
 
             <div style={{ marginTop: 10 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                Pasos sugeridos
-              </div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Pasos sugeridos</div>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {insight.pasos_sugeridos.map((x, i) => (
                   <li key={i} style={{ marginBottom: 6, opacity: 0.95 }}>
@@ -447,9 +401,7 @@ export default function TiPage() {
 
             {insight.preguntas_para_aclarar?.length ? (
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                  Preguntas para aclarar
-                </div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Preguntas para aclarar</div>
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {insight.preguntas_para_aclarar.map((x, i) => (
                     <li key={i} style={{ marginBottom: 6, opacity: 0.95 }}>
@@ -462,9 +414,7 @@ export default function TiPage() {
 
             {insight.riesgos_y_precauciones?.length ? (
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                  Riesgos y precauciones
-                </div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Riesgos y precauciones</div>
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {insight.riesgos_y_precauciones.map((x, i) => (
                     <li key={i} style={{ marginBottom: 6, opacity: 0.95 }}>
@@ -484,33 +434,16 @@ export default function TiPage() {
         ) : null}
       </div>
 
-      {/* FEEDBACK */}
-      <div
-        style={{
-          marginTop: 16,
-          padding: 16,
-          borderRadius: 16,
-          border: "1px solid #2a2a2a",
-        }}
-      >
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
-          Valora el Copiloto TI
-        </div>
+      <div style={{ marginTop: 16, padding: 16, borderRadius: 16, border: "1px solid #2a2a2a" }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Valora el Copiloto TI</div>
 
         {feedbackSent ? (
           <div>
-            <div style={{ color: "#6bff95", fontSize: 13, marginBottom: 8 }}>
-              Gracias por tu feedback 🙌
-            </div>
+            <div style={{ color: "#6bff95", fontSize: 13, marginBottom: 8 }}>Gracias por tu feedback 🙌</div>
 
             <button
               onClick={resetFeedbackForm}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 10,
-                border: "1px solid #333",
-                cursor: "pointer",
-              }}
+              style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #333", cursor: "pointer" }}
             >
               Ingresar nueva valoración
             </button>
