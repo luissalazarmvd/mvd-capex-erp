@@ -59,7 +59,6 @@ type SaveResp = {
 type DraftRow = Record<keyof TraceabilityRow, string>;
 
 const EDITABLE_FIELDS = [
-  "lot",
   "process_date",
   "transport_name",
   "transport_guide_number",
@@ -110,12 +109,32 @@ const NUMERIC_FIELDS: EditableField[] = [
 const DATE_FIELDS: EditableField[] = ["process_date"];
 
 const TEXT_FIELDS: EditableField[] = [
-  "lot",
   "transport_name",
   "transport_guide_number",
   "zone_1",
   "zone_2",
   "pay_type",
+];
+
+type SortKey =
+  | "lot"
+  | "entry_date"
+  | "process_date"
+  | "miner_name"
+  | "ruc"
+  | "doc_date"
+  | "doc_number";
+
+type SortDir = "asc" | "desc";
+
+const SORTABLE_KEYS: SortKey[] = [
+  "lot",
+  "entry_date",
+  "process_date",
+  "miner_name",
+  "ruc",
+  "doc_date",
+  "doc_number",
 ];
 
 const COLUMNS: {
@@ -124,44 +143,45 @@ const COLUMNS: {
   editable: boolean;
   kind: "text" | "date" | "number" | "readonly";
   width?: number;
+  sortable?: boolean;
 }[] = [
-  { key: "lot", label: "Lote", editable: true, kind: "text", width: 110 },
-  { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110 },
-  { key: "process_date", label: "F. Proceso", editable: true, kind: "date", width: 120 },
-  { key: "sack_qty", label: "Sacos", editable: false, kind: "readonly", width: 90 },
-  { key: "miner_name", label: "Minero", editable: false, kind: "readonly", width: 160 },
-  { key: "plate", label: "Placa", editable: false, kind: "readonly", width: 110 },
-  { key: "ruc", label: "RUC", editable: false, kind: "readonly", width: 130 },
-  { key: "concession_name", label: "Concesión", editable: false, kind: "readonly", width: 160 },
-  { key: "concession_code", label: "Cod. Concesión", editable: false, kind: "readonly", width: 130 },
-  { key: "district", label: "Distrito", editable: false, kind: "readonly", width: 120 },
-  { key: "province", label: "Provincia", editable: false, kind: "readonly", width: 120 },
-  { key: "department", label: "Departamento", editable: false, kind: "readonly", width: 130 },
-  { key: "sender_guide_number", label: "Guía Remitente", editable: false, kind: "readonly", width: 140 },
-  { key: "transport_name", label: "Transporte", editable: true, kind: "text", width: 150 },
-  { key: "transport_guide_number", label: "Guía Transporte", editable: true, kind: "text", width: 150 },
-  { key: "zone_1", label: "Zona 1", editable: true, kind: "text", width: 100 },
-  { key: "zone_2", label: "Zona 2", editable: true, kind: "text", width: 150 },
-  { key: "tmh", label: "TMH", editable: true, kind: "number", width: 110 },
-  { key: "h2o", label: "H2O", editable: true, kind: "number", width: 110 },
-  { key: "tms", label: "TMS", editable: true, kind: "number", width: 110 },
-  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number", width: 110 },
-  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number", width: 110 },
-  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 110 },
-  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 110 },
-  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 110 },
-  { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 110 },
-  { key: "pio", label: "PIO", editable: true, kind: "number", width: 110 },
-  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 110 },
-  { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 110 },
-  { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 110 },
-  { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 110 },
-  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 110 },
-  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 110 },
-  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 110 },
-  { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 120 },
-  { key: "doc_date", label: "F. Doc", editable: false, kind: "readonly", width: 110 },
-  { key: "doc_number", label: "Nro Doc", editable: false, kind: "readonly", width: 120 },
+  { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 110, sortable: true },
+  { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110, sortable: true },
+  { key: "process_date", label: "F. Proceso", editable: true, kind: "date", width: 120, sortable: true },
+  { key: "sack_qty", label: "Sacos", editable: false, kind: "readonly", width: 78 },
+  { key: "miner_name", label: "Minero", editable: false, kind: "readonly", width: 96, sortable: true },
+  { key: "plate", label: "Placa", editable: false, kind: "readonly", width: 92 },
+  { key: "ruc", label: "RUC", editable: false, kind: "readonly", width: 118, sortable: true },
+  { key: "concession_name", label: "Concesión", editable: false, kind: "readonly", width: 145 },
+  { key: "concession_code", label: "Cod. Concesión", editable: false, kind: "readonly", width: 120 },
+  { key: "district", label: "Distrito", editable: false, kind: "readonly", width: 100 },
+  { key: "province", label: "Provincia", editable: false, kind: "readonly", width: 100 },
+  { key: "department", label: "Departamento", editable: false, kind: "readonly", width: 120 },
+  { key: "sender_guide_number", label: "Guía Remitente", editable: false, kind: "readonly", width: 125 },
+  { key: "transport_name", label: "Transporte", editable: true, kind: "text", width: 130 },
+  { key: "transport_guide_number", label: "Guía Transporte", editable: true, kind: "text", width: 125 },
+  { key: "zone_1", label: "Zona 1", editable: true, kind: "text", width: 90 },
+  { key: "zone_2", label: "Zona 2", editable: true, kind: "text", width: 120 },
+  { key: "tmh", label: "TMH", editable: true, kind: "number", width: 78 },
+  { key: "h2o", label: "H2O", editable: true, kind: "number", width: 78 },
+  { key: "tms", label: "TMS", editable: true, kind: "number", width: 78 },
+  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number", width: 78 },
+  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number", width: 78 },
+  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 78 },
+  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 78 },
+  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 78 },
+  { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 78 },
+  { key: "pio", label: "PIO", editable: true, kind: "number", width: 78 },
+  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 78 },
+  { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 78 },
+  { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 78 },
+  { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 78 },
+  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 78 },
+  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 78 },
+  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 78 },
+  { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
+  { key: "doc_date", label: "F. Doc", editable: false, kind: "readonly", width: 105, sortable: true },
+  { key: "doc_number", label: "Nro Doc", editable: false, kind: "readonly", width: 110, sortable: true },
 ];
 
 function isBlank(v: unknown) {
@@ -201,7 +221,6 @@ function isValidText(field: EditableField, v: string) {
   const t = String(v ?? "").trim();
   if (!t) return true;
 
-  if (field === "lot") return /^[A-Za-z0-9_\-./ ]+$/.test(t);
   if (field === "zone_1") return /^[A-Za-z0-9_\-./ ]+$/.test(t);
   if (field === "transport_guide_number") return /^[A-Za-z0-9_\-./ ]+$/.test(t);
   if (field === "pay_type") return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_\-./() ]+$/.test(t);
@@ -235,7 +254,10 @@ function isRowComplete(row: TraceabilityRow) {
 }
 
 function compareLot(a: string, b: string) {
-  return String(a || "").localeCompare(String(b || ""), undefined, { numeric: true, sensitivity: "base" });
+  return String(a || "").localeCompare(String(b || ""), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function sameDraft(a: DraftRow, b: DraftRow) {
@@ -255,6 +277,8 @@ function inDateRange(entryDate: string | null, from: string, to: string) {
 
 function buildPayload(row: DraftRow) {
   const payload: Record<string, any> = {};
+
+  payload.lot = String(row.lot ?? "").trim() || null;
 
   for (const f of EDITABLE_FIELDS) {
     const raw = String(row[f] ?? "").trim();
@@ -276,15 +300,58 @@ function buildPayload(row: DraftRow) {
   return payload;
 }
 
+function getSortValue(
+  row: TraceabilityRow,
+  draft: DraftRow | undefined,
+  key: SortKey
+) {
+  const draftValue = draft?.[key];
+
+  if (draftValue !== undefined) {
+    return String(draftValue).trim();
+  }
+
+  const rowValue = row[key];
+  if (rowValue === null || rowValue === undefined) return "";
+  return String(rowValue).trim();
+}
+
+function compareByKey(
+  a: TraceabilityRow,
+  b: TraceabilityRow,
+  aDraft: DraftRow | undefined,
+  bDraft: DraftRow | undefined,
+  key: SortKey,
+  dir: SortDir
+) {
+  const av = getSortValue(a, aDraft, key);
+  const bv = getSortValue(b, bDraft, key);
+
+  let result = 0;
+
+  if (key === "lot") {
+    result = compareLot(av, bv);
+  } else {
+    result = av.localeCompare(bv, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
+
+  return dir === "asc" ? result : -result;
+}
+
 export default function TraceabilityEntryForm() {
   const [rows, setRows] = useState<TraceabilityRow[]>([]);
   const [drafts, setDrafts] = useState<Record<string, DraftRow>>({});
   const [originals, setOriginals] = useState<Record<string, DraftRow>>({});
   const [loading, setLoading] = useState(false);
-  const [savingLot, setSavingLot] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("lot");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   async function loadData() {
     setLoading(true);
@@ -297,7 +364,7 @@ export default function TraceabilityEntryForm() {
       const nextOriginals: Record<string, DraftRow> = {};
 
       data.forEach((row, idx) => {
-        const key = `${String(row.lot || "").trim()}__${idx}`;
+        const key = String(row.lot || "").trim();
         const d = toDraftRow(row);
         nextDrafts[key] = d;
         nextOriginals[key] = { ...d };
@@ -319,24 +386,50 @@ export default function TraceabilityEntryForm() {
 
   const preparedRows = useMemo(() => {
     const filtered = rows
-      .map((row, idx) => ({
-        row,
-        idx,
-        key: `${String(row.lot || "").trim()}__${idx}`,
-        complete: isRowComplete(row),
-      }))
+      .map((row, idx) => {
+        const key = String(row.lot || "").trim();
+        const complete = isRowComplete(row);
+        const draft = drafts[key] || toDraftRow(row);
+        const changed = !sameDraft(draft, originals[key] || toDraftRow(row));
+
+        return {
+          row,
+          idx,
+          key,
+          complete,
+          changed,
+        };
+      })
       .filter((x) => inDateRange(x.row.entry_date, dateFrom, dateTo));
 
     const incompletes = filtered
       .filter((x) => !x.complete)
-      .sort((a, b) => compareLot(String(a.row.lot || ""), String(b.row.lot || "")));
+      .sort((a, b) => compareByKey(a.row, b.row, drafts[a.key], drafts[b.key], sortKey, sortDir));
 
     const completes = filtered
       .filter((x) => x.complete)
-      .sort((a, b) => compareLot(String(a.row.lot || ""), String(b.row.lot || "")));
+      .sort((a, b) => compareByKey(a.row, b.row, drafts[a.key], drafts[b.key], sortKey, sortDir));
 
     return [...incompletes, ...completes];
-  }, [rows, dateFrom, dateTo]);
+  }, [rows, drafts, originals, dateFrom, dateTo, sortKey, sortDir]);
+
+  const editedRowKeys = useMemo(() => {
+    return Object.keys(drafts).filter((key) => {
+      const original = originals[key];
+      const current = drafts[key];
+      if (!original || !current) return false;
+      return !sameDraft(current, original);
+    });
+  }, [drafts, originals]);
+
+  const editedCount = editedRowKeys.length;
+
+  const hasInvalidEditedRows = useMemo(() => {
+    return editedRowKeys.some((key) => {
+      const row = drafts[key];
+      return row ? rowHasAnyInvalid(row) : false;
+    });
+  }, [editedRowKeys, drafts]);
 
   function setCell(key: string, field: keyof TraceabilityRow, value: string) {
     setDrafts((prev) => ({
@@ -350,12 +443,15 @@ export default function TraceabilityEntryForm() {
 
   function onBlurFormat(key: string, field: keyof TraceabilityRow) {
     if (!NUMERIC_FIELDS.includes(field as EditableField)) return;
+
     setDrafts((prev) => {
       const current = prev[key];
       if (!current) return prev;
+
       const raw = current[field];
       const n = parseNum(raw);
       if (n === null || Number.isNaN(n)) return prev;
+
       return {
         ...prev,
         [key]: {
@@ -366,37 +462,102 @@ export default function TraceabilityEntryForm() {
     });
   }
 
-  async function onSaveRow(key: string) {
-    const row = drafts[key];
-    if (!row) return;
-
-    const lot = String(row.lot || "").trim();
-    if (!lot) {
-      setMsg("ERROR: el lote es obligatorio.");
+  async function onSaveAll() {
+    if (editedRowKeys.length === 0) {
+      setMsg("No hay filas editadas para guardar.");
       return;
     }
 
-    if (rowHasAnyInvalid(row)) {
+    const invalidKey = editedRowKeys.find((key) => {
+      const row = drafts[key];
+      return row ? rowHasAnyInvalid(row) : false;
+    });
+
+    if (invalidKey) {
+      const lot = String(drafts[invalidKey]?.lot || "").trim();
       setMsg(`ERROR: corrige valores inválidos en el lote ${lot}.`);
       return;
     }
 
-    setSavingLot(key);
+    setSaving(true);
     setMsg(null);
 
     try {
-      const payload = buildPayload(row);
-      const rr = (await apiPost("/api/traceability/web/insert", payload)) as SaveResp;
-      if (!rr?.ok) throw new Error(rr?.error || "No se pudo guardar");
+      const jobs = editedRowKeys.map(async (key) => {
+        const row = drafts[key];
+        const lot = String(row?.lot || "").trim();
 
-      setOriginals((prev) => ({ ...prev, [key]: { ...row } }));
-      setMsg(`OK: guardado ${lot}`);
-      await loadData();
+        if (!lot) {
+          throw new Error("Hay una fila editada sin lote.");
+        }
+
+        const payload = buildPayload(row);
+        const rr = (await apiPost("/api/traceability/web/insert", payload)) as SaveResp;
+
+        if (!rr?.ok) {
+          throw new Error(rr?.error || `No se pudo guardar el lote ${lot}`);
+        }
+
+        return { key, lot };
+      });
+
+      const results = await Promise.allSettled(jobs);
+
+      const okLots: string[] = [];
+      const failedLots: string[] = [];
+      const failedMessages: string[] = [];
+
+      results.forEach((result, index) => {
+        const key = editedRowKeys[index];
+        const lot = String(drafts[key]?.lot || "").trim() || `(fila ${index + 1})`;
+
+        if (result.status === "fulfilled") {
+          okLots.push(result.value.lot);
+        } else {
+          failedLots.push(lot);
+          failedMessages.push(`${lot}: ${String(result.reason?.message || result.reason || "Error al guardar")}`);
+        }
+      });
+
+      if (failedLots.length === 0) {
+        setMsg(`OK: se guardaron ${okLots.length} fila(s).`);
+        await loadData();
+        return;
+      }
+
+      if (okLots.length > 0) {
+        setMsg(
+          `PARCIAL: guardadas ${okLots.length} fila(s). Fallaron ${failedLots.length}: ${failedMessages.join(" | ")}`
+        );
+        await loadData();
+        return;
+      }
+
+      setMsg(`ERROR: no se pudo guardar ninguna fila. ${failedMessages.join(" | ")}`);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo guardar")}`);
     } finally {
-      setSavingLot(null);
+      setSaving(false);
     }
+  }
+
+  function onSortClick(key: keyof TraceabilityRow) {
+    if (!SORTABLE_KEYS.includes(key as SortKey)) return;
+
+    const nextKey = key as SortKey;
+
+    if (sortKey === nextKey) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDir("desc");
+  }
+
+  function getSortIndicator(key: keyof TraceabilityRow) {
+    if (sortKey !== key) return "";
+    return sortDir === "asc" ? " ▲" : " ▼";
   }
 
   const headerBg = "rgb(6, 36, 58)";
@@ -405,11 +566,13 @@ export default function TraceabilityEntryForm() {
   const gridH = "2px solid rgba(191, 231, 255, 0.10)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
   const rowBg = "rgba(0,0,0,.10)";
+  const editedRowBg = "rgba(72, 201, 120, .16)";
+  const editedRowBgComplete = "rgba(72, 201, 120, .12)";
 
   const stickyHead: React.CSSProperties = {
     position: "sticky",
     top: 0,
-    zIndex: 8,
+    zIndex: 20,
     background: headerBg,
     boxShadow: headerShadow,
   };
@@ -455,12 +618,31 @@ export default function TraceabilityEntryForm() {
     >
       <div
         className="panel-inner"
-        style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", flexShrink: 0 }}
+        style={{
+          padding: "10px 12px",
+          display: "flex",
+          gap: 10,
+          alignItems: "center",
+          flexWrap: "wrap",
+          flexShrink: 0,
+        }}
       >
         <div style={{ fontWeight: 900 }}>Trazabilidad · Ingresar Datos</div>
 
         <div className="muted" style={{ fontWeight: 800, marginLeft: 8 }}>
           Se priorizan lotes incompletos
+        </div>
+
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            background: editedCount > 0 ? "rgba(72, 201, 120, .16)" : "rgba(255,255,255,.06)",
+            border: editedCount > 0 ? "1px solid rgba(72, 201, 120, .38)" : "1px solid rgba(255,255,255,.10)",
+            fontWeight: 900,
+          }}
+        >
+          Filas en edición: {editedCount}
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -484,8 +666,18 @@ export default function TraceabilityEntryForm() {
             />
           </div>
 
-          <Button type="button" size="sm" variant="default" onClick={loadData} disabled={loading || !!savingLot}>
+          <Button type="button" size="sm" variant="default" onClick={loadData} disabled={loading || saving}>
             {loading ? "Cargando…" : "Refrescar"}
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            onClick={onSaveAll}
+            disabled={loading || saving || editedCount === 0 || hasInvalidEditedRows}
+          >
+            {saving ? "Guardando…" : `Guardar${editedCount > 0 ? ` (${editedCount})` : ""}`}
           </Button>
         </div>
       </div>
@@ -526,53 +718,51 @@ export default function TraceabilityEntryForm() {
           <Table stickyHeader>
             <thead>
               <tr>
-                {COLUMNS.map((c) => (
-                  <th
-                    key={String(c.key)}
-                    className="capex-th"
-                    style={{
-                      ...stickyHead,
-                      border: headerBorder,
-                      borderBottom: headerBorder,
-                      textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
-                      padding: "8px 8px",
-                      fontSize: 12,
-                      minWidth: c.width || 110,
-                    }}
-                  >
-                    {c.label}
-                  </th>
-                ))}
+                {COLUMNS.map((c) => {
+                  const sortable = !!c.sortable;
 
-                <th
-                  className="capex-th"
-                  style={{
-                    ...stickyHead,
-                    border: headerBorder,
-                    borderBottom: headerBorder,
-                    textAlign: "center",
-                    padding: "8px 8px",
-                    fontSize: 12,
-                    minWidth: 120,
-                  }}
-                >
-                  Acción
-                </th>
+                  return (
+                    <th
+                      key={String(c.key)}
+                      className="capex-th"
+                      onClick={sortable ? () => onSortClick(c.key) : undefined}
+                      style={{
+                        ...stickyHead,
+                        border: headerBorder,
+                        borderBottom: headerBorder,
+                        textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
+                        padding: "8px 8px",
+                        fontSize: 12,
+                        minWidth: c.width || 110,
+                        cursor: sortable ? "pointer" : "default",
+                        userSelect: "none",
+                      }}
+                    >
+                      {c.label}
+                      {sortable ? getSortIndicator(c.key) : ""}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
 
             <tbody>
-              {preparedRows.map(({ row, key, complete }) => {
+              {preparedRows.map(({ row, key, complete, changed }) => {
                 const draft = drafts[key] || toDraftRow(row);
-                const changed = !sameDraft(draft, originals[key] || toDraftRow(row));
-                const hasInvalid = rowHasAnyInvalid(draft);
-                const canSave = changed && !hasInvalid && !loading && savingLot !== key;
+                const rowChanged = changed;
 
                 return (
                   <tr key={key} className="capex-tr">
                     {COLUMNS.map((c) => {
                       const value = draft[c.key] ?? "";
                       const invalid = c.editable ? !isValidField(c.key as EditableField, value) : false;
+                      const bg = rowChanged
+                        ? complete
+                          ? editedRowBgComplete
+                          : editedRowBg
+                        : complete
+                        ? "rgba(255,255,255,.05)"
+                        : rowBg;
 
                       if (!c.editable) {
                         const isNumber = c.kind === "number" || c.key === "sack_qty";
@@ -590,10 +780,10 @@ export default function TraceabilityEntryForm() {
                               borderTop: gridH,
                               borderBottom: gridH,
                               borderRight: gridV,
-                              background: complete ? "rgba(255,255,255,.05)" : rowBg,
+                              background: bg,
                               textAlign: isNumber ? "right" : "left",
                               fontWeight: 800,
-                              opacity: complete ? 0.78 : 1,
+                              opacity: complete ? 0.82 : 1,
                             }}
                           >
                             {show || "—"}
@@ -610,14 +800,14 @@ export default function TraceabilityEntryForm() {
                             borderTop: gridH,
                             borderBottom: gridH,
                             borderRight: gridV,
-                            background: complete ? "rgba(255,255,255,.05)" : rowBg,
+                            background: bg,
                             padding: "6px 8px",
                           }}
                         >
                           <input
                             type={c.kind === "date" ? "date" : "text"}
                             value={value}
-                            disabled={loading || !!savingLot}
+                            disabled={loading || saving}
                             onChange={(e) => setCell(key, c.key, e.target.value)}
                             onBlur={() => onBlurFormat(key, c.key)}
                             inputMode={c.kind === "number" ? "decimal" : "text"}
@@ -625,35 +815,19 @@ export default function TraceabilityEntryForm() {
                               ...inputBase,
                               ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
                               ...(invalid ? inputErr : {}),
-                              ...(complete ? { opacity: 0.88 } : {}),
+                              ...(complete ? { opacity: 0.9 } : {}),
                             }}
                           />
                         </td>
                       );
                     })}
-
-                    <td
-                      className="capex-td"
-                      style={{
-                        ...cellBase,
-                        borderTop: gridH,
-                        borderBottom: gridH,
-                        borderRight: gridV,
-                        background: complete ? "rgba(255,255,255,.05)" : rowBg,
-                        textAlign: "center",
-                      }}
-                    >
-                      <Button type="button" size="sm" variant="primary" onClick={() => onSaveRow(key)} disabled={!canSave}>
-                        {savingLot === key ? "Guardando…" : "Guardar"}
-                      </Button>
-                    </td>
                   </tr>
                 );
               })}
 
               {!loading && preparedRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length + 1}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
                     No hay filas para el filtro seleccionado.
                   </td>
                 </tr>
@@ -661,7 +835,7 @@ export default function TraceabilityEntryForm() {
 
               {loading ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length + 1}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
                     Cargando trazabilidad…
                   </td>
                 </tr>
