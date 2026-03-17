@@ -1,4 +1,3 @@
-// src/middleware.ts
 import { NextRequest, NextResponse } from "next/server";
 
 function b64urlToBytes(b64url: string) {
@@ -109,6 +108,8 @@ export async function middleware(req: NextRequest) {
     ? "planta"
     : pathname.startsWith("/refinery")
     ? "refinery"
+    : pathname.startsWith("/traceability")
+    ? "traceability"
     : "capex";
 
   if (!auth.scopes.includes(need)) {

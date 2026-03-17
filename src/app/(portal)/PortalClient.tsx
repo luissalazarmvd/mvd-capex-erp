@@ -1,11 +1,10 @@
-// src/app/(portal)/PortalClient.tsx
 "use client";
 
 import React, { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui/Button";
 
-type Area = "capex" | "planta" | "refinery" | "ti";
+type Area = "capex" | "planta" | "refinery" | "ti" | "traceability";
 
 export default function PortalClient() {
   const router = useRouter();
@@ -64,6 +63,8 @@ export default function PortalClient() {
           ? "/planta/guardia"
           : area === "refinery"
           ? "/refinery/campaign"
+          : area === "traceability"
+          ? "/traceability/entries"
           : "/ti"
       );
     } catch (e: any) {
@@ -113,6 +114,10 @@ export default function PortalClient() {
               Refinería
             </Button>
 
+            <Button type="button" size="lg" variant="primary" onClick={() => start("traceability")}>
+              Trazabilidad
+            </Button>
+
             <Button type="button" size="lg" variant="primary" onClick={() => start("ti")}>
               Tickets TI
             </Button>
@@ -120,7 +125,15 @@ export default function PortalClient() {
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ fontWeight: 800, opacity: 0.9 }}>
-              {area === "capex" ? "Clave CAPEX" : area === "planta" ? "Clave Planta" : area === "refinery" ? "Clave Refinería" : "Clave Tickets TI"}
+              {area === "capex"
+                ? "Clave CAPEX"
+                : area === "planta"
+                ? "Clave Planta"
+                : area === "refinery"
+                ? "Clave Refinería"
+                : area === "traceability"
+                ? "Clave Trazabilidad"
+                : "Clave Tickets TI"}
             </div>
 
             <input
