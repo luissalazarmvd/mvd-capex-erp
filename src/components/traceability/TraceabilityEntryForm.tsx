@@ -1,4 +1,3 @@
-// src/components/traceability/TraceabilityEntryForm.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -191,12 +190,6 @@ function parseNum(v: string) {
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : NaN;
-}
-
-function format2(v: string) {
-  const n = parseNum(v);
-  if (n === null || Number.isNaN(n)) return v;
-  return n.toFixed(2);
 }
 
 function isValidDateText(v: string) {
@@ -439,6 +432,7 @@ export default function TraceabilityEntryForm() {
     outline: "none",
     fontSize: 12,
     lineHeight: "14px",
+    boxSizing: "border-box",
   };
 
   const inputErr: React.CSSProperties = {
@@ -447,10 +441,21 @@ export default function TraceabilityEntryForm() {
   };
 
   return (
-    <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
+    <div
+      style={{
+        display: "grid",
+        gap: 10,
+        minWidth: 0,
+        minHeight: 0,
+        width: "100%",
+        height: "100%",
+        maxWidth: "100%",
+        overflow: "hidden",
+      }}
+    >
       <div
         className="panel-inner"
-        style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}
+        style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", flexShrink: 0 }}
       >
         <div style={{ fontWeight: 900 }}>Trazabilidad · Ingresar Datos</div>
 
@@ -490,6 +495,7 @@ export default function TraceabilityEntryForm() {
           className="panel-inner"
           style={{
             padding: 10,
+            flexShrink: 0,
             border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
             background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
             fontWeight: 800,
@@ -499,64 +505,101 @@ export default function TraceabilityEntryForm() {
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 0, overflow: "visible" }}>
-        <Table stickyHeader>
-          <thead>
-            <tr>
-              {COLUMNS.map((c) => (
+      <div
+        className="panel-inner"
+        style={{
+          padding: 0,
+          minWidth: 0,
+          minHeight: 0,
+          width: "100%",
+          height: "100%",
+          maxWidth: "100%",
+          overflow: "auto",
+        }}
+      >
+        <div
+          style={{
+            minWidth: "max-content",
+            width: "max-content",
+          }}
+        >
+          <Table stickyHeader>
+            <thead>
+              <tr>
+                {COLUMNS.map((c) => (
+                  <th
+                    key={String(c.key)}
+                    className="capex-th"
+                    style={{
+                      ...stickyHead,
+                      border: headerBorder,
+                      borderBottom: headerBorder,
+                      textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
+                      padding: "8px 8px",
+                      fontSize: 12,
+                      minWidth: c.width || 110,
+                    }}
+                  >
+                    {c.label}
+                  </th>
+                ))}
+
                 <th
-                  key={String(c.key)}
                   className="capex-th"
                   style={{
                     ...stickyHead,
                     border: headerBorder,
                     borderBottom: headerBorder,
-                    textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
+                    textAlign: "center",
                     padding: "8px 8px",
                     fontSize: 12,
-                    minWidth: c.width || 110,
+                    minWidth: 120,
                   }}
                 >
-                  {c.label}
+                  Acción
                 </th>
-              ))}
+              </tr>
+            </thead>
 
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "center",
-                  padding: "8px 8px",
-                  fontSize: 12,
-                  minWidth: 120,
-                }}
-              >
-                Acción
-              </th>
-            </tr>
-          </thead>
+            <tbody>
+              {preparedRows.map(({ row, key, complete }) => {
+                const draft = drafts[key] || toDraftRow(row);
+                const changed = !sameDraft(draft, originals[key] || toDraftRow(row));
+                const hasInvalid = rowHasAnyInvalid(draft);
+                const canSave = changed && !hasInvalid && !loading && savingLot !== key;
 
-          <tbody>
-            {preparedRows.map(({ row, key, complete }) => {
-              const draft = drafts[key] || toDraftRow(row);
-              const changed = !sameDraft(draft, originals[key] || toDraftRow(row));
-              const hasInvalid = rowHasAnyInvalid(draft);
-              const canSave = changed && !hasInvalid && !loading && savingLot !== key;
+                return (
+                  <tr key={key} className="capex-tr">
+                    {COLUMNS.map((c) => {
+                      const value = draft[c.key] ?? "";
+                      const invalid = c.editable ? !isValidField(c.key as EditableField, value) : false;
 
-              return (
-                <tr key={key} className="capex-tr">
-                  {COLUMNS.map((c) => {
-                    const value = draft[c.key] ?? "";
-                    const invalid = c.editable ? !isValidField(c.key as EditableField, value) : false;
+                      if (!c.editable) {
+                        const isNumber = c.kind === "number" || c.key === "sack_qty";
+                        const show =
+                          isNumber && !isBlank(row[c.key])
+                            ? Number(row[c.key]).toFixed(2)
+                            : String(row[c.key] ?? "");
 
-                    if (!c.editable) {
-                      const isNumber = c.kind === "number" || c.key === "sack_qty";
-                      const show =
-                        isNumber && !isBlank(row[c.key])
-                          ? Number(row[c.key]).toFixed(2)
-                          : String(row[c.key] ?? "");
+                        return (
+                          <td
+                            key={String(c.key)}
+                            className="capex-td"
+                            style={{
+                              ...cellBase,
+                              borderTop: gridH,
+                              borderBottom: gridH,
+                              borderRight: gridV,
+                              background: complete ? "rgba(255,255,255,.05)" : rowBg,
+                              textAlign: isNumber ? "right" : "left",
+                              fontWeight: 800,
+                              opacity: complete ? 0.78 : 1,
+                            }}
+                          >
+                            {show || "—"}
+                          </td>
+                        );
+                      }
 
                       return (
                         <td
@@ -568,83 +611,64 @@ export default function TraceabilityEntryForm() {
                             borderBottom: gridH,
                             borderRight: gridV,
                             background: complete ? "rgba(255,255,255,.05)" : rowBg,
-                            textAlign: isNumber ? "right" : "left",
-                            fontWeight: 800,
-                            opacity: complete ? 0.78 : 1,
+                            padding: "6px 8px",
                           }}
                         >
-                          {show || "—"}
+                          <input
+                            type={c.kind === "date" ? "date" : "text"}
+                            value={value}
+                            disabled={loading || !!savingLot}
+                            onChange={(e) => setCell(key, c.key, e.target.value)}
+                            onBlur={() => onBlurFormat(key, c.key)}
+                            inputMode={c.kind === "number" ? "decimal" : "text"}
+                            style={{
+                              ...inputBase,
+                              ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
+                              ...(invalid ? inputErr : {}),
+                              ...(complete ? { opacity: 0.88 } : {}),
+                            }}
+                          />
                         </td>
                       );
-                    }
+                    })}
 
-                    return (
-                      <td
-                        key={String(c.key)}
-                        className="capex-td"
-                        style={{
-                          ...cellBase,
-                          borderTop: gridH,
-                          borderBottom: gridH,
-                          borderRight: gridV,
-                          background: complete ? "rgba(255,255,255,.05)" : rowBg,
-                          padding: "6px 8px",
-                        }}
-                      >
-                        <input
-                          type={c.kind === "date" ? "date" : "text"}
-                          value={value}
-                          disabled={loading || !!savingLot}
-                          onChange={(e) => setCell(key, c.key, e.target.value)}
-                          onBlur={() => onBlurFormat(key, c.key)}
-                          inputMode={c.kind === "number" ? "decimal" : "text"}
-                          style={{
-                            ...inputBase,
-                            ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
-                            ...(invalid ? inputErr : {}),
-                            ...(complete ? { opacity: 0.88 } : {}),
-                          }}
-                        />
-                      </td>
-                    );
-                  })}
+                    <td
+                      className="capex-td"
+                      style={{
+                        ...cellBase,
+                        borderTop: gridH,
+                        borderBottom: gridH,
+                        borderRight: gridV,
+                        background: complete ? "rgba(255,255,255,.05)" : rowBg,
+                        textAlign: "center",
+                      }}
+                    >
+                      <Button type="button" size="sm" variant="primary" onClick={() => onSaveRow(key)} disabled={!canSave}>
+                        {savingLot === key ? "Guardando…" : "Guardar"}
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
 
-                  <td
-                    className="capex-td"
-                    style={{
-                      ...cellBase,
-                      borderTop: gridH,
-                      borderBottom: gridH,
-                      borderRight: gridV,
-                      background: complete ? "rgba(255,255,255,.05)" : rowBg,
-                      textAlign: "center",
-                    }}
-                  >
-                    <Button type="button" size="sm" variant="primary" onClick={() => onSaveRow(key)} disabled={!canSave}>
-                      {savingLot === key ? "Guardando…" : "Guardar"}
-                    </Button>
+              {!loading && preparedRows.length === 0 ? (
+                <tr className="capex-tr">
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length + 1}>
+                    No hay filas para el filtro seleccionado.
                   </td>
                 </tr>
-              );
-            })}
+              ) : null}
 
-            {!loading && preparedRows.length === 0 ? (
-              <tr className="capex-tr">
-                <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length + 1}>
-                  No hay filas para el filtro seleccionado.
-                </td>
-              </tr>
-            ) : null}
-
-            {loading ? (
-              <tr className="capex-tr">
-                <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length + 1}>
-                  Cargando trazabilidad…
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </Table>
+              {loading ? (
+                <tr className="capex-tr">
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length + 1}>
+                    Cargando trazabilidad…
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </Table>
+        </div>
       </div>
     </div>
   );
