@@ -162,23 +162,23 @@ const COLUMNS: {
   { key: "transport_guide_number", label: "Guía Transporte", editable: true, kind: "text", width: 125 },
   { key: "zone_1", label: "Zona 1", editable: true, kind: "text", width: 90 },
   { key: "zone_2", label: "Zona 2", editable: true, kind: "text", width: 120 },
-  { key: "tmh", label: "TMH", editable: true, kind: "number", width: 78 },
-  { key: "h2o", label: "H2O", editable: true, kind: "number", width: 78 },
-  { key: "tms", label: "TMS", editable: true, kind: "number", width: 78 },
-  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number", width: 78 },
-  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number", width: 78 },
-  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 78 },
-  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 78 },
-  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 78 },
-  { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 78 },
-  { key: "pio", label: "PIO", editable: true, kind: "number", width: 78 },
-  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 78 },
-  { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 78 },
-  { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 78 },
-  { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 78 },
-  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 78 },
-  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 78 },
-  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 78 },
+  { key: "tmh", label: "TMH", editable: true, kind: "number", width: 40 },
+  { key: "h2o", label: "H2O", editable: true, kind: "number", width: 40 },
+  { key: "tms", label: "TMS", editable: true, kind: "number", width: 40 },
+  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number", width: 40 },
+  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number", width: 40 },
+  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 40 },
+  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 40 },
+  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 40 },
+  { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 40 },
+  { key: "pio", label: "PIO", editable: true, kind: "number", width: 40 },
+  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 40 },
+  { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 40 },
+  { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 40 },
+  { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 40 },
+  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 40 },
+  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 40 },
+  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 40 },
   { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
   { key: "doc_date", label: "F. Doc", editable: false, kind: "readonly", width: 105, sortable: true },
   { key: "doc_number", label: "Nro Doc", editable: false, kind: "readonly", width: 110, sortable: true },
@@ -300,17 +300,7 @@ function buildPayload(row: DraftRow) {
   return payload;
 }
 
-function getSortValue(
-  row: TraceabilityRow,
-  draft: DraftRow | undefined,
-  key: SortKey
-) {
-  const draftValue = draft?.[key];
-
-  if (draftValue !== undefined) {
-    return String(draftValue).trim();
-  }
-
+function getSortValue(row: TraceabilityRow, key: SortKey) {
   const rowValue = row[key];
   if (rowValue === null || rowValue === undefined) return "";
   return String(rowValue).trim();
@@ -319,13 +309,11 @@ function getSortValue(
 function compareByKey(
   a: TraceabilityRow,
   b: TraceabilityRow,
-  aDraft: DraftRow | undefined,
-  bDraft: DraftRow | undefined,
   key: SortKey,
   dir: SortDir
 ) {
-  const av = getSortValue(a, aDraft, key);
-  const bv = getSortValue(b, bDraft, key);
+  const av = getSortValue(a, key);
+  const bv = getSortValue(b, key);
 
   let result = 0;
 
@@ -404,11 +392,11 @@ export default function TraceabilityEntryForm() {
 
     const incompletes = filtered
       .filter((x) => !x.complete)
-      .sort((a, b) => compareByKey(a.row, b.row, drafts[a.key], drafts[b.key], sortKey, sortDir));
+      .sort((a, b) => compareByKey(a.row, b.row, sortKey, sortDir));
 
     const completes = filtered
       .filter((x) => x.complete)
-      .sort((a, b) => compareByKey(a.row, b.row, drafts[a.key], drafts[b.key], sortKey, sortDir));
+      .sort((a, b) => compareByKey(a.row, b.row, sortKey, sortDir));
 
     return [...incompletes, ...completes];
   }, [rows, drafts, originals, dateFrom, dateTo, sortKey, sortDir]);
