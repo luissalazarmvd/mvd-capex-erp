@@ -319,6 +319,48 @@ function compareByKey(a: TraceabilityRow, b: TraceabilityRow, key: SortKey, dir:
   return dir === "asc" ? result : -result;
 }
 
+function isRowComplete(draft: DraftRow) {
+  for (const f of EDITABLE_FIELDS) {
+    if (isBlank(draft[f])) return false;
+  }
+  return isUsdValidationOk(draft);
+}
+
+function getLotPriority(lot: string | null) {
+  const v = String(lot || "").trim().toUpperCase();
+  if (v.startsWith("2")) return 0;
+  if (v.startsWith("TRJ")) return 1;
+  return 2;
+}
+
+function compareDateDesc(a: string | null, b: string | null) {
+  const av = String(a || "").trim();
+  const bv = String(b || "").trim();
+  return bv.localeCompare(av, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function compareRows(
+  a: TraceabilityRow,
+  b: TraceabilityRow,
+  draftA: DraftRow | undefined,
+  draftB: DraftRow | undefined,
+  sortKey: SortKey,
+  sortDir: SortDir
+) {
+  const lotPriorityA = getLotPriority(a.lot);
+  const lotPriorityB = getLotPriority(b.lot);
+  if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
+
+  const completeA = draftA ? isRowComplete(draftA) : false;
+  const completeB = draftB ? isRowComplete(draftB) : false;
+  if (completeA !== completeB) return completeA ? 1 : -1;
+
+  const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
+  if (entryDateCmp !== 0) return entryDateCmp;
+
+  return compareByKey(a, b, sortKey, sortDir);
+}
+
 function inDateRange(entryDate: string | null, from: string, to: string) {
   const d = String(entryDate || "").trim();
   if (!d) return !from && !to;
@@ -549,8 +591,18 @@ export default function TraceabilityEntryForm() {
     const filtered = rows.filter(
       (row) => inDateRange(row.entry_date, dateFrom, dateTo) && matchesLot(row.lot, lotFilter)
     );
-    return [...filtered].sort((a, b) => compareByKey(a, b, sortKey, sortDir));
-  }, [rows, dateFrom, dateTo, lotFilter, sortKey, sortDir]);
+
+    return [...filtered].sort((a, b) =>
+      compareRows(
+        a,
+        b,
+        draftsRef.current[String(a.lot || "").trim()],
+        draftsRef.current[String(b.lot || "").trim()],
+        sortKey,
+        sortDir
+      )
+    );
+  }, [rows, dateFrom, dateTo, lotFilter, sortKey, sortDir, editedTick]);
 
   const totalRows = preparedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
@@ -619,6 +671,20 @@ export default function TraceabilityEntryForm() {
 
     if (!NUMERIC_FIELDS.includes(field as EditableField)) {
       current[field] = trimmed;
+
+      const tmsBlank = String(current.tms ?? "").trim() === "";
+      const tmh = parseNum(String(current.tmh ?? ""));
+      const h2o = parseNum(String(current.h2o ?? ""));
+
+      if (tmsBlank && tmh !== null && h2o !== null) {
+        const calcTms = tmh * ((100 - h2o) / 100);
+        const formattedTms = calcTms.toFixed(2);
+        current.tms = formattedTms;
+
+        const tmsInput = inputsRef.current[key]?.tms;
+        if (tmsInput && tmsInput.value !== formattedTms) tmsInput.value = formattedTms;
+      }
+
       setEditedTick((v) => v + 1);
       return;
     }
@@ -650,6 +716,23 @@ export default function TraceabilityEntryForm() {
 
     const input = inputsRef.current[key]?.[field];
     if (input && input.value !== formatted) input.value = formatted;
+
+    const affectsAutoTms = field === "tmh" || field === "h2o";
+    const tmsBlank = String(current.tms ?? "").trim() === "";
+
+    if (affectsAutoTms && tmsBlank) {
+      const tmh = parseNum(String(current.tmh ?? ""));
+      const h2o = parseNum(String(current.h2o ?? ""));
+
+      if (tmh !== null && h2o !== null) {
+        const calcTms = tmh * ((100 - h2o) / 100);
+        const formattedTms = calcTms.toFixed(2);
+        current.tms = formattedTms;
+
+        const tmsInput = inputsRef.current[key]?.tms;
+        if (tmsInput && tmsInput.value !== formattedTms) tmsInput.value = formattedTms;
+      }
+    }
 
     setEditedTick((v) => v + 1);
   }, []);
