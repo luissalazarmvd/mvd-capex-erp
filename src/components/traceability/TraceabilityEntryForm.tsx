@@ -162,23 +162,23 @@ const COLUMNS: {
   { key: "transport_guide_number", label: "Guía Transporte", editable: true, kind: "text", width: 125 },
   { key: "zone_1", label: "Zona 1", editable: true, kind: "text", width: 90 },
   { key: "zone_2", label: "Zona 2", editable: true, kind: "text", width: 120 },
-  { key: "tmh", label: "TMH", editable: true, kind: "number", width: 40 },
-  { key: "h2o", label: "H2O", editable: true, kind: "number", width: 40 },
-  { key: "tms", label: "TMS", editable: true, kind: "number", width: 40 },
-  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number", width: 40 },
-  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number", width: 40 },
-  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 40 },
-  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 40 },
-  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 40 },
-  { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 40 },
-  { key: "pio", label: "PIO", editable: true, kind: "number", width: 40 },
-  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 40 },
-  { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 40 },
-  { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 40 },
-  { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 40 },
-  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 40 },
-  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 40 },
-  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 40 },
+  { key: "tmh", label: "TMH", editable: true, kind: "number", width: 64 },
+  { key: "h2o", label: "H2O", editable: true, kind: "number", width: 64 },
+  { key: "tms", label: "TMS", editable: true, kind: "number", width: 64 },
+  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number", width: 74 },
+  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number", width: 74 },
+  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 64 },
+  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 64 },
+  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 64 },
+  { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 64 },
+  { key: "pio", label: "PIO", editable: true, kind: "number", width: 64 },
+  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 74 },
+  { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 70 },
+  { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 64 },
+  { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 74 },
+  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 74 },
+  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 70 },
+  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 70 },
   { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
   { key: "doc_date", label: "F. Doc", editable: false, kind: "readonly", width: 105, sortable: true },
   { key: "doc_number", label: "Nro Doc", editable: false, kind: "readonly", width: 110, sortable: true },
@@ -249,8 +249,8 @@ function rowHasAnyInvalid(row: DraftRow) {
   return EDITABLE_FIELDS.some((f) => !isValidField(f, row[f]));
 }
 
-function isRowComplete(row: TraceabilityRow) {
-  return COLUMNS.every((c) => !isBlank(row[c.key]));
+function isRowCompleteDraft(row: DraftRow) {
+  return EDITABLE_FIELDS.every((f) => !isBlank(row[f]));
 }
 
 function compareLot(a: string, b: string) {
@@ -351,7 +351,7 @@ export default function TraceabilityEntryForm() {
       const nextDrafts: Record<string, DraftRow> = {};
       const nextOriginals: Record<string, DraftRow> = {};
 
-      data.forEach((row, idx) => {
+      data.forEach((row) => {
         const key = String(row.lot || "").trim();
         const d = toDraftRow(row);
         nextDrafts[key] = d;
@@ -374,15 +374,15 @@ export default function TraceabilityEntryForm() {
 
   const preparedRows = useMemo(() => {
     const filtered = rows
-      .map((row, idx) => {
+      .map((row) => {
         const key = String(row.lot || "").trim();
-        const complete = isRowComplete(row);
-        const draft = drafts[key] || toDraftRow(row);
-        const changed = !sameDraft(draft, originals[key] || toDraftRow(row));
+        const baseDraft = originals[key] || toDraftRow(row);
+        const draft = drafts[key] || baseDraft;
+        const complete = isRowCompleteDraft(draft);
+        const changed = !sameDraft(draft, baseDraft);
 
         return {
           row,
-          idx,
           key,
           complete,
           changed,
@@ -420,13 +420,18 @@ export default function TraceabilityEntryForm() {
   }, [editedRowKeys, drafts]);
 
   function setCell(key: string, field: keyof TraceabilityRow, value: string) {
-    setDrafts((prev) => ({
-      ...prev,
-      [key]: {
-        ...(prev[key] || ({} as DraftRow)),
-        [field]: value,
-      },
-    }));
+    setDrafts((prev) => {
+      const current = prev[key] || ({} as DraftRow);
+      if (current[field] === value) return prev;
+
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          [field]: value,
+        },
+      };
+    });
   }
 
   function onBlurFormat(key: string, field: keyof TraceabilityRow) {
@@ -440,11 +445,14 @@ export default function TraceabilityEntryForm() {
       const n = parseNum(raw);
       if (n === null || Number.isNaN(n)) return prev;
 
+      const formatted = n.toFixed(2);
+      if (current[field] === formatted) return prev;
+
       return {
         ...prev,
         [key]: {
           ...current,
-          [field]: n.toFixed(2),
+          [field]: formatted,
         },
       };
     });
@@ -570,6 +578,9 @@ export default function TraceabilityEntryForm() {
     fontSize: 12,
     lineHeight: "14px",
     whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    boxSizing: "border-box",
   };
 
   const inputBase: React.CSSProperties = {
@@ -704,6 +715,19 @@ export default function TraceabilityEntryForm() {
           }}
         >
           <Table stickyHeader>
+            <colgroup>
+              {COLUMNS.map((c) => (
+                <col
+                  key={String(c.key)}
+                  style={{
+                    width: c.width || 110,
+                    minWidth: c.width || 110,
+                    maxWidth: c.width || 110,
+                  }}
+                />
+              ))}
+            </colgroup>
+
             <thead>
               <tr>
                 {COLUMNS.map((c) => {
@@ -719,12 +743,19 @@ export default function TraceabilityEntryForm() {
                         border: headerBorder,
                         borderBottom: headerBorder,
                         textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
-                        padding: "8px 8px",
+                        padding: c.kind === "number" ? "8px 4px" : "8px 8px",
                         fontSize: 12,
+                        width: c.width || 110,
                         minWidth: c.width || 110,
+                        maxWidth: c.width || 110,
                         cursor: sortable ? "pointer" : "default",
                         userSelect: "none",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        boxSizing: "border-box",
                       }}
+                      title={c.label}
                     >
                       {c.label}
                       {sortable ? getSortIndicator(c.key) : ""}
@@ -772,7 +803,12 @@ export default function TraceabilityEntryForm() {
                               textAlign: isNumber ? "right" : "left",
                               fontWeight: 800,
                               opacity: complete ? 0.82 : 1,
+                              width: c.width || 110,
+                              minWidth: c.width || 110,
+                              maxWidth: c.width || 110,
+                              padding: isNumber ? "6px 4px" : "6px 8px",
                             }}
+                            title={show || "—"}
                           >
                             {show || "—"}
                           </td>
@@ -789,7 +825,12 @@ export default function TraceabilityEntryForm() {
                             borderBottom: gridH,
                             borderRight: gridV,
                             background: bg,
-                            padding: "6px 8px",
+                            padding: c.kind === "number" ? "4px 4px" : "6px 8px",
+                            width: c.width || 110,
+                            minWidth: c.width || 110,
+                            maxWidth: c.width || 110,
+                            overflow: "hidden",
+                            boxSizing: "border-box",
                           }}
                         >
                           <input
@@ -801,6 +842,10 @@ export default function TraceabilityEntryForm() {
                             inputMode={c.kind === "number" ? "decimal" : "text"}
                             style={{
                               ...inputBase,
+                              width: c.kind === "number" ? "56px" : "100%",
+                              minWidth: c.kind === "number" ? "56px" : undefined,
+                              maxWidth: c.kind === "number" ? "56px" : undefined,
+                              padding: c.kind === "number" ? "4px 6px" : "6px 8px",
                               ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
                               ...(invalid ? inputErr : {}),
                               ...(complete ? { opacity: 0.9 } : {}),
