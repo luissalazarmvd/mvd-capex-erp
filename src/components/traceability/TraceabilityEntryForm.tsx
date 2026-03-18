@@ -188,13 +188,29 @@ function toText(v: unknown) {
 
 function toDraftRow(r: TraceabilityRow): DraftRow {
   const out = {} as DraftRow;
+
+  const tmh = r.tmh === null || r.tmh === undefined ? null : Number(r.tmh);
+  const h2o = r.h2o === null || r.h2o === undefined ? null : Number(r.h2o);
+  const hasTms = !(r.tms === null || r.tms === undefined || String(r.tms).trim() === "");
+
   for (const c of COLUMNS) {
     if (c.key === "ag_oz" || c.key === "escalador") {
       out[c.key] = isBlank(r[c.key]) ? "0.00" : toText(r[c.key]);
       continue;
     }
+
+    if (c.key === "tms") {
+      if (!hasTms && tmh !== null && h2o !== null) {
+        out[c.key] = (tmh * ((100 - h2o) / 100)).toFixed(2);
+      } else {
+        out[c.key] = toText(r[c.key]);
+      }
+      continue;
+    }
+
     out[c.key] = toText(r[c.key]);
   }
+
   return out;
 }
 
@@ -490,7 +506,7 @@ const RowItem = React.memo(function RowItem({
             <input
               ref={(el) => registerInput(key, c.key, el)}
               type={c.kind === "date" ? "date" : "text"}
-              defaultValue={toText(row[c.key])}
+              defaultValue={toText(draft[c.key])}
               disabled={loading || saving}
               onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
               inputMode={c.kind === "number" ? "decimal" : "text"}
@@ -691,6 +707,22 @@ export default function TraceabilityEntryForm() {
 
     if (String(trimmed).trim() === "") {
       current[field] = "";
+
+      if (field === "tms" || field === "tmh" || field === "h2o") {
+        const tmsBlank = String(current.tms ?? "").trim() === "";
+        const tmh = parseNum(String(current.tmh ?? ""));
+        const h2o = parseNum(String(current.h2o ?? ""));
+
+        if (tmsBlank && tmh !== null && h2o !== null) {
+          const calcTms = tmh * ((100 - h2o) / 100);
+          const formattedTms = calcTms.toFixed(2);
+          current.tms = formattedTms;
+
+          const tmsInput = inputsRef.current[key]?.tms;
+          if (tmsInput && tmsInput.value !== formattedTms) tmsInput.value = formattedTms;
+        }
+      }
+
       setEditedTick((v) => v + 1);
       return;
     }
