@@ -298,6 +298,12 @@ function isUsdValidationOk(draft: DraftRow) {
   return round2(facturaCalc) === round2(lotUsd);
 }
 
+function hasValuationData(draft: DraftRow) {
+  const usdTms = toNumOrNull(draft.usd_tms);
+  const lotUsd = toNumOrNull(draft.lot_usd);
+  return usdTms !== null && lotUsd !== null;
+}
+
 function validateNumericRange(field: EditableField, value: number | null) {
   if (value === null) return null;
   if (RANGE_0_100_FIELDS.includes(field) && (value < 0 || value > 100)) {
@@ -452,6 +458,8 @@ type RowItemProps = {
   saving: boolean;
   edited: boolean;
   invalidUsdMatch: boolean;
+  validUsdMatch: boolean;
+  pendingValuation: boolean;
   registerInput: (
     key: string,
     field: keyof TraceabilityRow,
@@ -475,6 +483,8 @@ function RowItem({
   saving,
   edited,
   invalidUsdMatch,
+  validUsdMatch,
+  pendingValuation,
   registerInput,
   onCellBlur,
   onCellFocus,
@@ -487,7 +497,13 @@ function RowItem({
   invalidRowBg,
 }: RowItemProps) {
   const key = String(row.lot || "").trim();
-  const currentRowBg = invalidUsdMatch ? invalidRowBg : edited ? editedRowBg : rowBg;
+  const currentRowBg = pendingValuation
+    ? rowBg
+    : invalidUsdMatch
+    ? invalidRowBg
+    : validUsdMatch
+    ? editedRowBg
+    : rowBg;
 
   return (
     <tr className="capex-tr">
@@ -580,12 +596,14 @@ function RowItem({
                   minWidth: 0,
                   maxWidth: "100%",
                   padding: "6px 8px",
-                  ...(invalidUsdMatch
+                  ...(pendingValuation
+                    ? null
+                    : invalidUsdMatch
                     ? {
                         border: "1px solid rgba(255, 92, 92, 0.75)",
                         background: "rgba(120, 30, 30, 0.22)",
                       }
-                    : edited
+                    : validUsdMatch
                     ? {
                         border: "1px solid rgba(92, 211, 158, 0.55)",
                         background: "rgba(38, 120, 88, 0.18)",
@@ -613,12 +631,14 @@ function RowItem({
                   maxWidth: "100%",
                   padding: c.kind === "number" ? "4px 6px" : "6px 8px",
                   ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
-                  ...(invalidUsdMatch
+                  ...(pendingValuation
+                    ? null
+                    : invalidUsdMatch
                     ? {
                         border: "1px solid rgba(255, 92, 92, 0.75)",
                         background: "rgba(120, 30, 30, 0.22)",
                       }
-                    : edited
+                    : validUsdMatch
                     ? {
                         border: "1px solid rgba(92, 211, 158, 0.55)",
                         background: "rgba(38, 120, 88, 0.18)",
@@ -752,28 +772,70 @@ export default function TraceabilityEntryForm() {
     return map;
   }, [editedTick]);
 
+  const pendingValuationMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+
+    for (const row of rows) {
+      const key = String(row.lot || "").trim();
+      const draft = draftsRef.current[key] ?? toDraftRow(row);
+      map[key] = !hasValuationData(draft);
+    }
+
+    return map;
+  }, [rows, editedTick]);
+
   const invalidUsdMap = useMemo(() => {
     const map: Record<string, boolean> = {};
 
     for (const row of rows) {
       const key = String(row.lot || "").trim();
       const draft = draftsRef.current[key] ?? toDraftRow(row);
-      map[key] = !isUsdValidationOk(draft);
+      map[key] = hasValuationData(draft) && !isUsdValidationOk(draft);
     }
 
     return map;
   }, [rows, editedTick]);
 
-  const invalidEditedCount = useMemo(() => {
-    editedTick;
+  const validUsdMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+
+    for (const row of rows) {
+      const key = String(row.lot || "").trim();
+      const draft = draftsRef.current[key] ?? toDraftRow(row);
+      map[key] = hasValuationData(draft) && isUsdValidationOk(draft);
+    }
+
+    return map;
+  }, [rows, editedTick]);
+
+  const invalidCount = useMemo(() => {
     let count = 0;
-    for (const key of Object.keys(draftsRef.current)) {
-      if (editedMap[key] && invalidUsdMap[key]) count++;
+    for (const row of rows) {
+      const key = String(row.lot || "").trim();
+      if (invalidUsdMap[key]) count++;
     }
     return count;
-  }, [editedTick, editedMap, invalidUsdMap]);
+  }, [rows, invalidUsdMap]);
 
-  const hasInvalidEditedRows = invalidEditedCount > 0;
+  const validCount = useMemo(() => {
+    let count = 0;
+    for (const row of rows) {
+      const key = String(row.lot || "").trim();
+      if (validUsdMap[key]) count++;
+    }
+    return count;
+  }, [rows, validUsdMap]);
+
+  const pendingValuationCount = useMemo(() => {
+    let count = 0;
+    for (const row of rows) {
+      const key = String(row.lot || "").trim();
+      if (pendingValuationMap[key]) count++;
+    }
+    return count;
+  }, [rows, pendingValuationMap]);
+
+  const hasInvalidEditedRows = Object.keys(draftsRef.current).some((key) => editedMap[key] && invalidUsdMap[key]);
 
   const activeDraft = activeLot ? draftsRef.current[activeLot] : undefined;
   const activeFacturaCalculada = activeDraft ? calcFacturaCalculada(activeDraft) : null;
@@ -1062,14 +1124,42 @@ export default function TraceabilityEntryForm() {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: hasInvalidEditedRows ? "1px solid rgba(255, 92, 92, 0.65)" : "1px solid rgba(255,255,255,0.12)",
-            background: hasInvalidEditedRows ? "rgba(120, 24, 24, 0.28)" : "rgba(255,255,255,0.06)",
+            border: invalidCount > 0 ? "1px solid rgba(255, 92, 92, 0.65)" : "1px solid rgba(255,255,255,0.12)",
+            background: invalidCount > 0 ? "rgba(120, 24, 24, 0.28)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: hasInvalidEditedRows ? "rgb(255, 170, 170)" : "rgba(255,255,255,0.8)",
+            color: invalidCount > 0 ? "rgb(255, 170, 170)" : "rgba(255,255,255,0.8)",
           }}
         >
-          Filas inválidas: {invalidEditedCount}
+          Inválidas: {invalidCount}
+        </div>
+
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(92, 211, 158, 0.45)",
+            background: "rgba(38, 120, 88, 0.24)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: "rgb(160, 255, 214)",
+          }}
+        >
+          Correctas: {validCount}
+        </div>        
+
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.06)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: "rgba(255,255,255,0.8)",
+          }}
+        >
+          Pendientes valorización: {pendingValuationCount}
         </div>
 
         <div
@@ -1241,15 +1331,17 @@ export default function TraceabilityEntryForm() {
               {visibleRows.map((row) => {
                 const rowKey = String(row.lot || "").trim();
                 return (
-                  <RowItem
-                    key={rowKey}
-                    row={row}
-                    draft={draftsRef.current[rowKey] ?? toDraftRow(row)}
-                    loading={loading}
-                    saving={saving}
-                    edited={!!editedMap[rowKey]}
-                    invalidUsdMatch={!!invalidUsdMap[rowKey]}
-                    registerInput={registerInput}
+                <RowItem
+                  key={rowKey}
+                  row={row}
+                  draft={draftsRef.current[rowKey] ?? toDraftRow(row)}
+                  loading={loading}
+                  saving={saving}
+                  edited={!!editedMap[rowKey]}
+                  invalidUsdMatch={!!invalidUsdMap[rowKey]}
+                  validUsdMatch={!!validUsdMap[rowKey]}
+                  pendingValuation={!!pendingValuationMap[rowKey]}
+                  registerInput={registerInput}
                     onCellBlur={onCellBlur}
                     onCellFocus={onCellFocus}
                     cellBase={cellBase}
