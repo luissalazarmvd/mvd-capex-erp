@@ -457,7 +457,7 @@ type RowItemProps = {
   invalidRowBg: string;
 };
 
-const RowItem = React.memo(function RowItem({
+function RowItem({
   row,
   draft,
   loading,
@@ -621,7 +621,7 @@ const RowItem = React.memo(function RowItem({
       })}
     </tr>
   );
-});
+}
 
 export default function TraceabilityEntryForm() {
   const [rows, setRows] = useState<TraceabilityRow[]>([]);
@@ -742,13 +742,16 @@ export default function TraceabilityEntryForm() {
   }, [editedTick]);
 
   const invalidUsdMap = useMemo(() => {
-    editedTick;
     const map: Record<string, boolean> = {};
-    for (const key of Object.keys(draftsRef.current)) {
-      map[key] = !isUsdValidationOk(draftsRef.current[key]);
+
+    for (const row of rows) {
+      const key = String(row.lot || "").trim();
+      const draft = draftsRef.current[key] ?? toDraftRow(row);
+      map[key] = !isUsdValidationOk(draft);
     }
+
     return map;
-  }, [editedTick]);
+  }, [rows, editedTick]);
 
   const invalidEditedCount = useMemo(() => {
     editedTick;
