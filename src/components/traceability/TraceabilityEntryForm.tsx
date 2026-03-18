@@ -42,6 +42,7 @@ type TraceabilityRow = {
   au_usd: number | null;
   ag_usd: number | null;
   pay_type: string | null;
+  lot_usd: number | null;
   doc_date: string | null;
   doc_number: string | null;
 };
@@ -161,6 +162,7 @@ const COLUMNS: {
   { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 88 },
   { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 88 },
   { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
+  { key: "lot_usd", label: "Factura (USD)", editable: false, kind: "readonly", width: 110 },
   { key: "doc_date", label: "F. Factura", editable: false, kind: "readonly", width: 105, sortable: true },
   { key: "doc_number", label: "Factura", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "sack_qty", label: "Sacos", editable: false, kind: "readonly", width: 78 },
@@ -320,7 +322,7 @@ const RowItem = React.memo(function RowItem({
     <tr className="capex-tr">
       {COLUMNS.map((c) => {
         if (!c.editable) {
-          const isNumber = c.kind === "number" || c.key === "sack_qty";
+          const isNumber = c.kind === "number" || c.key === "sack_qty" || c.key === "lot_usd";
           const raw = row[c.key];
           const show = isNumber && !isBlank(raw) ? Number(raw).toFixed(2) : String(raw ?? "");
 
