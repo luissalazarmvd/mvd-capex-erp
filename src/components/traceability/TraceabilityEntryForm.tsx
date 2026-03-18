@@ -521,7 +521,7 @@ const RowItem = React.memo(function RowItem({
                 borderRight: gridV,
                 background: currentRowBg,
                 textAlign: isNumber ? "right" : "left",
-                fontWeight: 800,
+                fontWeight: 400,
                 width: c.width || 110,
                 minWidth: c.width || 110,
                 maxWidth: c.width || 110,
