@@ -5,27 +5,43 @@ type Props = {
   children: React.ReactNode;
   stickyHeader?: boolean;
   maxHeight?: number | string;
+  disableScrollWrapper?: boolean;
 };
 
-export function Table({ children, stickyHeader = true, maxHeight }: Props) {
-  return (
-    <div
-      className="panel-inner"
+export function Table({
+  children,
+  stickyHeader = true,
+  maxHeight,
+  disableScrollWrapper = false,
+}: Props) {
+  const tableNode = (
+    <table
       style={{
-        overflow: "auto",
-        maxHeight: maxHeight ?? "unset",
+        width: "100%",
+        borderCollapse: "separate",
+        borderSpacing: 0,
+        fontSize: 13,
       }}
     >
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "separate",
-          borderSpacing: 0,
-          fontSize: 13,
-        }}
-      >
-        {children}
-      </table>
+      {children}
+    </table>
+  );
+
+  return (
+    <>
+      {disableScrollWrapper ? (
+        tableNode
+      ) : (
+        <div
+          className="panel-inner"
+          style={{
+            overflow: "auto",
+            maxHeight: maxHeight ?? "unset",
+          }}
+        >
+          {tableNode}
+        </div>
+      )}
 
       <style jsx global>{`
         /* head */
@@ -65,6 +81,6 @@ export function Table({ children, stickyHeader = true, maxHeight }: Props) {
           border-left: 1px solid rgba(191, 231, 255, 0.18);
         }
       `}</style>
-    </div>
+    </>
   );
 }

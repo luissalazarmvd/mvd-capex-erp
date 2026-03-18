@@ -796,21 +796,17 @@ export default function TraceabilityEntryForm() {
           width: "100%",
           height: "100%",
           maxWidth: "100%",
-          overflowX: "auto",
-          overflowY: "hidden",
+          maxHeight: "calc(100vh - 315px)",
+          overflow: "auto",
           WebkitOverflowScrolling: "touch",
         }}
       >
         <div
           style={{
-            width: "max-content",
-            minWidth: "100%",
-            maxHeight: "calc(100vh - 315px)",
-            overflowY: "auto",
-            overflowX: "hidden",
+            minWidth: "max-content",
           }}
         >
-          <Table stickyHeader>
+          <Table stickyHeader disableScrollWrapper>
             <colgroup>
               {COLUMNS.map((c) => (
                 <col
