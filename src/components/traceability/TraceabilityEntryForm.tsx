@@ -195,7 +195,6 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
 
   const decimals3Keys: (keyof TraceabilityRow)[] = [
     "tmh",
-    "h2o",
     "tms",
     "au_grade_oztc",
     "ag_grade_oztc",
@@ -285,7 +284,7 @@ function isUsdValidationOk(draft: DraftRow) {
 
   if (usdTms === null || tms === null || lotUsd === null) return true;
 
-  return round2(usdTms * tms) === round2(lotUsd);
+  return round2(round2(usdTms) * Number(tms.toFixed(3))) === round2(lotUsd);
 }
 
 function validateNumericRange(field: EditableField, value: number | null) {
@@ -470,7 +469,6 @@ const RowItem = React.memo(function RowItem({
 
           const decimals3Keys: (keyof TraceabilityRow)[] = [
             "tmh",
-            "h2o",
             "tms",
             "au_grade_oztc",
             "ag_grade_oztc",
@@ -742,7 +740,7 @@ export default function TraceabilityEntryForm() {
 
         if (tmsBlank && tmh !== null && h2o !== null) {
           const calcTms = tmh * ((100 - h2o) / 100);
-          const formattedTms = calcTms.toFixed(2);
+          const formattedTms = calcTms.toFixed(3);
           current.tms = formattedTms;
 
           const tmsInput = inputsRef.current[key]?.tms;
@@ -772,7 +770,6 @@ export default function TraceabilityEntryForm() {
 
     const decimals3Fields: EditableField[] = [
       "tmh",
-      "h2o",
       "tms",
       "au_grade_oztc",
       "ag_grade_oztc",
@@ -794,7 +791,7 @@ export default function TraceabilityEntryForm() {
 
       if (tmh !== null && h2o !== null) {
         const calcTms = tmh * ((100 - h2o) / 100);
-        const formattedTms = calcTms.toFixed(2);
+        const formattedTms = calcTms.toFixed(3);
         current.tms = formattedTms;
 
         const tmsInput = inputsRef.current[key]?.tms;
