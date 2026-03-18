@@ -107,6 +107,26 @@ const NUMERIC_FIELDS: EditableField[] = [
   "ag_usd",
 ];
 
+const AUTO_GROW_KEYS: (keyof TraceabilityRow)[] = [
+  "tmh",
+  "h2o",
+  "tms",
+  "au_grade_oztc",
+  "ag_grade_oztc",
+  "cu_grade_pct",
+  "au_oz",
+  "ag_oz",
+  "au_rec",
+  "pio",
+  "pio_disc",
+  "maquila",
+  "nacn",
+  "escalador",
+  "usd_tms",
+  "au_usd",
+  "ag_usd",
+];
+
 type SortKey =
   | "lot"
   | "entry_date"
@@ -139,23 +159,23 @@ const COLUMNS: {
   { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "process_date", label: "F. Proceso", editable: true, kind: "date", width: 120, sortable: true },
-  { key: "tmh", label: "TMH", editable: true, kind: "number", width: 64 },
-  { key: "h2o", label: "H2O", editable: true, kind: "number", width: 64 },
-  { key: "tms", label: "TMS", editable: true, kind: "number", width: 64 },
-  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number", width: 74 },
-  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number", width: 74 },
-  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 64 },
-  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 64 },
-  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 64 },
-  { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 64 },
-  { key: "pio", label: "PIO", editable: true, kind: "number", width: 64 },
-  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 74 },
-  { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 70 },
-  { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 64 },
-  { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 74 },
-  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 74 },
-  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 70 },
-  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 70 },
+  { key: "tmh", label: "TMH", editable: true, kind: "number"},
+  { key: "h2o", label: "H2O", editable: true, kind: "number"},
+  { key: "tms", label: "TMS", editable: true, kind: "number"},
+  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number"},
+  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number"},
+  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number"},
+  { key: "au_oz", label: "Au Oz", editable: true, kind: "number"},
+  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number"},
+  { key: "au_rec", label: "Au Rec", editable: true, kind: "number"},
+  { key: "pio", label: "PIO", editable: true, kind: "number"},
+  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number"},
+  { key: "maquila", label: "Maquila", editable: true, kind: "number"},
+  { key: "nacn", label: "NaCN", editable: true, kind: "number"},
+  { key: "escalador", label: "Escalador", editable: true, kind: "number"},
+  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number"},
+  { key: "au_usd", label: "Au USD", editable: true, kind: "number"},
+  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number"},
   { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
   { key: "doc_date", label: "F. Factura", editable: false, kind: "readonly", width: 105, sortable: true },
   { key: "doc_number", label: "Factura", editable: false, kind: "readonly", width: 110, sortable: true },
@@ -258,8 +278,7 @@ type RowItemProps = {
   loading: boolean;
   saving: boolean;
   registerInput: (key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => void;
-  onCellChange: (key: string, field: keyof TraceabilityRow, value: string) => void;
-  onCellBlur: (key: string, field: keyof TraceabilityRow) => void;
+  onCellBlur: (key: string, field: keyof TraceabilityRow, value: string) => void;
   cellBase: React.CSSProperties;
   inputBase: React.CSSProperties;
   gridH: string;
@@ -272,7 +291,6 @@ const RowItem = React.memo(function RowItem({
   loading,
   saving,
   registerInput,
-  onCellChange,
   onCellBlur,
   cellBase,
   inputBase,
@@ -302,9 +320,9 @@ const RowItem = React.memo(function RowItem({
                 background: rowBg,
                 textAlign: isNumber ? "right" : "left",
                 fontWeight: 800,
-                width: c.width || 110,
-                minWidth: c.width || 110,
-                maxWidth: c.width || 110,
+                width: AUTO_GROW_KEYS.includes(c.key) ? "auto" : c.width || 110,
+                minWidth: AUTO_GROW_KEYS.includes(c.key) ? 76 : c.width || 110,
+                maxWidth: AUTO_GROW_KEYS.includes(c.key) ? undefined : c.width || 110,
                 padding: isNumber ? "6px 4px" : "6px 8px",
               }}
               title={show || "—"}
@@ -325,9 +343,9 @@ const RowItem = React.memo(function RowItem({
               borderRight: gridV,
               background: rowBg,
               padding: c.kind === "number" ? "4px 4px" : "6px 8px",
-              width: c.width || 110,
-              minWidth: c.width || 110,
-              maxWidth: c.width || 110,
+              width: AUTO_GROW_KEYS.includes(c.key) ? "auto" : c.width || 110,
+              minWidth: AUTO_GROW_KEYS.includes(c.key) ? 76 : c.width || 110,
+              maxWidth: AUTO_GROW_KEYS.includes(c.key) ? undefined : c.width || 110,
               overflow: "hidden",
               boxSizing: "border-box",
             }}
@@ -337,14 +355,13 @@ const RowItem = React.memo(function RowItem({
               type={c.kind === "date" ? "date" : "text"}
               defaultValue={toText(row[c.key])}
               disabled={loading || saving}
-              onChange={(e) => onCellChange(key, c.key, e.target.value)}
-              onBlur={() => onCellBlur(key, c.key)}
+              onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
               inputMode={c.kind === "number" ? "decimal" : "text"}
               style={{
                 ...inputBase,
-                width: c.kind === "number" ? "56px" : "100%",
-                minWidth: c.kind === "number" ? "56px" : undefined,
-                maxWidth: c.kind === "number" ? "56px" : undefined,
+              width: AUTO_GROW_KEYS.includes(c.key) ? "100%" : c.kind === "number" ? "56px" : "100%",
+              minWidth: AUTO_GROW_KEYS.includes(c.key) ? "76px" : c.kind === "number" ? "56px" : undefined,
+              maxWidth: AUTO_GROW_KEYS.includes(c.key) ? undefined : c.kind === "number" ? "56px" : undefined,
                 padding: c.kind === "number" ? "4px 6px" : "6px 8px",
                 ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
               }}
@@ -412,19 +429,15 @@ export default function TraceabilityEntryForm() {
     inputsRef.current[key][field] = el;
   }, []);
 
-  const onCellChange = useCallback((key: string, field: keyof TraceabilityRow, value: string) => {
+  const onCellBlur = useCallback((key: string, field: keyof TraceabilityRow, value: string) => {
     const current = draftsRef.current[key];
     if (!current) return;
-    current[field] = value;
-  }, []);
 
-  const onCellBlur = useCallback((key: string, field: keyof TraceabilityRow) => {
+    current[field] = value;
+
     if (!NUMERIC_FIELDS.includes(field as EditableField)) return;
 
-    const current = draftsRef.current[key];
-    if (!current) return;
-
-    const n = parseNum(current[field]);
+    const n = parseNum(value);
     if (n === null) return;
 
     const formatted = n.toFixed(2);
@@ -524,9 +537,9 @@ export default function TraceabilityEntryForm() {
 
   const headerBg = "rgb(6, 36, 58)";
   const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "2px solid rgba(191, 231, 255, 0.16)";
-  const gridH = "2px solid rgba(191, 231, 255, 0.10)";
-  const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
+  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
+  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerShadow = "none";
   const rowBg = "rgba(0,0,0,.10)";
 
   const stickyHead: React.CSSProperties = {
@@ -659,11 +672,15 @@ export default function TraceabilityEntryForm() {
               {COLUMNS.map((c) => (
                 <col
                   key={String(c.key)}
-                  style={{
-                    width: c.width || 110,
-                    minWidth: c.width || 110,
-                    maxWidth: c.width || 110,
-                  }}
+                  style={
+                    AUTO_GROW_KEYS.includes(c.key)
+                      ? { width: "auto", minWidth: 76 }
+                      : {
+                          width: c.width || 110,
+                          minWidth: c.width || 110,
+                          maxWidth: c.width || 110,
+                        }
+                  }
                 />
               ))}
             </colgroup>
@@ -685,9 +702,9 @@ export default function TraceabilityEntryForm() {
                         textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
                         padding: c.kind === "number" ? "8px 4px" : "8px 8px",
                         fontSize: 12,
-                        width: c.width || 110,
-                        minWidth: c.width || 110,
-                        maxWidth: c.width || 110,
+                        width: AUTO_GROW_KEYS.includes(c.key) ? "auto" : c.width || 110,
+                        minWidth: AUTO_GROW_KEYS.includes(c.key) ? 76 : c.width || 110,
+                        maxWidth: AUTO_GROW_KEYS.includes(c.key) ? undefined : c.width || 110,
                         cursor: sortable ? "pointer" : "default",
                         userSelect: "none",
                         overflow: "hidden",
@@ -713,7 +730,6 @@ export default function TraceabilityEntryForm() {
                   loading={loading}
                   saving={saving}
                   registerInput={registerInput}
-                  onCellChange={onCellChange}
                   onCellBlur={onCellBlur}
                   cellBase={cellBase}
                   inputBase={inputBase}
