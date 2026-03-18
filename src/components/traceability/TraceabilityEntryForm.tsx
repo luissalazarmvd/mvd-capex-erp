@@ -401,6 +401,17 @@ function compareRows(
   const lotPriorityB = getLotPriority(b.lot);
   if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
 
+  const usdTmsA = !isBlank(a.usd_tms) ? Number(a.usd_tms) : draftA ? calcUsdTms(draftA) : null;
+  const usdTmsB = !isBlank(b.usd_tms) ? Number(b.usd_tms) : draftB ? calcUsdTms(draftB) : null;
+
+  const hasUsdTmsA = usdTmsA !== null;
+  const hasUsdTmsB = usdTmsB !== null;
+  if (hasUsdTmsA !== hasUsdTmsB) return hasUsdTmsA ? -1 : 1;
+
+  const invalidA = draftA ? !isUsdValidationOk(draftA) : false;
+  const invalidB = draftB ? !isUsdValidationOk(draftB) : false;
+  if (invalidA !== invalidB) return invalidA ? -1 : 1;
+
   const completeA = draftA ? isRowComplete(draftA) : false;
   const completeB = draftB ? isRowComplete(draftB) : false;
   if (completeA !== completeB) return completeA ? 1 : -1;
