@@ -276,29 +276,26 @@ function calcAuUsd(draft: DraftRow) {
 
 function calcUsdTms(draft: DraftRow) {
   const auUsd = calcAuUsd(draft);
-  const agUsd = toNumOrNull(draft.ag_usd);
-
-  if (auUsd === null && agUsd === null) return null;
-  return (auUsd ?? 0) + (agUsd ?? 0);
+  return auUsd === null ? null : auUsd;
 }
 
 function calcFacturaCalculada(draft: DraftRow) {
   const usdTms = calcUsdTms(draft);
   const tms = toNumOrNull(draft.tms);
+  const agUsd = toNumOrNull(draft.ag_usd);
 
   if (usdTms === null || tms === null) return null;
 
-  return round2(round2(usdTms) * Number(tms.toFixed(3)));
+  return round2(round2(usdTms) * Number(tms.toFixed(3)) + (agUsd ?? 0));
 }
 
 function isUsdValidationOk(draft: DraftRow) {
-  const usdTms = calcUsdTms(draft);
-  const tms = toNumOrNull(draft.tms);
+  const facturaCalc = calcFacturaCalculada(draft);
   const lotUsd = toNumOrNull(draft.lot_usd);
 
-  if (usdTms === null || tms === null || lotUsd === null) return true;
+  if (facturaCalc === null || lotUsd === null) return true;
 
-  return round2(round2(usdTms) * Number(tms.toFixed(3))) === round2(lotUsd);
+  return round2(facturaCalc) === round2(lotUsd);
 }
 
 function validateNumericRange(field: EditableField, value: number | null) {
@@ -335,6 +332,9 @@ function buildPayload(row: DraftRow) {
 
   const auUsd = calcAuUsd(row);
   payload.au_usd = auUsd === null ? null : round2(auUsd);
+
+  const usdTms = calcUsdTms(row);
+  payload.usd_tms = usdTms === null ? null : round2(usdTms);  
 
   return payload;
 }

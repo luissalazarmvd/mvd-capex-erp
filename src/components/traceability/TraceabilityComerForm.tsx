@@ -260,21 +260,20 @@ function calcAuUsd(draft: DraftRow) {
 
 function calcUsdTms(draft: DraftRow) {
   const auUsd = calcAuUsd(draft);
-  const agUsd = toNumOrNull(draft.ag_usd);
-  if (auUsd === null && agUsd === null) return null;
-  return (auUsd ?? 0) + (agUsd ?? 0);
+  return auUsd === null ? null : auUsd;
 }
 
 function calcMontoUsd(draft: DraftRow) {
   const usdTms = calcUsdTms(draft);
   const tms = toNumOrNull(draft.tms);
+  const agUsd = toNumOrNull(draft.ag_usd);
 
   if (usdTms === null || tms === null) return null;
 
   const usdTmsRounded = round2(usdTms);
   const tmsRounded = Number(tms.toFixed(3));
 
-  return round2(tmsRounded * usdTmsRounded);
+  return round2((tmsRounded * usdTmsRounded) + (agUsd ?? 0));
 }
 
 function toDraftRow(r: TraceabilityRow): DraftRow {
