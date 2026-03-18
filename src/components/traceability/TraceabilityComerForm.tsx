@@ -187,47 +187,40 @@ function getYearYYFromEntryDate(entryDate: string) {
 }
 
 function normalizeLot(rawLot: unknown, entryDateRaw: unknown) {
-  const original = String(rawLot ?? "").trim().toUpperCase();
-  if (!original) return "";
+  const raw = String(rawLot ?? "").trim().toUpperCase();
+  if (!raw) return "";
 
   const entryDate = normalizeDateInput(entryDateRaw);
   const yyFromDate = getYearYYFromEntryDate(entryDate);
 
-  if (/^\d{2}-\d{5}$/.test(original)) return original;
-  if (/^TRJ-\d{2}-\d{5}$/.test(original)) return original;
+  const cleaned = raw.replace(/\s+/g, "").replace(/\./g, "").replace(/_/g, "-");
 
-  const compact = original.replace(/\s+/g, "").replace(/\./g, "").replace(/_/g, "-");
-
-  if (/^\d{7}$/.test(compact)) {
-    return `${compact.slice(0, 2)}-${compact.slice(2, 7)}`;
+  if (/^\d{2}-\d{5}$/.test(cleaned)) {
+    return cleaned;
   }
 
-  if (/^TRJ\d{7}$/.test(compact)) {
-    const digits = compact.slice(3);
-    return `TRJ-${digits.slice(0, 2)}-${digits.slice(2, 7)}`;
+  if (/^TRJ-\d{2}-\d{5}$/.test(cleaned)) {
+    return cleaned;
   }
 
-  const trjLoose = compact.match(/^TRJ[-]?(\d{2})[-]?(\d{5})$/);
-  if (trjLoose) {
-    return `TRJ-${trjLoose[1]}-${trjLoose[2]}`;
+  if (/^\d+$/.test(cleaned)) {
+    if (!yyFromDate) return cleaned;
+    return `${yyFromDate}-${String(Number(cleaned)).padStart(5, "0")}`;
   }
 
-  const numLoose = compact.match(/^(\d{2})[-]?(\d{5})$/);
-  if (numLoose) {
-    return `${numLoose[1]}-${numLoose[2]}`;
+  const trjMatch = cleaned.match(/^TRJ-(\d+)$/);
+  if (trjMatch) {
+    if (!yyFromDate) return cleaned;
+    return `TRJ-${yyFromDate}-${String(Number(trjMatch[1])).padStart(5, "0")}`;
   }
 
-  const only5 = compact.match(/^(\d{5})$/);
-  if (only5 && yyFromDate) {
-    return `${yyFromDate}-${only5[1]}`;
+  const trjLooseMatch = cleaned.match(/^TRJ(\d+)$/);
+  if (trjLooseMatch) {
+    if (!yyFromDate) return cleaned;
+    return `TRJ-${yyFromDate}-${String(Number(trjLooseMatch[1])).padStart(5, "0")}`;
   }
 
-  const trjOnly5 = compact.match(/^TRJ[-]?(\d{5})$/);
-  if (trjOnly5 && yyFromDate) {
-    return `TRJ-${yyFromDate}-${trjOnly5[1]}`;
-  }
-
-  return original;
+  return raw;
 }
 
 function formatFieldValue(field: EditableField, value: unknown) {
