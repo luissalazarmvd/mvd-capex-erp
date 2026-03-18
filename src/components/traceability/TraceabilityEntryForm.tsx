@@ -267,10 +267,19 @@ function inDateRange(entryDate: string | null, from: string, to: string) {
   return true;
 }
 
+function isRowEdited(current: DraftRow | undefined, original: DraftRow | undefined) {
+  if (!current || !original) return false;
+  for (const c of COLUMNS) {
+    if (String(current[c.key] ?? "") !== String(original[c.key] ?? "")) return true;
+  }
+  return false;
+}
+
 type RowItemProps = {
   row: TraceabilityRow;
   loading: boolean;
   saving: boolean;
+  edited: boolean;
   registerInput: (key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => void;
   onCellBlur: (key: string, field: keyof TraceabilityRow, value: string) => void;
   cellBase: React.CSSProperties;
@@ -278,12 +287,14 @@ type RowItemProps = {
   gridH: string;
   gridV: string;
   rowBg: string;
+  editedRowBg: string;
 };
 
 const RowItem = React.memo(function RowItem({
   row,
   loading,
   saving,
+  edited,
   registerInput,
   onCellBlur,
   cellBase,
@@ -291,8 +302,10 @@ const RowItem = React.memo(function RowItem({
   gridH,
   gridV,
   rowBg,
+  editedRowBg,
 }: RowItemProps) {
   const key = String(row.lot || "").trim();
+  const currentRowBg = edited ? editedRowBg : rowBg;
 
   return (
     <tr className="capex-tr">
@@ -311,7 +324,7 @@ const RowItem = React.memo(function RowItem({
                 borderTop: gridH,
                 borderBottom: gridH,
                 borderRight: gridV,
-                background: rowBg,
+                background: currentRowBg,
                 textAlign: isNumber ? "right" : "left",
                 fontWeight: 800,
                 width: c.width || 110,
@@ -335,7 +348,7 @@ const RowItem = React.memo(function RowItem({
               borderTop: gridH,
               borderBottom: gridH,
               borderRight: gridV,
-              background: rowBg,
+              background: currentRowBg,
               padding: c.kind === "number" ? "4px" : "6px 8px",
               width: c.width || 110,
               minWidth: c.width || 110,
@@ -360,6 +373,12 @@ const RowItem = React.memo(function RowItem({
                 maxWidth: "100%",
                 padding: c.kind === "number" ? "4px 6px" : "6px 8px",
                 ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
+                ...(edited
+                  ? {
+                      border: "1px solid rgba(92, 211, 158, 0.55)",
+                      background: "rgba(38, 120, 88, 0.18)",
+                    }
+                  : null),
               }}
             />
           </td>
@@ -378,6 +397,7 @@ export default function TraceabilityEntryForm() {
   const [dateTo, setDateTo] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("lot");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [editedTick, setEditedTick] = useState(0);
 
   const draftsRef = useRef<Record<string, DraftRow>>({});
   const originalsRef = useRef<Record<string, DraftRow>>({});
@@ -404,6 +424,7 @@ export default function TraceabilityEntryForm() {
       originalsRef.current = nextOriginals;
       inputsRef.current = {};
       setRows(data);
+      setEditedTick((v) => v + 1);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar")}`);
     } finally {
@@ -420,6 +441,24 @@ export default function TraceabilityEntryForm() {
     return [...filtered].sort((a, b) => compareByKey(a, b, sortKey, sortDir));
   }, [rows, dateFrom, dateTo, sortKey, sortDir]);
 
+  const editedCount = useMemo(() => {
+    editedTick;
+    let count = 0;
+    for (const key of Object.keys(draftsRef.current)) {
+      if (isRowEdited(draftsRef.current[key], originalsRef.current[key])) count++;
+    }
+    return count;
+  }, [editedTick]);
+
+  const editedMap = useMemo(() => {
+    editedTick;
+    const map: Record<string, boolean> = {};
+    for (const key of Object.keys(draftsRef.current)) {
+      map[key] = isRowEdited(draftsRef.current[key], originalsRef.current[key]);
+    }
+    return map;
+  }, [editedTick]);
+
   const registerInput = useCallback((key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => {
     if (!inputsRef.current[key]) inputsRef.current[key] = {};
     inputsRef.current[key][field] = el;
@@ -434,11 +473,13 @@ export default function TraceabilityEntryForm() {
 
     if (!NUMERIC_FIELDS.includes(field as EditableField)) {
       current[field] = trimmed;
+      setEditedTick((v) => v + 1);
       return;
     }
 
     if (String(trimmed).trim() === "") {
       current[field] = "";
+      setEditedTick((v) => v + 1);
       return;
     }
 
@@ -463,19 +504,14 @@ export default function TraceabilityEntryForm() {
 
     const input = inputsRef.current[key]?.[field];
     if (input && input.value !== formatted) input.value = formatted;
+
+    setEditedTick((v) => v + 1);
   }, []);
 
   async function onSaveAll() {
-    const editedKeys = Object.keys(draftsRef.current).filter((key) => {
-      const draft = draftsRef.current[key];
-      const original = originalsRef.current[key];
-      if (!draft || !original) return false;
-
-      for (const c of COLUMNS) {
-        if (String(draft[c.key] ?? "") !== String(original[c.key] ?? "")) return true;
-      }
-      return false;
-    });
+    const editedKeys = Object.keys(draftsRef.current).filter((key) =>
+      isRowEdited(draftsRef.current[key], originalsRef.current[key])
+    );
 
     if (editedKeys.length === 0) {
       setMsg("No hay filas editadas para guardar.");
@@ -559,6 +595,7 @@ export default function TraceabilityEntryForm() {
   const gridH = "1px solid rgba(191, 231, 255, 0.08)";
   const headerShadow = "none";
   const rowBg = "rgba(0,0,0,.10)";
+  const editedRowBg = "rgba(30, 110, 74, 0.28)";
 
   const stickyHead: React.CSSProperties = {
     position: "sticky",
@@ -616,6 +653,20 @@ export default function TraceabilityEntryForm() {
         }}
       >
         <div style={{ fontWeight: 900 }}>Trazabilidad · Ingresar Datos</div>
+
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(92, 211, 158, 0.45)",
+            background: editedCount > 0 ? "rgba(38, 120, 88, 0.24)" : "rgba(255,255,255,0.06)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: editedCount > 0 ? "rgb(160, 255, 214)" : "rgba(255,255,255,0.8)",
+          }}
+        >
+          Filas editadas: {editedCount}
+        </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
@@ -742,21 +793,26 @@ export default function TraceabilityEntryForm() {
             </thead>
 
             <tbody>
-              {preparedRows.map((row) => (
-                <RowItem
-                  key={String(row.lot || "")}
-                  row={row}
-                  loading={loading}
-                  saving={saving}
-                  registerInput={registerInput}
-                  onCellBlur={onCellBlur}
-                  cellBase={cellBase}
-                  inputBase={inputBase}
-                  gridH={gridH}
-                  gridV={gridV}
-                  rowBg={rowBg}
-                />
-              ))}
+              {preparedRows.map((row) => {
+                const rowKey = String(row.lot || "").trim();
+                return (
+                  <RowItem
+                    key={rowKey}
+                    row={row}
+                    loading={loading}
+                    saving={saving}
+                    edited={!!editedMap[rowKey]}
+                    registerInput={registerInput}
+                    onCellBlur={onCellBlur}
+                    cellBase={cellBase}
+                    inputBase={inputBase}
+                    gridH={gridH}
+                    gridV={gridV}
+                    rowBg={rowBg}
+                    editedRowBg={editedRowBg}
+                  />
+                );
+              })}
 
               {!loading && preparedRows.length === 0 ? (
                 <tr className="capex-tr">
