@@ -1,7 +1,7 @@
 // src/components/traceability/TraceabilityEntryForm.tsx
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
@@ -107,16 +107,6 @@ const NUMERIC_FIELDS: EditableField[] = [
   "ag_usd",
 ];
 
-const DATE_FIELDS: EditableField[] = ["process_date"];
-
-const TEXT_FIELDS: EditableField[] = [
-  "transport_name",
-  "transport_guide_number",
-  "zone_1",
-  "zone_2",
-  "pay_type",
-];
-
 type SortKey =
   | "lot"
   | "entry_date"
@@ -196,9 +186,7 @@ function toText(v: unknown) {
 
 function toDraftRow(r: TraceabilityRow): DraftRow {
   const out = {} as DraftRow;
-  for (const c of COLUMNS) {
-    out[c.key] = toText(r[c.key]);
-  }
+  for (const c of COLUMNS) out[c.key] = toText(r[c.key]);
   return out;
 }
 
@@ -206,88 +194,18 @@ function parseNum(v: string) {
   const t = String(v ?? "").trim().replace(",", ".");
   if (!t) return null;
   const n = Number(t);
-  return Number.isFinite(n) ? n : NaN;
-}
-
-function isValidDateText(v: string) {
-  if (!String(v ?? "").trim()) return true;
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(v).trim());
-}
-
-function isValidText(field: EditableField, v: string) {
-  const t = String(v ?? "").trim();
-  if (!t) return true;
-
-  if (field === "zone_1") return /^[A-Za-z0-9_\-./ ]+$/.test(t);
-  if (field === "transport_guide_number") return /^[A-Za-z0-9_\-./ ]+$/.test(t);
-  if (field === "pay_type") return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_\-./() ]+$/.test(t);
-  if (field === "transport_name" || field === "zone_2") {
-    return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9_\-./()&, ]+$/.test(t);
-  }
-
-  return true;
-}
-
-function isValidField(field: EditableField, value: string) {
-  if (NUMERIC_FIELDS.includes(field)) {
-    const n = parseNum(value);
-    if (n === null) return true;
-    if (Number.isNaN(n)) return false;
-    return n >= 0;
-  }
-
-  if (DATE_FIELDS.includes(field)) return isValidDateText(value);
-  if (TEXT_FIELDS.includes(field)) return isValidText(field, value);
-
-  return true;
-}
-
-function rowHasAnyInvalid(row: DraftRow) {
-  return EDITABLE_FIELDS.some((f) => !isValidField(f, row[f]));
-}
-
-function isRowCompleteDraft(row: DraftRow) {
-  return EDITABLE_FIELDS.every((f) => !isBlank(row[f]));
-}
-
-function compareLot(a: string, b: string) {
-  return String(a || "").localeCompare(String(b || ""), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
-}
-
-function sameDraft(a: DraftRow, b: DraftRow) {
-  for (const c of COLUMNS) {
-    if (String(a[c.key] ?? "") !== String(b[c.key] ?? "")) return false;
-  }
-  return true;
-}
-
-function inDateRange(entryDate: string | null, from: string, to: string) {
-  const d = String(entryDate || "").trim();
-  if (!d) return !from && !to;
-  if (from && d < from) return false;
-  if (to && d > to) return false;
-  return true;
+  return Number.isFinite(n) ? n : null;
 }
 
 function buildPayload(row: DraftRow) {
   const payload: Record<string, any> = {};
-
   payload.lot = String(row.lot ?? "").trim() || null;
 
   for (const f of EDITABLE_FIELDS) {
     const raw = String(row[f] ?? "").trim();
 
     if (NUMERIC_FIELDS.includes(f)) {
-      const n = parseNum(raw);
-      payload[f] = raw === "" || n === null ? null : n;
-      continue;
-    }
-
-    if (DATE_FIELDS.includes(f)) {
-      payload[f] = raw || null;
+      payload[f] = raw === "" ? null : parseNum(raw);
       continue;
     }
 
@@ -297,23 +215,24 @@ function buildPayload(row: DraftRow) {
   return payload;
 }
 
+function compareLot(a: string, b: string) {
+  return String(a || "").localeCompare(String(b || ""), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
 function getSortValue(row: TraceabilityRow, key: SortKey) {
   const rowValue = row[key];
   if (rowValue === null || rowValue === undefined) return "";
   return String(rowValue).trim();
 }
 
-function compareByKey(
-  a: TraceabilityRow,
-  b: TraceabilityRow,
-  key: SortKey,
-  dir: SortDir
-) {
+function compareByKey(a: TraceabilityRow, b: TraceabilityRow, key: SortKey, dir: SortDir) {
   const av = getSortValue(a, key);
   const bv = getSortValue(b, key);
 
   let result = 0;
-
   if (key === "lot") {
     result = compareLot(av, bv);
   } else {
@@ -326,69 +245,50 @@ function compareByKey(
   return dir === "asc" ? result : -result;
 }
 
-type RenderRow = {
-  row: TraceabilityRow;
-  key: string;
-  complete: boolean;
-  changed: boolean;
-};
+function inDateRange(entryDate: string | null, from: string, to: string) {
+  const d = String(entryDate || "").trim();
+  if (!d) return !from && !to;
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
 
-type TraceabilityRowItemProps = {
-  item: RenderRow;
-  draft: DraftRow;
+type RowItemProps = {
+  row: TraceabilityRow;
   loading: boolean;
   saving: boolean;
+  registerInput: (key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => void;
+  onCellChange: (key: string, field: keyof TraceabilityRow, value: string) => void;
+  onCellBlur: (key: string, field: keyof TraceabilityRow) => void;
   cellBase: React.CSSProperties;
   inputBase: React.CSSProperties;
-  inputErr: React.CSSProperties;
   gridH: string;
   gridV: string;
   rowBg: string;
-  editedRowBg: string;
-  editedRowBgComplete: string;
-  onCellChange: (key: string, field: keyof TraceabilityRow, value: string) => void;
-  onCellBlur: (key: string, field: keyof TraceabilityRow) => void;
 };
 
-const TraceabilityRowItem = React.memo(function TraceabilityRowItem({
-  item,
-  draft,
+const RowItem = React.memo(function RowItem({
+  row,
   loading,
   saving,
+  registerInput,
+  onCellChange,
+  onCellBlur,
   cellBase,
   inputBase,
-  inputErr,
   gridH,
   gridV,
   rowBg,
-  editedRowBg,
-  editedRowBgComplete,
-  onCellChange,
-  onCellBlur,
-}: TraceabilityRowItemProps) {
-  const { row, key, complete, changed } = item;
-  const rowChanged = changed;
+}: RowItemProps) {
+  const key = String(row.lot || "").trim();
 
   return (
     <tr className="capex-tr">
       {COLUMNS.map((c) => {
-        const value = draft[c.key] ?? "";
-        const invalid = c.editable ? !isValidField(c.key as EditableField, value) : false;
-        const bg = rowChanged
-          ? complete
-            ? editedRowBgComplete
-            : editedRowBg
-          : complete
-          ? "rgba(255,255,255,.05)"
-          : rowBg;
-
         if (!c.editable) {
           const isNumber = c.kind === "number" || c.key === "sack_qty";
           const raw = row[c.key];
-          const show =
-            isNumber && !isBlank(raw)
-              ? Number(raw).toFixed(2)
-              : String(raw ?? "");
+          const show = isNumber && !isBlank(raw) ? Number(raw).toFixed(2) : String(raw ?? "");
 
           return (
             <td
@@ -399,10 +299,9 @@ const TraceabilityRowItem = React.memo(function TraceabilityRowItem({
                 borderTop: gridH,
                 borderBottom: gridH,
                 borderRight: gridV,
-                background: bg,
+                background: rowBg,
                 textAlign: isNumber ? "right" : "left",
                 fontWeight: 800,
-                opacity: complete ? 0.82 : 1,
                 width: c.width || 110,
                 minWidth: c.width || 110,
                 maxWidth: c.width || 110,
@@ -424,7 +323,7 @@ const TraceabilityRowItem = React.memo(function TraceabilityRowItem({
               borderTop: gridH,
               borderBottom: gridH,
               borderRight: gridV,
-              background: bg,
+              background: rowBg,
               padding: c.kind === "number" ? "4px 4px" : "6px 8px",
               width: c.width || 110,
               minWidth: c.width || 110,
@@ -434,8 +333,9 @@ const TraceabilityRowItem = React.memo(function TraceabilityRowItem({
             }}
           >
             <input
+              ref={(el) => registerInput(key, c.key, el)}
               type={c.kind === "date" ? "date" : "text"}
-              value={value}
+              defaultValue={toText(row[c.key])}
               disabled={loading || saving}
               onChange={(e) => onCellChange(key, c.key, e.target.value)}
               onBlur={() => onCellBlur(key, c.key)}
@@ -447,8 +347,6 @@ const TraceabilityRowItem = React.memo(function TraceabilityRowItem({
                 maxWidth: c.kind === "number" ? "56px" : undefined,
                 padding: c.kind === "number" ? "4px 6px" : "6px 8px",
                 ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
-                ...(invalid ? inputErr : {}),
-                ...(complete ? { opacity: 0.9 } : {}),
               }}
             />
           </td>
@@ -456,19 +354,10 @@ const TraceabilityRowItem = React.memo(function TraceabilityRowItem({
       })}
     </tr>
   );
-}, (prev, next) => {
-  return (
-    prev.item === next.item &&
-    prev.draft === next.draft &&
-    prev.loading === next.loading &&
-    prev.saving === next.saving
-  );
 });
 
 export default function TraceabilityEntryForm() {
   const [rows, setRows] = useState<TraceabilityRow[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, DraftRow>>({});
-  const [originals, setOriginals] = useState<Record<string, DraftRow>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -476,6 +365,10 @@ export default function TraceabilityEntryForm() {
   const [dateTo, setDateTo] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("lot");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const draftsRef = useRef<Record<string, DraftRow>>({});
+  const originalsRef = useRef<Record<string, DraftRow>>({});
+  const inputsRef = useRef<Record<string, Partial<Record<keyof TraceabilityRow, HTMLInputElement | null>>>>({});
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -487,16 +380,17 @@ export default function TraceabilityEntryForm() {
       const nextDrafts: Record<string, DraftRow> = {};
       const nextOriginals: Record<string, DraftRow> = {};
 
-      data.forEach((row) => {
+      for (const row of data) {
         const key = String(row.lot || "").trim();
-        const d = toDraftRow(row);
-        nextDrafts[key] = d;
-        nextOriginals[key] = { ...d };
-      });
+        const draft = toDraftRow(row);
+        nextDrafts[key] = { ...draft };
+        nextOriginals[key] = { ...draft };
+      }
 
+      draftsRef.current = nextDrafts;
+      originalsRef.current = nextOriginals;
+      inputsRef.current = {};
       setRows(data);
-      setDrafts(nextDrafts);
-      setOriginals(nextOriginals);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar")}`);
     } finally {
@@ -509,106 +403,51 @@ export default function TraceabilityEntryForm() {
   }, [loadData]);
 
   const preparedRows = useMemo(() => {
-    const filtered = rows
-      .map((row) => {
-        const key = String(row.lot || "").trim();
-        const baseDraft = originals[key] || toDraftRow(row);
-        const draft = drafts[key] || baseDraft;
-        const complete = isRowCompleteDraft(draft);
-        const changed = !sameDraft(draft, baseDraft);
+    const filtered = rows.filter((row) => inDateRange(row.entry_date, dateFrom, dateTo));
+    return [...filtered].sort((a, b) => compareByKey(a, b, sortKey, sortDir));
+  }, [rows, dateFrom, dateTo, sortKey, sortDir]);
 
-        return {
-          row,
-          key,
-          complete,
-          changed,
-        };
-      })
-      .filter((x) => inDateRange(x.row.entry_date, dateFrom, dateTo));
-
-    const incompletes = filtered
-      .filter((x) => !x.complete)
-      .sort((a, b) => compareByKey(a.row, b.row, sortKey, sortDir));
-
-    const completes = filtered
-      .filter((x) => x.complete)
-      .sort((a, b) => compareByKey(a.row, b.row, sortKey, sortDir));
-
-    return [...incompletes, ...completes];
-  }, [rows, drafts, originals, dateFrom, dateTo, sortKey, sortDir]);
-
-  const editedRowKeys = useMemo(() => {
-    return Object.keys(drafts).filter((key) => {
-      const original = originals[key];
-      const current = drafts[key];
-      if (!original || !current) return false;
-      return !sameDraft(current, original);
-    });
-  }, [drafts, originals]);
-
-  const editedCount = editedRowKeys.length;
-
-  const hasInvalidEditedRows = useMemo(() => {
-    return editedRowKeys.some((key) => {
-      const row = drafts[key];
-      return row ? rowHasAnyInvalid(row) : false;
-    });
-  }, [editedRowKeys, drafts]);
-
-  const setCell = useCallback((key: string, field: keyof TraceabilityRow, value: string) => {
-    setDrafts((prev) => {
-      const current = prev[key];
-      if (!current) return prev;
-      if (current[field] === value) return prev;
-
-      return {
-        ...prev,
-        [key]: {
-          ...current,
-          [field]: value,
-        },
-      };
-    });
+  const registerInput = useCallback((key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => {
+    if (!inputsRef.current[key]) inputsRef.current[key] = {};
+    inputsRef.current[key][field] = el;
   }, []);
 
-  const onBlurFormat = useCallback((key: string, field: keyof TraceabilityRow) => {
+  const onCellChange = useCallback((key: string, field: keyof TraceabilityRow, value: string) => {
+    const current = draftsRef.current[key];
+    if (!current) return;
+    current[field] = value;
+  }, []);
+
+  const onCellBlur = useCallback((key: string, field: keyof TraceabilityRow) => {
     if (!NUMERIC_FIELDS.includes(field as EditableField)) return;
 
-    setDrafts((prev) => {
-      const current = prev[key];
-      if (!current) return prev;
+    const current = draftsRef.current[key];
+    if (!current) return;
 
-      const raw = current[field];
-      const n = parseNum(raw);
-      if (n === null || Number.isNaN(n)) return prev;
+    const n = parseNum(current[field]);
+    if (n === null) return;
 
-      const formatted = n.toFixed(2);
-      if (current[field] === formatted) return prev;
+    const formatted = n.toFixed(2);
+    current[field] = formatted;
 
-      return {
-        ...prev,
-        [key]: {
-          ...current,
-          [field]: formatted,
-        },
-      };
-    });
+    const input = inputsRef.current[key]?.[field];
+    if (input && input.value !== formatted) input.value = formatted;
   }, []);
 
   async function onSaveAll() {
-    if (editedRowKeys.length === 0) {
-      setMsg("No hay filas editadas para guardar.");
-      return;
-    }
+    const editedKeys = Object.keys(draftsRef.current).filter((key) => {
+      const draft = draftsRef.current[key];
+      const original = originalsRef.current[key];
+      if (!draft || !original) return false;
 
-    const invalidKey = editedRowKeys.find((key) => {
-      const row = drafts[key];
-      return row ? rowHasAnyInvalid(row) : false;
+      for (const c of COLUMNS) {
+        if (String(draft[c.key] ?? "") !== String(original[c.key] ?? "")) return true;
+      }
+      return false;
     });
 
-    if (invalidKey) {
-      const lot = String(drafts[invalidKey]?.lot || "").trim();
-      setMsg(`ERROR: corrige valores inválidos en el lote ${lot}.`);
+    if (editedKeys.length === 0) {
+      setMsg("No hay filas editadas para guardar.");
       return;
     }
 
@@ -616,13 +455,11 @@ export default function TraceabilityEntryForm() {
     setMsg(null);
 
     try {
-      const jobs = editedRowKeys.map(async (key) => {
-        const row = drafts[key];
+      const jobs = editedKeys.map(async (key) => {
+        const row = draftsRef.current[key];
         const lot = String(row?.lot || "").trim();
 
-        if (!lot) {
-          throw new Error("Hay una fila editada sin lote.");
-        }
+        if (!lot) throw new Error("Hay una fila editada sin lote.");
 
         const payload = buildPayload(row);
         const rr = (await apiPost("/api/traceability/web/insert", payload)) as SaveResp;
@@ -631,42 +468,34 @@ export default function TraceabilityEntryForm() {
           throw new Error(rr?.error || `No se pudo guardar el lote ${lot}`);
         }
 
-        return { key, lot };
+        return lot;
       });
 
       const results = await Promise.allSettled(jobs);
 
       const okLots: string[] = [];
-      const failedLots: string[] = [];
       const failedMessages: string[] = [];
 
       results.forEach((result, index) => {
-        const key = editedRowKeys[index];
-        const lot = String(drafts[key]?.lot || "").trim() || `(fila ${index + 1})`;
+        const key = editedKeys[index];
+        const lot = String(draftsRef.current[key]?.lot || "").trim() || `(fila ${index + 1})`;
 
         if (result.status === "fulfilled") {
-          okLots.push(result.value.lot);
+          okLots.push(result.value);
         } else {
-          failedLots.push(lot);
           failedMessages.push(`${lot}: ${String(result.reason?.message || result.reason || "Error al guardar")}`);
         }
       });
 
-      if (failedLots.length === 0) {
+      if (!failedMessages.length) {
         setMsg(`OK: se guardaron ${okLots.length} fila(s).`);
-        await loadData();
-        return;
+      } else if (okLots.length) {
+        setMsg(`PARCIAL: guardadas ${okLots.length} fila(s). ${failedMessages.join(" | ")}`);
+      } else {
+        setMsg(`ERROR: no se pudo guardar ninguna fila. ${failedMessages.join(" | ")}`);
       }
 
-      if (okLots.length > 0) {
-        setMsg(
-          `PARCIAL: guardadas ${okLots.length} fila(s). Fallaron ${failedLots.length}: ${failedMessages.join(" | ")}`
-        );
-        await loadData();
-        return;
-      }
-
-      setMsg(`ERROR: no se pudo guardar ninguna fila. ${failedMessages.join(" | ")}`);
+      await loadData();
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo guardar")}`);
     } finally {
@@ -699,8 +528,6 @@ export default function TraceabilityEntryForm() {
   const gridH = "2px solid rgba(191, 231, 255, 0.10)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
   const rowBg = "rgba(0,0,0,.10)";
-  const editedRowBg = "rgba(72, 201, 120, .16)";
-  const editedRowBgComplete = "rgba(72, 201, 120, .12)";
 
   const stickyHead: React.CSSProperties = {
     position: "sticky",
@@ -734,11 +561,6 @@ export default function TraceabilityEntryForm() {
     boxSizing: "border-box",
   };
 
-  const inputErr: React.CSSProperties = {
-    border: "1px solid rgba(255,80,80,.55)",
-    background: "rgba(255,80,80,.10)",
-  };
-
   return (
     <div
       style={{
@@ -765,22 +587,6 @@ export default function TraceabilityEntryForm() {
       >
         <div style={{ fontWeight: 900 }}>Trazabilidad · Ingresar Datos</div>
 
-        <div className="muted" style={{ fontWeight: 800, marginLeft: 8 }}>
-          Se priorizan lotes incompletos
-        </div>
-
-        <div
-          style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            background: editedCount > 0 ? "rgba(72, 201, 120, .16)" : "rgba(255,255,255,.06)",
-            border: editedCount > 0 ? "1px solid rgba(72, 201, 120, .38)" : "1px solid rgba(255,255,255,.10)",
-            fontWeight: 900,
-          }}
-        >
-          Filas en edición: {editedCount}
-        </div>
-
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Entry Date desde</div>
@@ -806,14 +612,8 @@ export default function TraceabilityEntryForm() {
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
 
-          <Button
-            type="button"
-            size="sm"
-            variant="primary"
-            onClick={onSaveAll}
-            disabled={loading || saving || editedCount === 0 || hasInvalidEditedRows}
-          >
-            {saving ? "Guardando…" : `Guardar${editedCount > 0 ? ` (${editedCount})` : ""}`}
+          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={loading || saving}>
+            {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
       </div>
@@ -906,29 +706,22 @@ export default function TraceabilityEntryForm() {
             </thead>
 
             <tbody>
-              {preparedRows.map((item) => {
-                const draft = drafts[item.key] || toDraftRow(item.row);
-
-                return (
-                  <TraceabilityRowItem
-                    key={item.key}
-                    item={item}
-                    draft={draft}
-                    loading={loading}
-                    saving={saving}
-                    cellBase={cellBase}
-                    inputBase={inputBase}
-                    inputErr={inputErr}
-                    gridH={gridH}
-                    gridV={gridV}
-                    rowBg={rowBg}
-                    editedRowBg={editedRowBg}
-                    editedRowBgComplete={editedRowBgComplete}
-                    onCellChange={setCell}
-                    onCellBlur={onBlurFormat}
-                  />
-                );
-              })}
+              {preparedRows.map((row) => (
+                <RowItem
+                  key={String(row.lot || "")}
+                  row={row}
+                  loading={loading}
+                  saving={saving}
+                  registerInput={registerInput}
+                  onCellChange={onCellChange}
+                  onCellBlur={onCellBlur}
+                  cellBase={cellBase}
+                  inputBase={inputBase}
+                  gridH={gridH}
+                  gridV={gridV}
+                  rowBg={rowBg}
+                />
+              ))}
 
               {!loading && preparedRows.length === 0 ? (
                 <tr className="capex-tr">
