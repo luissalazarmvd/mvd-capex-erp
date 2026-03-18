@@ -526,7 +526,9 @@ const RowItem = React.memo(function RowItem({
                 minWidth: c.width || 110,
                 maxWidth: c.width || 110,
                 padding: isNumber ? "6px 4px" : "6px 8px",
-                color: invalidUsdMatch && (c.key === "usd_tms" || c.key === "lot_usd" || c.key === "tms") ? "rgb(255,170,170)" : "white",
+                color: invalidUsdMatch && (c.key === "usd_tms" || c.key === "lot_usd" || c.key === "tms")
+                  ? "rgb(255,170,170)"
+                  : "rgb(185,185,185)",
               }}
               title={show || "—"}
             >
