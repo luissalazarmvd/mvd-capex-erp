@@ -8,6 +8,7 @@ import { Table } from "../ui/Table";
 
 type TraceabilityRow = {
   lot: string | null;
+  entry_date: string | null;
   tmh: number | null;
   h2o: number | null;
   tms: number | null;
@@ -34,6 +35,7 @@ type SaveResp = {
 
 type DraftRow = {
   lot: string;
+  entry_date: string;
   tmh: string;
   h2o: string;
   tms: string;
@@ -53,6 +55,7 @@ type DraftRow = {
 
 const EXPORT_COLUMNS = [
   { key: "lot", label: "Lote" },
+  { key: "entry_date", label: "F. Ingreso" },
   { key: "tmh", label: "TMH" },
   { key: "h2o", label: "H2O" },
   { key: "tms", label: "TMS" },
@@ -106,14 +109,15 @@ type SortDir = "asc" | "desc";
 const PAGE_SIZE = 100;
 
 const COLUMNS: {
-  key: "lot" | EditableField | "au_usd" | "usd_tms" | "monto_usd";
+  key: "lot" | "entry_date" | EditableField | "au_usd" | "usd_tms" | "monto_usd";
   label: string;
   editable: boolean;
-  kind: "text" | "number" | "readonly";
+  kind: "text" | "date" | "number" | "readonly";
   width?: number;
   sortable?: boolean;
 }[] = [
-  { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 120, sortable: true },
+  { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 130, sortable: true },
+  { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110 },
   { key: "tmh", label: "TMH", editable: true, kind: "number", width: 88 },
   { key: "h2o", label: "H2O", editable: true, kind: "number", width: 88 },
   { key: "tms", label: "TMS", editable: true, kind: "number", width: 88 },
@@ -157,6 +161,73 @@ function round2(n: number) {
 function toNumOrNull(v: unknown) {
   const n = parseNum(String(v ?? ""));
   return n === null ? null : n;
+}
+
+function normalizeDateInput(v: unknown) {
+  const raw = String(v ?? "").trim();
+  if (!raw) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const jsDate = new Date(raw);
+  if (!Number.isNaN(jsDate.getTime())) {
+    const yyyy = jsDate.getFullYear();
+    const mm = String(jsDate.getMonth() + 1).padStart(2, "0");
+    const dd = String(jsDate.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return raw;
+}
+
+function getYearYYFromEntryDate(entryDate: string) {
+  const d = normalizeDateInput(entryDate);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d.slice(2, 4);
+  return "";
+}
+
+function normalizeLot(rawLot: unknown, entryDateRaw: unknown) {
+  const original = String(rawLot ?? "").trim().toUpperCase();
+  if (!original) return "";
+
+  const entryDate = normalizeDateInput(entryDateRaw);
+  const yyFromDate = getYearYYFromEntryDate(entryDate);
+
+  if (/^\d{2}-\d{5}$/.test(original)) return original;
+  if (/^TRJ-\d{2}-\d{5}$/.test(original)) return original;
+
+  const compact = original.replace(/\s+/g, "").replace(/\./g, "").replace(/_/g, "-");
+
+  if (/^\d{7}$/.test(compact)) {
+    return `${compact.slice(0, 2)}-${compact.slice(2, 7)}`;
+  }
+
+  if (/^TRJ\d{7}$/.test(compact)) {
+    const digits = compact.slice(3);
+    return `TRJ-${digits.slice(0, 2)}-${digits.slice(2, 7)}`;
+  }
+
+  const trjLoose = compact.match(/^TRJ[-]?(\d{2})[-]?(\d{5})$/);
+  if (trjLoose) {
+    return `TRJ-${trjLoose[1]}-${trjLoose[2]}`;
+  }
+
+  const numLoose = compact.match(/^(\d{2})[-]?(\d{5})$/);
+  if (numLoose) {
+    return `${numLoose[1]}-${numLoose[2]}`;
+  }
+
+  const only5 = compact.match(/^(\d{5})$/);
+  if (only5 && yyFromDate) {
+    return `${yyFromDate}-${only5[1]}`;
+  }
+
+  const trjOnly5 = compact.match(/^TRJ[-]?(\d{5})$/);
+  if (trjOnly5 && yyFromDate) {
+    return `TRJ-${yyFromDate}-${trjOnly5[1]}`;
+  }
+
+  return original;
 }
 
 function formatFieldValue(field: EditableField, value: unknown) {
@@ -206,6 +277,7 @@ function calcMontoUsd(draft: DraftRow) {
 function toDraftRow(r: TraceabilityRow): DraftRow {
   return {
     lot: toText(r.lot),
+    entry_date: normalizeDateInput(r.entry_date),
     tmh: formatFieldValue("tmh", r.tmh),
     h2o: formatFieldValue("h2o", r.h2o),
     tms: formatFieldValue("tms", r.tms),
@@ -293,6 +365,7 @@ function hydrateRowsFromDrafts(sourceDrafts: Record<string, DraftRow>) {
     const draft = sourceDrafts[key];
     return {
       lot: draft.lot || null,
+      entry_date: draft.entry_date || null,
       tmh: toNumOrNull(draft.tmh),
       h2o: toNumOrNull(draft.h2o),
       tms: toNumOrNull(draft.tms),
@@ -353,12 +426,13 @@ const RowItem = React.memo(function RowItem({
           let raw: unknown = null;
 
           if (c.key === "lot") raw = draft.lot;
+          if (c.key === "entry_date") raw = draft.entry_date;
           if (c.key === "au_usd") raw = calcAuUsd(draft);
           if (c.key === "usd_tms") raw = calcUsdTms(draft);
           if (c.key === "monto_usd") raw = calcMontoUsd(draft);
 
-          const decimals = c.key === "lot" ? 0 : 2;
-          const isNumber = c.key !== "lot";
+          const decimals = c.key === "lot" || c.key === "entry_date" ? 0 : 2;
+          const isNumber = c.key !== "lot" && c.key !== "entry_date";
           const show =
             isNumber && !isBlank(raw)
               ? Number(raw).toLocaleString("en-US", {
@@ -523,9 +597,18 @@ export default function TraceabilityComerForm() {
     const nextOriginals: Record<string, DraftRow> = {};
 
     for (const row of importedRows) {
-      const key = String(row.lot || "").trim();
+      const normalizedEntryDate = normalizeDateInput(row.entry_date);
+      const normalizedLot = normalizeLot(row.lot, normalizedEntryDate);
+      const key = String(normalizedLot || "").trim();
       if (!key) continue;
-      const draft = toDraftRow(row);
+
+      const rowNormalized: TraceabilityRow = {
+        ...row,
+        lot: normalizedLot,
+        entry_date: normalizedEntryDate || null,
+      };
+
+      const draft = toDraftRow(rowNormalized);
       nextDrafts[key] = { ...draft };
       nextOriginals[key] = { ...draft };
     }
@@ -576,11 +659,13 @@ export default function TraceabilityComerForm() {
       const deduped = new Map<string, TraceabilityRow>();
 
       for (const raw of rawRows) {
-        const lot = String(raw["Lote"] ?? "").trim();
-        if (!lot) continue;
+        const entryDate = normalizeDateInput(raw["F. Ingreso"]);
+        const lotNormalized = normalizeLot(raw["Lote"], entryDate);
+        if (!lotNormalized) continue;
 
         const row: TraceabilityRow = {
-          lot,
+          lot: lotNormalized,
+          entry_date: entryDate || null,
           tmh: toNumOrNull(raw["TMH"]),
           h2o: toNumOrNull(raw["H2O"]),
           tms: toNumOrNull(raw["TMS"]),
@@ -600,7 +685,7 @@ export default function TraceabilityComerForm() {
           usd_tms: null,
         };
 
-        deduped.set(lot, row);
+        deduped.set(lotNormalized, row);
       }
 
       const importedRows = Array.from(deduped.values());
@@ -620,7 +705,7 @@ export default function TraceabilityComerForm() {
   const onCellBlur = useCallback((key: string, field: keyof DraftRow, value: string) => {
     const current = draftsRef.current[key];
     if (!current) return;
-    if (field === "lot") return;
+    if (field === "lot" || field === "entry_date") return;
 
     const previousValue = String(current[field] ?? "");
     const trimmed = String(value ?? "");
