@@ -130,6 +130,8 @@ const SORTABLE_KEYS: SortKey[] = [
   "doc_number",
 ];
 
+const PAGE_SIZE = 100;
+
 const COLUMNS: {
   key: keyof TraceabilityRow;
   label: string;
@@ -267,6 +269,13 @@ function inDateRange(entryDate: string | null, from: string, to: string) {
   return true;
 }
 
+function matchesLot(rowLot: string | null, lotFilter: string) {
+  const lot = String(rowLot || "").trim().toLowerCase();
+  const filter = String(lotFilter || "").trim().toLowerCase();
+  if (!filter) return true;
+  return lot.includes(filter);
+}
+
 function isRowEdited(current: DraftRow | undefined, original: DraftRow | undefined) {
   if (!current || !original) return false;
   for (const c of COLUMNS) {
@@ -395,9 +404,11 @@ export default function TraceabilityEntryForm() {
   const [msg, setMsg] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [lotFilter, setLotFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("lot");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [editedTick, setEditedTick] = useState(0);
+  const [page, setPage] = useState(1);
 
   const draftsRef = useRef<Record<string, DraftRow>>({});
   const originalsRef = useRef<Record<string, DraftRow>>({});
@@ -425,6 +436,7 @@ export default function TraceabilityEntryForm() {
       inputsRef.current = {};
       setRows(data);
       setEditedTick((v) => v + 1);
+      setPage(1);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar")}`);
     } finally {
@@ -436,10 +448,40 @@ export default function TraceabilityEntryForm() {
     loadData();
   }, [loadData]);
 
+  const lotOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const row of rows) {
+      const lot = String(row.lot || "").trim();
+      if (!lot) continue;
+      if (seen.has(lot)) continue;
+      seen.add(lot);
+      list.push(lot);
+    }
+    return list.sort((a, b) => compareLot(a, b));
+  }, [rows]);
+
   const preparedRows = useMemo(() => {
-    const filtered = rows.filter((row) => inDateRange(row.entry_date, dateFrom, dateTo));
+    const filtered = rows.filter(
+      (row) => inDateRange(row.entry_date, dateFrom, dateTo) && matchesLot(row.lot, lotFilter)
+    );
     return [...filtered].sort((a, b) => compareByKey(a, b, sortKey, sortDir));
-  }, [rows, dateFrom, dateTo, sortKey, sortDir]);
+  }, [rows, dateFrom, dateTo, lotFilter, sortKey, sortDir]);
+
+  const totalRows = preparedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+  const visibleRows = preparedRows.slice(pageStart, pageEnd);
+
+  useEffect(() => {
+    setPage(1);
+  }, [dateFrom, dateTo, lotFilter, sortKey, sortDir]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const editedCount = useMemo(() => {
     editedTick;
@@ -689,6 +731,23 @@ export default function TraceabilityEntryForm() {
             />
           </div>
 
+          <div style={{ display: "grid", gap: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Lote</div>
+            <input
+              list="traceability-lot-options"
+              type="text"
+              value={lotFilter}
+              onChange={(e) => setLotFilter(e.target.value)}
+              placeholder="Buscar lote"
+              style={{ ...inputBase, minWidth: 170 }}
+            />
+            <datalist id="traceability-lot-options">
+              {lotOptions.map((lot) => (
+                <option key={lot} value={lot} />
+              ))}
+            </datalist>
+          </div>
+
           <Button type="button" size="sm" variant="default" onClick={loadData} disabled={loading || saving}>
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
@@ -741,7 +800,7 @@ export default function TraceabilityEntryForm() {
             minWidth: "100%",
           }}
         >
-          <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
+          <Table stickyHeader maxHeight={"calc(100vh - 315px)"}>
             <colgroup>
               {COLUMNS.map((c) => (
                 <col
@@ -793,7 +852,7 @@ export default function TraceabilityEntryForm() {
             </thead>
 
             <tbody>
-              {preparedRows.map((row) => {
+              {visibleRows.map((row) => {
                 const rowKey = String(row.lot || "").trim();
                 return (
                   <RowItem
@@ -814,7 +873,7 @@ export default function TraceabilityEntryForm() {
                 );
               })}
 
-              {!loading && preparedRows.length === 0 ? (
+              {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
                   <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
                     No hay filas para el filtro seleccionado.
@@ -831,6 +890,60 @@ export default function TraceabilityEntryForm() {
               ) : null}
             </tbody>
           </Table>
+        </div>
+      </div>
+
+      <div
+        className="panel-inner"
+        style={{
+          padding: "10px 12px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+          Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={loading || saving || safePage <= 1}
+          >
+            ←
+          </Button>
+
+          <div
+            style={{
+              minWidth: 90,
+              textAlign: "center",
+              fontSize: 12,
+              fontWeight: 900,
+              padding: "6px 10px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(191,231,255,.18)",
+            }}
+          >
+            Página {safePage} / {totalPages}
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={loading || saving || safePage >= totalPages}
+          >
+            →
+          </Button>
         </div>
       </div>
     </div>
