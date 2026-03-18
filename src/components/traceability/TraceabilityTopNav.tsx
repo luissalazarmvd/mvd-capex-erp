@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV = [
-  { href: "/traceability/entries", label: "Ingresar Datos" },
+  { href: "/traceability/upload", label: "Datos Valorización" },
+  { href: "/traceability/entries", label: "Validar Datos" },
   { href: "/traceability/summary", label: "Resumen" },
 ];
 

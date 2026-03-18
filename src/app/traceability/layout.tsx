@@ -48,7 +48,7 @@ export default function TraceabilityLayout({ children }: { children: React.React
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – TRAZABILIDAD</div>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Ingresar Datos · Resumen
+                  Datos Valorización · Validar Datos · Resumen
                 </div>
               </div>
             </div>
