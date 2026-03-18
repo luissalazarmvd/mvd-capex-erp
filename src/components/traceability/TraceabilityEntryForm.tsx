@@ -223,6 +223,11 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
       continue;
     }
 
+    if (c.key === "pay_type") {
+      out[c.key] = isBlank(r[c.key]) ? "Transferencia" : toText(r[c.key]);
+      continue;
+    }
+
     out[c.key] = toText(r[c.key]);
   }
 
@@ -317,6 +322,11 @@ function buildPayload(row: DraftRow) {
       const err = validateNumericRange(f, num);
       if (err) throw new Error(err);
       payload[f] = num;
+      continue;
+    }
+
+    if (f === "pay_type") {
+      payload[f] = raw || "Transferencia";
       continue;
     }
 
@@ -431,7 +441,11 @@ type RowItemProps = {
   saving: boolean;
   edited: boolean;
   invalidUsdMatch: boolean;
-  registerInput: (key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => void;
+  registerInput: (
+    key: string,
+    field: keyof TraceabilityRow,
+    el: HTMLInputElement | HTMLSelectElement | null
+  ) => void;
   onCellBlur: (key: string, field: keyof TraceabilityRow, value: string) => void;
   onCellFocus: (key: string) => void;
   cellBase: React.CSSProperties;
@@ -539,36 +553,67 @@ const RowItem = React.memo(function RowItem({
               boxSizing: "border-box",
             }}
           >
-            <input
-              ref={(el) => registerInput(key, c.key, el)}
-              type={c.kind === "date" ? "date" : "text"}
-              defaultValue={toText(draft[c.key])}
-              disabled={loading || saving}
-              onFocus={() => onCellFocus(key)}
-              onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
-              inputMode={c.kind === "number" ? "decimal" : "text"}
-              spellCheck={false}
-              autoComplete="off"
-              style={{
-                ...inputBase,
-                width: "100%",
-                minWidth: 0,
-                maxWidth: "100%",
-                padding: c.kind === "number" ? "4px 6px" : "6px 8px",
-                ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
-                ...(invalidUsdMatch
-                  ? {
-                      border: "1px solid rgba(255, 92, 92, 0.75)",
-                      background: "rgba(120, 30, 30, 0.22)",
-                    }
-                  : edited
-                  ? {
-                      border: "1px solid rgba(92, 211, 158, 0.55)",
-                      background: "rgba(38, 120, 88, 0.18)",
-                    }
-                  : null),
-              }}
-            />
+            {c.key === "pay_type" ? (
+              <select
+                ref={(el) => registerInput(key, c.key, el)}
+                defaultValue={toText(draft[c.key]) || "Transferencia"}
+                disabled={loading || saving}
+                onFocus={() => onCellFocus(key)}
+                onChange={(e) => onCellBlur(key, c.key, e.target.value)}
+                onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
+                style={{
+                  ...inputBase,
+                  width: "100%",
+                  minWidth: 0,
+                  maxWidth: "100%",
+                  padding: "6px 8px",
+                  ...(invalidUsdMatch
+                    ? {
+                        border: "1px solid rgba(255, 92, 92, 0.75)",
+                        background: "rgba(120, 30, 30, 0.22)",
+                      }
+                    : edited
+                    ? {
+                        border: "1px solid rgba(92, 211, 158, 0.55)",
+                        background: "rgba(38, 120, 88, 0.18)",
+                      }
+                    : null),
+                }}
+              >
+                <option value="Transferencia">Transferencia</option>
+              </select>
+            ) : (
+              <input
+                ref={(el) => registerInput(key, c.key, el)}
+                type={c.kind === "date" ? "date" : "text"}
+                defaultValue={toText(draft[c.key])}
+                disabled={loading || saving}
+                onFocus={() => onCellFocus(key)}
+                onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
+                inputMode={c.kind === "number" ? "decimal" : "text"}
+                spellCheck={false}
+                autoComplete="off"
+                style={{
+                  ...inputBase,
+                  width: "100%",
+                  minWidth: 0,
+                  maxWidth: "100%",
+                  padding: c.kind === "number" ? "4px 6px" : "6px 8px",
+                  ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
+                  ...(invalidUsdMatch
+                    ? {
+                        border: "1px solid rgba(255, 92, 92, 0.75)",
+                        background: "rgba(120, 30, 30, 0.22)",
+                      }
+                    : edited
+                    ? {
+                        border: "1px solid rgba(92, 211, 158, 0.55)",
+                        background: "rgba(38, 120, 88, 0.18)",
+                      }
+                    : null),
+                }}
+              />
+            )}
           </td>
         );
       })}
@@ -592,7 +637,9 @@ export default function TraceabilityEntryForm() {
 
   const draftsRef = useRef<Record<string, DraftRow>>({});
   const originalsRef = useRef<Record<string, DraftRow>>({});
-  const inputsRef = useRef<Record<string, Partial<Record<keyof TraceabilityRow, HTMLInputElement | null>>>>({});
+  const inputsRef = useRef<
+    Record<string, Partial<Record<keyof TraceabilityRow, HTMLInputElement | HTMLSelectElement | null>>>
+  >({});
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -716,7 +763,11 @@ export default function TraceabilityEntryForm() {
   const activeFacturaCalculada = activeDraft ? calcFacturaCalculada(activeDraft) : null;
   const activeFacturaReal = activeDraft ? toNumOrNull(activeDraft.lot_usd) : null;
 
-  const registerInput = useCallback((key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => {
+  const registerInput = useCallback((
+    key: string,
+    field: keyof TraceabilityRow,
+    el: HTMLInputElement | HTMLSelectElement | null
+  ) => {
     if (!inputsRef.current[key]) inputsRef.current[key] = {};
     inputsRef.current[key][field] = el;
   }, []);
