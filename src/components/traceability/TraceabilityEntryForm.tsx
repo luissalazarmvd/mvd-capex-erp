@@ -193,6 +193,15 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
   const h2o = r.h2o === null || r.h2o === undefined ? null : Number(r.h2o);
   const hasTms = !(r.tms === null || r.tms === undefined || String(r.tms).trim() === "");
 
+  const decimals3Keys: (keyof TraceabilityRow)[] = [
+    "tmh",
+    "h2o",
+    "tms",
+    "au_grade_oztc",
+    "ag_grade_oztc",
+    "cu_grade_pct",
+  ];
+
   for (const c of COLUMNS) {
     if (c.key === "ag_oz" || c.key === "escalador") {
       out[c.key] = isBlank(r[c.key]) ? "0.00" : toText(r[c.key]);
@@ -201,10 +210,17 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
 
     if (c.key === "tms") {
       if (!hasTms && tmh !== null && h2o !== null) {
-        out[c.key] = (tmh * ((100 - h2o) / 100)).toFixed(2);
+        out[c.key] = (tmh * ((100 - h2o) / 100)).toFixed(3);
+      } else if (!isBlank(r[c.key])) {
+        out[c.key] = Number(r[c.key]).toFixed(3);
       } else {
         out[c.key] = toText(r[c.key]);
       }
+      continue;
+    }
+
+    if (decimals3Keys.includes(c.key) && !isBlank(r[c.key])) {
+      out[c.key] = Number(r[c.key]).toFixed(3);
       continue;
     }
 
@@ -452,11 +468,22 @@ const RowItem = React.memo(function RowItem({
               ? calcUsdTms(draft)
               : row[c.key];
 
+          const decimals3Keys: (keyof TraceabilityRow)[] = [
+            "tmh",
+            "h2o",
+            "tms",
+            "au_grade_oztc",
+            "ag_grade_oztc",
+            "cu_grade_pct",
+          ];
+
+          const decimals = decimals3Keys.includes(c.key) ? 3 : 2;
+
           const show =
             isNumber && !isBlank(raw)
               ? Number(raw).toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
+                  minimumFractionDigits: decimals,
+                  maximumFractionDigits: decimals,
                 })
               : String(raw ?? "");
 
@@ -694,7 +721,7 @@ export default function TraceabilityEntryForm() {
 
       if (tmsBlank && tmh !== null && h2o !== null) {
         const calcTms = tmh * ((100 - h2o) / 100);
-        const formattedTms = calcTms.toFixed(2);
+        const formattedTms = calcTms.toFixed(3);
         current.tms = formattedTms;
 
         const tmsInput = inputsRef.current[key]?.tms;
@@ -743,7 +770,16 @@ export default function TraceabilityEntryForm() {
       return;
     }
 
-    const formatted = n.toFixed(2);
+    const decimals3Fields: EditableField[] = [
+      "tmh",
+      "h2o",
+      "tms",
+      "au_grade_oztc",
+      "ag_grade_oztc",
+      "cu_grade_pct",
+    ];
+
+    const formatted = decimals3Fields.includes(field as EditableField) ? n.toFixed(3) : n.toFixed(2);
     current[field] = formatted;
 
     const input = inputsRef.current[key]?.[field];
