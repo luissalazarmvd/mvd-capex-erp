@@ -277,6 +277,15 @@ function calcUsdTms(draft: DraftRow) {
   return (auUsd ?? 0) + (agUsd ?? 0);
 }
 
+function calcFacturaCalculada(draft: DraftRow) {
+  const usdTms = calcUsdTms(draft);
+  const tms = toNumOrNull(draft.tms);
+
+  if (usdTms === null || tms === null) return null;
+
+  return round2(round2(usdTms) * Number(tms.toFixed(3)));
+}
+
 function isUsdValidationOk(draft: DraftRow) {
   const usdTms = calcUsdTms(draft);
   const tms = toNumOrNull(draft.tms);
@@ -424,6 +433,7 @@ type RowItemProps = {
   invalidUsdMatch: boolean;
   registerInput: (key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => void;
   onCellBlur: (key: string, field: keyof TraceabilityRow, value: string) => void;
+  onCellFocus: (key: string) => void;
   cellBase: React.CSSProperties;
   inputBase: React.CSSProperties;
   gridH: string;
@@ -442,6 +452,7 @@ const RowItem = React.memo(function RowItem({
   invalidUsdMatch,
   registerInput,
   onCellBlur,
+  onCellFocus,
   cellBase,
   inputBase,
   gridH,
@@ -533,6 +544,7 @@ const RowItem = React.memo(function RowItem({
               type={c.kind === "date" ? "date" : "text"}
               defaultValue={toText(draft[c.key])}
               disabled={loading || saving}
+              onFocus={() => onCellFocus(key)}
               onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
               inputMode={c.kind === "number" ? "decimal" : "text"}
               spellCheck={false}
@@ -576,6 +588,7 @@ export default function TraceabilityEntryForm() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [editedTick, setEditedTick] = useState(0);
   const [page, setPage] = useState(1);
+  const [activeLot, setActiveLot] = useState<string | null>(null);
 
   const draftsRef = useRef<Record<string, DraftRow>>({});
   const originalsRef = useRef<Record<string, DraftRow>>({});
@@ -603,6 +616,7 @@ export default function TraceabilityEntryForm() {
       inputsRef.current = {};
       setRows(data);
       setEditedTick((v) => v + 1);
+      setActiveLot(null);
       setPage(1);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar")}`);
@@ -698,10 +712,18 @@ export default function TraceabilityEntryForm() {
 
   const hasInvalidEditedRows = invalidEditedCount > 0;
 
+  const activeDraft = activeLot ? draftsRef.current[activeLot] : undefined;
+  const activeFacturaCalculada = activeDraft ? calcFacturaCalculada(activeDraft) : null;
+  const activeFacturaReal = activeDraft ? toNumOrNull(activeDraft.lot_usd) : null;
+
   const registerInput = useCallback((key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => {
     if (!inputsRef.current[key]) inputsRef.current[key] = {};
     inputsRef.current[key][field] = el;
   }, []);
+
+  const onCellFocus = useCallback((key: string) => {
+    setActiveLot(key);
+  }, []);  
 
   const onCellBlur = useCallback((key: string, field: keyof TraceabilityRow, value: string) => {
     const current = draftsRef.current[key];
@@ -983,6 +1005,32 @@ export default function TraceabilityEntryForm() {
           Filas inválidas: {invalidEditedCount}
         </div>
 
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.06)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: "rgba(255,255,255,0.9)",
+          }}
+        >
+          Calc. USD:{" "}
+          {activeFacturaCalculada === null
+            ? "—"
+            : activeFacturaCalculada.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+          {activeFacturaReal !== null
+            ? ` / Factura: ${activeFacturaReal.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`
+            : ""}
+        </div>        
+
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Entry Date desde</div>
@@ -1136,6 +1184,7 @@ export default function TraceabilityEntryForm() {
                     invalidUsdMatch={!!invalidUsdMap[rowKey]}
                     registerInput={registerInput}
                     onCellBlur={onCellBlur}
+                    onCellFocus={onCellFocus}
                     cellBase={cellBase}
                     inputBase={inputBase}
                     gridH={gridH}
