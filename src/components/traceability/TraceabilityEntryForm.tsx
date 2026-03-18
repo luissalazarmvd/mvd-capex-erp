@@ -324,7 +324,13 @@ const RowItem = React.memo(function RowItem({
         if (!c.editable) {
           const isNumber = c.kind === "number" || c.key === "sack_qty" || c.key === "lot_usd";
           const raw = row[c.key];
-          const show = isNumber && !isBlank(raw) ? Number(raw).toFixed(2) : String(raw ?? "");
+          const show =
+            isNumber && !isBlank(raw)
+              ? Number(raw).toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              : String(raw ?? "");
 
           return (
             <td
@@ -797,12 +803,14 @@ export default function TraceabilityEntryForm() {
       >
         <div
           style={{
-            display: "inline-block",
             width: "max-content",
             minWidth: "100%",
+            maxHeight: "calc(100vh - 315px)",
+            overflowY: "auto",
+            overflowX: "hidden",
           }}
         >
-          <Table stickyHeader maxHeight={"calc(100vh - 315px)"}>
+          <Table stickyHeader>
             <colgroup>
               {COLUMNS.map((c) => (
                 <col
