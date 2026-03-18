@@ -107,25 +107,7 @@ const NUMERIC_FIELDS: EditableField[] = [
   "ag_usd",
 ];
 
-const AUTO_GROW_KEYS: (keyof TraceabilityRow)[] = [
-  "tmh",
-  "h2o",
-  "tms",
-  "au_grade_oztc",
-  "ag_grade_oztc",
-  "cu_grade_pct",
-  "au_oz",
-  "ag_oz",
-  "au_rec",
-  "pio",
-  "pio_disc",
-  "maquila",
-  "nacn",
-  "escalador",
-  "usd_tms",
-  "au_usd",
-  "ag_usd",
-];
+const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct"];
 
 type SortKey =
   | "lot"
@@ -159,23 +141,23 @@ const COLUMNS: {
   { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "process_date", label: "F. Proceso", editable: true, kind: "date", width: 120, sortable: true },
-  { key: "tmh", label: "TMH", editable: true, kind: "number"},
-  { key: "h2o", label: "H2O", editable: true, kind: "number"},
-  { key: "tms", label: "TMS", editable: true, kind: "number"},
-  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number"},
-  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number"},
-  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number"},
-  { key: "au_oz", label: "Au Oz", editable: true, kind: "number"},
-  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number"},
-  { key: "au_rec", label: "Au Rec", editable: true, kind: "number"},
-  { key: "pio", label: "PIO", editable: true, kind: "number"},
-  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number"},
-  { key: "maquila", label: "Maquila", editable: true, kind: "number"},
-  { key: "nacn", label: "NaCN", editable: true, kind: "number"},
-  { key: "escalador", label: "Escalador", editable: true, kind: "number"},
-  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number"},
-  { key: "au_usd", label: "Au USD", editable: true, kind: "number"},
-  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number"},
+  { key: "tmh", label: "TMH", editable: true, kind: "number", width: 88 },
+  { key: "h2o", label: "H2O", editable: true, kind: "number", width: 88 },
+  { key: "tms", label: "TMS", editable: true, kind: "number", width: 88 },
+  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number", width: 88 },
+  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number", width: 88 },
+  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 88 },
+  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 88 },
+  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 88 },
+  { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 88 },
+  { key: "pio", label: "PIO", editable: true, kind: "number", width: 88 },
+  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 88 },
+  { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 88 },
+  { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 88 },
+  { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 88 },
+  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 88 },
+  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 88 },
+  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 88 },
   { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
   { key: "doc_date", label: "F. Factura", editable: false, kind: "readonly", width: 105, sortable: true },
   { key: "doc_number", label: "Factura", editable: false, kind: "readonly", width: 110, sortable: true },
@@ -217,6 +199,15 @@ function parseNum(v: string) {
   return Number.isFinite(n) ? n : null;
 }
 
+function validateNumericRange(field: EditableField, value: number | null) {
+  if (value === null) return null;
+  if (RANGE_0_100_FIELDS.includes(field) && (value < 0 || value > 100)) {
+    if (field === "h2o") return "H2O debe estar entre 0 y 100.";
+    if (field === "cu_grade_pct") return "Cu % debe estar entre 0 y 100.";
+  }
+  return null;
+}
+
 function buildPayload(row: DraftRow) {
   const payload: Record<string, any> = {};
   payload.lot = String(row.lot ?? "").trim() || null;
@@ -225,7 +216,10 @@ function buildPayload(row: DraftRow) {
     const raw = String(row[f] ?? "").trim();
 
     if (NUMERIC_FIELDS.includes(f)) {
-      payload[f] = raw === "" ? null : parseNum(raw);
+      const num = raw === "" ? null : parseNum(raw);
+      const err = validateNumericRange(f, num);
+      if (err) throw new Error(err);
+      payload[f] = num;
       continue;
     }
 
@@ -320,9 +314,9 @@ const RowItem = React.memo(function RowItem({
                 background: rowBg,
                 textAlign: isNumber ? "right" : "left",
                 fontWeight: 800,
-                width: AUTO_GROW_KEYS.includes(c.key) ? "auto" : c.width || 110,
-                minWidth: AUTO_GROW_KEYS.includes(c.key) ? 76 : c.width || 110,
-                maxWidth: AUTO_GROW_KEYS.includes(c.key) ? undefined : c.width || 110,
+                width: c.width || 110,
+                minWidth: c.width || 110,
+                maxWidth: c.width || 110,
                 padding: isNumber ? "6px 4px" : "6px 8px",
               }}
               title={show || "—"}
@@ -342,10 +336,10 @@ const RowItem = React.memo(function RowItem({
               borderBottom: gridH,
               borderRight: gridV,
               background: rowBg,
-              padding: c.kind === "number" ? "4px 4px" : "6px 8px",
-              width: AUTO_GROW_KEYS.includes(c.key) ? "auto" : c.width || 110,
-              minWidth: AUTO_GROW_KEYS.includes(c.key) ? 76 : c.width || 110,
-              maxWidth: AUTO_GROW_KEYS.includes(c.key) ? undefined : c.width || 110,
+              padding: c.kind === "number" ? "4px" : "6px 8px",
+              width: c.width || 110,
+              minWidth: c.width || 110,
+              maxWidth: c.width || 110,
               overflow: "hidden",
               boxSizing: "border-box",
             }}
@@ -357,11 +351,13 @@ const RowItem = React.memo(function RowItem({
               disabled={loading || saving}
               onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
               inputMode={c.kind === "number" ? "decimal" : "text"}
+              spellCheck={false}
+              autoComplete="off"
               style={{
                 ...inputBase,
-              width: AUTO_GROW_KEYS.includes(c.key) ? "100%" : c.kind === "number" ? "56px" : "100%",
-              minWidth: AUTO_GROW_KEYS.includes(c.key) ? "76px" : c.kind === "number" ? "56px" : undefined,
-              maxWidth: AUTO_GROW_KEYS.includes(c.key) ? undefined : c.kind === "number" ? "56px" : undefined,
+                width: "100%",
+                minWidth: 0,
+                maxWidth: "100%",
                 padding: c.kind === "number" ? "4px 6px" : "6px 8px",
                 ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
               }}
@@ -433,12 +429,34 @@ export default function TraceabilityEntryForm() {
     const current = draftsRef.current[key];
     if (!current) return;
 
-    current[field] = value;
+    const previousValue = String(current[field] ?? "");
+    const trimmed = value;
 
-    if (!NUMERIC_FIELDS.includes(field as EditableField)) return;
+    if (!NUMERIC_FIELDS.includes(field as EditableField)) {
+      current[field] = trimmed;
+      return;
+    }
 
-    const n = parseNum(value);
-    if (n === null) return;
+    if (String(trimmed).trim() === "") {
+      current[field] = "";
+      return;
+    }
+
+    const n = parseNum(trimmed);
+    if (n === null) {
+      const input = inputsRef.current[key]?.[field];
+      if (input) input.value = previousValue;
+      setMsg("ERROR: valor numérico inválido.");
+      return;
+    }
+
+    const err = validateNumericRange(field as EditableField, n);
+    if (err) {
+      const input = inputsRef.current[key]?.[field];
+      if (input) input.value = previousValue;
+      setMsg(`ERROR: ${err}`);
+      return;
+    }
 
     const formatted = n.toFixed(2);
     current[field] = formatted;
@@ -561,7 +579,6 @@ export default function TraceabilityEntryForm() {
   };
 
   const inputBase: React.CSSProperties = {
-    width: "100%",
     border: "1px solid rgba(191,231,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
@@ -637,8 +654,14 @@ export default function TraceabilityEntryForm() {
           style={{
             padding: 10,
             flexShrink: 0,
-            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            border:
+              msg.startsWith("OK") || msg.startsWith("PARCIAL")
+                ? "1px solid rgba(102,199,255,.45)"
+                : "1px solid rgba(255,80,80,.45)",
+            background:
+              msg.startsWith("OK") || msg.startsWith("PARCIAL")
+                ? "rgba(102,199,255,.10)"
+                : "rgba(255,80,80,.10)",
             fontWeight: 800,
           }}
         >
@@ -664,7 +687,7 @@ export default function TraceabilityEntryForm() {
           style={{
             display: "inline-block",
             width: "max-content",
-            maxWidth: "100%",
+            minWidth: "100%",
           }}
         >
           <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
@@ -672,15 +695,11 @@ export default function TraceabilityEntryForm() {
               {COLUMNS.map((c) => (
                 <col
                   key={String(c.key)}
-                  style={
-                    AUTO_GROW_KEYS.includes(c.key)
-                      ? { width: "auto", minWidth: 76 }
-                      : {
-                          width: c.width || 110,
-                          minWidth: c.width || 110,
-                          maxWidth: c.width || 110,
-                        }
-                  }
+                  style={{
+                    width: c.width || 110,
+                    minWidth: c.width || 110,
+                    maxWidth: c.width || 110,
+                  }}
                 />
               ))}
             </colgroup>
@@ -702,9 +721,9 @@ export default function TraceabilityEntryForm() {
                         textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
                         padding: c.kind === "number" ? "8px 4px" : "8px 8px",
                         fontSize: 12,
-                        width: AUTO_GROW_KEYS.includes(c.key) ? "auto" : c.width || 110,
-                        minWidth: AUTO_GROW_KEYS.includes(c.key) ? 76 : c.width || 110,
-                        maxWidth: AUTO_GROW_KEYS.includes(c.key) ? undefined : c.width || 110,
+                        width: c.width || 110,
+                        minWidth: c.width || 110,
+                        maxWidth: c.width || 110,
                         cursor: sortable ? "pointer" : "default",
                         userSelect: "none",
                         overflow: "hidden",
