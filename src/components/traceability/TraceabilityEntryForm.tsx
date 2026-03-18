@@ -117,6 +117,8 @@ type SortKey =
 
 type SortDir = "asc" | "desc";
 
+type ValuationFilter = "all" | "invalid" | "valid" | "pending";
+
 const SORTABLE_KEYS: SortKey[] = [
   "lot",
   "entry_date",
@@ -443,6 +445,19 @@ function matchesLot(rowLot: string | null, lotFilter: string) {
   return lot.includes(filter);
 }
 
+function matchesValuationFilter(
+  filter: ValuationFilter,
+  pendingValuation: boolean,
+  invalidUsdMatch: boolean,
+  validUsdMatch: boolean
+) {
+  if (filter === "all") return true;
+  if (filter === "pending") return pendingValuation;
+  if (filter === "invalid") return invalidUsdMatch;
+  if (filter === "valid") return validUsdMatch;
+  return true;
+}
+
 function isRowEdited(current: DraftRow | undefined, original: DraftRow | undefined) {
   if (!current || !original) return false;
   for (const c of COLUMNS) {
@@ -514,9 +529,9 @@ function RowItem({
 
           const raw =
             c.key === "au_usd"
-              ? calcAuUsd(draft)
+              ? (!isBlank(row.au_usd) ? row.au_usd : calcAuUsd(draft))
               : c.key === "usd_tms"
-              ? calcUsdTms(draft)
+              ? (!isBlank(row.usd_tms) ? row.usd_tms : calcUsdTms(draft))
               : row[c.key];
 
           const decimals3Keys: (keyof TraceabilityRow)[] = [
@@ -664,6 +679,7 @@ export default function TraceabilityEntryForm() {
   const [lotFilter, setLotFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("entry_date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [valuationFilter, setValuationFilter] = useState<ValuationFilter>("all");
   const [editedTick, setEditedTick] = useState(0);
   const [page, setPage] = useState(1);
   const [activeLot, setActiveLot] = useState<string | null>(null);
@@ -722,37 +738,9 @@ export default function TraceabilityEntryForm() {
     return list.sort((a, b) => compareLot(a, b));
   }, [rows]);
 
-  const preparedRows = useMemo(() => {
-    const filtered = rows.filter(
-      (row) => inDateRange(row.entry_date, dateFrom, dateTo) && matchesLot(row.lot, lotFilter)
-    );
-
-    return [...filtered].sort((a, b) =>
-      compareRows(
-        a,
-        b,
-        draftsRef.current[String(a.lot || "").trim()],
-        draftsRef.current[String(b.lot || "").trim()],
-        sortKey,
-        sortDir
-      )
-    );
-  }, [rows, dateFrom, dateTo, lotFilter, sortKey, sortDir, editedTick]);
-
-  const totalRows = preparedRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const pageStart = (safePage - 1) * PAGE_SIZE;
-  const pageEnd = pageStart + PAGE_SIZE;
-  const visibleRows = preparedRows.slice(pageStart, pageEnd);
-
   useEffect(() => {
     setPage(1);
-  }, [dateFrom, dateTo, lotFilter, sortKey, sortDir]);
-
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  }, [dateFrom, dateTo, lotFilter, valuationFilter, sortKey, sortDir]);
 
   const editedCount = useMemo(() => {
     editedTick;
@@ -807,6 +795,59 @@ export default function TraceabilityEntryForm() {
 
     return map;
   }, [rows, editedTick]);
+
+    const preparedRows = useMemo(() => {
+      const filtered = rows.filter((row) => {
+        if (!inDateRange(row.entry_date, dateFrom, dateTo)) return false;
+        if (!matchesLot(row.lot, lotFilter)) return false;
+
+        const key = String(row.lot || "").trim();
+        const pendingValuation = !!pendingValuationMap[key];
+        const invalidUsdMatch = !!invalidUsdMap[key];
+        const validUsdMatch = !!validUsdMap[key];
+
+        return matchesValuationFilter(
+          valuationFilter,
+          pendingValuation,
+          invalidUsdMatch,
+          validUsdMatch
+        );
+      });
+
+      return [...filtered].sort((a, b) =>
+        compareRows(
+          a,
+          b,
+          draftsRef.current[String(a.lot || "").trim()],
+          draftsRef.current[String(b.lot || "").trim()],
+          sortKey,
+          sortDir
+        )
+      );
+    }, [
+      rows,
+      dateFrom,
+      dateTo,
+      lotFilter,
+      valuationFilter,
+      sortKey,
+      sortDir,
+      editedTick,
+      pendingValuationMap,
+      invalidUsdMap,
+      validUsdMap,
+    ]);
+
+  const totalRows = preparedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+  const visibleRows = preparedRows.slice(pageStart, pageEnd);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const invalidCount = useMemo(() => {
     let count = 0;
@@ -1104,7 +1145,16 @@ export default function TraceabilityEntryForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>Trazabilidad · Ingresar Datos</div>
+        <div style={{ fontWeight: 900 }}>
+          Trazabilidad · Ingresar Datos
+          {valuationFilter !== "all" ? ` · Filtro: ${
+            valuationFilter === "invalid"
+              ? "Inválidas"
+              : valuationFilter === "valid"
+              ? "Correctas"
+              : "Pendientes"
+          }` : ""}
+        </div>
 
         <div
           style={{
@@ -1120,47 +1170,95 @@ export default function TraceabilityEntryForm() {
           Filas editadas: {editedCount}
         </div>
 
-        <div
+        <button
+          type="button"
+          onClick={() => setValuationFilter((prev) => (prev === "invalid" ? "all" : "invalid"))}
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: invalidCount > 0 ? "1px solid rgba(255, 92, 92, 0.65)" : "1px solid rgba(255,255,255,0.12)",
-            background: invalidCount > 0 ? "rgba(120, 24, 24, 0.28)" : "rgba(255,255,255,0.06)",
+            border:
+              valuationFilter === "invalid"
+                ? "1px solid rgba(255, 92, 92, 0.95)"
+                : invalidCount > 0
+                ? "1px solid rgba(255, 92, 92, 0.65)"
+                : "1px solid rgba(255,255,255,0.12)",
+            background:
+              valuationFilter === "invalid"
+                ? "rgba(120, 24, 24, 0.45)"
+                : invalidCount > 0
+                ? "rgba(120, 24, 24, 0.28)"
+                : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
             color: invalidCount > 0 ? "rgb(255, 170, 170)" : "rgba(255,255,255,0.8)",
+            cursor: "pointer",
           }}
         >
           Inválidas: {invalidCount}
-        </div>
+        </button>
 
-        <div
+        <button
+          type="button"
+          onClick={() => setValuationFilter((prev) => (prev === "valid" ? "all" : "valid"))}
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(92, 211, 158, 0.45)",
-            background: "rgba(38, 120, 88, 0.24)",
+            border:
+              valuationFilter === "valid"
+                ? "1px solid rgba(92, 211, 158, 0.95)"
+                : "1px solid rgba(92, 211, 158, 0.45)",
+            background:
+              valuationFilter === "valid"
+                ? "rgba(38, 120, 88, 0.40)"
+                : "rgba(38, 120, 88, 0.24)",
             fontSize: 12,
             fontWeight: 900,
             color: "rgb(160, 255, 214)",
+            cursor: "pointer",
           }}
         >
           Correctas: {validCount}
-        </div>        
+        </button>       
 
-        <div
+        <button
+          type="button"
+          onClick={() => setValuationFilter((prev) => (prev === "pending" ? "all" : "pending"))}
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.06)",
+            border:
+              valuationFilter === "pending"
+                ? "1px solid rgba(255,255,255,0.30)"
+                : "1px solid rgba(255,255,255,0.12)",
+            background:
+              valuationFilter === "pending"
+                ? "rgba(255,255,255,0.14)"
+                : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
             color: "rgba(255,255,255,0.8)",
+            cursor: "pointer",
           }}
         >
           Pendientes valorización: {pendingValuationCount}
-        </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setValuationFilter("all")}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: valuationFilter === "all" ? "1px solid rgba(102,199,255,.55)" : "1px solid rgba(255,255,255,0.12)",
+            background: valuationFilter === "all" ? "rgba(102,199,255,.16)" : "rgba(255,255,255,0.06)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: valuationFilter === "all" ? "rgb(170, 225, 255)" : "rgba(255,255,255,0.8)",
+            cursor: "pointer",
+          }}
+        >
+          Todos
+        </button>
 
         <div
           style={{
