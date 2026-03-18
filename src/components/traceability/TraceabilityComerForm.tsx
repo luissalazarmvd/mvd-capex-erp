@@ -583,23 +583,19 @@ export default function TraceabilityComerForm() {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
-  const editedCount = useMemo(() => {
+    const editedCount = useMemo(() => {
     editedTick;
-    let count = 0;
-    for (const key of Object.keys(draftsRef.current)) {
-      if (isRowEdited(draftsRef.current[key], originalsRef.current[key])) count++;
-    }
-    return count;
-  }, [editedTick]);
+    return Object.keys(draftsRef.current).length;
+    }, [editedTick]);
 
-  const editedMap = useMemo(() => {
+    const editedMap = useMemo(() => {
     editedTick;
     const map: Record<string, boolean> = {};
     for (const key of Object.keys(draftsRef.current)) {
-      map[key] = isRowEdited(draftsRef.current[key], originalsRef.current[key]);
+        map[key] = true;
     }
     return map;
-  }, [editedTick]);
+    }, [editedTick]);
 
   const registerInput = useCallback((key: string, field: keyof DraftRow, el: HTMLInputElement | null) => {
     if (!inputsRef.current[key]) inputsRef.current[key] = {};
@@ -773,13 +769,11 @@ export default function TraceabilityComerForm() {
   }, []);
 
   async function onSaveAll() {
-    const editedKeys = Object.keys(draftsRef.current).filter((key) =>
-      isRowEdited(draftsRef.current[key], originalsRef.current[key])
-    );
+    const editedKeys = Object.keys(draftsRef.current);
 
     if (editedKeys.length === 0) {
-      setMsg("No hay filas editadas para guardar.");
-      return;
+    setMsg("No hay filas cargadas para guardar.");
+    return;
     }
 
     setSaving(true);
@@ -915,7 +909,7 @@ export default function TraceabilityComerForm() {
             color: editedCount > 0 ? "rgb(160, 255, 214)" : "rgba(255,255,255,0.8)",
           }}
         >
-          Filas editadas: {editedCount}
+          Filas listas: {editedCount}
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
