@@ -1,8 +1,8 @@
-// src/components/traceability/TraceabilityComerForm.tsx
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiGet, apiPost } from "../../lib/apiClient";
+import * as XLSX from "xlsx";
+import { apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 
@@ -27,12 +27,6 @@ type TraceabilityRow = {
   usd_tms: number | null;
 };
 
-type GetResp = {
-  ok: boolean;
-  rows?: TraceabilityRow[];
-  error?: string;
-};
-
 type SaveResp = {
   ok: boolean;
   error?: string;
@@ -54,10 +48,27 @@ type DraftRow = {
   maquila: string;
   nacn: string;
   escalador: string;
-  au_usd: string;
   ag_usd: string;
-  usd_tms: string;
 };
+
+const EXPORT_COLUMNS = [
+  { key: "lot", label: "Lote" },
+  { key: "tmh", label: "TMH" },
+  { key: "h2o", label: "H2O" },
+  { key: "tms", label: "TMS" },
+  { key: "au_grade_oztc", label: "Au (Oz/TC)" },
+  { key: "ag_grade_oztc", label: "Ag (Oz/TC)" },
+  { key: "cu_grade_pct", label: "Cu %" },
+  { key: "au_oz", label: "Au Oz" },
+  { key: "ag_oz", label: "Ag Oz" },
+  { key: "au_rec", label: "Au Rec" },
+  { key: "pio", label: "PIO" },
+  { key: "pio_disc", label: "PIO Desc." },
+  { key: "maquila", label: "Maquila" },
+  { key: "nacn", label: "NaCN" },
+  { key: "escalador", label: "Escalador" },
+  { key: "ag_usd", label: "Ag USD" },
+] as const;
 
 const EDITABLE_FIELDS = [
   "tmh",
@@ -74,16 +85,20 @@ const EDITABLE_FIELDS = [
   "maquila",
   "nacn",
   "escalador",
-  "au_usd",
   "ag_usd",
-  "usd_tms",
 ] as const;
 
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
-const NUMERIC_FIELDS: EditableField[] = [...EDITABLE_FIELDS];
-
 const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct", "au_rec"];
+
+const DECIMALS_3_FIELDS: EditableField[] = [
+  "tmh",
+  "tms",
+  "au_grade_oztc",
+  "ag_grade_oztc",
+  "cu_grade_pct",
+];
 
 type SortKey = "lot";
 type SortDir = "asc" | "desc";
@@ -91,7 +106,7 @@ type SortDir = "asc" | "desc";
 const PAGE_SIZE = 100;
 
 const COLUMNS: {
-  key: "lot" | EditableField | "monto_usd";
+  key: "lot" | EditableField | "au_usd" | "usd_tms" | "monto_usd";
   label: string;
   editable: boolean;
   kind: "text" | "number" | "readonly";
@@ -113,9 +128,9 @@ const COLUMNS: {
   { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 88 },
   { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 88 },
   { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 88 },
-  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 88 },
+  { key: "au_usd", label: "Au USD", editable: false, kind: "readonly", width: 88 },
   { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 88 },
-  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 88 },
+  { key: "usd_tms", label: "USD/TMS", editable: false, kind: "readonly", width: 88 },
   { key: "monto_usd", label: "Monto ($)", editable: false, kind: "readonly", width: 110 },
 ];
 
@@ -144,34 +159,69 @@ function toNumOrNull(v: unknown) {
   return n === null ? null : n;
 }
 
-function toDraftRow(r: TraceabilityRow): DraftRow {
-  return {
-    lot: toText(r.lot),
-    tmh: isBlank(r.tmh) ? "" : Number(r.tmh).toFixed(3),
-    h2o: isBlank(r.h2o) ? "" : Number(r.h2o).toFixed(2),
-    tms: isBlank(r.tms) ? "" : Number(r.tms).toFixed(3),
-    au_grade_oztc: isBlank(r.au_grade_oztc) ? "" : Number(r.au_grade_oztc).toFixed(3),
-    ag_grade_oztc: isBlank(r.ag_grade_oztc) ? "" : Number(r.ag_grade_oztc).toFixed(3),
-    cu_grade_pct: isBlank(r.cu_grade_pct) ? "" : Number(r.cu_grade_pct).toFixed(3),
-    au_oz: isBlank(r.au_oz) ? "" : Number(r.au_oz).toFixed(2),
-    ag_oz: isBlank(r.ag_oz) ? "" : Number(r.ag_oz).toFixed(2),
-    au_rec: isBlank(r.au_rec) ? "" : Number(r.au_rec).toFixed(2),
-    pio: isBlank(r.pio) ? "" : Number(r.pio).toFixed(2),
-    pio_disc: isBlank(r.pio_disc) ? "" : Number(r.pio_disc).toFixed(2),
-    maquila: isBlank(r.maquila) ? "" : Number(r.maquila).toFixed(2),
-    nacn: isBlank(r.nacn) ? "" : Number(r.nacn).toFixed(2),
-    escalador: isBlank(r.escalador) ? "" : Number(r.escalador).toFixed(2),
-    au_usd: isBlank(r.au_usd) ? "" : Number(r.au_usd).toFixed(2),
-    ag_usd: isBlank(r.ag_usd) ? "" : Number(r.ag_usd).toFixed(2),
-    usd_tms: isBlank(r.usd_tms) ? "" : Number(r.usd_tms).toFixed(2),
-  };
+function formatFieldValue(field: EditableField, value: unknown) {
+  const n = toNumOrNull(value);
+  if (n === null) return "";
+  return DECIMALS_3_FIELDS.includes(field) ? n.toFixed(3) : n.toFixed(2);
+}
+
+function calcAuUsd(draft: DraftRow) {
+  const auGrade = toNumOrNull(draft.au_grade_oztc);
+  const auRec = toNumOrNull(draft.au_rec);
+  const pio = toNumOrNull(draft.pio);
+  const pioDisc = toNumOrNull(draft.pio_disc);
+  const maquila = toNumOrNull(draft.maquila);
+  const nacn = toNumOrNull(draft.nacn);
+  const escalador = toNumOrNull(draft.escalador);
+
+  if (
+    auGrade === null ||
+    auRec === null ||
+    pio === null ||
+    pioDisc === null ||
+    maquila === null ||
+    nacn === null ||
+    escalador === null
+  ) {
+    return null;
+  }
+
+  return ((auGrade * auRec * 0.01) * (pio - pioDisc) - maquila - nacn - escalador) * 1.1023;
+}
+
+function calcUsdTms(draft: DraftRow) {
+  const auUsd = calcAuUsd(draft);
+  const agUsd = toNumOrNull(draft.ag_usd);
+  if (auUsd === null && agUsd === null) return null;
+  return (auUsd ?? 0) + (agUsd ?? 0);
 }
 
 function calcMontoUsd(draft: DraftRow) {
-  const usdTms = toNumOrNull(draft.usd_tms);
+  const usdTms = calcUsdTms(draft);
   const tms = toNumOrNull(draft.tms);
   if (usdTms === null || tms === null) return null;
   return round2(usdTms * tms);
+}
+
+function toDraftRow(r: TraceabilityRow): DraftRow {
+  return {
+    lot: toText(r.lot),
+    tmh: formatFieldValue("tmh", r.tmh),
+    h2o: formatFieldValue("h2o", r.h2o),
+    tms: formatFieldValue("tms", r.tms),
+    au_grade_oztc: formatFieldValue("au_grade_oztc", r.au_grade_oztc),
+    ag_grade_oztc: formatFieldValue("ag_grade_oztc", r.ag_grade_oztc),
+    cu_grade_pct: formatFieldValue("cu_grade_pct", r.cu_grade_pct),
+    au_oz: formatFieldValue("au_oz", r.au_oz),
+    ag_oz: formatFieldValue("ag_oz", r.ag_oz),
+    au_rec: formatFieldValue("au_rec", r.au_rec),
+    pio: formatFieldValue("pio", r.pio),
+    pio_disc: formatFieldValue("pio_disc", r.pio_disc),
+    maquila: formatFieldValue("maquila", r.maquila),
+    nacn: formatFieldValue("nacn", r.nacn),
+    escalador: formatFieldValue("escalador", r.escalador),
+    ag_usd: formatFieldValue("ag_usd", r.ag_usd),
+  };
 }
 
 function validateNumericRange(field: EditableField, value: number | null) {
@@ -185,8 +235,26 @@ function validateNumericRange(field: EditableField, value: number | null) {
 }
 
 function buildPayload(row: DraftRow) {
-  const payload: Record<string, any> = {};
-  payload.lot = String(row.lot ?? "").trim() || null;
+  const payload: Record<string, any> = {
+    lot: String(row.lot ?? "").trim() || null,
+    tmh: null,
+    h2o: null,
+    tms: null,
+    au_grade_oztc: null,
+    ag_grade_oztc: null,
+    cu_grade_pct: null,
+    au_oz: null,
+    ag_oz: null,
+    au_rec: null,
+    pio: null,
+    pio_disc: null,
+    maquila: null,
+    nacn: null,
+    escalador: null,
+    au_usd: null,
+    ag_usd: null,
+    usd_tms: null,
+  };
 
   for (const f of EDITABLE_FIELDS) {
     const raw = String(row[f] ?? "").trim();
@@ -195,6 +263,12 @@ function buildPayload(row: DraftRow) {
     if (err) throw new Error(err);
     payload[f] = num;
   }
+
+  const auUsd = calcAuUsd(row);
+  const usdTms = calcUsdTms(row);
+
+  payload.au_usd = auUsd === null ? null : round2(auUsd);
+  payload.usd_tms = usdTms === null ? null : round2(usdTms);
 
   return payload;
 }
@@ -214,10 +288,35 @@ function isRowEdited(current: DraftRow | undefined, original: DraftRow | undefin
   return false;
 }
 
+function hydrateRowsFromDrafts(sourceDrafts: Record<string, DraftRow>) {
+  return Object.keys(sourceDrafts).map((key) => {
+    const draft = sourceDrafts[key];
+    return {
+      lot: draft.lot || null,
+      tmh: toNumOrNull(draft.tmh),
+      h2o: toNumOrNull(draft.h2o),
+      tms: toNumOrNull(draft.tms),
+      au_grade_oztc: toNumOrNull(draft.au_grade_oztc),
+      ag_grade_oztc: toNumOrNull(draft.ag_grade_oztc),
+      cu_grade_pct: toNumOrNull(draft.cu_grade_pct),
+      au_oz: toNumOrNull(draft.au_oz),
+      ag_oz: toNumOrNull(draft.ag_oz),
+      au_rec: toNumOrNull(draft.au_rec),
+      pio: toNumOrNull(draft.pio),
+      pio_disc: toNumOrNull(draft.pio_disc),
+      maquila: toNumOrNull(draft.maquila),
+      nacn: toNumOrNull(draft.nacn),
+      escalador: toNumOrNull(draft.escalador),
+      au_usd: calcAuUsd(draft),
+      ag_usd: toNumOrNull(draft.ag_usd),
+      usd_tms: calcUsdTms(draft),
+    } satisfies TraceabilityRow;
+  });
+}
+
 type RowItemProps = {
   row: TraceabilityRow;
   draft: DraftRow;
-  loading: boolean;
   saving: boolean;
   edited: boolean;
   registerInput: (key: string, field: keyof DraftRow, el: HTMLInputElement | null) => void;
@@ -233,7 +332,6 @@ type RowItemProps = {
 const RowItem = React.memo(function RowItem({
   row,
   draft,
-  loading,
   saving,
   edited,
   registerInput,
@@ -255,12 +353,12 @@ const RowItem = React.memo(function RowItem({
           let raw: unknown = null;
 
           if (c.key === "lot") raw = draft.lot;
+          if (c.key === "au_usd") raw = calcAuUsd(draft);
+          if (c.key === "usd_tms") raw = calcUsdTms(draft);
           if (c.key === "monto_usd") raw = calcMontoUsd(draft);
 
-          const decimals3Keys = ["tmh", "tms", "au_grade_oztc", "ag_grade_oztc", "cu_grade_pct"];
-          const decimals = decimals3Keys.includes(String(c.key)) ? 3 : 2;
-
-          const isNumber = c.key === "monto_usd";
+          const decimals = c.key === "lot" ? 0 : 2;
+          const isNumber = c.key !== "lot";
           const show =
             isNumber && !isBlank(raw)
               ? Number(raw).toLocaleString("en-US", {
@@ -316,9 +414,9 @@ const RowItem = React.memo(function RowItem({
               ref={(el) => registerInput(key, c.key as keyof DraftRow, el)}
               type="text"
               defaultValue={toText(draft[c.key as keyof DraftRow])}
-              disabled={loading || saving}
+              disabled={saving}
               onBlur={(e) => onCellBlur(key, c.key as keyof DraftRow, e.target.value)}
-              inputMode={c.kind === "number" ? "decimal" : "text"}
+              inputMode="decimal"
               spellCheck={false}
               autoComplete="off"
               style={{
@@ -345,7 +443,6 @@ const RowItem = React.memo(function RowItem({
 
 export default function TraceabilityComerForm() {
   const [rows, setRows] = useState<TraceabilityRow[]>([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [lotFilter, setLotFilter] = useState("");
@@ -357,40 +454,7 @@ export default function TraceabilityComerForm() {
   const draftsRef = useRef<Record<string, DraftRow>>({});
   const originalsRef = useRef<Record<string, DraftRow>>({});
   const inputsRef = useRef<Record<string, Partial<Record<keyof DraftRow, HTMLInputElement | null>>>>({});
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setMsg(null);
-    try {
-      const r = (await apiGet("/api/traceability")) as GetResp;
-      const data = Array.isArray(r?.rows) ? r.rows : [];
-
-      const nextDrafts: Record<string, DraftRow> = {};
-      const nextOriginals: Record<string, DraftRow> = {};
-
-      for (const row of data) {
-        const key = String(row.lot || "").trim();
-        const draft = toDraftRow(row);
-        nextDrafts[key] = { ...draft };
-        nextOriginals[key] = { ...draft };
-      }
-
-      draftsRef.current = nextDrafts;
-      originalsRef.current = nextOriginals;
-      inputsRef.current = {};
-      setRows(data);
-      setEditedTick((v) => v + 1);
-      setPage(1);
-    } catch (e: any) {
-      setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar")}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const lotOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -454,6 +518,105 @@ export default function TraceabilityComerForm() {
     inputsRef.current[key][field] = el;
   }, []);
 
+  const loadRowsFromImported = useCallback((importedRows: TraceabilityRow[]) => {
+    const nextDrafts: Record<string, DraftRow> = {};
+    const nextOriginals: Record<string, DraftRow> = {};
+
+    for (const row of importedRows) {
+      const key = String(row.lot || "").trim();
+      if (!key) continue;
+      const draft = toDraftRow(row);
+      nextDrafts[key] = { ...draft };
+      nextOriginals[key] = { ...draft };
+    }
+
+    draftsRef.current = nextDrafts;
+    originalsRef.current = nextOriginals;
+    inputsRef.current = {};
+    setRows(hydrateRowsFromDrafts(nextDrafts));
+    setEditedTick((v) => v + 1);
+    setPage(1);
+  }, []);
+
+  const onExportFormat = useCallback(() => {
+    const emptyRow: Record<string, string> = {};
+    for (const col of EXPORT_COLUMNS) {
+      emptyRow[col.label] = "";
+    }
+
+    const ws = XLSX.utils.json_to_sheet([emptyRow]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Formato");
+    XLSX.writeFile(wb, "trazabilidad_datos_comercial_formato.xlsx");
+  }, []);
+
+  const onImportClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const onImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {
+        defval: "",
+        raw: false,
+      });
+
+      if (!rawRows.length) {
+        setMsg("ERROR: el Excel no tiene filas para importar.");
+        return;
+      }
+
+      const deduped = new Map<string, TraceabilityRow>();
+
+      for (const raw of rawRows) {
+        const lot = String(raw["Lote"] ?? "").trim();
+        if (!lot) continue;
+
+        const row: TraceabilityRow = {
+          lot,
+          tmh: toNumOrNull(raw["TMH"]),
+          h2o: toNumOrNull(raw["H2O"]),
+          tms: toNumOrNull(raw["TMS"]),
+          au_grade_oztc: toNumOrNull(raw["Au (Oz/TC)"]),
+          ag_grade_oztc: toNumOrNull(raw["Ag (Oz/TC)"]),
+          cu_grade_pct: toNumOrNull(raw["Cu %"]),
+          au_oz: toNumOrNull(raw["Au Oz"]),
+          ag_oz: toNumOrNull(raw["Ag Oz"]),
+          au_rec: toNumOrNull(raw["Au Rec"]),
+          pio: toNumOrNull(raw["PIO"]),
+          pio_disc: toNumOrNull(raw["PIO Desc."]),
+          maquila: toNumOrNull(raw["Maquila"]),
+          nacn: toNumOrNull(raw["NaCN"]),
+          escalador: toNumOrNull(raw["Escalador"]),
+          au_usd: null,
+          ag_usd: toNumOrNull(raw["Ag USD"]),
+          usd_tms: null,
+        };
+
+        deduped.set(lot, row);
+      }
+
+      const importedRows = Array.from(deduped.values());
+
+      if (!importedRows.length) {
+        setMsg("ERROR: no se encontraron lotes válidos en el Excel.");
+        return;
+      }
+
+      loadRowsFromImported(importedRows);
+      setMsg(`OK: se importaron ${importedRows.length} lote(s) desde Excel.`);
+    } catch (error: any) {
+      setMsg(`ERROR: no se pudo importar el Excel. ${String(error?.message || error || "")}`);
+    }
+  }, [loadRowsFromImported]);
+
   const onCellBlur = useCallback((key: string, field: keyof DraftRow, value: string) => {
     const current = draftsRef.current[key];
     if (!current) return;
@@ -461,12 +624,12 @@ export default function TraceabilityComerForm() {
 
     const previousValue = String(current[field] ?? "");
     const trimmed = String(value ?? "");
-
     const editableField = field as EditableField;
     const n = parseNum(trimmed);
 
     if (trimmed.trim() === "") {
       current[field] = "";
+      setRows(hydrateRowsFromDrafts(draftsRef.current));
       setEditedTick((v) => v + 1);
       return;
     }
@@ -486,20 +649,13 @@ export default function TraceabilityComerForm() {
       return;
     }
 
-    const decimals3Fields: EditableField[] = [
-      "tmh",
-      "tms",
-      "au_grade_oztc",
-      "ag_grade_oztc",
-      "cu_grade_pct",
-    ];
-
-    const formatted = decimals3Fields.includes(editableField) ? n.toFixed(3) : n.toFixed(2);
+    const formatted = DECIMALS_3_FIELDS.includes(editableField) ? n.toFixed(3) : n.toFixed(2);
     current[field] = formatted;
 
     const input = inputsRef.current[key]?.[field];
     if (input && input.value !== formatted) input.value = formatted;
 
+    setRows(hydrateRowsFromDrafts(draftsRef.current));
     setEditedTick((v) => v + 1);
   }, []);
 
@@ -556,8 +712,6 @@ export default function TraceabilityComerForm() {
       } else {
         setMsg(`ERROR: no se pudo guardar ninguna fila. ${failedMessages.join(" | ")}`);
       }
-
-      await loadData();
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo guardar")}`);
     } finally {
@@ -616,6 +770,14 @@ export default function TraceabilityComerForm() {
         overflow: "hidden",
       }}
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        style={{ display: "none" }}
+        onChange={onImportFile}
+      />
+
       <div
         className="panel-inner"
         style={{
@@ -644,6 +806,14 @@ export default function TraceabilityComerForm() {
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <Button type="button" size="sm" variant="default" onClick={onExportFormat} disabled={saving}>
+            Exportar formato
+          </Button>
+
+          <Button type="button" size="sm" variant="default" onClick={onImportClick} disabled={saving}>
+            Importar Excel
+          </Button>
+
           <div style={{ display: "grid", gap: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Lote</div>
             <input
@@ -661,11 +831,7 @@ export default function TraceabilityComerForm() {
             </datalist>
           </div>
 
-          <Button type="button" size="sm" variant="default" onClick={loadData} disabled={loading || saving}>
-            {loading ? "Cargando…" : "Refrescar"}
-          </Button>
-
-          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={loading || saving}>
+          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={saving}>
             {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
@@ -756,10 +922,9 @@ export default function TraceabilityComerForm() {
                 const rowKey = String(row.lot || "").trim();
                 return (
                   <RowItem
-                    key={rowKey}
+                    key={`${rowKey}-${editedTick}`}
                     row={row}
                     draft={draftsRef.current[rowKey] ?? toDraftRow(row)}
-                    loading={loading}
                     saving={saving}
                     edited={!!editedMap[rowKey]}
                     registerInput={registerInput}
@@ -774,18 +939,10 @@ export default function TraceabilityComerForm() {
                 );
               })}
 
-              {!loading && visibleRows.length === 0 ? (
+              {visibleRows.length === 0 ? (
                 <tr className="capex-tr">
                   <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
-                    No hay filas para el filtro seleccionado.
-                  </td>
-                </tr>
-              ) : null}
-
-              {loading ? (
-                <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
-                    Cargando trazabilidad…
+                    No hay datos cargados desde Excel.
                   </td>
                 </tr>
               ) : null}
@@ -816,7 +973,7 @@ export default function TraceabilityComerForm() {
             size="sm"
             variant="default"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={loading || saving || safePage <= 1}
+            disabled={saving || safePage <= 1}
           >
             ←
           </Button>
@@ -841,7 +998,7 @@ export default function TraceabilityComerForm() {
             size="sm"
             variant="default"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={loading || saving || safePage >= totalPages}
+            disabled={saving || safePage >= totalPages}
           >
             →
           </Button>
