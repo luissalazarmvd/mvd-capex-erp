@@ -413,7 +413,7 @@ export default function TraceabilityEntryForm() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [lotFilter, setLotFilter] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("lot");
+  const [sortKey, setSortKey] = useState<SortKey>("entry_date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [editedTick, setEditedTick] = useState(0);
   const [page, setPage] = useState(1);
