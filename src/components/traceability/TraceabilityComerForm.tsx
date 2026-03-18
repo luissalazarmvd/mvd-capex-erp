@@ -255,7 +255,7 @@ function calcAuUsd(draft: DraftRow) {
     return null;
   }
 
-  return ((auGrade * auRec) * (pio - pioDisc) - maquila - nacn - escalador) * 1.1023;
+  return ((auGrade * auRec*.01) * (pio - pioDisc) - maquila - nacn - escalador) * 1.1023;
 }
 
 function calcUsdTms(draft: DraftRow) {
