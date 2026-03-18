@@ -80,8 +80,6 @@ const EDITABLE_FIELDS = [
   "maquila",
   "nacn",
   "escalador",
-  "usd_tms",
-  "au_usd",
   "ag_usd",
   "pay_type",
 ] as const;
@@ -103,8 +101,6 @@ const NUMERIC_FIELDS: EditableField[] = [
   "maquila",
   "nacn",
   "escalador",
-  "usd_tms",
-  "au_usd",
   "ag_usd",
 ];
 
@@ -147,8 +143,8 @@ const COLUMNS: {
   { key: "tmh", label: "TMH", editable: true, kind: "number", width: 88 },
   { key: "h2o", label: "H2O", editable: true, kind: "number", width: 88 },
   { key: "tms", label: "TMS", editable: true, kind: "number", width: 88 },
-  { key: "au_grade_oztc", label: "Au Grade", editable: true, kind: "number", width: 88 },
-  { key: "ag_grade_oztc", label: "Ag Grade", editable: true, kind: "number", width: 88 },
+  { key: "au_grade_oztc", label: "Au (Oz/TC)", editable: true, kind: "number", width: 88 },
+  { key: "ag_grade_oztc", label: "Ag (Oz/TC)", editable: true, kind: "number", width: 88 },
   { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 88 },
   { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 88 },
   { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 88 },
@@ -158,9 +154,9 @@ const COLUMNS: {
   { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 88 },
   { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 88 },
   { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 88 },
-  { key: "usd_tms", label: "USD/TMS", editable: true, kind: "number", width: 88 },
-  { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 88 },
+  { key: "au_usd", label: "Au USD", editable: false, kind: "readonly", width: 88 },
   { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 88 },
+  { key: "usd_tms", label: "USD/TMS", editable: false, kind: "readonly", width: 88 },
   { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
   { key: "lot_usd", label: "Factura (USD)", editable: false, kind: "readonly", width: 110 },
   { key: "doc_date", label: "F. Factura", editable: false, kind: "readonly", width: 105, sortable: true },
@@ -203,6 +199,57 @@ function parseNum(v: string) {
   return Number.isFinite(n) ? n : null;
 }
 
+function round2(n: number) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function toNumOrNull(v: unknown) {
+  const n = parseNum(String(v ?? ""));
+  return n === null ? null : n;
+}
+
+function calcAuUsd(draft: DraftRow) {
+  const auGrade = toNumOrNull(draft.au_grade_oztc);
+  const auRec = toNumOrNull(draft.au_rec);
+  const pio = toNumOrNull(draft.pio);
+  const pioDisc = toNumOrNull(draft.pio_disc);
+  const maquila = toNumOrNull(draft.maquila);
+  const nacn = toNumOrNull(draft.nacn);
+  const escalador = toNumOrNull(draft.escalador);
+
+  if (
+    auGrade === null ||
+    auRec === null ||
+    pio === null ||
+    pioDisc === null ||
+    maquila === null ||
+    nacn === null ||
+    escalador === null
+  ) {
+    return null;
+  }
+
+  return ((auGrade * auRec) * (pio - pioDisc) - maquila - nacn - escalador) * 1.1023;
+}
+
+function calcUsdTms(draft: DraftRow) {
+  const auUsd = calcAuUsd(draft);
+  const agUsd = toNumOrNull(draft.ag_usd);
+
+  if (auUsd === null && agUsd === null) return null;
+  return (auUsd ?? 0) + (agUsd ?? 0);
+}
+
+function isUsdValidationOk(draft: DraftRow) {
+  const usdTms = calcUsdTms(draft);
+  const tms = toNumOrNull(draft.tms);
+  const lotUsd = toNumOrNull(draft.lot_usd);
+
+  if (usdTms === null || tms === null || lotUsd === null) return true;
+
+  return round2(usdTms * tms) === round2(lotUsd);
+}
+
 function validateNumericRange(field: EditableField, value: number | null) {
   if (value === null) return null;
   if (RANGE_0_100_FIELDS.includes(field) && (value < 0 || value > 100)) {
@@ -229,6 +276,9 @@ function buildPayload(row: DraftRow) {
 
     payload[f] = raw || null;
   }
+
+  const auUsd = calcAuUsd(row);
+  payload.au_usd = auUsd === null ? null : round2(auUsd);
 
   return payload;
 }
@@ -288,9 +338,11 @@ function isRowEdited(current: DraftRow | undefined, original: DraftRow | undefin
 
 type RowItemProps = {
   row: TraceabilityRow;
+  draft: DraftRow;
   loading: boolean;
   saving: boolean;
   edited: boolean;
+  invalidUsdMatch: boolean;
   registerInput: (key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => void;
   onCellBlur: (key: string, field: keyof TraceabilityRow, value: string) => void;
   cellBase: React.CSSProperties;
@@ -299,13 +351,16 @@ type RowItemProps = {
   gridV: string;
   rowBg: string;
   editedRowBg: string;
+  invalidRowBg: string;
 };
 
 const RowItem = React.memo(function RowItem({
   row,
+  draft,
   loading,
   saving,
   edited,
+  invalidUsdMatch,
   registerInput,
   onCellBlur,
   cellBase,
@@ -314,16 +369,25 @@ const RowItem = React.memo(function RowItem({
   gridV,
   rowBg,
   editedRowBg,
+  invalidRowBg,
 }: RowItemProps) {
   const key = String(row.lot || "").trim();
-  const currentRowBg = edited ? editedRowBg : rowBg;
+  const currentRowBg = invalidUsdMatch ? invalidRowBg : edited ? editedRowBg : rowBg;
 
   return (
     <tr className="capex-tr">
       {COLUMNS.map((c) => {
         if (!c.editable) {
-          const isNumber = c.kind === "number" || c.key === "sack_qty" || c.key === "lot_usd";
-          const raw = row[c.key];
+          const isNumber =
+            c.kind === "number" || c.key === "sack_qty" || c.key === "lot_usd" || c.key === "usd_tms" || c.key === "au_usd";
+
+          const raw =
+            c.key === "au_usd"
+              ? calcAuUsd(draft)
+              : c.key === "usd_tms"
+              ? calcUsdTms(draft)
+              : row[c.key];
+
           const show =
             isNumber && !isBlank(raw)
               ? Number(raw).toLocaleString("en-US", {
@@ -348,6 +412,7 @@ const RowItem = React.memo(function RowItem({
                 minWidth: c.width || 110,
                 maxWidth: c.width || 110,
                 padding: isNumber ? "6px 4px" : "6px 8px",
+                color: invalidUsdMatch && (c.key === "usd_tms" || c.key === "lot_usd" || c.key === "tms") ? "rgb(255,170,170)" : "white",
               }}
               title={show || "—"}
             >
@@ -390,7 +455,12 @@ const RowItem = React.memo(function RowItem({
                 maxWidth: "100%",
                 padding: c.kind === "number" ? "4px 6px" : "6px 8px",
                 ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
-                ...(edited
+                ...(invalidUsdMatch
+                  ? {
+                      border: "1px solid rgba(255, 92, 92, 0.75)",
+                      background: "rgba(120, 30, 30, 0.22)",
+                    }
+                  : edited
                   ? {
                       border: "1px solid rgba(92, 211, 158, 0.55)",
                       background: "rgba(38, 120, 88, 0.18)",
@@ -509,6 +579,26 @@ export default function TraceabilityEntryForm() {
     return map;
   }, [editedTick]);
 
+  const invalidUsdMap = useMemo(() => {
+    editedTick;
+    const map: Record<string, boolean> = {};
+    for (const key of Object.keys(draftsRef.current)) {
+      map[key] = !isUsdValidationOk(draftsRef.current[key]);
+    }
+    return map;
+  }, [editedTick]);
+
+  const invalidEditedCount = useMemo(() => {
+    editedTick;
+    let count = 0;
+    for (const key of Object.keys(draftsRef.current)) {
+      if (editedMap[key] && invalidUsdMap[key]) count++;
+    }
+    return count;
+  }, [editedTick, editedMap, invalidUsdMap]);
+
+  const hasInvalidEditedRows = invalidEditedCount > 0;
+
   const registerInput = useCallback((key: string, field: keyof TraceabilityRow, el: HTMLInputElement | null) => {
     if (!inputsRef.current[key]) inputsRef.current[key] = {};
     inputsRef.current[key][field] = el;
@@ -565,6 +655,12 @@ export default function TraceabilityEntryForm() {
 
     if (editedKeys.length === 0) {
       setMsg("No hay filas editadas para guardar.");
+      return;
+    }
+
+    const invalidEditedLots = editedKeys.filter((key) => !isUsdValidationOk(draftsRef.current[key]));
+    if (invalidEditedLots.length > 0) {
+      setMsg("ERROR: hay filas con validación inválida. USD/TMS x TMS debe ser igual a Factura (USD).");
       return;
     }
 
@@ -646,6 +742,7 @@ export default function TraceabilityEntryForm() {
   const headerShadow = "none";
   const rowBg = "rgba(0,0,0,.10)";
   const editedRowBg = "rgba(30, 110, 74, 0.28)";
+  const invalidRowBg = "rgba(120, 24, 24, 0.34)";
 
   const stickyHead: React.CSSProperties = {
     position: "sticky",
@@ -718,6 +815,20 @@ export default function TraceabilityEntryForm() {
           Filas editadas: {editedCount}
         </div>
 
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: hasInvalidEditedRows ? "1px solid rgba(255, 92, 92, 0.65)" : "1px solid rgba(255,255,255,0.12)",
+            background: hasInvalidEditedRows ? "rgba(120, 24, 24, 0.28)" : "rgba(255,255,255,0.06)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: hasInvalidEditedRows ? "rgb(255, 170, 170)" : "rgba(255,255,255,0.8)",
+          }}
+        >
+          Filas inválidas: {invalidEditedCount}
+        </div>
+
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Entry Date desde</div>
@@ -760,7 +871,7 @@ export default function TraceabilityEntryForm() {
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
 
-          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={loading || saving}>
+          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={loading || saving || hasInvalidEditedRows}>
             {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
@@ -864,9 +975,11 @@ export default function TraceabilityEntryForm() {
                   <RowItem
                     key={rowKey}
                     row={row}
+                    draft={draftsRef.current[rowKey] ?? toDraftRow(row)}
                     loading={loading}
                     saving={saving}
                     edited={!!editedMap[rowKey]}
+                    invalidUsdMatch={!!invalidUsdMap[rowKey]}
                     registerInput={registerInput}
                     onCellBlur={onCellBlur}
                     cellBase={cellBase}
@@ -875,6 +988,7 @@ export default function TraceabilityEntryForm() {
                     gridV={gridV}
                     rowBg={rowBg}
                     editedRowBg={editedRowBg}
+                    invalidRowBg={invalidRowBg}
                   />
                 );
               })}
