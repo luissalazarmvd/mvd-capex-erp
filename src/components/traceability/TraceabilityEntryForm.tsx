@@ -1,6 +1,7 @@
+// src/components/traceability/TraceabilityEntryForm.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
@@ -148,20 +149,6 @@ const COLUMNS: {
   { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "process_date", label: "F. Proceso", editable: true, kind: "date", width: 120, sortable: true },
-  { key: "sack_qty", label: "Sacos", editable: false, kind: "readonly", width: 78 },
-  { key: "miner_name", label: "Minero", editable: false, kind: "readonly", width: 96, sortable: true },
-  { key: "plate", label: "Placa", editable: false, kind: "readonly", width: 92 },
-  { key: "ruc", label: "RUC", editable: false, kind: "readonly", width: 118, sortable: true },
-  { key: "concession_name", label: "Concesión", editable: false, kind: "readonly", width: 145 },
-  { key: "concession_code", label: "Cod. Concesión", editable: false, kind: "readonly", width: 120 },
-  { key: "district", label: "Distrito", editable: false, kind: "readonly", width: 100 },
-  { key: "province", label: "Provincia", editable: false, kind: "readonly", width: 100 },
-  { key: "department", label: "Departamento", editable: false, kind: "readonly", width: 120 },
-  { key: "sender_guide_number", label: "Guía Remitente", editable: false, kind: "readonly", width: 125 },
-  { key: "transport_name", label: "Transporte", editable: true, kind: "text", width: 130 },
-  { key: "transport_guide_number", label: "Guía Transporte", editable: true, kind: "text", width: 125 },
-  { key: "zone_1", label: "Zona 1", editable: true, kind: "text", width: 90 },
-  { key: "zone_2", label: "Zona 2", editable: true, kind: "text", width: 120 },
   { key: "tmh", label: "TMH", editable: true, kind: "number", width: 64 },
   { key: "h2o", label: "H2O", editable: true, kind: "number", width: 64 },
   { key: "tms", label: "TMS", editable: true, kind: "number", width: 64 },
@@ -180,27 +167,37 @@ const COLUMNS: {
   { key: "au_usd", label: "Au USD", editable: true, kind: "number", width: 70 },
   { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 70 },
   { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
-  { key: "doc_date", label: "F. Doc", editable: false, kind: "readonly", width: 105, sortable: true },
-  { key: "doc_number", label: "Nro Doc", editable: false, kind: "readonly", width: 110, sortable: true },
+  { key: "doc_date", label: "F. Factura", editable: false, kind: "readonly", width: 105, sortable: true },
+  { key: "doc_number", label: "Factura", editable: false, kind: "readonly", width: 110, sortable: true },
+  { key: "sack_qty", label: "Sacos", editable: false, kind: "readonly", width: 78 },
+  { key: "miner_name", label: "Minero", editable: false, kind: "readonly", width: 96, sortable: true },
+  { key: "plate", label: "Placa", editable: false, kind: "readonly", width: 92 },
+  { key: "ruc", label: "RUC", editable: false, kind: "readonly", width: 118, sortable: true },
+  { key: "concession_name", label: "Concesión", editable: false, kind: "readonly", width: 145 },
+  { key: "concession_code", label: "Cod. Concesión", editable: false, kind: "readonly", width: 120 },
+  { key: "district", label: "Distrito", editable: false, kind: "readonly", width: 100 },
+  { key: "province", label: "Provincia", editable: false, kind: "readonly", width: 100 },
+  { key: "department", label: "Departamento", editable: false, kind: "readonly", width: 120 },
+  { key: "sender_guide_number", label: "Guía Remitente", editable: false, kind: "readonly", width: 125 },
+  { key: "transport_name", label: "Transporte", editable: true, kind: "text", width: 130 },
+  { key: "transport_guide_number", label: "Guía Transporte", editable: true, kind: "text", width: 125 },
+  { key: "zone_1", label: "Zona 1", editable: true, kind: "text", width: 90 },
+  { key: "zone_2", label: "Zona 2", editable: true, kind: "text", width: 120 },
 ];
 
 function isBlank(v: unknown) {
   return v === null || v === undefined || String(v).trim() === "";
 }
 
-function toText(v: unknown, numeric2 = false) {
+function toText(v: unknown) {
   if (v === null || v === undefined) return "";
-  if (typeof v === "number" && Number.isFinite(v)) {
-    return numeric2 ? v.toFixed(2) : String(v);
-  }
   return String(v);
 }
 
 function toDraftRow(r: TraceabilityRow): DraftRow {
   const out = {} as DraftRow;
   for (const c of COLUMNS) {
-    const numeric2 = NUMERIC_FIELDS.includes(c.key as EditableField);
-    out[c.key] = toText(r[c.key], numeric2);
+    out[c.key] = toText(r[c.key]);
   }
   return out;
 }
@@ -329,6 +326,145 @@ function compareByKey(
   return dir === "asc" ? result : -result;
 }
 
+type RenderRow = {
+  row: TraceabilityRow;
+  key: string;
+  complete: boolean;
+  changed: boolean;
+};
+
+type TraceabilityRowItemProps = {
+  item: RenderRow;
+  draft: DraftRow;
+  loading: boolean;
+  saving: boolean;
+  cellBase: React.CSSProperties;
+  inputBase: React.CSSProperties;
+  inputErr: React.CSSProperties;
+  gridH: string;
+  gridV: string;
+  rowBg: string;
+  editedRowBg: string;
+  editedRowBgComplete: string;
+  onCellChange: (key: string, field: keyof TraceabilityRow, value: string) => void;
+  onCellBlur: (key: string, field: keyof TraceabilityRow) => void;
+};
+
+const TraceabilityRowItem = React.memo(function TraceabilityRowItem({
+  item,
+  draft,
+  loading,
+  saving,
+  cellBase,
+  inputBase,
+  inputErr,
+  gridH,
+  gridV,
+  rowBg,
+  editedRowBg,
+  editedRowBgComplete,
+  onCellChange,
+  onCellBlur,
+}: TraceabilityRowItemProps) {
+  const { row, key, complete, changed } = item;
+  const rowChanged = changed;
+
+  return (
+    <tr className="capex-tr">
+      {COLUMNS.map((c) => {
+        const value = draft[c.key] ?? "";
+        const invalid = c.editable ? !isValidField(c.key as EditableField, value) : false;
+        const bg = rowChanged
+          ? complete
+            ? editedRowBgComplete
+            : editedRowBg
+          : complete
+          ? "rgba(255,255,255,.05)"
+          : rowBg;
+
+        if (!c.editable) {
+          const isNumber = c.kind === "number" || c.key === "sack_qty";
+          const raw = row[c.key];
+          const show =
+            isNumber && !isBlank(raw)
+              ? Number(raw).toFixed(2)
+              : String(raw ?? "");
+
+          return (
+            <td
+              key={String(c.key)}
+              className="capex-td"
+              style={{
+                ...cellBase,
+                borderTop: gridH,
+                borderBottom: gridH,
+                borderRight: gridV,
+                background: bg,
+                textAlign: isNumber ? "right" : "left",
+                fontWeight: 800,
+                opacity: complete ? 0.82 : 1,
+                width: c.width || 110,
+                minWidth: c.width || 110,
+                maxWidth: c.width || 110,
+                padding: isNumber ? "6px 4px" : "6px 8px",
+              }}
+              title={show || "—"}
+            >
+              {show || "—"}
+            </td>
+          );
+        }
+
+        return (
+          <td
+            key={String(c.key)}
+            className="capex-td"
+            style={{
+              ...cellBase,
+              borderTop: gridH,
+              borderBottom: gridH,
+              borderRight: gridV,
+              background: bg,
+              padding: c.kind === "number" ? "4px 4px" : "6px 8px",
+              width: c.width || 110,
+              minWidth: c.width || 110,
+              maxWidth: c.width || 110,
+              overflow: "hidden",
+              boxSizing: "border-box",
+            }}
+          >
+            <input
+              type={c.kind === "date" ? "date" : "text"}
+              value={value}
+              disabled={loading || saving}
+              onChange={(e) => onCellChange(key, c.key, e.target.value)}
+              onBlur={() => onCellBlur(key, c.key)}
+              inputMode={c.kind === "number" ? "decimal" : "text"}
+              style={{
+                ...inputBase,
+                width: c.kind === "number" ? "56px" : "100%",
+                minWidth: c.kind === "number" ? "56px" : undefined,
+                maxWidth: c.kind === "number" ? "56px" : undefined,
+                padding: c.kind === "number" ? "4px 6px" : "6px 8px",
+                ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
+                ...(invalid ? inputErr : {}),
+                ...(complete ? { opacity: 0.9 } : {}),
+              }}
+            />
+          </td>
+        );
+      })}
+    </tr>
+  );
+}, (prev, next) => {
+  return (
+    prev.item === next.item &&
+    prev.draft === next.draft &&
+    prev.loading === next.loading &&
+    prev.saving === next.saving
+  );
+});
+
 export default function TraceabilityEntryForm() {
   const [rows, setRows] = useState<TraceabilityRow[]>([]);
   const [drafts, setDrafts] = useState<Record<string, DraftRow>>({});
@@ -341,7 +477,7 @@ export default function TraceabilityEntryForm() {
   const [sortKey, setSortKey] = useState<SortKey>("lot");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setMsg(null);
     try {
@@ -366,11 +502,11 @@ export default function TraceabilityEntryForm() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const preparedRows = useMemo(() => {
     const filtered = rows
@@ -419,9 +555,10 @@ export default function TraceabilityEntryForm() {
     });
   }, [editedRowKeys, drafts]);
 
-  function setCell(key: string, field: keyof TraceabilityRow, value: string) {
+  const setCell = useCallback((key: string, field: keyof TraceabilityRow, value: string) => {
     setDrafts((prev) => {
-      const current = prev[key] || ({} as DraftRow);
+      const current = prev[key];
+      if (!current) return prev;
       if (current[field] === value) return prev;
 
       return {
@@ -432,9 +569,9 @@ export default function TraceabilityEntryForm() {
         },
       };
     });
-  }
+  }, []);
 
-  function onBlurFormat(key: string, field: keyof TraceabilityRow) {
+  const onBlurFormat = useCallback((key: string, field: keyof TraceabilityRow) => {
     if (!NUMERIC_FIELDS.includes(field as EditableField)) return;
 
     setDrafts((prev) => {
@@ -456,7 +593,7 @@ export default function TraceabilityEntryForm() {
         },
       };
     });
-  }
+  }, []);
 
   async function onSaveAll() {
     if (editedRowKeys.length === 0) {
@@ -705,16 +842,19 @@ export default function TraceabilityEntryForm() {
           width: "100%",
           height: "100%",
           maxWidth: "100%",
-          overflow: "auto",
+          overflowX: "auto",
+          overflowY: "hidden",
+          WebkitOverflowScrolling: "touch",
         }}
       >
         <div
           style={{
-            minWidth: "max-content",
+            display: "inline-block",
             width: "max-content",
+            maxWidth: "100%",
           }}
         >
-          <Table stickyHeader>
+          <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
             <colgroup>
               {COLUMNS.map((c) => (
                 <col
@@ -766,95 +906,27 @@ export default function TraceabilityEntryForm() {
             </thead>
 
             <tbody>
-              {preparedRows.map(({ row, key, complete, changed }) => {
-                const draft = drafts[key] || toDraftRow(row);
-                const rowChanged = changed;
+              {preparedRows.map((item) => {
+                const draft = drafts[item.key] || toDraftRow(item.row);
 
                 return (
-                  <tr key={key} className="capex-tr">
-                    {COLUMNS.map((c) => {
-                      const value = draft[c.key] ?? "";
-                      const invalid = c.editable ? !isValidField(c.key as EditableField, value) : false;
-                      const bg = rowChanged
-                        ? complete
-                          ? editedRowBgComplete
-                          : editedRowBg
-                        : complete
-                        ? "rgba(255,255,255,.05)"
-                        : rowBg;
-
-                      if (!c.editable) {
-                        const isNumber = c.kind === "number" || c.key === "sack_qty";
-                        const show =
-                          isNumber && !isBlank(row[c.key])
-                            ? Number(row[c.key]).toFixed(2)
-                            : String(row[c.key] ?? "");
-
-                        return (
-                          <td
-                            key={String(c.key)}
-                            className="capex-td"
-                            style={{
-                              ...cellBase,
-                              borderTop: gridH,
-                              borderBottom: gridH,
-                              borderRight: gridV,
-                              background: bg,
-                              textAlign: isNumber ? "right" : "left",
-                              fontWeight: 800,
-                              opacity: complete ? 0.82 : 1,
-                              width: c.width || 110,
-                              minWidth: c.width || 110,
-                              maxWidth: c.width || 110,
-                              padding: isNumber ? "6px 4px" : "6px 8px",
-                            }}
-                            title={show || "—"}
-                          >
-                            {show || "—"}
-                          </td>
-                        );
-                      }
-
-                      return (
-                        <td
-                          key={String(c.key)}
-                          className="capex-td"
-                          style={{
-                            ...cellBase,
-                            borderTop: gridH,
-                            borderBottom: gridH,
-                            borderRight: gridV,
-                            background: bg,
-                            padding: c.kind === "number" ? "4px 4px" : "6px 8px",
-                            width: c.width || 110,
-                            minWidth: c.width || 110,
-                            maxWidth: c.width || 110,
-                            overflow: "hidden",
-                            boxSizing: "border-box",
-                          }}
-                        >
-                          <input
-                            type={c.kind === "date" ? "date" : "text"}
-                            value={value}
-                            disabled={loading || saving}
-                            onChange={(e) => setCell(key, c.key, e.target.value)}
-                            onBlur={() => onBlurFormat(key, c.key)}
-                            inputMode={c.kind === "number" ? "decimal" : "text"}
-                            style={{
-                              ...inputBase,
-                              width: c.kind === "number" ? "56px" : "100%",
-                              minWidth: c.kind === "number" ? "56px" : undefined,
-                              maxWidth: c.kind === "number" ? "56px" : undefined,
-                              padding: c.kind === "number" ? "4px 6px" : "6px 8px",
-                              ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
-                              ...(invalid ? inputErr : {}),
-                              ...(complete ? { opacity: 0.9 } : {}),
-                            }}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
+                  <TraceabilityRowItem
+                    key={item.key}
+                    item={item}
+                    draft={draft}
+                    loading={loading}
+                    saving={saving}
+                    cellBase={cellBase}
+                    inputBase={inputBase}
+                    inputErr={inputErr}
+                    gridH={gridH}
+                    gridV={gridV}
+                    rowBg={rowBg}
+                    editedRowBg={editedRowBg}
+                    editedRowBgComplete={editedRowBgComplete}
+                    onCellChange={setCell}
+                    onCellBlur={onBlurFormat}
+                  />
                 );
               })}
 
