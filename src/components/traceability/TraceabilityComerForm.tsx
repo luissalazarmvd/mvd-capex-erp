@@ -336,7 +336,11 @@ function buildPayload(row: DraftRow) {
     const err = validateNumericRange(f, num);
     if (err) throw new Error(err);
 
+    if (f === "au_rec") {
+    payload[f] = num === null ? null : num * 100;
+    } else {
     payload[f] = num;
+    }
   }
 
     const auUsd = calcAuUsd(row);
