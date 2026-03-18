@@ -226,6 +226,11 @@ function normalizeLot(rawLot: unknown, entryDateRaw: unknown) {
 function formatFieldValue(field: EditableField, value: unknown) {
   const n = toNumOrNull(value);
   if (n === null) return "";
+
+    if (field === "au_rec") {
+    return (n * 100).toFixed(2);
+    }
+
   return DECIMALS_3_FIELDS.includes(field) ? n.toFixed(3) : n.toFixed(2);
 }
 
@@ -263,8 +268,13 @@ function calcUsdTms(draft: DraftRow) {
 function calcMontoUsd(draft: DraftRow) {
   const usdTms = calcUsdTms(draft);
   const tms = toNumOrNull(draft.tms);
+
   if (usdTms === null || tms === null) return null;
-  return round2(usdTms * tms);
+
+  const usdTmsRounded = round2(usdTms);
+  const tmsRounded = Number(tms.toFixed(3));
+
+  return round2(tmsRounded * usdTmsRounded);
 }
 
 function toDraftRow(r: TraceabilityRow): DraftRow {
@@ -326,11 +336,23 @@ function buildPayload(row: DraftRow) {
     const num = raw === "" ? null : parseNum(raw);
     const err = validateNumericRange(f, num);
     if (err) throw new Error(err);
-    payload[f] = num;
+
+    if (f === "au_rec") {
+      payload[f] = num === null ? null : num / 100;
+    } else {
+      payload[f] = num;
+    }
   }
 
-  const auUsd = calcAuUsd(row);
-  const usdTms = calcUsdTms(row);
+  const auUsd = calcAuUsd({
+    ...row,
+    au_rec: payload.au_rec === null ? "" : String(payload.au_rec),
+  });
+
+  const usdTms = calcUsdTms({
+    ...row,
+    au_rec: payload.au_rec === null ? "" : String(payload.au_rec),
+  });
 
   payload.au_usd = auUsd === null ? null : round2(auUsd);
   payload.usd_tms = usdTms === null ? null : round2(usdTms);
@@ -727,11 +749,25 @@ export default function TraceabilityComerForm() {
       return;
     }
 
-    const formatted = DECIMALS_3_FIELDS.includes(editableField) ? n.toFixed(3) : n.toFixed(2);
+    let formatted = "";
+
+    if (editableField === "au_rec") {
+    formatted = (n / 100).toFixed(4);
+    } else {
+    formatted = DECIMALS_3_FIELDS.includes(editableField) ? n.toFixed(3) : n.toFixed(2);
+    }
+
     current[field] = formatted;
 
     const input = inputsRef.current[key]?.[field];
-    if (input && input.value !== formatted) input.value = formatted;
+    if (input) {
+    if (editableField === "au_rec") {
+        const displayValue = n.toFixed(2);
+        if (input.value !== displayValue) input.value = displayValue;
+    } else {
+        if (input.value !== formatted) input.value = formatted;
+    }
+    }
 
     setRows(hydrateRowsFromDrafts(draftsRef.current));
     setEditedTick((v) => v + 1);
