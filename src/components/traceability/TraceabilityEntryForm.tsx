@@ -188,7 +188,13 @@ function toText(v: unknown) {
 
 function toDraftRow(r: TraceabilityRow): DraftRow {
   const out = {} as DraftRow;
-  for (const c of COLUMNS) out[c.key] = toText(r[c.key]);
+  for (const c of COLUMNS) {
+    if (c.key === "ag_oz" || c.key === "escalador") {
+      out[c.key] = isBlank(r[c.key]) ? "0.00" : toText(r[c.key]);
+      continue;
+    }
+    out[c.key] = toText(r[c.key]);
+  }
   return out;
 }
 
