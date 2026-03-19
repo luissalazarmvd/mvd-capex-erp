@@ -747,6 +747,7 @@ export default function TraceabilityEntryForm() {
   const [lotFilter, setLotFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("entry_date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [hasManualSort, setHasManualSort] = useState(false);
   const [valuationFilter, setValuationFilter] = useState<ValuationFilter>("all");
   const [editedTick, setEditedTick] = useState(0);
   const [page, setPage] = useState(1);
@@ -905,16 +906,38 @@ useEffect(() => {
         );
       });
 
-      return [...filtered].sort((a, b) =>
-        compareRows(
-          a,
-          b,
-          draftsRef.current[String(a.lot || "").trim()],
-          draftsRef.current[String(b.lot || "").trim()],
-          sortKey,
-          sortDir
-        )
-      );
+      return [...filtered].sort((a, b) => {
+        const draftA = draftsRef.current[String(a.lot || "").trim()];
+        const draftB = draftsRef.current[String(b.lot || "").trim()];
+
+        if (hasManualSort) {
+          return compareRows(a, b, draftA, draftB, sortKey, sortDir);
+        }
+
+        const lotPriorityA = getLotPriority(a.lot);
+        const lotPriorityB = getLotPriority(b.lot);
+        if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
+
+        const usdTmsA = !isBlank(a.usd_tms) ? Number(a.usd_tms) : draftA ? calcUsdTms(draftA) : null;
+        const usdTmsB = !isBlank(b.usd_tms) ? Number(b.usd_tms) : draftB ? calcUsdTms(draftB) : null;
+
+        const hasUsdTmsA = usdTmsA !== null;
+        const hasUsdTmsB = usdTmsB !== null;
+        if (hasUsdTmsA !== hasUsdTmsB) return hasUsdTmsA ? -1 : 1;
+
+        const invalidA = draftA ? !isUsdValidationOk(draftA) : false;
+        const invalidB = draftB ? !isUsdValidationOk(draftB) : false;
+        if (invalidA !== invalidB) return invalidA ? -1 : 1;
+
+        const completeA = draftA ? isRowComplete(draftA) : false;
+        const completeB = draftB ? isRowComplete(draftB) : false;
+        if (completeA !== completeB) return completeA ? 1 : -1;
+
+        const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
+        if (entryDateCmp !== 0) return entryDateCmp;
+
+        return compareLot(String(a.lot || ""), String(b.lot || ""));
+      });
     }, [
       rows,
       dateFrom,
@@ -923,6 +946,7 @@ useEffect(() => {
       valuationFilter,
       sortKey,
       sortDir,
+      hasManualSort,
       editedTick,
       pendingValuationMap,
       invalidUsdMap,
@@ -1265,6 +1289,8 @@ useEffect(() => {
     if (!SORTABLE_KEYS.includes(key as SortKey)) return;
 
     const nextKey = key as SortKey;
+
+    setHasManualSort(true);
 
     if (sortKey === nextKey) {
       setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
