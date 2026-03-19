@@ -312,6 +312,7 @@ function buildPayload(row: DraftRow) {
   const payload: Record<string, any> = {
     lot: String(row.lot ?? "").trim() || null,
     pay_type: "Transferencia",
+    source_name: "CO",
     tmh: null,
     h2o: null,
     tms: null,
