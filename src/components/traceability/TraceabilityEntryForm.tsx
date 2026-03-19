@@ -42,6 +42,8 @@ type TraceabilityRow = {
   au_usd: number | null;
   ag_usd: number | null;
   pay_type: string | null;
+  monto_calc?: number | null;
+  dif_rc?: number | null;
   lot_usd: number | null;
   doc_date: string | null;
   doc_number: string | null;
@@ -160,6 +162,8 @@ const COLUMNS: {
   { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 88 },
   { key: "usd_tms", label: "USD/TMS", editable: false, kind: "readonly", width: 88 },
   { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
+  { key: "dif_rc", label: "Dif (R-C)", editable: false, kind: "readonly", width: 110 },
+  { key: "monto_calc", label: "Monto Calc.", editable: false, kind: "readonly", width: 110 },
   { key: "lot_usd", label: "Factura (USD)", editable: false, kind: "readonly", width: 110 },
   { key: "doc_date", label: "F. Factura", editable: false, kind: "readonly", width: 105, sortable: true },
   { key: "doc_number", label: "Factura", editable: false, kind: "readonly", width: 110, sortable: true },
@@ -222,6 +226,11 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
 
     if (decimals3Keys.includes(c.key) && !isBlank(r[c.key])) {
       out[c.key] = Number(r[c.key]).toFixed(3);
+      continue;
+    }
+
+    if (c.key === "monto_calc" || c.key === "dif_rc") {
+      out[c.key] = "";
       continue;
     }
 
@@ -525,13 +534,30 @@ function RowItem({
       {COLUMNS.map((c) => {
         if (!c.editable) {
           const isNumber =
-            c.kind === "number" || c.key === "sack_qty" || c.key === "lot_usd" || c.key === "usd_tms" || c.key === "au_usd";
+            c.kind === "number" ||
+            c.key === "sack_qty" ||
+            c.key === "lot_usd" ||
+            c.key === "usd_tms" ||
+            c.key === "au_usd" ||
+            c.key === "monto_calc" ||
+            c.key === "dif_rc";
+
+          const montoCalc = calcFacturaCalculada(draft);
+          const facturaReal = toNumOrNull(draft.lot_usd);
+          const difRc =
+            facturaReal === null || montoCalc === null
+              ? null
+              : round2(facturaReal - montoCalc);
 
           const raw =
             c.key === "au_usd"
               ? (!isBlank(row.au_usd) ? row.au_usd : calcAuUsd(draft))
               : c.key === "usd_tms"
               ? (!isBlank(row.usd_tms) ? row.usd_tms : calcUsdTms(draft))
+              : c.key === "monto_calc"
+              ? montoCalc
+              : c.key === "dif_rc"
+              ? difRc
               : row[c.key];
 
           const decimals3Keys: (keyof TraceabilityRow)[] = [
