@@ -1328,7 +1328,7 @@ export default function TraceabilityEntryForm() {
             color: editedCount > 0 ? "rgb(160, 255, 214)" : "rgba(255,255,255,0.8)",
           }}
         >
-          Filas editadas: {editedCount}
+          Editadas: {editedCount}
         </div>
 
         <button
@@ -1401,7 +1401,7 @@ export default function TraceabilityEntryForm() {
             cursor: "pointer",
           }}
         >
-          Pendientes valorización: {pendingValuationCount}
+          Pendientes: {pendingValuationCount}
         </button>
 
         <button
