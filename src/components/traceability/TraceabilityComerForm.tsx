@@ -311,6 +311,7 @@ function validateNumericRange(field: EditableField, value: number | null) {
 function buildPayload(row: DraftRow) {
   const payload: Record<string, any> = {
     lot: String(row.lot ?? "").trim() || null,
+    pay_type: "Transferencia",
     tmh: null,
     h2o: null,
     tms: null,
