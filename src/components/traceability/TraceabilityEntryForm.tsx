@@ -453,9 +453,8 @@ function compareRows(
   sortKey: SortKey,
   sortDir: SortDir
 ) {
-  if (sortKey === "dif_rc") {
-    return compareByKey(a, b, sortKey, sortDir, draftA, draftB);
-  }
+  const primary = compareByKey(a, b, sortKey, sortDir, draftA, draftB);
+  if (primary !== 0) return primary;
 
   const lotPriorityA = getLotPriority(a.lot);
   const lotPriorityB = getLotPriority(b.lot);
@@ -479,7 +478,7 @@ function compareRows(
   const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
   if (entryDateCmp !== 0) return entryDateCmp;
 
-  return compareByKey(a, b, sortKey, sortDir, draftA, draftB);
+  return compareLot(String(a.lot || ""), String(b.lot || ""));
 }
 
 function inDateRange(entryDate: string | null, from: string, to: string) {
