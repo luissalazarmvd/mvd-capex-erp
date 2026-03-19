@@ -807,6 +807,29 @@ export default function TraceabilityEntryForm() {
     return list.sort((a, b) => compareLot(a, b));
   }, [rows]);
 
+  const entryDateBounds = useMemo(() => {
+  const dates = rows
+    .map((row) => String(row.entry_date || "").trim())
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort();
+
+  if (!dates.length) {
+    return { min: "", max: "" };
+  }
+
+  return {
+    min: dates[0],
+    max: dates[dates.length - 1],
+  };
+}, [rows]);
+
+useEffect(() => {
+  if (!rows.length) return;
+
+  setDateFrom((prev) => prev || entryDateBounds.min);
+  setDateTo((prev) => prev || entryDateBounds.max);
+}, [rows, entryDateBounds.min, entryDateBounds.max]);
+
   useEffect(() => {
     setPage(1);
   }, [dateFrom, dateTo, lotFilter, valuationFilter, sortKey, sortDir]);
@@ -1469,6 +1492,8 @@ export default function TraceabilityEntryForm() {
             <input
               type="date"
               value={dateFrom}
+              min={entryDateBounds.min || undefined}
+              max={entryDateBounds.max || undefined}
               onChange={(e) => setDateFrom(e.target.value)}
               style={{ ...inputBase, minWidth: 150 }}
             />
@@ -1479,6 +1504,8 @@ export default function TraceabilityEntryForm() {
             <input
               type="date"
               value={dateTo}
+              min={entryDateBounds.min || undefined}
+              max={entryDateBounds.max || undefined}
               onChange={(e) => setDateTo(e.target.value)}
               style={{ ...inputBase, minWidth: 150 }}
             />
