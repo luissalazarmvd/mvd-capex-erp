@@ -366,10 +366,18 @@ function compareLot(a: string, b: string) {
   });
 }
 
-function getSortValue(row: TraceabilityRow, key: SortKey) {
+function getSortValue(row: TraceabilityRow, key: SortKey, draft?: DraftRow) {
   if (key === "dif_rc") {
-    if (row.dif_rc === null || row.dif_rc === undefined) return "";
-    return String(row.dif_rc);
+    if (!draft) return "";
+
+    const montoCalc = calcFacturaCalculada(draft);
+    const facturaReal = toNumOrNull(draft.lot_usd);
+    const difRc =
+      facturaReal === null || montoCalc === null
+        ? null
+        : round2(facturaReal - montoCalc);
+
+    return difRc === null ? "" : String(difRc);
   }
 
   const rowValue = row[key];
@@ -381,10 +389,12 @@ function compareByKey(
   a: TraceabilityRow,
   b: TraceabilityRow,
   key: SortKey,
-  dir: SortDir
+  dir: SortDir,
+  draftA?: DraftRow,
+  draftB?: DraftRow
 ) {
-  const av = getSortValue(a, key);
-  const bv = getSortValue(b, key);
+  const av = getSortValue(a, key, draftA);
+  const bv = getSortValue(b, key, draftB);
 
   let result = 0;
 
@@ -438,10 +448,38 @@ function compareDateDesc(a: string | null, b: string | null) {
 function compareRows(
   a: TraceabilityRow,
   b: TraceabilityRow,
+  draftA: DraftRow | undefined,
+  draftB: DraftRow | undefined,
   sortKey: SortKey,
   sortDir: SortDir
 ) {
-  return compareByKey(a, b, sortKey, sortDir);
+  if (sortKey === "dif_rc") {
+    return compareByKey(a, b, sortKey, sortDir, draftA, draftB);
+  }
+
+  const lotPriorityA = getLotPriority(a.lot);
+  const lotPriorityB = getLotPriority(b.lot);
+  if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
+
+  const usdTmsA = !isBlank(a.usd_tms) ? Number(a.usd_tms) : draftA ? calcUsdTms(draftA) : null;
+  const usdTmsB = !isBlank(b.usd_tms) ? Number(b.usd_tms) : draftB ? calcUsdTms(draftB) : null;
+
+  const hasUsdTmsA = usdTmsA !== null;
+  const hasUsdTmsB = usdTmsB !== null;
+  if (hasUsdTmsA !== hasUsdTmsB) return hasUsdTmsA ? -1 : 1;
+
+  const invalidA = draftA ? !isUsdValidationOk(draftA) : false;
+  const invalidB = draftB ? !isUsdValidationOk(draftB) : false;
+  if (invalidA !== invalidB) return invalidA ? -1 : 1;
+
+  const completeA = draftA ? isRowComplete(draftA) : false;
+  const completeB = draftB ? isRowComplete(draftB) : false;
+  if (completeA !== completeB) return completeA ? 1 : -1;
+
+  const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
+  if (entryDateCmp !== 0) return entryDateCmp;
+
+  return compareByKey(a, b, sortKey, sortDir, draftA, draftB);
 }
 
 function inDateRange(entryDate: string | null, from: string, to: string) {
@@ -846,7 +884,14 @@ export default function TraceabilityEntryForm() {
       });
 
       return [...filtered].sort((a, b) =>
-        compareRows(a, b, sortKey, sortDir)
+        compareRows(
+          a,
+          b,
+          draftsRef.current[String(a.lot || "").trim()],
+          draftsRef.current[String(b.lot || "").trim()],
+          sortKey,
+          sortDir
+        )
       );
     }, [
       rows,
