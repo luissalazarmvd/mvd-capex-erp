@@ -397,18 +397,31 @@ function compareByKey(
   const bv = getSortValue(b, key, draftB);
 
   let result = 0;
+
   if (key === "lot") {
     result = compareLot(av, bv);
-  } else if (key === "dif_rc") {
-    const an = av === "" ? Number.POSITIVE_INFINITY : Number(av);
-    const bn = bv === "" ? Number.POSITIVE_INFINITY : Number(bv);
-    result = an - bn;
-  } else {
-    result = av.localeCompare(bv, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
+    return dir === "asc" ? result : -result;
   }
+
+  if (key === "dif_rc") {
+    const aBlank = av === "";
+    const bBlank = bv === "";
+
+    if (aBlank && bBlank) return 0;
+    if (aBlank) return 1;
+    if (bBlank) return -1;
+
+    const an = Number(av);
+    const bn = Number(bv);
+
+    result = dir === "asc" ? an - bn : bn - an;
+    return result;
+  }
+
+  result = av.localeCompare(bv, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 
   return dir === "asc" ? result : -result;
 }
