@@ -330,6 +330,7 @@ function validateNumericRange(field: EditableField, value: number | null) {
 function buildPayload(row: DraftRow) {
   const payload: Record<string, any> = {};
   payload.lot = String(row.lot ?? "").trim() || null;
+  payload.source_name = "CM";
 
   for (const f of EDITABLE_FIELDS) {
     const raw = String(row[f] ?? "").trim();
