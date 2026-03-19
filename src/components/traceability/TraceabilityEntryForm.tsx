@@ -1237,7 +1237,6 @@ useEffect(() => {
         f: `ROUND(ROUND((((U${excelRow}*Z${excelRow}*0.01)*(AA${excelRow}-AB${excelRow})-AC${excelRow}-AD${excelRow}-AE${excelRow})*1.1023),2)*ROUND(T${excelRow},3)+IF(AH${excelRow}="",0,AH${excelRow}),2)`
       };
     }
-
     ws["!cols"] = [
       { wch: 12 },
       { wch: 12 },
