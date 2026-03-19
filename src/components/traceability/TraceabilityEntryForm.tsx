@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
@@ -61,8 +62,6 @@ type SaveResp = {
 };
 
 type DraftRow = Record<keyof TraceabilityRow, string>;
-
-let draftsRefGlobal: Record<string, DraftRow> = {};
 
 const EDITABLE_FIELDS = [
   "process_date",
@@ -367,11 +366,8 @@ function compareLot(a: string, b: string) {
   });
 }
 
-function getSortValue(row: TraceabilityRow, key: SortKey) {
+function getSortValue(row: TraceabilityRow, key: SortKey, draft?: DraftRow) {
   if (key === "dif_rc") {
-    const lotKey = String(row.lot || "").trim();
-    const draft = draftsRefGlobal[lotKey];
-
     if (!draft) return "";
 
     const montoCalc = calcFacturaCalculada(draft);
@@ -389,27 +385,24 @@ function getSortValue(row: TraceabilityRow, key: SortKey) {
   return String(rowValue).trim();
 }
 
-function compareByKey(a: TraceabilityRow, b: TraceabilityRow, key: SortKey, dir: SortDir) {
-  const av = getSortValue(a, key);
-  const bv = getSortValue(b, key);
+function compareByKey(
+  a: TraceabilityRow,
+  b: TraceabilityRow,
+  key: SortKey,
+  dir: SortDir,
+  draftA?: DraftRow,
+  draftB?: DraftRow
+) {
+  const av = getSortValue(a, key, draftA);
+  const bv = getSortValue(b, key, draftB);
 
   let result = 0;
-
   if (key === "lot") {
     result = compareLot(av, bv);
   } else if (key === "dif_rc") {
-    const aBlank = av === "";
-    const bBlank = bv === "";
-
-    if (aBlank && bBlank) {
-      result = 0;
-    } else if (aBlank) {
-      result = 1;
-    } else if (bBlank) {
-      result = -1;
-    } else {
-      result = Number(av) - Number(bv);
-    }
+    const an = av === "" ? Number.POSITIVE_INFINITY : Number(av);
+    const bn = bv === "" ? Number.POSITIVE_INFINITY : Number(bv);
+    result = an - bn;
   } else {
     result = av.localeCompare(bv, undefined, {
       numeric: true,
@@ -448,35 +441,29 @@ function compareRows(
   sortKey: SortKey,
   sortDir: SortDir
 ) {
-  const isDefaultSort = sortKey === "entry_date" && sortDir === "desc";
+  const lotPriorityA = getLotPriority(a.lot);
+  const lotPriorityB = getLotPriority(b.lot);
+  if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
 
-  if (isDefaultSort) {
-    const lotPriorityA = getLotPriority(a.lot);
-    const lotPriorityB = getLotPriority(b.lot);
-    if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
+  const usdTmsA = !isBlank(a.usd_tms) ? Number(a.usd_tms) : draftA ? calcUsdTms(draftA) : null;
+  const usdTmsB = !isBlank(b.usd_tms) ? Number(b.usd_tms) : draftB ? calcUsdTms(draftB) : null;
 
-    const usdTmsA = !isBlank(a.usd_tms) ? Number(a.usd_tms) : draftA ? calcUsdTms(draftA) : null;
-    const usdTmsB = !isBlank(b.usd_tms) ? Number(b.usd_tms) : draftB ? calcUsdTms(draftB) : null;
+  const hasUsdTmsA = usdTmsA !== null;
+  const hasUsdTmsB = usdTmsB !== null;
+  if (hasUsdTmsA !== hasUsdTmsB) return hasUsdTmsA ? -1 : 1;
 
-    const hasUsdTmsA = usdTmsA !== null;
-    const hasUsdTmsB = usdTmsB !== null;
-    if (hasUsdTmsA !== hasUsdTmsB) return hasUsdTmsA ? -1 : 1;
+  const invalidA = draftA ? !isUsdValidationOk(draftA) : false;
+  const invalidB = draftB ? !isUsdValidationOk(draftB) : false;
+  if (invalidA !== invalidB) return invalidA ? -1 : 1;
 
-    const invalidA = draftA ? !isUsdValidationOk(draftA) : false;
-    const invalidB = draftB ? !isUsdValidationOk(draftB) : false;
-    if (invalidA !== invalidB) return invalidA ? -1 : 1;
+  const completeA = draftA ? isRowComplete(draftA) : false;
+  const completeB = draftB ? isRowComplete(draftB) : false;
+  if (completeA !== completeB) return completeA ? 1 : -1;
 
-    const completeA = draftA ? isRowComplete(draftA) : false;
-    const completeB = draftB ? isRowComplete(draftB) : false;
-    if (completeA !== completeB) return completeA ? 1 : -1;
+  const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
+  if (entryDateCmp !== 0) return entryDateCmp;
 
-    const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
-    if (entryDateCmp !== 0) return entryDateCmp;
-
-    return compareByKey(a, b, sortKey, sortDir);
-  }
-
-  return compareByKey(a, b, sortKey, sortDir);
+  return compareByKey(a, b, sortKey, sortDir, draftA, draftB);
 }
 
 function inDateRange(entryDate: string | null, from: string, to: string) {
@@ -774,7 +761,6 @@ export default function TraceabilityEntryForm() {
       }
 
       draftsRef.current = nextDrafts;
-      draftsRefGlobal = nextDrafts;
       originalsRef.current = nextOriginals;
       inputsRef.current = {};
       setRows(data);
@@ -985,7 +971,6 @@ export default function TraceabilityEntryForm() {
         if (tmsInput && tmsInput.value !== formattedTms) tmsInput.value = formattedTms;
       }
 
-      draftsRefGlobal = { ...draftsRef.current };
       setEditedTick((v) => v + 1);
       return;
     }
@@ -1008,7 +993,6 @@ export default function TraceabilityEntryForm() {
         }
       }
 
-      draftsRefGlobal = { ...draftsRef.current };
       setEditedTick((v) => v + 1);
       return;
     }
@@ -1060,7 +1044,6 @@ export default function TraceabilityEntryForm() {
       }
     }
 
-    draftsRefGlobal = { ...draftsRef.current };
     setEditedTick((v) => v + 1);
   }, []);
 
@@ -1130,6 +1113,114 @@ export default function TraceabilityEntryForm() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function onExportExcel() {
+    const exportRows = preparedRows.map((row) => {
+      return {
+        "F ingreso": row.entry_date ?? "",
+        "F proceso": row.process_date ?? "",
+        "Lote": row.lot ?? "",
+        "Sacos": row.sack_qty ?? "",
+        "Minero": row.miner_name ?? "",
+        "Placa": row.plate ?? "",
+        "RUC": row.ruc ?? "",
+        "Concesion": row.concession_name ?? "",
+        "Codigo concesion": row.concession_code ?? "",
+        "Distrito": row.district ?? "",
+        "Provincia": row.province ?? "",
+        "Departamento": row.department ?? "",
+        "Guia remision": row.sender_guide_number ?? "",
+        "Transportista": row.transport_name ?? "",
+        "Guia transportista": row.transport_guide_number ?? "",
+        "Zona 1": row.zone_1 ?? "",
+        "Zona 2": row.zone_2 ?? "",
+        "TMH": row.tmh ?? "",
+        "H2O": row.h2o ?? "",
+        "TMS": row.tms ?? "",
+        "Ley Au": row.au_grade_oztc ?? "",
+        "Ley Ag": row.ag_grade_oztc ?? "",
+        "Ley Cu": row.cu_grade_pct ?? "",
+        "Au Oz": row.au_oz ?? "",
+        "Ag Oz": row.ag_oz ?? "",
+        "Rec Au": row.au_rec ?? "",
+        "PIO": row.pio ?? "",
+        "PIO Disc": row.pio_disc ?? "",
+        "Maquila": row.maquila ?? "",
+        "NaCN": row.nacn ?? "",
+        "Escalador": row.escalador ?? "",
+        "USD/TMS": row.usd_tms ?? "",
+        "Au USD": row.au_usd ?? "",
+        "Ag USD": row.ag_usd ?? "",
+        "Fecha factura": row.doc_date ?? "",
+        "# factura": row.doc_number ?? "",
+        "Forma de pago": row.pay_type ?? "",
+      };
+    });
+
+    if (!exportRows.length) {
+      setMsg("No hay filas para exportar con el filtro seleccionado.");
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+
+    ws["!cols"] = [
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 24 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 26 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 16 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Trazabilidad");
+
+    const filterLabel =
+      valuationFilter === "invalid"
+        ? "invalidas"
+        : valuationFilter === "valid"
+        ? "correctas"
+        : valuationFilter === "pending"
+        ? "pendientes"
+        : "todas";
+
+    const fromPart = dateFrom || "inicio";
+    const toPart = dateTo || "fin";
+
+    XLSX.writeFile(wb, `trazabilidad_${filterLabel}_${fromPart}_${toPart}.xlsx`);
   }
 
   function onSortClick(key: keyof TraceabilityRow) {
@@ -1396,6 +1487,10 @@ export default function TraceabilityEntryForm() {
 
           <Button type="button" size="sm" variant="default" onClick={loadData} disabled={loading || saving}>
             {loading ? "Cargando…" : "Refrescar"}
+          </Button>
+
+          <Button type="button" size="sm" variant="default" onClick={onExportExcel} disabled={loading || saving || preparedRows.length === 0}>
+            Exportar Excel
           </Button>
 
           <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={loading || saving || hasInvalidEditedRows}>
