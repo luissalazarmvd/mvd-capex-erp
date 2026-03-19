@@ -62,6 +62,8 @@ type SaveResp = {
 
 type DraftRow = Record<keyof TraceabilityRow, string>;
 
+let draftsRefGlobal: Record<string, DraftRow> = {};
+
 const EDITABLE_FIELDS = [
   "process_date",
   "transport_name",
@@ -115,7 +117,8 @@ type SortKey =
   | "miner_name"
   | "ruc"
   | "doc_date"
-  | "doc_number";
+  | "doc_number"
+  | "dif_rc";
 
 type SortDir = "asc" | "desc";
 
@@ -129,6 +132,7 @@ const SORTABLE_KEYS: SortKey[] = [
   "ruc",
   "doc_date",
   "doc_number",
+  "dif_rc",
 ];
 
 const PAGE_SIZE = 100;
@@ -162,7 +166,7 @@ const COLUMNS: {
   { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 88 },
   { key: "usd_tms", label: "USD/TMS", editable: false, kind: "readonly", width: 88 },
   { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
-  { key: "dif_rc", label: "Dif (R-C)", editable: false, kind: "readonly", width: 110 },
+  { key: "dif_rc", label: "Dif (R-C)", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "monto_calc", label: "Monto Calc.", editable: false, kind: "readonly", width: 110 },
   { key: "lot_usd", label: "Factura (USD)", editable: false, kind: "readonly", width: 110 },
   { key: "doc_date", label: "F. Factura", editable: false, kind: "readonly", width: 105, sortable: true },
@@ -364,6 +368,22 @@ function compareLot(a: string, b: string) {
 }
 
 function getSortValue(row: TraceabilityRow, key: SortKey) {
+  if (key === "dif_rc") {
+    const lotKey = String(row.lot || "").trim();
+    const draft = draftsRefGlobal[lotKey];
+
+    if (!draft) return "";
+
+    const montoCalc = calcFacturaCalculada(draft);
+    const facturaReal = toNumOrNull(draft.lot_usd);
+    const difRc =
+      facturaReal === null || montoCalc === null
+        ? null
+        : round2(facturaReal - montoCalc);
+
+    return difRc === null ? "" : String(difRc);
+  }
+
   const rowValue = row[key];
   if (rowValue === null || rowValue === undefined) return "";
   return String(rowValue).trim();
@@ -374,8 +394,13 @@ function compareByKey(a: TraceabilityRow, b: TraceabilityRow, key: SortKey, dir:
   const bv = getSortValue(b, key);
 
   let result = 0;
+
   if (key === "lot") {
     result = compareLot(av, bv);
+  } else if (key === "dif_rc") {
+    const an = av === "" ? Number.POSITIVE_INFINITY : Number(av);
+    const bn = bv === "" ? Number.POSITIVE_INFINITY : Number(bv);
+    result = an - bn;
   } else {
     result = av.localeCompare(bv, undefined, {
       numeric: true,
@@ -432,6 +457,10 @@ function compareRows(
   const completeA = draftA ? isRowComplete(draftA) : false;
   const completeB = draftB ? isRowComplete(draftB) : false;
   if (completeA !== completeB) return completeA ? 1 : -1;
+
+  if (sortKey === "dif_rc") {
+    return compareByKey(a, b, sortKey, sortDir);
+  }
 
   const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
   if (entryDateCmp !== 0) return entryDateCmp;
@@ -734,6 +763,7 @@ export default function TraceabilityEntryForm() {
       }
 
       draftsRef.current = nextDrafts;
+      draftsRefGlobal = nextDrafts;
       originalsRef.current = nextOriginals;
       inputsRef.current = {};
       setRows(data);
@@ -944,6 +974,7 @@ export default function TraceabilityEntryForm() {
         if (tmsInput && tmsInput.value !== formattedTms) tmsInput.value = formattedTms;
       }
 
+      draftsRefGlobal = { ...draftsRef.current };
       setEditedTick((v) => v + 1);
       return;
     }
@@ -966,6 +997,7 @@ export default function TraceabilityEntryForm() {
         }
       }
 
+      draftsRefGlobal = { ...draftsRef.current };
       setEditedTick((v) => v + 1);
       return;
     }
@@ -1017,6 +1049,7 @@ export default function TraceabilityEntryForm() {
       }
     }
 
+    draftsRefGlobal = { ...draftsRef.current };
     setEditedTick((v) => v + 1);
   }, []);
 
