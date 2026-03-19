@@ -441,6 +441,10 @@ function compareRows(
   sortKey: SortKey,
   sortDir: SortDir
 ) {
+  if (sortKey === "dif_rc") {
+    return compareByKey(a, b, sortKey, sortDir, draftA, draftB);
+  }
+
   const lotPriorityA = getLotPriority(a.lot);
   const lotPriorityB = getLotPriority(b.lot);
   if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
