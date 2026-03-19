@@ -1217,6 +1217,8 @@ useEffect(() => {
         "Fecha factura": row.doc_date ?? "",
         "# factura": row.doc_number ?? "",
         "Forma de pago": row.pay_type ?? "",
+        "Monto Calc.": "",
+        "Factura USD": row.lot_usd ?? "",
       };
     });
 
@@ -1226,6 +1228,15 @@ useEffect(() => {
     }
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
+
+    for (let i = 0; i < exportRows.length; i++) {
+      const excelRow = i + 2;
+
+      ws[`AL${excelRow}`] = {
+        t: "n",
+        f: `ROUND(ROUND(((((U${excelRow}*Y${excelRow}*0.01)*(Z${excelRow}-AA${excelRow})-AB${excelRow}-AC${excelRow}-AD${excelRow})*1.1023),2)*ROUND(T${excelRow},3)+IF(AH${excelRow}="",0,AH${excelRow}),2)`
+      };
+    }
 
     ws["!cols"] = [
       { wch: 12 },
@@ -1263,6 +1274,8 @@ useEffect(() => {
       { wch: 12 },
       { wch: 12 },
       { wch: 14 },
+      { wch: 16 },
+      { wch: 16 },
       { wch: 16 },
       { wch: 16 },
     ];
