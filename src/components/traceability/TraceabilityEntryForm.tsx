@@ -398,9 +398,18 @@ function compareByKey(a: TraceabilityRow, b: TraceabilityRow, key: SortKey, dir:
   if (key === "lot") {
     result = compareLot(av, bv);
   } else if (key === "dif_rc") {
-    const an = av === "" ? Number.POSITIVE_INFINITY : Number(av);
-    const bn = bv === "" ? Number.POSITIVE_INFINITY : Number(bv);
-    result = an - bn;
+    const aBlank = av === "";
+    const bBlank = bv === "";
+
+    if (aBlank && bBlank) {
+      result = 0;
+    } else if (aBlank) {
+      result = 1;
+    } else if (bBlank) {
+      result = -1;
+    } else {
+      result = Number(av) - Number(bv);
+    }
   } else {
     result = av.localeCompare(bv, undefined, {
       numeric: true,
@@ -439,31 +448,33 @@ function compareRows(
   sortKey: SortKey,
   sortDir: SortDir
 ) {
-  const lotPriorityA = getLotPriority(a.lot);
-  const lotPriorityB = getLotPriority(b.lot);
-  if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
+  const isDefaultSort = sortKey === "entry_date" && sortDir === "desc";
 
-  const usdTmsA = !isBlank(a.usd_tms) ? Number(a.usd_tms) : draftA ? calcUsdTms(draftA) : null;
-  const usdTmsB = !isBlank(b.usd_tms) ? Number(b.usd_tms) : draftB ? calcUsdTms(draftB) : null;
+  if (isDefaultSort) {
+    const lotPriorityA = getLotPriority(a.lot);
+    const lotPriorityB = getLotPriority(b.lot);
+    if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
 
-  const hasUsdTmsA = usdTmsA !== null;
-  const hasUsdTmsB = usdTmsB !== null;
-  if (hasUsdTmsA !== hasUsdTmsB) return hasUsdTmsA ? -1 : 1;
+    const usdTmsA = !isBlank(a.usd_tms) ? Number(a.usd_tms) : draftA ? calcUsdTms(draftA) : null;
+    const usdTmsB = !isBlank(b.usd_tms) ? Number(b.usd_tms) : draftB ? calcUsdTms(draftB) : null;
 
-  const invalidA = draftA ? !isUsdValidationOk(draftA) : false;
-  const invalidB = draftB ? !isUsdValidationOk(draftB) : false;
-  if (invalidA !== invalidB) return invalidA ? -1 : 1;
+    const hasUsdTmsA = usdTmsA !== null;
+    const hasUsdTmsB = usdTmsB !== null;
+    if (hasUsdTmsA !== hasUsdTmsB) return hasUsdTmsA ? -1 : 1;
 
-  const completeA = draftA ? isRowComplete(draftA) : false;
-  const completeB = draftB ? isRowComplete(draftB) : false;
-  if (completeA !== completeB) return completeA ? 1 : -1;
+    const invalidA = draftA ? !isUsdValidationOk(draftA) : false;
+    const invalidB = draftB ? !isUsdValidationOk(draftB) : false;
+    if (invalidA !== invalidB) return invalidA ? -1 : 1;
 
-  if (sortKey === "dif_rc") {
+    const completeA = draftA ? isRowComplete(draftA) : false;
+    const completeB = draftB ? isRowComplete(draftB) : false;
+    if (completeA !== completeB) return completeA ? 1 : -1;
+
+    const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
+    if (entryDateCmp !== 0) return entryDateCmp;
+
     return compareByKey(a, b, sortKey, sortDir);
   }
-
-  const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
-  if (entryDateCmp !== 0) return entryDateCmp;
 
   return compareByKey(a, b, sortKey, sortDir);
 }
