@@ -146,7 +146,6 @@ const COLUMNS: {
 }[] = [
   { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110, sortable: true },
-  { key: "process_date", label: "F. Proceso", editable: true, kind: "date", width: 120, sortable: true },
   { key: "tmh", label: "TMH", editable: true, kind: "number", width: 88 },
   { key: "h2o", label: "H2O", editable: true, kind: "number", width: 88 },
   { key: "tms", label: "TMS", editable: true, kind: "number", width: 88 },
@@ -180,10 +179,6 @@ const COLUMNS: {
   { key: "province", label: "Provincia", editable: false, kind: "readonly", width: 100 },
   { key: "department", label: "Departamento", editable: false, kind: "readonly", width: 120 },
   { key: "sender_guide_number", label: "Guía Remitente", editable: false, kind: "readonly", width: 125 },
-  { key: "transport_name", label: "Transporte", editable: true, kind: "text", width: 130 },
-  { key: "transport_guide_number", label: "Guía Transporte", editable: true, kind: "text", width: 125 },
-  { key: "zone_1", label: "Zona 1", editable: true, kind: "text", width: 90 },
-  { key: "zone_2", label: "Zona 2", editable: true, kind: "text", width: 120 },
 ];
 
 function isBlank(v: unknown) {
