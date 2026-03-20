@@ -304,18 +304,14 @@ function calcFacturaCalculada(draft: DraftRow) {
 }
 
 function isUsdValidationOk(draft: DraftRow) {
-  const usdTms = calcUsdTms(draft);
-  const tms = toNumOrNull(draft.tms);
+  const montoCalc = calcFacturaCalculada(draft);
   const lotUsd = toNumOrNull(draft.lot_usd);
 
-  if (usdTms === null || tms === null || lotUsd === null) return true;
+  if (montoCalc === null || lotUsd === null) return true;
 
-  const usdTms2 = round2(usdTms);
-  const tms2 = round2(tms);
-  const facturaCalc2 = round2(usdTms2 * tms2);
-  const lotUsd2 = round2(lotUsd);
+  const difRc = round2(lotUsd - montoCalc);
 
-  return Math.abs(facturaCalc2 - lotUsd2) <= 0.01;
+  return Math.abs(difRc) <= 0.01;
 }
 
 function hasValuationData(draft: DraftRow) {
