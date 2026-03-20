@@ -309,7 +309,7 @@ function isUsdValidationOk(draft: DraftRow) {
 
   if (facturaCalc === null || lotUsd === null) return true;
 
-  return round2(facturaCalc) === round2(lotUsd);
+  return Math.abs(round2(facturaCalc) - round2(lotUsd)) <= 0.01;
 }
 
 function hasValuationData(draft: DraftRow) {
