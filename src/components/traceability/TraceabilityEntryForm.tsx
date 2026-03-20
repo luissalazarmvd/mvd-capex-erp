@@ -136,14 +136,6 @@ const SORTABLE_KEYS: SortKey[] = [
 
 const PAGE_SIZE = 100;
 
-const HIDDEN_FRONT_COLUMNS: (keyof TraceabilityRow)[] = [
-  "process_date",
-  "transport_name",
-  "transport_guide_number",
-  "zone_1",
-  "zone_2",
-];
-
 const COLUMNS: {
   key: keyof TraceabilityRow;
   label: string;
@@ -193,8 +185,6 @@ const COLUMNS: {
   { key: "zone_1", label: "Zona 1", editable: true, kind: "text", width: 90 },
   { key: "zone_2", label: "Zona 2", editable: true, kind: "text", width: 120 },
 ];
-
-const VISIBLE_COLUMNS = COLUMNS.filter((c) => !HIDDEN_FRONT_COLUMNS.includes(c.key));
 
 function isBlank(v: unknown) {
   return v === null || v === undefined || String(v).trim() === "";
@@ -1634,7 +1624,7 @@ useEffect(() => {
         >
           <Table stickyHeader disableScrollWrapper>
             <colgroup>
-              {VISIBLE_COLUMNS.map((c) => (
+              {COLUMNS.map((c) => (
                 <col
                   key={String(c.key)}
                   style={{
@@ -1648,7 +1638,7 @@ useEffect(() => {
 
             <thead>
               <tr>
-                {VISIBLE_COLUMNS.map((c) => {
+                {COLUMNS.map((c) => {
                   const sortable = !!c.sortable;
 
                   return (
@@ -1713,7 +1703,7 @@ useEffect(() => {
 
               {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={VISIBLE_COLUMNS.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
                     No hay filas para el filtro seleccionado.
                   </td>
                 </tr>
