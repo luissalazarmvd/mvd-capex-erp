@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import * as XLSX from "xlsx";
+import { apiGet } from "../../../lib/apiClient";
 
 type ComplianceBuyRow = {
   item: any;
@@ -46,6 +47,13 @@ type ComplianceBuyRow = {
   concession_status: any;
 };
 
+type ComplianceBuyResp = {
+  ok: boolean;
+  rows?: ComplianceBuyRow[];
+  count?: number;
+  error?: string;
+};
+
 function asText(value: any) {
   if (value === null || value === undefined) return "";
   return String(value);
@@ -67,14 +75,9 @@ export default function ComplianceDownloadsPage() {
     setMsg("");
 
     try {
-      const res = await fetch("/api/compliance/buy", {
-        method: "GET",
-        cache: "no-store",
-      });
+      const data = (await apiGet("/api/compliance/buy")) as ComplianceBuyResp;
 
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok || !data?.ok) {
+      if (!data?.ok) {
         throw new Error(data?.error || "No se pudo descargar la información");
       }
 
@@ -123,7 +126,6 @@ export default function ComplianceDownloadsPage() {
       }));
 
       const ws = XLSX.utils.json_to_sheet(exportRows);
-
       const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
 
       const headerMap: Record<string, number> = {};
@@ -162,7 +164,7 @@ export default function ComplianceDownloadsPage() {
           const cell = ws[addr];
           if (!cell) continue;
 
-          const raw = exportRows[r - 1]?.[colName as keyof typeof exportRows[number]];
+          const raw = exportRows[r - 1]?.[colName as keyof (typeof exportRows)[number]];
           if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
             cell.t = "d";
             cell.v = raw;
@@ -217,7 +219,7 @@ export default function ComplianceDownloadsPage() {
       XLSX.utils.book_append_sheet(wb, ws, "RO_Compras");
       XLSX.writeFile(wb, "RO_Compras.xlsx", { cellDates: true });
     } catch (e: any) {
-      setMsg(String(e?.message || "Error al exportar"));
+      setMsg(String(e?.message || "No se pudo descargar la información"));
     } finally {
       setLoading(false);
     }
