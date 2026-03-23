@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     const area = String(body?.area || "").trim().toLowerCase();
     const password = String(body?.password || "").trim();
 
-    if (!area || !["planta", "capex", "refinery", "traceability"].includes(area)) {
+    if (!area || !["planta", "capex", "refinery", "traceability", "compliance"].includes(area)) {
       return NextResponse.json({ ok: false, error: "area inválida" }, { status: 400 });
     }
 
@@ -47,12 +47,14 @@ export async function POST(req: Request) {
     const PLANTA_PASSWORD = process.env.PLANTA_PASSWORD || "";
     const REFINERY_PASSWORD = process.env.REFINERY_PASSWORD || "";
     const TRACEABILITY_PASSWORD = process.env.TRACEABILITY_PASSWORD || "";
+    const COMPLIANCE_PASSWORD = process.env.COMPLIANCE_PASSWORD || "";
 
     const ok =
       (area === "capex" && password === CAPEX_PASSWORD) ||
       (area === "planta" && password === PLANTA_PASSWORD) ||
       (area === "refinery" && password === REFINERY_PASSWORD) ||
-      (area === "traceability" && password === TRACEABILITY_PASSWORD);
+      (area === "traceability" && password === TRACEABILITY_PASSWORD) ||
+      (area === "compliance" && password === COMPLIANCE_PASSWORD);
 
     if (!ok) {
       return NextResponse.json({ ok: false, error: "Clave incorrecta" }, { status: 401 });

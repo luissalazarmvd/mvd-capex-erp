@@ -110,6 +110,8 @@ export async function middleware(req: NextRequest) {
     ? "refinery"
     : pathname.startsWith("/traceability")
     ? "traceability"
+    : pathname.startsWith("/compliance")
+    ? "compliance"
     : "capex";
 
   if (!auth.scopes.includes(need)) {
