@@ -166,6 +166,29 @@ function normalizeDateInput(v: unknown) {
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
 
+  const excelSerial = Number(raw.replace(",", "."));
+  if (Number.isFinite(excelSerial) && excelSerial > 0) {
+    const serial = Math.floor(excelSerial);
+    const utcDays = serial - 25569;
+    const utcValue = utcDays * 86400 * 1000;
+    const excelDate = new Date(utcValue);
+
+    if (!Number.isNaN(excelDate.getTime())) {
+      const yyyy = excelDate.getUTCFullYear();
+      const mm = String(excelDate.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(excelDate.getUTCDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  const dmyMatch = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    const dd = dmyMatch[1].padStart(2, "0");
+    const mm = dmyMatch[2].padStart(2, "0");
+    const yyyy = dmyMatch[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
   const jsDate = new Date(raw);
   if (!Number.isNaN(jsDate.getTime())) {
     const yyyy = jsDate.getFullYear();
@@ -190,7 +213,10 @@ function normalizeLot(rawLot: unknown, entryDateRaw: unknown) {
   const entryDate = normalizeDateInput(entryDateRaw);
   const yyFromDate = getYearYYFromEntryDate(entryDate);
 
-  const cleaned = raw.replace(/\s+/g, "").replace(/\./g, "").replace(/_/g, "-");
+  const cleaned = raw
+    .replace(/\s+/g, "")
+    .replace(/\./g, "")
+    .replace(/_/g, "-");
 
   if (/^\d{2}-\d{5}$/.test(cleaned)) {
     return cleaned;
@@ -198,6 +224,26 @@ function normalizeLot(rawLot: unknown, entryDateRaw: unknown) {
 
   if (/^TRJ-\d{2}-\d{5}$/.test(cleaned)) {
     return cleaned;
+  }
+
+  const yyLooseMatch = cleaned.match(/^(\d{2})-(\d+)$/);
+  if (yyLooseMatch) {
+    return `${yyLooseMatch[1]}-${String(Number(yyLooseMatch[2])).padStart(5, "0")}`;
+  }
+
+  const trjYearLooseMatch = cleaned.match(/^TRJ-(\d{2})-(\d+)$/);
+  if (trjYearLooseMatch) {
+    return `TRJ-${trjYearLooseMatch[1]}-${String(Number(trjYearLooseMatch[2])).padStart(5, "0")}`;
+  }
+
+  const trjYearLooseNoDashMatch = cleaned.match(/^TRJ(\d{2})-(\d+)$/);
+  if (trjYearLooseNoDashMatch) {
+    return `TRJ-${trjYearLooseNoDashMatch[1]}-${String(Number(trjYearLooseNoDashMatch[2])).padStart(5, "0")}`;
+  }
+
+  const trjCompactYearMatch = cleaned.match(/^TRJ(\d{2})(\d+)$/);
+  if (trjCompactYearMatch) {
+    return `TRJ-${trjCompactYearMatch[1]}-${String(Number(trjCompactYearMatch[2])).padStart(5, "0")}`;
   }
 
   if (/^\d+$/.test(cleaned)) {
@@ -217,7 +263,7 @@ function normalizeLot(rawLot: unknown, entryDateRaw: unknown) {
     return `TRJ-${yyFromDate}-${String(Number(trjLooseMatch[1])).padStart(5, "0")}`;
   }
 
-  return raw;
+  return cleaned;
 }
 
 function formatFieldValue(field: EditableField, value: unknown) {
