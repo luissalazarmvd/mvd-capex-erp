@@ -918,8 +918,8 @@ useEffect(() => {
       });
 
       return [...filtered].sort((a, b) => {
-        const draftA = draftsRef.current[String(a.lot || "").trim()];
-        const draftB = draftsRef.current[String(b.lot || "").trim()];
+        const draftA = originalsRef.current[String(a.lot || "").trim()];
+        const draftB = originalsRef.current[String(b.lot || "").trim()];
 
         if (hasManualSort) {
           return compareRows(a, b, draftA, draftB, sortKey, sortDir);
