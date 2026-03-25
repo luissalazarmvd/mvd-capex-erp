@@ -1,3 +1,4 @@
+// src/components/traceability/TraceabilityComerForm.tsx
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -62,8 +63,6 @@ const EXPORT_COLUMNS = [
   { key: "au_grade_oztc", label: "Au (Oz/TC)" },
   { key: "ag_grade_oztc", label: "Ag (Oz/TC)" },
   { key: "cu_grade_pct", label: "Cu %" },
-  { key: "au_oz", label: "Au Oz" },
-  { key: "ag_oz", label: "Ag Oz" },
   { key: "au_rec", label: "Au Rec" },
   { key: "pio", label: "PIO" },
   { key: "pio_disc", label: "PIO Desc." },
@@ -80,8 +79,6 @@ const EDITABLE_FIELDS = [
   "au_grade_oztc",
   "ag_grade_oztc",
   "cu_grade_pct",
-  "au_oz",
-  "ag_oz",
   "au_rec",
   "pio",
   "pio_disc",
@@ -109,7 +106,7 @@ type SortDir = "asc" | "desc";
 const PAGE_SIZE = 100;
 
 const COLUMNS: {
-  key: "lot" | "entry_date" | EditableField | "au_usd" | "usd_tms" | "monto_usd";
+  key: "lot" | "entry_date" | EditableField | "au_oz" | "ag_oz" | "au_usd" | "usd_tms" | "monto_usd";
   label: string;
   editable: boolean;
   kind: "text" | "date" | "number" | "readonly";
@@ -124,8 +121,8 @@ const COLUMNS: {
   { key: "au_grade_oztc", label: "Au (Oz/TC)", editable: true, kind: "number", width: 96 },
   { key: "ag_grade_oztc", label: "Ag (Oz/TC)", editable: true, kind: "number", width: 96 },
   { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 88 },
-  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 88 },
-  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 88 },
+  { key: "au_oz", label: "Au Oz", editable: false, kind: "readonly", width: 88 },
+  { key: "ag_oz", label: "Ag Oz", editable: false, kind: "readonly", width: 88 },
   { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 88 },
   { key: "pio", label: "PIO", editable: true, kind: "number", width: 88 },
   { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 96 },
@@ -234,6 +231,24 @@ function formatFieldValue(field: EditableField, value: unknown) {
   return DECIMALS_3_FIELDS.includes(field) ? n.toFixed(3) : n.toFixed(2);
 }
 
+function calcAuOzValue(tms: unknown, auGrade: unknown, auRec: unknown) {
+  const tmsNum = toNumOrNull(tms);
+  const auGradeNum = toNumOrNull(auGrade);
+  const auRecNum = toNumOrNull(auRec);
+
+  if (tmsNum === null || auGradeNum === null || auRecNum === null) return null;
+
+  return round2(tmsNum * auGradeNum * auRecNum * 1.1023);
+}
+
+function calcAuOz(draft: DraftRow) {
+  return calcAuOzValue(draft.tms, draft.au_grade_oztc, draft.au_rec);
+}
+
+function calcAgOz() {
+  return 0;
+}
+
 function calcAuUsd(draft: DraftRow) {
   const auGrade = toNumOrNull(draft.au_grade_oztc);
   const auRec = toNumOrNull(draft.au_rec);
@@ -286,8 +301,8 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
     au_grade_oztc: formatFieldValue("au_grade_oztc", r.au_grade_oztc),
     ag_grade_oztc: formatFieldValue("ag_grade_oztc", r.ag_grade_oztc),
     cu_grade_pct: formatFieldValue("cu_grade_pct", r.cu_grade_pct),
-    au_oz: formatFieldValue("au_oz", r.au_oz),
-    ag_oz: formatFieldValue("ag_oz", r.ag_oz ?? 0),
+    au_oz: calcAuOzValue(r.tms, r.au_grade_oztc, r.au_rec)?.toFixed(2) ?? "",
+    ag_oz: "0.00",
     au_rec: formatFieldValue("au_rec", r.au_rec),
     pio: formatFieldValue("pio", r.pio),
     pio_disc: formatFieldValue("pio_disc", r.pio_disc),
@@ -345,9 +360,12 @@ function buildPayload(row: DraftRow) {
     }
   }
 
+    const auOz = calcAuOz(row);
     const auUsd = calcAuUsd(row);
     const usdTms = calcUsdTms(row);
 
+    payload.au_oz = auOz === null ? null : round2(auOz);
+    payload.ag_oz = 0;
     payload.au_usd = auUsd === null ? null : round2(auUsd);
     payload.usd_tms = usdTms === null ? null : round2(usdTms);
 
@@ -381,8 +399,8 @@ function hydrateRowsFromDrafts(sourceDrafts: Record<string, DraftRow>) {
       au_grade_oztc: toNumOrNull(draft.au_grade_oztc),
       ag_grade_oztc: toNumOrNull(draft.ag_grade_oztc),
       cu_grade_pct: toNumOrNull(draft.cu_grade_pct),
-      au_oz: toNumOrNull(draft.au_oz),
-      ag_oz: toNumOrNull(draft.ag_oz),
+      au_oz: calcAuOz(draft),
+      ag_oz: 0,
       au_rec: toNumOrNull(draft.au_rec),
       pio: toNumOrNull(draft.pio),
       pio_disc: toNumOrNull(draft.pio_disc),
@@ -436,6 +454,8 @@ const RowItem = React.memo(function RowItem({
 
           if (c.key === "lot") raw = draft.lot;
           if (c.key === "entry_date") raw = draft.entry_date;
+          if (c.key === "au_oz") raw = calcAuOz(draft);
+          if (c.key === "ag_oz") raw = calcAgOz();
           if (c.key === "au_usd") raw = calcAuUsd(draft);
           if (c.key === "usd_tms") raw = calcUsdTms(draft);
           if (c.key === "monto_usd") raw = calcMontoUsd(draft);
@@ -677,8 +697,8 @@ export default function TraceabilityComerForm() {
           au_grade_oztc: toNumOrNull(raw["Au (Oz/TC)"]),
           ag_grade_oztc: toNumOrNull(raw["Ag (Oz/TC)"]),
           cu_grade_pct: toNumOrNull(raw["Cu %"]),
-          au_oz: toNumOrNull(raw["Au Oz"]),
-          ag_oz: toNumOrNull(raw["Ag Oz"]) ?? 0,
+          au_oz: calcAuOzValue(raw["TMS"], raw["Au (Oz/TC)"], raw["Au Rec"]),
+          ag_oz: 0,
           au_rec: toNumOrNull(raw["Au Rec"]),
           pio: toNumOrNull(raw["PIO"]),
           pio_disc: toNumOrNull(raw["PIO Desc."]),
