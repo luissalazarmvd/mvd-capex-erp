@@ -238,7 +238,7 @@ function calcAuOzValue(tms: unknown, auGrade: unknown, auRec: unknown) {
 
   if (tmsNum === null || auGradeNum === null || auRecNum === null) return null;
 
-  return round2(tmsNum * auGradeNum * auRecNum * 1.1023);
+  return tmsNum * auGradeNum * auRecNum * 1.1023;
 }
 
 function calcAuOz(draft: DraftRow) {
