@@ -254,6 +254,18 @@ function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+function formatDateTime2_3(d: Date) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  const ms = String(d.getMilliseconds()).padStart(3, "0");
+
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}.${ms}`;
+}
+
 function toNumOrNull(v: unknown) {
   const n = parseNum(String(v ?? ""));
   return n === null ? null : n;
@@ -324,10 +336,11 @@ function validateNumericRange(field: EditableField, value: number | null) {
   return null;
 }
 
-function buildPayload(row: DraftRow) {
+function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
   const payload: Record<string, any> = {};
   payload.lot = String(row.lot ?? "").trim() || null;
   payload.source_name = "CM";
+  payload.updated_at = batchUpdatedAt || null;
 
   for (const f of EDITABLE_FIELDS) {
     const raw = String(row[f] ?? "").trim();
@@ -352,7 +365,7 @@ function buildPayload(row: DraftRow) {
   payload.au_usd = auUsd === null ? null : round2(auUsd);
 
   const usdTms = calcUsdTms(row);
-  payload.usd_tms = usdTms === null ? null : round2(usdTms);  
+  payload.usd_tms = usdTms === null ? null : round2(usdTms);
 
   return payload;
 }
@@ -1127,13 +1140,15 @@ useEffect(() => {
     setMsg(null);
 
     try {
+      const batchUpdatedAt = formatDateTime2_3(new Date());
+
       const jobs = editedKeys.map(async (key) => {
         const row = draftsRef.current[key];
         const lot = String(row?.lot || "").trim();
 
         if (!lot) throw new Error("Hay una fila editada sin lote.");
 
-        const payload = buildPayload(row);
+        const payload = buildPayload(row, batchUpdatedAt);
         const rr = (await apiPost("/api/traceability/web/insert", payload)) as SaveResp;
 
         if (!rr?.ok) {
