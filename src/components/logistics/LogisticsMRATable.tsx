@@ -244,28 +244,28 @@ function getFileStamp() {
   return `${yyyy}${mm}${dd}_${hh}${mi}`;
 }
 
-const ACT_MONTH_OFFSETS: Partial<Record<ColumnKey, number>> = {
-  first_act: 11,
-  second_act: 10,
-  third_act: 9,
-  fourth_act: 8,
-  fifth_act: 7,
-  sixth_act: 6,
-  seventh_act: 5,
-  eighth_act: 4,
-  ninth_act: 3,
-  tenth_act: 2,
-  eleventh_act: 1,
-  twelve_act: 0,
-};
-
 function capitalizeFirst(text: string) {
   if (!text) return text;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function getColumnLabel(key: ColumnKey) {
-  const offset = ACT_MONTH_OFFSETS[key];
+  const offsets: Partial<Record<ColumnKey, number>> = {
+    first_act: 11,
+    second_act: 10,
+    third_act: 9,
+    fourth_act: 8,
+    fifth_act: 7,
+    sixth_act: 6,
+    seventh_act: 5,
+    eighth_act: 4,
+    ninth_act: 3,
+    tenth_act: 2,
+    eleventh_act: 1,
+    twelve_act: 0,
+  };
+
+  const offset = offsets[key];
 
   if (offset === undefined) return key;
 
