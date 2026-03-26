@@ -25,7 +25,6 @@ const COLUMN_KEYS = [
   "tenth_act",
   "eleventh_act",
   "twelve_act",
-  "avg_prev",
   "cons_act",
   "val_act",
   "avg_act",
@@ -265,17 +264,66 @@ function getColumnLabel(key: ColumnKey) {
 
   const offset = offsets[key];
 
-  if (offset === undefined) return key;
+  if (offset !== undefined) {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - offset);
 
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - offset);
+    const label = new Intl.DateTimeFormat("es-PE", {
+      month: "long",
+    }).format(d);
 
-  const label = new Intl.DateTimeFormat("es-PE", {
-    month: "long",
-  }).format(d);
+    return capitalizeFirst(label);
+  }
 
-  return capitalizeFirst(label);
+  const labelMap: Partial<Record<ColumnKey, string>> = {
+    mat_code: "SKU",
+    mat_desc: "Descripción",
+    mat_unit: "Unidad",
+    cons_act: "Consumo Actual",
+    val_act: "Consumo Valorizado (USD)",
+    avg_act: "Consumo Prom.",
+    dif_act_prev: "Dif. (P-A)",
+    frequency_act: "Frecuencia",
+    st_dev_act: "DE",
+    var_coef_act: "CV",
+    min_act: "MIN",
+    max_act: "MAX",
+    min_val_act: "MIN Val.",
+    max_val_act: "MAX Val.",
+    sem_1: "Semáforo I",
+    sem_1_qty: "Cant. Sem I",
+    sem_1_val: "Val. Sem I",
+    rq_act: "RQ",
+    po_act: "OC",
+    buy_act: "Compras",
+    buy_val_act: "Compras (USD)",
+    ceva_act: "CEVA (Alm. 035)",
+    stock_qty: "Stock - UM Chala (010)",
+    stock_transit_act: "Stock + Tránsito",
+    stock_transit_val_act: "Stock + Tránsito (USD)",
+    sem_2: "Semáforo II",
+    sem_2_qty: "Cant. Sem II",
+    sem_2_act: "Acción Sem II",
+    sem_2_val: "Val. Sem II",
+    repos_act: "Reposición",
+    repos_act_2: "Reposición II",
+    repos_cost_act: "Costo de Reposición I (USD)",
+    repos_cost_act_2: "Costo de Reposición II (USD)",
+    stock_transit_buy_act: "Stock + Tránsito + Compra",
+    stock_transit_buy_val_act: "Stock + Tránsito + Compra (USD)",
+    mat_pu: "PU (USD)",
+    inv_val_act: "Stock Valorizado (USD)",
+    fcs_day_act: "Cob. (Día)",
+    fcs_month_act: "Cob. (Mes)",
+    fcs_day_act_2: "Cob. (Día) II",
+    fcs_month_act_2: "Cob. (Mes) II",
+    rotation: "Rotación",
+    warehouse_location_1: "Ubicación 1",
+    warehouse_location_2: "Ubicación 2",
+  };
+
+  return labelMap[key] ?? key;
 }
 
 export default function LogisticsMRATable() {
