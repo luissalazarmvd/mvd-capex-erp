@@ -587,7 +587,7 @@ export default function LogisticsMRATable() {
               color: "rgba(255,255,255,0.9)",
             }}
           >
-            STG: {stgRows.length}
+            Materiales: {stgRows.length}
           </div>
 
           <div
@@ -601,7 +601,7 @@ export default function LogisticsMRATable() {
               color: "rgba(255,255,255,0.9)",
             }}
           >
-            DIM MRA: {dimRows.length}
+            MRA: {dimRows.length}
           </div>
 
           <button
@@ -816,7 +816,7 @@ export default function LogisticsMRATable() {
                       background: "rgba(255,255,255,0.03)",
                     }}
                   >
-                    {mraOnly ? "Vista filtrada por dim.logistics_mra_mat" : "Vista completa de stg.logistics_mat_log_mra"}
+                    {mraOnly ? "Vista filtrada por MRA" : "Vista completa de Materiales"}
                   </td>
                 </tr>
               </tfoot>
