@@ -162,6 +162,18 @@ const COLUMNS = COLUMN_KEYS.map((key) => ({
   key,
   label: key,
   width: WIDTHS[key] ?? 110,
+  sticky:
+    key === "mat_code"
+      ? true
+      : key === "mat_desc"
+      ? true
+      : false,
+  left:
+    key === "mat_code"
+      ? 0
+      : key === "mat_desc"
+      ? (WIDTHS.mat_code ?? 120)
+      : undefined,
 }));
 
 function normalizeText(v: unknown) {
@@ -739,6 +751,10 @@ export default function LogisticsMRATable() {
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                         boxSizing: "border-box",
+                        left: c.sticky ? c.left : undefined,
+                        zIndex: c.sticky ? 40 : stickyHead.zIndex,
+                        background: c.sticky ? headerBg : stickyHead.background,
+                        boxShadow: c.sticky ? "2px 0 0 rgba(191, 231, 255, 0.12)" : undefined,
                       }}
                       title={c.label}
                     >
@@ -762,11 +778,15 @@ export default function LogisticsMRATable() {
                             borderTop: gridH,
                             borderBottom: gridH,
                             borderRight: gridV,
-                            background: rowBg,
+                            background: c.sticky ? "rgb(10, 30, 46)" : rowBg,
                             width: c.width,
                             minWidth: c.width,
                             maxWidth: c.width,
                             color: "rgb(185,185,185)",
+                            position: c.sticky ? "sticky" : "static",
+                            left: c.sticky ? c.left : undefined,
+                            zIndex: c.sticky ? 15 : undefined,
+                            boxShadow: c.sticky ? "2px 0 0 rgba(191, 231, 255, 0.10)" : undefined,
                           }}
                           title={formatCellValue(row[c.key])}
                         >
