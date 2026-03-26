@@ -25,8 +25,6 @@ const COLUMN_KEYS = [
   "tenth_act",
   "eleventh_act",
   "twelve_act",
-  "cons_prev",
-  "val_prev",
   "avg_prev",
   "cons_act",
   "val_act",
@@ -275,7 +273,6 @@ function getColumnLabel(key: ColumnKey) {
 
   const label = new Intl.DateTimeFormat("es-PE", {
     month: "long",
-    year: "numeric",
   }).format(d);
 
   return capitalizeFirst(label);
