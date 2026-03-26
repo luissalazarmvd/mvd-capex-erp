@@ -13,30 +13,6 @@ const COLUMN_KEYS = [
   "mat_code",
   "mat_desc",
   "mat_unit",
-  "ene_prev",
-  "feb_prev",
-  "mar_prev",
-  "abr_prev",
-  "may_prev",
-  "jun_prev",
-  "jul_prev",
-  "ago_prev",
-  "sep_prev",
-  "oct_prev",
-  "nov_prev",
-  "dic_prev",
-  "ene_act",
-  "feb_act",
-  "mar_act",
-  "abr_act",
-  "may_act",
-  "jun_act",
-  "jul_act",
-  "ago_act",
-  "sep_act",
-  "oct_act",
-  "nov_act",
-  "dic_act",
   "first_prev",
   "second_prev",
   "third_prev",
@@ -105,7 +81,6 @@ const COLUMN_KEYS = [
   "rotation",
   "warehouse_location_1",
   "warehouse_location_2",
-  "updated_at",
 ] as const;
 
 const IMPORT_HEADERS = [
@@ -130,6 +105,29 @@ type MRADimRow = {
   mat_fam: string | null;
   mat_category: string | null;
   updated_at?: string | null;
+};
+
+type MRAImportRow = {
+  mat_code: string | null;
+  mat_desc: string | null;
+  mat_unit: string | null;
+  mat_fam: string | null;
+  mat_category: string | null;
+};
+
+type MRAImportPreviewRow = MRAImportRow & {
+  row_num: number;
+  duplicate_count: number;
+  is_duplicate: boolean;
+};
+
+type ImportSummary = {
+  file_name: string;
+  total_excel_rows: number;
+  valid_rows: number;
+  repeated_codes: number;
+  repeated_rows: number;
+  repeated_extra_rows: number;
 };
 
 type GetStgResp = {
@@ -158,7 +156,6 @@ const WIDTHS: Partial<Record<ColumnKey, number>> = {
   mat_unit: 100,
   warehouse_location_1: 180,
   warehouse_location_2: 180,
-  updated_at: 170,
 };
 
 const COLUMNS = COLUMN_KEYS.map((key) => ({
@@ -257,6 +254,10 @@ export default function LogisticsMRATable() {
   const [sortKey, setSortKey] = useState<ColumnKey>("mat_code");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewRows, setPreviewRows] = useState<MRAImportPreviewRow[]>([]);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -376,11 +377,17 @@ export default function LogisticsMRATable() {
     fileInputRef.current?.click();
   }
 
+  function closePreview() {
+    if (importing) return;
+    setPreviewOpen(false);
+    setPreviewRows([]);
+    setImportSummary(null);
+  }
+
   async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setImporting(true);
     setMsg(null);
 
     try {
@@ -395,6 +402,7 @@ export default function LogisticsMRATable() {
       const sheet = workbook.Sheets[firstSheetName];
       const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
         defval: "",
+        raw: false,
       });
 
       if (!rawRows.length) {
@@ -410,28 +418,94 @@ export default function LogisticsMRATable() {
         throw new Error(`Faltan columnas: ${missingHeaders.join(", ")}`);
       }
 
-      const payload = rawRows
-        .map((raw) => {
+      const mappedRows = rawRows
+        .map((raw, idx) => {
           const getValue = (targetHeader: ImportKey) => {
             const sourceKey = Object.keys(raw).find((k) => toHeaderKey(k) === targetHeader);
             return sourceKey ? raw[sourceKey] : "";
           };
 
-          return {
+          const row: MRAImportPreviewRow = {
+            row_num: idx + 2,
             mat_code: toNullableString(getValue("mat_code")),
             mat_desc: toNullableString(getValue("mat_desc")),
             mat_unit: toNullableString(getValue("mat_unit")),
             mat_fam: toNullableString(getValue("mat_fam")),
             mat_category: toNullableString(getValue("mat_category")),
+            duplicate_count: 0,
+            is_duplicate: false,
           };
-        })
-        .filter((row) =>
-          IMPORT_HEADERS.some((header) => !isBlank(row[header]))
-        );
 
-      if (!payload.length) {
+          return row;
+        })
+        .filter((row) => IMPORT_HEADERS.some((header) => !isBlank(row[header])));
+
+      if (!mappedRows.length) {
         throw new Error("No hay filas válidas para importar.");
       }
+
+      const counts = new Map<string, number>();
+
+      for (const row of mappedRows) {
+        const code = normalizeCode(row.mat_code);
+        if (!code) continue;
+        counts.set(code, (counts.get(code) || 0) + 1);
+      }
+
+      const preview = mappedRows.map((row) => {
+        const code = normalizeCode(row.mat_code);
+        const count = code ? counts.get(code) || 0 : 0;
+
+        return {
+          ...row,
+          duplicate_count: count,
+          is_duplicate: count > 1,
+        };
+      });
+
+      const repeatedCodes = Array.from(counts.values()).filter((count) => count > 1).length;
+      const repeatedRows = preview.filter((row) => row.is_duplicate).length;
+      const repeatedExtraRows = Array.from(counts.values()).reduce(
+        (acc, count) => acc + (count > 1 ? count - 1 : 0),
+        0
+      );
+
+      setPreviewRows(preview);
+      setImportSummary({
+        file_name: file.name,
+        total_excel_rows: rawRows.length,
+        valid_rows: preview.length,
+        repeated_codes: repeatedCodes,
+        repeated_rows: repeatedRows,
+        repeated_extra_rows: repeatedExtraRows,
+      });
+      setPreviewOpen(true);
+    } catch (e: any) {
+      setMsg(`ERROR: ${String(e?.message || e || "No se pudo importar el archivo")}`);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function confirmImport() {
+    if (!previewRows.length) {
+      setMsg("No hay filas para importar.");
+      return;
+    }
+
+    setImporting(true);
+    setMsg(null);
+
+    try {
+      const payload: MRAImportRow[] = previewRows.map((row) => ({
+        mat_code: row.mat_code,
+        mat_desc: row.mat_desc,
+        mat_unit: row.mat_unit,
+        mat_fam: row.mat_fam,
+        mat_category: row.mat_category,
+      }));
 
       const resp = (await apiPost("/api/logistics/mra/dim", payload)) as PostDimResp;
 
@@ -440,13 +514,13 @@ export default function LogisticsMRATable() {
       }
 
       await loadDimOnly();
+      setPreviewOpen(false);
+      setPreviewRows([]);
+      setImportSummary(null);
       setMsg(`OK: se importaron ${resp.count ?? payload.length} fila(s) en dim.logistics_mra_mat.`);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo importar el archivo")}`);
     } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
       setImporting(false);
     }
   }
@@ -473,348 +547,680 @@ export default function LogisticsMRATable() {
     boxSizing: "border-box",
   };
 
-  const inputBase: React.CSSProperties = {
-    border: "1px solid rgba(191,231,255,.18)",
-    background: "rgba(0,0,0,.10)",
-    color: "white",
-    fontWeight: 900,
-    padding: "6px 8px",
-    borderRadius: 8,
-    outline: "none",
-    fontSize: 12,
-    lineHeight: "14px",
-    boxSizing: "border-box",
-  };
-
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: 10,
-        minWidth: 0,
-        minHeight: 0,
-        width: "100%",
-        height: "100%",
-        maxWidth: "100%",
-        overflow: "hidden",
-      }}
-    >
+    <>
       <div
-        className="panel-inner"
         style={{
-          padding: "10px 12px",
-          display: "flex",
+          display: "grid",
           gap: 10,
-          alignItems: "center",
-          flexWrap: "wrap",
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ fontWeight: 900 }}>
-          Logistics · MRA
-        </div>
-
-        <div
-          style={{
-            padding: "6px 10px",
-            borderRadius: 999,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.06)",
-            fontSize: 12,
-            fontWeight: 900,
-            color: "rgba(255,255,255,0.9)",
-          }}
-        >
-          STG: {stgRows.length}
-        </div>
-
-        <div
-          style={{
-            padding: "6px 10px",
-            borderRadius: 999,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.06)",
-            fontSize: 12,
-            fontWeight: 900,
-            color: "rgba(255,255,255,0.9)",
-          }}
-        >
-          DIM MRA: {dimRows.length}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setMraOnly((prev) => !prev)}
-          style={{
-            padding: "6px 10px",
-            borderRadius: 999,
-            border: mraOnly
-              ? "1px solid rgba(102,199,255,.55)"
-              : "1px solid rgba(255,255,255,0.12)",
-            background: mraOnly
-              ? "rgba(102,199,255,.16)"
-              : "rgba(255,255,255,0.06)",
-            fontSize: 12,
-            fontWeight: 900,
-            color: mraOnly
-              ? "rgb(170, 225, 255)"
-              : "rgba(255,255,255,0.8)",
-            cursor: "pointer",
-          }}
-        >
-          MRA {mraOnly ? "ON" : "OFF"}
-        </button>
-
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={onImportFile}
-            style={{ display: "none" }}
-          />
-
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            onClick={loadData}
-            disabled={loading || importing}
-          >
-            {loading ? "Cargando…" : "Refrescar"}
-          </Button>
-
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            onClick={onExportExcel}
-            disabled={loading || importing || preparedRows.length === 0}
-          >
-            Exportar Excel
-          </Button>
-
-          <Button
-            type="button"
-            size="sm"
-            variant="primary"
-            onClick={onClickImport}
-            disabled={loading || importing}
-          >
-            {importing ? "Importando…" : "Importar MRA"}
-          </Button>
-        </div>
-      </div>
-
-      {msg ? (
-        <div
-          className="panel-inner"
-          style={{
-            padding: 10,
-            flexShrink: 0,
-            border: msg.startsWith("OK")
-              ? "1px solid rgba(102,199,255,.45)"
-              : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK")
-              ? "rgba(102,199,255,.10)"
-              : "rgba(255,80,80,.10)",
-            fontWeight: 800,
-          }}
-        >
-          {msg}
-        </div>
-      ) : null}
-
-      <div
-        className="panel-inner"
-        style={{
-          padding: 0,
           minWidth: 0,
           minHeight: 0,
           width: "100%",
           height: "100%",
           maxWidth: "100%",
-          maxHeight: "calc(100vh - 270px)",
-          overflow: "auto",
-          WebkitOverflowScrolling: "touch",
+          overflow: "hidden",
         }}
       >
-        <div style={{ minWidth: "max-content" }}>
-          <Table stickyHeader disableScrollWrapper>
-            <colgroup>
-              {COLUMNS.map((c) => (
-                <col
-                  key={c.key}
-                  style={{
-                    width: c.width,
-                    minWidth: c.width,
-                    maxWidth: c.width,
-                  }}
-                />
-              ))}
-            </colgroup>
+        <div
+          className="panel-inner"
+          style={{
+            padding: "10px 12px",
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+            flexWrap: "wrap",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontWeight: 900 }}>
+            Logistics · MRA
+          </div>
 
-            <thead>
-              <tr>
+          <div
+            style={{
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              fontSize: 12,
+              fontWeight: 900,
+              color: "rgba(255,255,255,0.9)",
+            }}
+          >
+            STG: {stgRows.length}
+          </div>
+
+          <div
+            style={{
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              fontSize: 12,
+              fontWeight: 900,
+              color: "rgba(255,255,255,0.9)",
+            }}
+          >
+            DIM MRA: {dimRows.length}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setMraOnly((prev) => !prev)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: mraOnly
+                ? "1px solid rgba(102,199,255,.55)"
+                : "1px solid rgba(255,255,255,0.12)",
+              background: mraOnly
+                ? "rgba(102,199,255,.16)"
+                : "rgba(255,255,255,0.06)",
+              fontSize: 12,
+              fontWeight: 900,
+              color: mraOnly
+                ? "rgb(170, 225, 255)"
+                : "rgba(255,255,255,0.8)",
+              cursor: "pointer",
+            }}
+          >
+            MRA {mraOnly ? "ON" : "OFF"}
+          </button>
+
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={onImportFile}
+              style={{ display: "none" }}
+            />
+
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              onClick={loadData}
+              disabled={loading || importing}
+            >
+              {loading ? "Cargando…" : "Refrescar"}
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              onClick={onExportExcel}
+              disabled={loading || importing || preparedRows.length === 0}
+            >
+              Exportar Excel
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="primary"
+              onClick={onClickImport}
+              disabled={loading || importing}
+            >
+              {importing ? "Importando…" : "Importar MRA"}
+            </Button>
+          </div>
+        </div>
+
+        {msg ? (
+          <div
+            className="panel-inner"
+            style={{
+              padding: 10,
+              flexShrink: 0,
+              border: msg.startsWith("OK")
+                ? "1px solid rgba(102,199,255,.45)"
+                : "1px solid rgba(255,80,80,.45)",
+              background: msg.startsWith("OK")
+                ? "rgba(102,199,255,.10)"
+                : "rgba(255,80,80,.10)",
+              fontWeight: 800,
+            }}
+          >
+            {msg}
+          </div>
+        ) : null}
+
+        <div
+          className="panel-inner"
+          style={{
+            padding: 0,
+            minWidth: 0,
+            minHeight: 0,
+            width: "100%",
+            height: "100%",
+            maxWidth: "100%",
+            maxHeight: "calc(100vh - 270px)",
+            overflow: "auto",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          <div style={{ minWidth: "max-content" }}>
+            <Table stickyHeader disableScrollWrapper>
+              <colgroup>
                 {COLUMNS.map((c) => (
-                  <th
+                  <col
                     key={c.key}
-                    className="capex-th"
-                    onClick={() => onSortClick(c.key)}
                     style={{
-                      ...stickyHead,
-                      border: headerBorder,
-                      borderBottom: headerBorder,
-                      textAlign: "left",
-                      padding: "8px 8px",
-                      fontSize: 12,
                       width: c.width,
                       minWidth: c.width,
                       maxWidth: c.width,
-                      cursor: "pointer",
-                      userSelect: "none",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      boxSizing: "border-box",
                     }}
-                    title={c.label}
-                  >
-                    {c.label}
-                    {getSortIndicator(c.key)}
-                  </th>
+                  />
                 ))}
-              </tr>
-            </thead>
+              </colgroup>
 
-            <tbody>
-              {!loading &&
-                visibleRows.map((row, index) => (
-                  <tr key={`${normalizeText(row.mat_code)}_${pageStart + index}`} className="capex-tr">
-                    {COLUMNS.map((c) => (
+              <thead>
+                <tr>
+                  {COLUMNS.map((c) => (
+                    <th
+                      key={c.key}
+                      className="capex-th"
+                      onClick={() => onSortClick(c.key)}
+                      style={{
+                        ...stickyHead,
+                        border: headerBorder,
+                        borderBottom: headerBorder,
+                        textAlign: "left",
+                        padding: "8px 8px",
+                        fontSize: 12,
+                        width: c.width,
+                        minWidth: c.width,
+                        maxWidth: c.width,
+                        cursor: "pointer",
+                        userSelect: "none",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        boxSizing: "border-box",
+                      }}
+                      title={c.label}
+                    >
+                      {c.label}
+                      {getSortIndicator(c.key)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {!loading &&
+                  visibleRows.map((row, index) => (
+                    <tr key={`${normalizeText(row.mat_code)}_${pageStart + index}`} className="capex-tr">
+                      {COLUMNS.map((c) => (
+                        <td
+                          key={c.key}
+                          className="capex-td"
+                          style={{
+                            ...cellBase,
+                            borderTop: gridH,
+                            borderBottom: gridH,
+                            borderRight: gridV,
+                            background: rowBg,
+                            width: c.width,
+                            minWidth: c.width,
+                            maxWidth: c.width,
+                            color: "rgb(185,185,185)",
+                          }}
+                          title={formatCellValue(row[c.key])}
+                        >
+                          {formatCellValue(row[c.key])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+
+                {!loading && visibleRows.length === 0 ? (
+                  <tr className="capex-tr">
+                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                      No hay filas para mostrar.
+                    </td>
+                  </tr>
+                ) : null}
+
+                {loading ? (
+                  <tr className="capex-tr">
+                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                      Cargando logistics MRA…
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+
+              <tfoot>
+                <tr>
+                  <td
+                    className="capex-td"
+                    style={{
+                      ...cellBase,
+                      fontWeight: 900,
+                      borderTop: headerBorder,
+                      borderRight: gridV,
+                      background: "rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    Filas: {totalRows}
+                  </td>
+                  <td
+                    className="capex-td"
+                    colSpan={COLUMNS.length - 1}
+                    style={{
+                      ...cellBase,
+                      borderTop: headerBorder,
+                      background: "rgba(255,255,255,0.03)",
+                    }}
+                  >
+                    {mraOnly ? "Vista filtrada por dim.logistics_mra_mat" : "Vista completa de stg.logistics_mat_log_mra"}
+                  </td>
+                </tr>
+              </tfoot>
+            </Table>
+          </div>
+        </div>
+
+        <div
+          className="panel-inner"
+          style={{
+            padding: "10px 12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+            Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={loading || importing || safePage <= 1}
+            >
+              ←
+            </Button>
+
+            <div
+              style={{
+                minWidth: 110,
+                textAlign: "center",
+                fontSize: 12,
+                fontWeight: 900,
+                padding: "6px 10px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(191,231,255,.18)",
+              }}
+            >
+              Página {safePage} / {totalPages}
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={loading || importing || safePage >= totalPages}
+            >
+              →
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {previewOpen ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            className="panel-inner"
+            style={{
+              width: "min(1200px, 96vw)",
+              height: "min(82vh, 820px)",
+              display: "grid",
+              gridTemplateRows: "auto auto 1fr auto",
+              gap: 10,
+              padding: 14,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 900 }}>Preview de importación MRA</div>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>
+                  Revisa la data antes de reemplazar dim.logistics_mra_mat
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                onClick={closePreview}
+                disabled={importing}
+              >
+                Cerrar
+              </Button>
+            </div>
+
+            {importSummary ? (
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.06)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  Archivo: {importSummary.file_name}
+                </div>
+
+                <div
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.06)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  Filas Excel: {importSummary.total_excel_rows}
+                </div>
+
+                <div
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(102,199,255,.45)",
+                    background: "rgba(102,199,255,.10)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  Filas válidas: {importSummary.valid_rows}
+                </div>
+
+                <div
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    border: importSummary.repeated_codes > 0
+                      ? "1px solid rgba(255,170,60,.45)"
+                      : "1px solid rgba(255,255,255,0.12)",
+                    background: importSummary.repeated_codes > 0
+                      ? "rgba(255,170,60,.10)"
+                      : "rgba(255,255,255,0.06)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  Códigos repetidos: {importSummary.repeated_codes}
+                </div>
+
+                <div
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    border: importSummary.repeated_rows > 0
+                      ? "1px solid rgba(255,170,60,.45)"
+                      : "1px solid rgba(255,255,255,0.12)",
+                    background: importSummary.repeated_rows > 0
+                      ? "rgba(255,170,60,.10)"
+                      : "rgba(255,255,255,0.06)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  Filas repetidas: {importSummary.repeated_rows}
+                </div>
+
+                <div
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    border: importSummary.repeated_extra_rows > 0
+                      ? "1px solid rgba(255,170,60,.45)"
+                      : "1px solid rgba(255,255,255,0.12)",
+                    background: importSummary.repeated_extra_rows > 0
+                      ? "rgba(255,170,60,.10)"
+                      : "rgba(255,255,255,0.06)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  Filas extra repetidas: {importSummary.repeated_extra_rows}
+                </div>
+              </div>
+            ) : null}
+
+            <div
+              style={{
+                minWidth: 0,
+                minHeight: 0,
+                overflow: "auto",
+                border: "1px solid rgba(191,231,255,.12)",
+                borderRadius: 12,
+              }}
+            >
+              <Table stickyHeader disableScrollWrapper>
+                <colgroup>
+                  <col style={{ width: 80, minWidth: 80, maxWidth: 80 }} />
+                  <col style={{ width: 130, minWidth: 130, maxWidth: 130 }} />
+                  <col style={{ width: 260, minWidth: 260, maxWidth: 260 }} />
+                  <col style={{ width: 110, minWidth: 110, maxWidth: 110 }} />
+                  <col style={{ width: 170, minWidth: 170, maxWidth: 170 }} />
+                  <col style={{ width: 170, minWidth: 170, maxWidth: 170 }} />
+                  <col style={{ width: 110, minWidth: 110, maxWidth: 110 }} />
+                </colgroup>
+
+                <thead>
+                  <tr>
+                    {["fila", "mat_code", "mat_desc", "mat_unit", "mat_fam", "mat_category", "repetido"].map((label) => (
+                      <th
+                        key={label}
+                        className="capex-th"
+                        style={{
+                          ...stickyHead,
+                          border: headerBorder,
+                          borderBottom: headerBorder,
+                          textAlign: "left",
+                          padding: "8px 8px",
+                          fontSize: 12,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {previewRows.map((row) => (
+                    <tr key={`${row.row_num}_${normalizeText(row.mat_code)}`} className="capex-tr">
                       <td
-                        key={c.key}
                         className="capex-td"
                         style={{
                           ...cellBase,
                           borderTop: gridH,
                           borderBottom: gridH,
                           borderRight: gridV,
-                          background: rowBg,
-                          width: c.width,
-                          minWidth: c.width,
-                          maxWidth: c.width,
-                          color: "rgb(185,185,185)",
+                          background: row.is_duplicate ? "rgba(255,170,60,.12)" : rowBg,
                         }}
-                        title={formatCellValue(row[c.key])}
                       >
-                        {formatCellValue(row[c.key])}
+                        {row.row_num}
                       </td>
-                    ))}
-                  </tr>
-                ))}
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellBase,
+                          borderTop: gridH,
+                          borderBottom: gridH,
+                          borderRight: gridV,
+                          background: row.is_duplicate ? "rgba(255,170,60,.12)" : rowBg,
+                          fontWeight: 900,
+                        }}
+                        title={row.mat_code || "—"}
+                      >
+                        {row.mat_code || "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellBase,
+                          borderTop: gridH,
+                          borderBottom: gridH,
+                          borderRight: gridV,
+                          background: row.is_duplicate ? "rgba(255,170,60,.12)" : rowBg,
+                        }}
+                        title={row.mat_desc || "—"}
+                      >
+                        {row.mat_desc || "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellBase,
+                          borderTop: gridH,
+                          borderBottom: gridH,
+                          borderRight: gridV,
+                          background: row.is_duplicate ? "rgba(255,170,60,.12)" : rowBg,
+                        }}
+                        title={row.mat_unit || "—"}
+                      >
+                        {row.mat_unit || "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellBase,
+                          borderTop: gridH,
+                          borderBottom: gridH,
+                          borderRight: gridV,
+                          background: row.is_duplicate ? "rgba(255,170,60,.12)" : rowBg,
+                        }}
+                        title={row.mat_fam || "—"}
+                      >
+                        {row.mat_fam || "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellBase,
+                          borderTop: gridH,
+                          borderBottom: gridH,
+                          borderRight: gridV,
+                          background: row.is_duplicate ? "rgba(255,170,60,.12)" : rowBg,
+                        }}
+                        title={row.mat_category || "—"}
+                      >
+                        {row.mat_category || "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellBase,
+                          borderTop: gridH,
+                          borderBottom: gridH,
+                          borderRight: gridV,
+                          background: row.is_duplicate ? "rgba(255,170,60,.12)" : rowBg,
+                          fontWeight: 900,
+                          color: row.is_duplicate ? "rgb(255,199,120)" : "rgb(185,185,185)",
+                        }}
+                      >
+                        {row.is_duplicate ? `Sí (${row.duplicate_count})` : "No"}
+                      </td>
+                    </tr>
+                  ))}
 
-              {!loading && visibleRows.length === 0 ? (
-                <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
-                    No hay filas para mostrar.
-                  </td>
-                </tr>
-              ) : null}
+                  {previewRows.length === 0 ? (
+                    <tr className="capex-tr">
+                      <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={7}>
+                        No hay filas para preview.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </Table>
+            </div>
 
-              {loading ? (
-                <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
-                    Cargando logistics MRA…
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+                Se importarán exactamente {previewRows.length} fila(s) al confirmar.
+              </div>
 
-            <tfoot>
-              <tr>
-                <td
-                  className="capex-td"
-                  style={{
-                    ...cellBase,
-                    fontWeight: 900,
-                    borderTop: headerBorder,
-                    borderRight: gridV,
-                    background: "rgba(255,255,255,0.06)",
-                  }}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="default"
+                  onClick={closePreview}
+                  disabled={importing}
                 >
-                  Filas: {totalRows}
-                </td>
-                <td
-                  className="capex-td"
-                  colSpan={COLUMNS.length - 1}
-                  style={{
-                    ...cellBase,
-                    borderTop: headerBorder,
-                    background: "rgba(255,255,255,0.03)",
-                  }}
+                  Cancelar
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  onClick={confirmImport}
+                  disabled={importing || previewRows.length === 0}
                 >
-                  {mraOnly ? "Vista filtrada por dim.logistics_mra_mat" : "Vista completa de stg.logistics_mat_log_mra"}
-                </td>
-              </tr>
-            </tfoot>
-          </Table>
-        </div>
-      </div>
-
-      <div
-        className="panel-inner"
-        style={{
-          padding: "10px 12px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
-          Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={loading || importing || safePage <= 1}
-          >
-            ←
-          </Button>
-
-          <div
-            style={{
-              minWidth: 110,
-              textAlign: "center",
-              fontSize: 12,
-              fontWeight: 900,
-              padding: "6px 10px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(191,231,255,.18)",
-            }}
-          >
-            Página {safePage} / {totalPages}
+                  {importing ? "Importando…" : "Confirmar importación"}
+                </Button>
+              </div>
+            </div>
           </div>
-
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={loading || importing || safePage >= totalPages}
-          >
-            →
-          </Button>
         </div>
-      </div>
-    </div>
+      ) : null}
+    </>
   );
 }
