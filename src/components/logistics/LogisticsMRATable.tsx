@@ -13,18 +13,6 @@ const COLUMN_KEYS = [
   "mat_code",
   "mat_desc",
   "mat_unit",
-  "first_prev",
-  "second_prev",
-  "third_prev",
-  "fourth_prev",
-  "fifth_prev",
-  "sixth_prev",
-  "seventh_prev",
-  "eighth_prev",
-  "ninth_prev",
-  "tenth_prev",
-  "eleventh_prev",
-  "twelve_prev",
   "first_act",
   "second_act",
   "third_act",
@@ -160,7 +148,7 @@ const WIDTHS: Partial<Record<ColumnKey, number>> = {
 
 const COLUMNS = COLUMN_KEYS.map((key) => ({
   key,
-  label: key,
+  label: getColumnLabel(key),
   width: WIDTHS[key] ?? 110,
   sticky:
     key === "mat_code"
@@ -254,6 +242,43 @@ function getFileStamp() {
   const hh = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   return `${yyyy}${mm}${dd}_${hh}${mi}`;
+}
+
+const ACT_MONTH_OFFSETS: Partial<Record<ColumnKey, number>> = {
+  first_act: 11,
+  second_act: 10,
+  third_act: 9,
+  fourth_act: 8,
+  fifth_act: 7,
+  sixth_act: 6,
+  seventh_act: 5,
+  eighth_act: 4,
+  ninth_act: 3,
+  tenth_act: 2,
+  eleventh_act: 1,
+  twelve_act: 0,
+};
+
+function capitalizeFirst(text: string) {
+  if (!text) return text;
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function getColumnLabel(key: ColumnKey) {
+  const offset = ACT_MONTH_OFFSETS[key];
+
+  if (offset === undefined) return key;
+
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - offset);
+
+  const label = new Intl.DateTimeFormat("es-PE", {
+    month: "long",
+    year: "numeric",
+  }).format(d);
+
+  return capitalizeFirst(label);
 }
 
 export default function LogisticsMRATable() {

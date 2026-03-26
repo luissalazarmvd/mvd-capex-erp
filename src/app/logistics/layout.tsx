@@ -45,7 +45,7 @@ export default function LogisticsLayout({ children }: { children: React.ReactNod
               </Link>
 
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – LOGISTICS</div>
+                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – LOGISTICA</div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   Descargas
                 </div>
