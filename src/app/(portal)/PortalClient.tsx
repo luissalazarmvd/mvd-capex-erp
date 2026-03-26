@@ -4,7 +4,14 @@ import React, { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui/Button";
 
-type Area = "capex" | "planta" | "refinery" | "ti" | "traceability" | "compliance";
+type Area =
+  | "capex"
+  | "planta"
+  | "refinery"
+  | "ti"
+  | "traceability"
+  | "compliance"
+  | "logistics";
 
 export default function PortalClient() {
   const router = useRouter();
@@ -67,6 +74,8 @@ export default function PortalClient() {
           ? "/traceability/entries"
           : area === "compliance"
           ? "/compliance/downloads"
+          : area === "logistics"
+          ? "/logistics/downloads"
           : "/ti"
       );
     } catch (e: any) {
@@ -124,6 +133,10 @@ export default function PortalClient() {
               Compliance
             </Button>
 
+            <Button type="button" size="lg" variant="primary" onClick={() => start("logistics")}>
+              Logistics
+            </Button>
+
             <Button type="button" size="lg" variant="primary" onClick={() => start("ti")}>
               Tickets TI
             </Button>
@@ -141,6 +154,8 @@ export default function PortalClient() {
                 ? "Clave Trazabilidad"
                 : area === "compliance"
                 ? "Clave Compliance"
+                : area === "logistics"
+                ? "Clave Logistics"
                 : "Clave Tickets TI"}
             </div>
 

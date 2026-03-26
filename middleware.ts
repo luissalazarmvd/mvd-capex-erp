@@ -85,7 +85,10 @@ export async function middleware(req: NextRequest) {
   if (pathname === "/ti" || pathname.startsWith("/ti/")) {
     const role = req.cookies.get("mvd_ti_session")?.value || "";
     if (role === "ti" || role === "jefes") return NextResponse.next();
-    return NextResponse.next();
+
+    const url = req.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
   }
 
   const secret = process.env.AUTH_SECRET || "";
@@ -112,6 +115,8 @@ export async function middleware(req: NextRequest) {
     ? "traceability"
     : pathname.startsWith("/compliance")
     ? "compliance"
+    : pathname.startsWith("/logistics")
+    ? "logistics"
     : "capex";
 
   if (!auth.scopes.includes(need)) {
