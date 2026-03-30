@@ -11,7 +11,8 @@ type Area =
   | "ti"
   | "traceability"
   | "compliance"
-  | "logistics";
+  | "logistics"
+  | "sustainability";
 
 export default function PortalClient() {
   const router = useRouter();
@@ -76,6 +77,8 @@ export default function PortalClient() {
           ? "/compliance/downloads"
           : area === "logistics"
           ? "/logistics/downloads"
+          : area === "sustainability"
+          ? "/sustainability/igafom"
           : "/ti"
       );
     } catch (e: any) {
@@ -137,6 +140,10 @@ export default function PortalClient() {
               Logística
             </Button>
 
+            <Button type="button" size="lg" variant="primary" onClick={() => start("sustainability")}>
+              Sustainability
+            </Button>
+
             <Button type="button" size="lg" variant="primary" onClick={() => start("ti")}>
               Tickets TI
             </Button>
@@ -156,6 +163,8 @@ export default function PortalClient() {
                 ? "Clave Compliance"
                 : area === "logistics"
                 ? "Clave Logistics"
+                : area === "sustainability"
+                ? "Clave Sustainability"
                 : "Clave Tickets TI"}
             </div>
 

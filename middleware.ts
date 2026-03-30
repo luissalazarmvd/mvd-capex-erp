@@ -117,6 +117,8 @@ export async function middleware(req: NextRequest) {
     ? "compliance"
     : pathname.startsWith("/logistics")
     ? "logistics"
+    : pathname.startsWith("/sustainability")
+    ? "sustainability"
     : "capex";
 
   if (!auth.scopes.includes(need)) {
