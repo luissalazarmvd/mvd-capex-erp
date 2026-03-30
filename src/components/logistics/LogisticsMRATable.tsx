@@ -534,19 +534,36 @@ export default function LogisticsMRATable() {
         counts.set(code, (counts.get(code) || 0) + 1);
       }
 
-      const preview = mappedRows.map((row) => {
+      const previewMap = new Map<string, MRAImportPreviewRow>();
+      const previewWithoutCode: MRAImportPreviewRow[] = [];
+
+      for (const row of mappedRows) {
         const code = normalizeCode(row.mat_code);
         const count = code ? counts.get(code) || 0 : 0;
 
-        return {
+        const enrichedRow: MRAImportPreviewRow = {
           ...row,
           duplicate_count: count,
           is_duplicate: count > 1,
         };
-      });
+
+        if (!code) {
+          previewWithoutCode.push(enrichedRow);
+          continue;
+        }
+
+        previewMap.set(code, enrichedRow);
+      }
+
+      const preview = [...previewWithoutCode, ...previewMap.values()].sort(
+        (a, b) => a.row_num - b.row_num
+      );
 
       const repeatedCodes = Array.from(counts.values()).filter((count) => count > 1).length;
-      const repeatedRows = preview.filter((row) => row.is_duplicate).length;
+      const repeatedRows = mappedRows.filter((row) => {
+        const code = normalizeCode(row.mat_code);
+        return code ? (counts.get(code) || 0) > 1 : false;
+      }).length;
       const repeatedExtraRows = Array.from(counts.values()).reduce(
         (acc, count) => acc + (count > 1 ? count - 1 : 0),
         0
@@ -1287,7 +1304,7 @@ export default function LogisticsMRATable() {
               }}
             >
               <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
-                Se importarán exactamente {previewRows.length} fila(s) al confirmar.
+                Se importarán exactamente {previewRows.length} fila(s) únicas al confirmar.
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
