@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
@@ -68,6 +69,10 @@ function normalizeDownloadUrl(url: string | null | undefined) {
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+const PdfPreview = dynamic(() => import("./PdfPreview"), {
+  ssr: false,
+});
 
 function buildProxyPdfUrl(
   url: string | null | undefined,
@@ -303,49 +308,15 @@ export default function SustainabilityIGAFOMTable() {
     loadData();
   }, [loadData]);
 
-  useEffect(() => {
-    return () => {
-      if (previewUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
-
-  async function previewPdf(url: string | null | undefined) {
+  function previewPdf(url: string | null | undefined) {
     const proxyInlineUrl = buildProxyPdfUrl(url, "inline");
     const proxyDownloadUrl = buildProxyPdfUrl(url, "attachment");
 
     if (!proxyInlineUrl) return;
 
-    try {
-      setMsg(null);
-
-      if (previewUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(previewUrl);
-      }
-
-      const resp = await fetch(proxyInlineUrl, {
-        method: "GET",
-        cache: "no-store",
-      });
-
-      if (!resp.ok) {
-        throw new Error(`No se pudo cargar preview. Status ${resp.status}`);
-      }
-
-      const blob = await resp.blob();
-      const pdfBlob =
-        blob.type?.toLowerCase().includes("pdf")
-          ? blob
-          : new Blob([blob], { type: "application/pdf" });
-
-      const blobUrl = URL.createObjectURL(pdfBlob);
-
-      setPreviewUrl(blobUrl);
-      setPreviewDownloadUrl(proxyDownloadUrl || proxyInlineUrl);
-    } catch (e: any) {
-      setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar preview")}`);
-    }
+    setMsg(null);
+    setPreviewUrl(proxyInlineUrl);
+    setPreviewDownloadUrl(proxyDownloadUrl || proxyInlineUrl);
   }
 
   const providerOptions = useMemo(() => {
@@ -906,9 +877,6 @@ export default function SustainabilityIGAFOMTable() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (previewUrl?.startsWith("blob:")) {
-                      URL.revokeObjectURL(previewUrl);
-                    }
                     setPreviewUrl(null);
                     setPreviewDownloadUrl(null);
                   }}
@@ -942,16 +910,7 @@ export default function SustainabilityIGAFOMTable() {
                 background: "#111",
               }}
             >
-              <iframe
-                src={previewUrl || undefined}
-                title="Preview PDF"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  border: "none",
-                  background: "#111",
-                }}
-              />
+              {previewUrl ? <PdfPreview fileUrl={previewUrl} /> : null}
             </div>
           </div>
         </div>
