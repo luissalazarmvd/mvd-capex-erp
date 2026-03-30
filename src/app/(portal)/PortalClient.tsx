@@ -141,7 +141,7 @@ export default function PortalClient() {
             </Button>
 
             <Button type="button" size="lg" variant="primary" onClick={() => start("sustainability")}>
-              Sustainability
+              Sostenibilidad
             </Button>
 
             <Button type="button" size="lg" variant="primary" onClick={() => start("ti")}>
