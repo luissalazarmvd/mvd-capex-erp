@@ -69,11 +69,22 @@ function normalizeDownloadUrl(url: string | null | undefined) {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
-function openPdf(url: string | null | undefined) {
+function buildProxyPdfUrl(url: string | null | undefined) {
   const finalUrl = normalizeDownloadUrl(url);
-  if (!finalUrl || !API_BASE_URL) return;
+  if (!finalUrl || !API_BASE_URL) return "";
 
-  const proxyUrl = `${API_BASE_URL}/api/sustainability/igafom/download?url=${encodeURIComponent(finalUrl)}`;
+  return `${API_BASE_URL}/api/sustainability/igafom/download?url=${encodeURIComponent(finalUrl)}`;
+}
+
+function openPdf(url: string | null | undefined) {
+  const proxyUrl = buildProxyPdfUrl(url);
+  if (!proxyUrl) return;
+
+  window.open(proxyUrl, "_blank", "noopener,noreferrer");
+}
+
+function openProxyPdf(proxyUrl: string | null | undefined) {
+  if (!proxyUrl) return;
   window.open(proxyUrl, "_blank", "noopener,noreferrer");
 }
 
@@ -257,6 +268,7 @@ export default function SustainabilityIGAFOMTable() {
   const [rows, setRows] = useState<IGAFOMRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const [providerText, setProviderText] = useState("");
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
@@ -286,6 +298,12 @@ export default function SustainabilityIGAFOMTable() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  function previewPdf(url: string | null | undefined) {
+    const proxyUrl = buildProxyPdfUrl(url);
+    if (!proxyUrl) return;
+    setPreviewUrl(proxyUrl);
+  }
 
   const providerOptions = useMemo(() => {
     const raw: ProviderOption[] = rows.map((row) => {
@@ -667,27 +685,59 @@ export default function SustainabilityIGAFOMTable() {
                         }}
                       >
                         {url ? (
-                          <button
-                            type="button"
-                            onClick={() => openPdf(row.url)}
+                          <div
                             style={{
                               display: "inline-flex",
+                              gap: 8,
                               alignItems: "center",
                               justifyContent: "center",
-                              minHeight: 32,
-                              padding: "0 12px",
-                              borderRadius: 8,
-                              background: "#0ea5e9",
-                              color: "#fff",
-                              fontWeight: 800,
-                              fontSize: 12,
-                              border: "none",
-                              cursor: "pointer",
-                              whiteSpace: "nowrap",
+                              flexWrap: "wrap",
                             }}
                           >
-                            Descargar PDF
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => previewPdf(row.url)}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minHeight: 32,
+                                padding: "0 12px",
+                                borderRadius: 8,
+                                background: "rgba(255,255,255,0.10)",
+                                color: "#fff",
+                                fontWeight: 800,
+                                fontSize: 12,
+                                border: "1px solid rgba(255,255,255,0.15)",
+                                cursor: "pointer",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Preview
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => openPdf(row.url)}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minHeight: 32,
+                                padding: "0 12px",
+                                borderRadius: 8,
+                                background: "#0ea5e9",
+                                color: "#fff",
+                                fontWeight: 800,
+                                fontSize: 12,
+                                border: "none",
+                                cursor: "pointer",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Descargar PDF
+                            </button>
+                          </div>
                         ) : (
                           <span style={{ opacity: 0.65, fontWeight: 800 }}>Sin URL</span>
                         )}
@@ -751,6 +801,113 @@ export default function SustainabilityIGAFOMTable() {
           </Table>
         </div>
       </div>
+
+      {previewUrl ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.65)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            className="panel-inner"
+            style={{
+              width: "min(1200px, 96vw)",
+              height: "min(90vh, 900px)",
+              display: "grid",
+              gridTemplateRows: "auto 1fr",
+              gap: 10,
+              padding: 12,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ fontWeight: 900 }}>Preview PDF</div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => openProxyPdf(previewUrl)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: 34,
+                    padding: "0 12px",
+                    borderRadius: 8,
+                    background: "#0ea5e9",
+                    color: "#fff",
+                    fontWeight: 800,
+                    fontSize: 12,
+                    border: "none",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Descargar PDF
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewUrl(null)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: 34,
+                    padding: "0 12px",
+                    borderRadius: 8,
+                    background: "rgba(255,255,255,0.10)",
+                    color: "#fff",
+                    fontWeight: 800,
+                    fontSize: 12,
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                minWidth: 0,
+                minHeight: 0,
+                borderRadius: 10,
+                overflow: "hidden",
+                background: "#111",
+              }}
+            >
+              <iframe
+                src={previewUrl}
+                title="Preview PDF"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                  background: "#111",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
