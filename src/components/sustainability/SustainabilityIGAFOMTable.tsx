@@ -67,11 +67,13 @@ function normalizeDownloadUrl(url: string | null | undefined) {
   return `http://${value.replace(/^\/+/, "")}`;
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
 function openPdf(url: string | null | undefined) {
   const finalUrl = normalizeDownloadUrl(url);
-  if (!finalUrl) return;
+  if (!finalUrl || !API_BASE_URL) return;
 
-  const proxyUrl = `/api/sustainability/igafom/download?url=${encodeURIComponent(finalUrl)}`;
+  const proxyUrl = `${API_BASE_URL}/api/sustainability/igafom/download?url=${encodeURIComponent(finalUrl)}`;
   window.open(proxyUrl, "_blank", "noopener,noreferrer");
 }
 
