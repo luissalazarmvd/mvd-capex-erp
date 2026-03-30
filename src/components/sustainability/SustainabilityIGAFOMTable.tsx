@@ -272,6 +272,7 @@ export default function SustainabilityIGAFOMTable() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewDownloadUrl, setPreviewDownloadUrl] = useState<string | null>(null);
 
   const [providerText, setProviderText] = useState("");
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
@@ -302,10 +303,49 @@ export default function SustainabilityIGAFOMTable() {
     loadData();
   }, [loadData]);
 
-  function previewPdf(url: string | null | undefined) {
-    const proxyUrl = buildProxyPdfUrl(url, "inline");
-    if (!proxyUrl) return;
-    setPreviewUrl(`${proxyUrl}#toolbar=1&navpanes=0&scrollbar=1`);
+  useEffect(() => {
+    return () => {
+      if (previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  async function previewPdf(url: string | null | undefined) {
+    const proxyInlineUrl = buildProxyPdfUrl(url, "inline");
+    const proxyDownloadUrl = buildProxyPdfUrl(url, "attachment");
+
+    if (!proxyInlineUrl) return;
+
+    try {
+      setMsg(null);
+
+      if (previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+
+      const resp = await fetch(proxyInlineUrl, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      if (!resp.ok) {
+        throw new Error(`No se pudo cargar preview. Status ${resp.status}`);
+      }
+
+      const blob = await resp.blob();
+      const pdfBlob =
+        blob.type?.toLowerCase().includes("pdf")
+          ? blob
+          : new Blob([blob], { type: "application/pdf" });
+
+      const blobUrl = URL.createObjectURL(pdfBlob);
+
+      setPreviewUrl(blobUrl);
+      setPreviewDownloadUrl(proxyDownloadUrl || proxyInlineUrl);
+    } catch (e: any) {
+      setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar preview")}`);
+    }
   }
 
   const providerOptions = useMemo(() => {
@@ -843,7 +883,7 @@ export default function SustainabilityIGAFOMTable() {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
                   type="button"
-                  onClick={() => openProxyPdf(previewUrl)}
+                  onClick={() => openProxyPdf(previewDownloadUrl)}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -865,7 +905,13 @@ export default function SustainabilityIGAFOMTable() {
 
                 <button
                   type="button"
-                  onClick={() => setPreviewUrl(null)}
+                  onClick={() => {
+                    if (previewUrl?.startsWith("blob:")) {
+                      URL.revokeObjectURL(previewUrl);
+                    }
+                    setPreviewUrl(null);
+                    setPreviewDownloadUrl(null);
+                  }}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -897,7 +943,7 @@ export default function SustainabilityIGAFOMTable() {
               }}
             >
               <iframe
-                src={previewUrl}
+                src={previewUrl || undefined}
                 title="Preview PDF"
                 style={{
                   width: "100%",
