@@ -69,15 +69,18 @@ function normalizeDownloadUrl(url: string | null | undefined) {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
-function buildProxyPdfUrl(url: string | null | undefined) {
+function buildProxyPdfUrl(
+  url: string | null | undefined,
+  disposition: "inline" | "attachment" = "inline"
+) {
   const finalUrl = normalizeDownloadUrl(url);
   if (!finalUrl || !API_BASE_URL) return "";
 
-  return `${API_BASE_URL}/api/sustainability/igafom/download?url=${encodeURIComponent(finalUrl)}`;
+  return `${API_BASE_URL}/api/sustainability/igafom/download?url=${encodeURIComponent(finalUrl)}&disposition=${disposition}`;
 }
 
 function openPdf(url: string | null | undefined) {
-  const proxyUrl = buildProxyPdfUrl(url);
+  const proxyUrl = buildProxyPdfUrl(url, "attachment");
   if (!proxyUrl) return;
 
   window.open(proxyUrl, "_blank", "noopener,noreferrer");
@@ -300,9 +303,9 @@ export default function SustainabilityIGAFOMTable() {
   }, [loadData]);
 
   function previewPdf(url: string | null | undefined) {
-    const proxyUrl = buildProxyPdfUrl(url);
+    const proxyUrl = buildProxyPdfUrl(url, "inline");
     if (!proxyUrl) return;
-    setPreviewUrl(proxyUrl);
+    setPreviewUrl(`${proxyUrl}#toolbar=1&navpanes=0&scrollbar=1`);
   }
 
   const providerOptions = useMemo(() => {
