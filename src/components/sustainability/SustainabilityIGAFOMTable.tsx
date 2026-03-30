@@ -376,7 +376,6 @@ export default function SustainabilityIGAFOMTable() {
   }, [rows, providerText, selectedProvider, concessionText, selectedConcession]);
 
   const totalPdf = filteredRows.filter((row) => normalizeText(row.url)).length;
-
   const headerBg = "rgb(6, 36, 58)";
   const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
   const gridV = "1px solid rgba(191, 231, 255, 0.10)";
