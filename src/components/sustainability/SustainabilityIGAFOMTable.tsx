@@ -91,11 +91,6 @@ function openPdf(url: string | null | undefined) {
   window.open(proxyUrl, "_blank", "noopener,noreferrer");
 }
 
-function openProxyPdf(proxyUrl: string | null | undefined) {
-  if (!proxyUrl) return;
-  window.open(proxyUrl, "_blank", "noopener,noreferrer");
-}
-
 type SearchableSelectProps = {
   label: string;
   placeholder: string;
@@ -276,8 +271,7 @@ export default function SustainabilityIGAFOMTable() {
   const [rows, setRows] = useState<IGAFOMRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [previewData, setPreviewData] = useState<Uint8Array | null>(null);
-  const [previewDownloadUrl, setPreviewDownloadUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const [providerText, setProviderText] = useState("");
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
@@ -308,39 +302,12 @@ export default function SustainabilityIGAFOMTable() {
     loadData();
   }, [loadData]);
 
-  async function previewPdf(url: string | null | undefined) {
+  function previewPdf(url: string | null | undefined) {
     const proxyInlineUrl = buildProxyPdfUrl(url, "inline");
-    const proxyDownloadUrl = buildProxyPdfUrl(url, "attachment");
-
     if (!proxyInlineUrl) return;
 
-    try {
-      setMsg(null);
-
-      const resp = await fetch(proxyInlineUrl, {
-        method: "GET",
-        cache: "no-store",
-      });
-
-      if (!resp.ok) {
-        throw new Error(`No se pudo cargar preview. Status ${resp.status}`);
-      }
-
-      const contentType = String(resp.headers.get("content-type") || "").toLowerCase();
-      const bytes = new Uint8Array(await resp.arrayBuffer());
-      const signature = new TextDecoder("ascii").decode(bytes.slice(0, 5));
-
-      if (signature !== "%PDF-") {
-        throw new Error("La respuesta no es un PDF válido");
-      }
-
-      setPreviewData(bytes);
-      setPreviewDownloadUrl(proxyDownloadUrl || proxyInlineUrl);
-    } catch (e: any) {
-      setPreviewData(null);
-      setPreviewDownloadUrl(null);
-      setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar preview")}`);
-    }
+    setMsg(null);
+    setPreviewUrl(proxyInlineUrl);
   }
 
   const providerOptions = useMemo(() => {
@@ -839,105 +806,11 @@ export default function SustainabilityIGAFOMTable() {
         </div>
       </div>
 
-      {previewData ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.65)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            className="panel-inner"
-            style={{
-              width: "min(1200px, 96vw)",
-              height: "min(90vh, 900px)",
-              display: "grid",
-              gridTemplateRows: "auto 1fr",
-              gap: 10,
-              padding: 12,
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ fontWeight: 900 }}>Preview PDF</div>
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => openProxyPdf(previewDownloadUrl)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minHeight: 34,
-                    padding: "0 12px",
-                    borderRadius: 8,
-                    background: "#0ea5e9",
-                    color: "#fff",
-                    fontWeight: 800,
-                    fontSize: 12,
-                    border: "none",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Descargar PDF
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPreviewData(null);
-                    setPreviewDownloadUrl(null);
-                  }}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minHeight: 34,
-                    padding: "0 12px",
-                    borderRadius: 8,
-                    background: "rgba(255,255,255,0.10)",
-                    color: "#fff",
-                    fontWeight: 800,
-                    fontSize: 12,
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-
-            <div
-              style={{
-                minWidth: 0,
-                minHeight: 0,
-                borderRadius: 10,
-                overflow: "auto",
-                background: "#111",
-              }}
-            >
-              {previewData ? <PdfPreview fileData={previewData} /> : null}
-            </div>
-          </div>
-        </div>
+      {previewUrl ? (
+        <PdfPreview
+          fileUrl={previewUrl}
+          onDone={() => setPreviewUrl(null)}
+        />
       ) : null}
     </div>
   );
