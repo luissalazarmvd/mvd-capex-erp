@@ -59,7 +59,7 @@ function uniqueByValue<T extends { value: string }>(items: T[]) {
 }
 
 function downloadFile(url: string) {
-  window.open(url, "_blank", "noopener,noreferrer");
+  window.location.href = url;
 }
 
 type SearchableSelectProps = {
@@ -652,14 +652,28 @@ export default function SustainabilityIGAFOMTable() {
                         }}
                       >
                         {url ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="primary"
-                            onClick={() => downloadFile(url)}
+                          <a
+                            href={url}
+                            target="_self"
+                            rel="noreferrer"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minHeight: 32,
+                              padding: "0 12px",
+                              borderRadius: 8,
+                              background: "#0ea5e9",
+                              color: "#fff",
+                              fontWeight: 800,
+                              fontSize: 12,
+                              textDecoration: "none",
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
                           >
                             Descargar PDF
-                          </Button>
+                          </a>
                         ) : (
                           <span style={{ opacity: 0.65, fontWeight: 800 }}>Sin URL</span>
                         )}
