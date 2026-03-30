@@ -70,7 +70,9 @@ function normalizeDownloadUrl(url: string | null | undefined) {
 function openPdf(url: string | null | undefined) {
   const finalUrl = normalizeDownloadUrl(url);
   if (!finalUrl) return;
-  window.open(finalUrl, "_blank", "noopener,noreferrer");
+
+  const proxyUrl = `/api/sustainability/igafom/download?url=${encodeURIComponent(finalUrl)}`;
+  window.open(proxyUrl, "_blank", "noopener,noreferrer");
 }
 
 type SearchableSelectProps = {
