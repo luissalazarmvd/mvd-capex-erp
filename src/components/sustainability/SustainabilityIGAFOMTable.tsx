@@ -276,7 +276,7 @@ export default function SustainabilityIGAFOMTable() {
   const [rows, setRows] = useState<IGAFOMRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewData, setPreviewData] = useState<Uint8Array | null>(null);
   const [previewDownloadUrl, setPreviewDownloadUrl] = useState<string | null>(null);
 
   const [providerText, setProviderText] = useState("");
@@ -308,15 +308,39 @@ export default function SustainabilityIGAFOMTable() {
     loadData();
   }, [loadData]);
 
-  function previewPdf(url: string | null | undefined) {
+  async function previewPdf(url: string | null | undefined) {
     const proxyInlineUrl = buildProxyPdfUrl(url, "inline");
     const proxyDownloadUrl = buildProxyPdfUrl(url, "attachment");
 
     if (!proxyInlineUrl) return;
 
-    setMsg(null);
-    setPreviewUrl(proxyInlineUrl);
-    setPreviewDownloadUrl(proxyDownloadUrl || proxyInlineUrl);
+    try {
+      setMsg(null);
+
+      const resp = await fetch(proxyInlineUrl, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      if (!resp.ok) {
+        throw new Error(`No se pudo cargar preview. Status ${resp.status}`);
+      }
+
+      const contentType = String(resp.headers.get("content-type") || "").toLowerCase();
+      const bytes = new Uint8Array(await resp.arrayBuffer());
+      const signature = new TextDecoder("ascii").decode(bytes.slice(0, 5));
+
+      if (!contentType.includes("pdf") && signature !== "%PDF-") {
+        throw new Error("La respuesta no es un PDF válido");
+      }
+
+      setPreviewData(bytes);
+      setPreviewDownloadUrl(proxyDownloadUrl || proxyInlineUrl);
+    } catch (e: any) {
+      setPreviewData(null);
+      setPreviewDownloadUrl(null);
+      setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar preview")}`);
+    }
   }
 
   const providerOptions = useMemo(() => {
@@ -815,7 +839,7 @@ export default function SustainabilityIGAFOMTable() {
         </div>
       </div>
 
-      {previewUrl ? (
+      {previewData ? (
         <div
           style={{
             position: "fixed",
@@ -877,7 +901,7 @@ export default function SustainabilityIGAFOMTable() {
                 <button
                   type="button"
                   onClick={() => {
-                    setPreviewUrl(null);
+                    setPreviewData(null);
                     setPreviewDownloadUrl(null);
                   }}
                   style={{
@@ -906,11 +930,11 @@ export default function SustainabilityIGAFOMTable() {
                 minWidth: 0,
                 minHeight: 0,
                 borderRadius: 10,
-                overflow: "hidden",
+                overflow: "auto",
                 background: "#111",
               }}
             >
-              {previewUrl ? <PdfPreview fileUrl={previewUrl} /> : null}
+              {previewData ? <PdfPreview fileData={previewData} /> : null}
             </div>
           </div>
         </div>

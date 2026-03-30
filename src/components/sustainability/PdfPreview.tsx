@@ -13,25 +13,25 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 type Props = {
-  fileUrl: string;
+  fileData: Uint8Array;
 };
 
-export default function PdfPreview({ fileUrl }: Props) {
+export default function PdfPreview({ fileData }: Props) {
   const [numPages, setNumPages] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
 
   return (
-    <div style={{ width: "100%", height: "100%", overflow: "auto", padding: 12 }}>
-      <Document
-        file={fileUrl}
+        <div style={{ width: "100%", height: "100%", overflow: "auto", padding: 12 }}>
+        <Document
+        file={{ data: fileData }}
         onLoadSuccess={({ numPages }) => {
-          setNumPages(numPages);
-          setPageNumber(1);
+            setNumPages(numPages);
+            setPageNumber(1);
         }}
         onLoadError={(err) => {
-          console.error("PDF load error:", err);
+            console.error("PDF load error:", err);
         }}
-      >
+        >
         <Page pageNumber={pageNumber} width={1000} />
       </Document>
 
