@@ -58,8 +58,19 @@ function uniqueByValue<T extends { value: string }>(items: T[]) {
   return out;
 }
 
-function downloadFile(url: string) {
-  window.location.href = url;
+function normalizeDownloadUrl(url: string | null | undefined) {
+  const value = normalizeText(url);
+  if (!value) return "";
+
+  if (/^https?:\/\//i.test(value)) return value;
+
+  return `http://${value.replace(/^\/+/, "")}`;
+}
+
+function openPdf(url: string | null | undefined) {
+  const finalUrl = normalizeDownloadUrl(url);
+  if (!finalUrl) return;
+  window.open(finalUrl, "_blank", "noopener,noreferrer");
 }
 
 type SearchableSelectProps = {
@@ -578,7 +589,7 @@ export default function SustainabilityIGAFOMTable() {
             <tbody>
               {!loading &&
                 filteredRows.map((row, index) => {
-                  const url = normalizeText(row.url);
+                  const url = normalizeDownloadUrl(row.url);
 
                   return (
                     <tr
@@ -652,10 +663,9 @@ export default function SustainabilityIGAFOMTable() {
                         }}
                       >
                         {url ? (
-                          <a
-                            href={url}
-                            target="_self"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => openPdf(row.url)}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -667,13 +677,13 @@ export default function SustainabilityIGAFOMTable() {
                               color: "#fff",
                               fontWeight: 800,
                               fontSize: 12,
-                              textDecoration: "none",
+                              border: "none",
                               cursor: "pointer",
                               whiteSpace: "nowrap",
                             }}
                           >
                             Descargar PDF
-                          </a>
+                          </button>
                         ) : (
                           <span style={{ opacity: 0.65, fontWeight: 800 }}>Sin URL</span>
                         )}
