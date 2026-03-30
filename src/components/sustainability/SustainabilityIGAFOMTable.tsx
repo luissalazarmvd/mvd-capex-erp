@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
@@ -69,10 +68,6 @@ function normalizeDownloadUrl(url: string | null | undefined) {
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-
-const PdfPreview = dynamic(() => import("./PdfPreview"), {
-  ssr: false,
-});
 
 function buildProxyPdfUrl(
   url: string | null | undefined,
@@ -271,7 +266,6 @@ export default function SustainabilityIGAFOMTable() {
   const [rows, setRows] = useState<IGAFOMRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const [providerText, setProviderText] = useState("");
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
@@ -301,14 +295,6 @@ export default function SustainabilityIGAFOMTable() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  function previewPdf(url: string | null | undefined) {
-    const proxyInlineUrl = buildProxyPdfUrl(url, "inline");
-    if (!proxyInlineUrl) return;
-
-    setMsg(null);
-    setPreviewUrl(proxyInlineUrl);
-  }
 
   const providerOptions = useMemo(() => {
     const raw: ProviderOption[] = rows.map((row) => {
@@ -689,59 +675,27 @@ export default function SustainabilityIGAFOMTable() {
                         }}
                       >
                         {url ? (
-                          <div
+                          <button
+                            type="button"
+                            onClick={() => openPdf(row.url)}
                             style={{
                               display: "inline-flex",
-                              gap: 8,
                               alignItems: "center",
                               justifyContent: "center",
-                              flexWrap: "wrap",
+                              minHeight: 32,
+                              padding: "0 12px",
+                              borderRadius: 8,
+                              background: "#0ea5e9",
+                              color: "#fff",
+                              fontWeight: 800,
+                              fontSize: 12,
+                              border: "none",
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
                             }}
                           >
-                            <button
-                              type="button"
-                              onClick={() => previewPdf(row.url)}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                minHeight: 32,
-                                padding: "0 12px",
-                                borderRadius: 8,
-                                background: "rgba(255,255,255,0.10)",
-                                color: "#fff",
-                                fontWeight: 800,
-                                fontSize: 12,
-                                border: "1px solid rgba(255,255,255,0.15)",
-                                cursor: "pointer",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              Preview
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => openPdf(row.url)}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                minHeight: 32,
-                                padding: "0 12px",
-                                borderRadius: 8,
-                                background: "#0ea5e9",
-                                color: "#fff",
-                                fontWeight: 800,
-                                fontSize: 12,
-                                border: "none",
-                                cursor: "pointer",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              Descargar PDF
-                            </button>
-                          </div>
+                            Descargar PDF
+                          </button>
                         ) : (
                           <span style={{ opacity: 0.65, fontWeight: 800 }}>Sin URL</span>
                         )}
@@ -805,13 +759,6 @@ export default function SustainabilityIGAFOMTable() {
           </Table>
         </div>
       </div>
-
-      {previewUrl ? (
-        <PdfPreview
-          fileUrl={previewUrl}
-          onDone={() => setPreviewUrl(null)}
-        />
-      ) : null}
     </div>
   );
 }
