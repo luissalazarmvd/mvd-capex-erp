@@ -17,21 +17,30 @@ type Props = {
 };
 
 export default function PdfPreview({ fileData }: Props) {
-  const [numPages, setNumPages] = useState(0);
-  const [pageNumber, setPageNumber] = useState(1);
+    const [numPages, setNumPages] = useState(0);
+    const [pageNumber, setPageNumber] = useState(1);
+    const [pdfError, setPdfError] = useState<string | null>(null);
 
   return (
         <div style={{ width: "100%", height: "100%", overflow: "auto", padding: 12 }}>
         <Document
         file={{ data: fileData }}
         onLoadSuccess={({ numPages }) => {
-            setNumPages(numPages);
-            setPageNumber(1);
+        setNumPages(numPages);
+        setPageNumber(1);
+        setPdfError(null);
         }}
         onLoadError={(err) => {
-            console.error("PDF load error:", err);
+        console.error("PDF load error:", err);
+        setPdfError(String(err?.message || err || "Error cargando PDF"));
         }}
         >
+        {pdfError ? (
+        <div style={{ color: "#fff", fontWeight: 800, marginBottom: 12 }}>
+            ERROR: {pdfError}
+        </div>
+        ) : null}
+
         <Page pageNumber={pageNumber} width={1000} />
       </Document>
 

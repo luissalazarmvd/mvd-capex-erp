@@ -330,7 +330,7 @@ export default function SustainabilityIGAFOMTable() {
       const bytes = new Uint8Array(await resp.arrayBuffer());
       const signature = new TextDecoder("ascii").decode(bytes.slice(0, 5));
 
-      if (!contentType.includes("pdf") && signature !== "%PDF-") {
+      if (signature !== "%PDF-") {
         throw new Error("La respuesta no es un PDF válido");
       }
 
