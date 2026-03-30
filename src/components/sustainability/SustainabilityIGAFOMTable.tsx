@@ -59,14 +59,7 @@ function uniqueByValue<T extends { value: string }>(items: T[]) {
 }
 
 function downloadFile(url: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  a.download = "";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 type SearchableSelectProps = {
