@@ -277,7 +277,9 @@ export default function ComplianceDownloadsPage() {
         throw new Error(data?.error || "No se pudo descargar la información");
       }
 
-      const rows: ComplianceSellRow[] = Array.isArray(data?.rows) ? data.rows : [];
+      const rows: ComplianceSellRow[] = (Array.isArray(data?.rows) ? data.rows : [])
+        .slice()
+        .sort((a, b) => Number(a?.item ?? 0) - Number(b?.item ?? 0));
 
       const exportRows = rows.map((r) => ({
         item: r.item ?? "",
