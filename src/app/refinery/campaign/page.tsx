@@ -77,6 +77,10 @@ function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
+function round3(n: number) {
+  return Math.round((n + Number.EPSILON) * 1000) / 1000;
+}
+
 function buildCampaignId(campaign_date: string, campaign_no: string) {
   const no = clampInt_1to99_OrNull(campaign_no);
   if (!campaign_date || no === null) return "";
@@ -171,9 +175,19 @@ export default function RefineryCampaignPage() {
 
   const canSave = useMemo(() => inputsOk && !!campaign_id && !saving, [inputsOk, campaign_id, saving]);
 
-  async function loadCampaigns() {
+  const visualTms = useMemo(() => {
+    const tmh = toNumOrNaN(form.campaign_wet_cr);
+    const moisturePct = toNumOrNaN(form.campaign_moisture_pct);
+
+    if (!Number.isFinite(tmh) || tmh <= 0) return null;
+    if (!Number.isFinite(moisturePct) || moisturePct < 0) return null;
+
+    return round3(tmh * (1 - moisturePct / 100));
+  }, [form.campaign_wet_cr, form.campaign_moisture_pct]);
+
+  async function loadCampaigns(clearMsg: boolean = true) {
     setLoadingList(true);
-    setMsg(null);
+    if (clearMsg) setMsg(null);
     try {
       const r = (await apiGet("/api/refineria/campaigns")) as CampaignsResp;
       setRows(Array.isArray(r.rows) ? r.rows : []);
@@ -185,9 +199,9 @@ export default function RefineryCampaignPage() {
   }
 
   function numToStr(v: any) {
-    if (v === null || v === undefined) return "";
+    if (v === null || v === undefined || v === "") return "";
     const n = Number(v);
-    return Number.isFinite(n) ? String(n) : "";
+    return Number.isFinite(n) ? round3(n).toFixed(3) : "";
   }
 
   async function loadExistingIfAny() {
@@ -218,15 +232,16 @@ export default function RefineryCampaignPage() {
         ) ?? null;
 
       if (ex) {
-        setExistingDateIso(ex.campaign_date ? String(ex.campaign_date).slice(0, 10) : null);
+        const exDateIso = ex.campaign_date ? String(ex.campaign_date).slice(0, 10) : "";
+        setExistingDateIso(exDateIso || null);
         setForm((s) => ({
           ...s,
-          campaign_date: (ex.campaign_date ?? s.campaign_date) as string,
+          campaign_date: exDateIso || s.campaign_date,
           campaign_wet_cr: numToStr(ex.campaign_wet_cr),
           campaign_moisture_pct:
             ex.campaign_moisture_pct === null || ex.campaign_moisture_pct === undefined
               ? ""
-              : String(Number(ex.campaign_moisture_pct) * 100),
+              : round3(Number(ex.campaign_moisture_pct) * 100).toFixed(3),
           campaign_au_grade: numToStr(ex.campaign_au_grade),
           campaign_ag_grade: numToStr(ex.campaign_ag_grade),
         }));
@@ -279,22 +294,22 @@ export default function RefineryCampaignPage() {
         return;
       }
 
-      const moistDec = moistPct / 100;
-      const campaign_cr = wet * (1 - moistDec);
+      const moistDec = round3(moistPct / 100);
+      const campaign_cr = round3(wet * (1 - moistDec));
 
       const payload = {
         campaign_id,
         campaign_date: form.campaign_date,
-        campaign_wet_cr: wet,
+        campaign_wet_cr: round3(wet),
         campaign_moisture_pct: moistDec,
-        campaign_au_grade: au,
-        campaign_ag_grade: ag,
+        campaign_au_grade: round3(au),
+        campaign_ag_grade: round3(ag),
         campaign_cr,
       };
 
       await apiPost("/api/refineria/campaign/upsert", payload);
       setMsg(`OK: guardado ${campaign_id}`);
-      await loadCampaigns();
+      await loadCampaigns(false);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando campaña");
     } finally {
@@ -313,7 +328,7 @@ export default function RefineryCampaignPage() {
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={loadCampaigns} disabled={loadingList || saving}>
+          <Button type="button" size="sm" variant="ghost" onClick={() => loadCampaigns()} disabled={loadingList || saving}>
             {loadingList ? "Cargando..." : "Refrescar"}
           </Button>
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
@@ -379,15 +394,31 @@ export default function RefineryCampaignPage() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 180px 1fr", gap: 12, alignItems: "end" }}>
             <Input
               placeholder=""
               value={form.campaign_wet_cr}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 setForm((s) => ({ ...s, campaign_wet_cr: e.target.value }))
               }
-              hint="Carbón Húmedo (kg) > 0"
+              hint="TMH / Carbón Húmedo (kg) > 0"
             />
+
+            <div
+              className="panel-inner"
+              style={{
+                padding: "10px 12px",
+                minHeight: 44,
+                display: "grid",
+                alignItems: "center",
+                fontWeight: 900,
+                fontSize: 13,
+                opacity: 0.95,
+              }}
+            >
+              {visualTms !== null ? `TMS: ${visualTms.toFixed(3)}` : "TMS: -"}
+            </div>
+
             <Input
               placeholder=""
               value={form.campaign_moisture_pct}
