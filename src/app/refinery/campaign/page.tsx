@@ -238,6 +238,19 @@ function getMaxExistingCampaignNoForPeriod(rows: CampaignRow[], periodKey: strin
   return max;
 }
 
+function sortPreviewRowsByCampaignId(rows: ImportPreviewRow[]) {
+  return [...rows].sort((a, b) => {
+    const aId = normalizeText(a.campaign_id);
+    const bId = normalizeText(b.campaign_id);
+
+    if (!aId && !bId) return a.row_num - b.row_num;
+    if (!aId || aId === "—") return 1;
+    if (!bId || bId === "—") return -1;
+
+    return aId.localeCompare(bId);
+  });
+}
+
 function getFileStamp() {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -613,7 +626,9 @@ export default function RefineryCampaignPage() {
       total_excel_rows
     );
 
-    setPreviewRows(revalidatedRows);
+    const orderedPreviewRows = sortPreviewRowsByCampaignId(revalidatedRows);
+
+    setPreviewRows(orderedPreviewRows);
     setImportSummary(summary);
   }
 
@@ -786,7 +801,9 @@ export default function RefineryCampaignPage() {
         rawRows.length
       );
 
-      setPreviewRows(revalidatedRows);
+      const orderedPreviewRows = sortPreviewRowsByCampaignId(revalidatedRows);
+
+      setPreviewRows(orderedPreviewRows);
       setImportSummary(summary);
       setPreviewOpen(true);
     } catch (e: any) {
@@ -813,7 +830,9 @@ export default function RefineryCampaignPage() {
     setMsg(null);
 
     try {
-      for (const row of previewRows) {
+      const orderedPreviewRows = sortPreviewRowsByCampaignId(previewRows);
+
+      for (const row of orderedPreviewRows) {
         if (!row.payload) continue;
         await apiPost("/api/refineria/campaign/upsert", row.payload);
       }
