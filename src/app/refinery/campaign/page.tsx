@@ -394,58 +394,104 @@ export default function RefineryCampaignPage() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 180px 1fr", gap: 12, alignItems: "end" }}>
-            <Input
-              placeholder=""
-              value={form.campaign_wet_cr}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setForm((s) => ({ ...s, campaign_wet_cr: e.target.value }))
-              }
-              hint="TMH / Carbón Húmedo (kg) > 0"
-            />
-
-            <div
-              className="panel-inner"
-              style={{
-                padding: "10px 12px",
-                minHeight: 44,
-                display: "grid",
-                alignItems: "center",
-                fontWeight: 900,
-                fontSize: 13,
-                opacity: 0.95,
-              }}
-            >
-              {visualTms !== null ? `TMS: ${visualTms.toFixed(3)}` : "TMS: -"}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 180px 1fr", gap: 12, alignItems: "start" }}>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>TMH</div>
+              <input
+                value={form.campaign_wet_cr}
+                disabled={saving}
+                onChange={(e) => setForm((s) => ({ ...s, campaign_wet_cr: e.target.value }))}
+                placeholder=""
+                inputMode="decimal"
+                style={{
+                  width: "100%",
+                  background: "rgba(0,0,0,.10)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  outline: "none",
+                  fontWeight: 900,
+                  opacity: saving ? 0.7 : 1,
+                }}
+              />
             </div>
 
-            <Input
-              placeholder=""
-              value={form.campaign_moisture_pct}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setForm((s) => ({ ...s, campaign_moisture_pct: e.target.value }))
-              }
-              hint="# de Humedad (1-100)"
-            />
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>TMS</div>
+              <div style={{ minHeight: 44 }} />
+              <div className="muted" style={{ fontWeight: 900, fontSize: 13, lineHeight: 1.2 }}>
+                {visualTms !== null ? visualTms.toFixed(3) : "-"}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>% de Humedad</div>
+              <input
+                value={form.campaign_moisture_pct}
+                disabled={saving}
+                onChange={(e) => setForm((s) => ({ ...s, campaign_moisture_pct: e.target.value }))}
+                placeholder=""
+                inputMode="decimal"
+                style={{
+                  width: "100%",
+                  background: "rgba(0,0,0,.10)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  outline: "none",
+                  fontWeight: 900,
+                  opacity: saving ? 0.7 : 1,
+                }}
+              />
+            </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Input
-              placeholder=""
-              value={form.campaign_au_grade}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setForm((s) => ({ ...s, campaign_au_grade: e.target.value }))
-              }
-              hint="Ley Au > 0"
-            />
-            <Input
-              placeholder=""
-              value={form.campaign_ag_grade}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setForm((s) => ({ ...s, campaign_ag_grade: e.target.value }))
-              }
-              hint="Ley Ag > 0"
-            />
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Au</div>
+              <input
+                value={form.campaign_au_grade}
+                disabled={saving}
+                onChange={(e) => setForm((s) => ({ ...s, campaign_au_grade: e.target.value }))}
+                placeholder=""
+                inputMode="decimal"
+                style={{
+                  width: "100%",
+                  background: "rgba(0,0,0,.10)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  outline: "none",
+                  fontWeight: 900,
+                  opacity: saving ? 0.7 : 1,
+                }}
+              />
+            </div>
+
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Ag</div>
+              <input
+                value={form.campaign_ag_grade}
+                disabled={saving}
+                onChange={(e) => setForm((s) => ({ ...s, campaign_ag_grade: e.target.value }))}
+                placeholder=""
+                inputMode="decimal"
+                style={{
+                  width: "100%",
+                  background: "rgba(0,0,0,.10)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  outline: "none",
+                  fontWeight: 900,
+                  opacity: saving ? 0.7 : 1,
+                }}
+              />
+            </div>
           </div>
 
           {!inputsOk ? (
