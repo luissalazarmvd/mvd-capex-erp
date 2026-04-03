@@ -377,7 +377,12 @@ export default function RefineryCampaignPage() {
           <Button type="button" size="sm" variant="ghost" onClick={() => loadCampaigns()} disabled={loadingList || saving}>
             {loadingList ? "Cargando..." : "Refrescar"}
           </Button>
-          <CampImpExp rows={rows} setMsg={setMsg} loadCampaigns={loadCampaigns} disabled={loadingList || saving} />
+          <CampImpExp
+            rows={rows}
+            setMsgAction={setMsg}
+            loadCampaignsAction={loadCampaigns}
+            disabled={loadingList || saving}
+          />
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
             {saving ? "Guardando…" : "Guardar"}
           </Button>

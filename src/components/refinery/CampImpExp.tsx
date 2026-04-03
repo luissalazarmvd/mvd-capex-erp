@@ -73,8 +73,8 @@ type ImportSummary = {
 
 type Props = {
   rows: CampaignRow[];
-  setMsg: React.Dispatch<React.SetStateAction<string | null>>;
-  loadCampaigns: (clearMsg?: boolean) => Promise<void>;
+  setMsgAction: React.Dispatch<React.SetStateAction<string | null>>;
+  loadCampaignsAction: (clearMsg?: boolean) => Promise<void>;
   disabled?: boolean;
 };
 
@@ -463,8 +463,8 @@ function revalidatePreviewRows(
 
 export default function CampImpExp({
   rows,
-  setMsg,
-  loadCampaigns,
+  setMsgAction,
+  loadCampaignsAction,
   disabled = false,
 }: Props) {
   const [importing, setImporting] = useState(false);
@@ -524,10 +524,10 @@ export default function CampImpExp({
   }
 
   function onExportExcel() {
-    if (!rows.length) {
-      setMsg("No hay campañas para exportar.");
-      return;
-    }
+      if (!rows.length) {
+        setMsgAction("No hay campañas para exportar.");
+        return;
+      }
 
     const exportRows = [...rows]
       .sort((a, b) => normalizeText(a.campaign_id).localeCompare(normalizeText(b.campaign_id)))
@@ -557,10 +557,10 @@ export default function CampImpExp({
   }
 
   async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-    setMsg(null);
+      setMsgAction(null);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -684,7 +684,7 @@ export default function CampImpExp({
       setImportSummary(summary);
       setPreviewOpen(true);
     } catch (e: any) {
-      setMsg(`ERROR: ${String(e?.message || e || "No se pudo importar el archivo")}`);
+      setMsgAction(`ERROR: ${String(e?.message || e || "No se pudo importar el archivo")}`);
     } finally {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -693,18 +693,18 @@ export default function CampImpExp({
   }
 
   async function confirmImport() {
-    if (!previewRows.length) {
-      setMsg("No hay filas para importar.");
-      return;
-    }
+      if (!previewRows.length) {
+        setMsgAction("No hay filas para importar.");
+        return;
+      }
 
     if (previewRows.some((row) => !row.valid)) {
-      setMsg("ERROR: corrige las filas inválidas del preview antes de importar.");
+      setMsgAction("ERROR: corrige las filas inválidas del preview antes de importar.");
       return;
     }
 
     setImporting(true);
-    setMsg(null);
+    setMsgAction(null);
 
     try {
       const orderedPreviewRows = sortPreviewRowsByCampaignId(previewRows);
@@ -714,13 +714,13 @@ export default function CampImpExp({
         await apiPost("/api/refineria/campaign/upsert", row.payload);
       }
 
-      await loadCampaigns(false);
+      await loadCampaignsAction(false);
       setPreviewOpen(false);
       setPreviewRows([]);
       setImportSummary(null);
-      setMsg(`OK: se importaron ${orderedPreviewRows.length} campaña(s).`);
+      setMsgAction(`OK: se importaron ${orderedPreviewRows.length} campaña(s).`);
     } catch (e: any) {
-      setMsg(`ERROR: ${String(e?.message || e || "No se pudo importar el archivo")}`);
+      setMsgAction(`ERROR: ${String(e?.message || e || "No se pudo importar el archivo")}`);
     } finally {
       setImporting(false);
     }
