@@ -394,7 +394,7 @@ export default function RefineryCampaignPage() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 180px 1fr", gap: 12, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
             <div style={{ display: "grid", gap: 6 }}>
               <div style={{ fontWeight: 900, fontSize: 13 }}>TMH</div>
               <input
@@ -415,12 +415,18 @@ export default function RefineryCampaignPage() {
                   opacity: saving ? 0.7 : 1,
                 }}
               />
-              <div className="muted" style={{ fontWeight: 900, fontSize: 13, lineHeight: 1.2, color: "rgba(102,199,255,.95)" }}>
+              <div
+                className="muted"
+                style={{
+                  fontWeight: 900,
+                  fontSize: 13,
+                  lineHeight: 1.2,
+                  color: "rgba(102,199,255,.95)",
+                }}
+              >
                 {visualTms !== null ? `TMS=${visualTms.toFixed(3)}` : "TMS=-"}
               </div>
             </div>
-
-            <div />
 
             <div style={{ display: "grid", gap: 6 }}>
               <div style={{ fontWeight: 900, fontSize: 13 }}>% de Humedad (1-100)</div>
