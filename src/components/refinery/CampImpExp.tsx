@@ -161,9 +161,9 @@ function getImportField(header: unknown): ImportField | "" {
   const h = normalizeHeader(header);
 
   if (["#campana", "campana", "campaignno", "campaignnumber"].includes(h)) return "campaign_no";
-  if (["campaigndate", "fecha"].includes(h)) return "campaign_date";
-  if (["campaignwetcr", "cr", "tmh"].includes(h)) return "campaign_wet_cr";
-  if (["campaignmoisturepct", "moisture", "humedad", "%humedad"].includes(h)) return "campaign_moisture_pct";
+  if (["campaigndate", "fecha", "fechadecampana"].includes(h)) return "campaign_date";
+  if (["campaignwetcr", "cr", "tmh", "carbonhumedo(kg)"].includes(h)) return "campaign_wet_cr";
+  if (["campaignmoisturepct", "moisture", "humedad", "%humedad", "%humedad(1-100)"].includes(h)) return "campaign_moisture_pct";
   if (["campaignaugrade", "augrade", "leyau"].includes(h)) return "campaign_au_grade";
   if (["campaignaggrade", "aggrade", "leyag"].includes(h)) return "campaign_ag_grade";
 
@@ -532,13 +532,13 @@ export default function CampImpExp({
     const exportRows = [...rows]
       .sort((a, b) => normalizeText(a.campaign_id).localeCompare(normalizeText(b.campaign_id)))
       .map((row) => ({
-        "#campaña": campaignNoFromId(row.campaign_id),
-        campaign_date: row.campaign_date ? String(row.campaign_date).slice(0, 10) : "",
-        campaign_wet_cr: row.campaign_wet_cr == null ? "" : round3(Number(row.campaign_wet_cr)),
-        campaign_moisture_pct:
+        "Campaña": campaignNoFromId(row.campaign_id),
+        "Fecha de Campaña": row.campaign_date ? String(row.campaign_date).slice(0, 10) : "",
+        "Carbón Húmedo (kg)": row.campaign_wet_cr == null ? "" : round3(Number(row.campaign_wet_cr)),
+        "%Humedad (1-100)":
           row.campaign_moisture_pct == null ? "" : round3(Number(row.campaign_moisture_pct) * 100),
-        campaign_au_grade: row.campaign_au_grade == null ? "" : round3(Number(row.campaign_au_grade)),
-        campaign_ag_grade: row.campaign_ag_grade == null ? "" : round3(Number(row.campaign_ag_grade)),
+        "Ley Au": row.campaign_au_grade == null ? "" : round3(Number(row.campaign_au_grade)),
+        "Ley Ag": row.campaign_ag_grade == null ? "" : round3(Number(row.campaign_ag_grade)),
       }));
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
@@ -882,13 +882,13 @@ export default function CampImpExp({
                   <tr>
                     {[
                       "fila",
-                      "campaign_id",
-                      "campaign_date",
-                      "campaign_wet_cr",
-                      "campaign_moisture_pct",
-                      "campaign_cr",
-                      "campaign_au_grade",
-                      "campaign_ag_grade",
+                      "Campaña",
+                      "Fecha de Campaña",
+                      "Carbón Húmedo (kg)",
+                      "%Humedad (1-100)",
+                      "Carbón Seco (kg)",
+                      "Ley Au",
+                      "Ley Ag",
                       "estado",
                       "repetido",
                       "errores",
