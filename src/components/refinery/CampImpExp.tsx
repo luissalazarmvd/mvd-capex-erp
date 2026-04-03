@@ -532,7 +532,7 @@ export default function CampImpExp({
     const exportRows = [...rows]
       .sort((a, b) => normalizeText(a.campaign_id).localeCompare(normalizeText(b.campaign_id)))
       .map((row) => ({
-        "Campaña": campaignNoFromId(row.campaign_id),
+        "#Campaña": campaignNoFromId(row.campaign_id),
         "Fecha de Campaña": row.campaign_date ? String(row.campaign_date).slice(0, 10) : "",
         "Carbón Húmedo (kg)": row.campaign_wet_cr == null ? "" : round3(Number(row.campaign_wet_cr)),
         "%Humedad (1-100)":
