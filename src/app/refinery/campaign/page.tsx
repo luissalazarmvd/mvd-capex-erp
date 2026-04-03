@@ -44,13 +44,14 @@ type ImportField =
 
 type ImportPreviewRow = {
   row_num: number;
+  campaign_no_raw: string;
   campaign_id: string;
-  campaign_date: string | null;
-  campaign_wet_cr: string | null;
-  campaign_moisture_pct: string | null;
-  campaign_cr: string | null;
-  campaign_au_grade: string | null;
-  campaign_ag_grade: string | null;
+  campaign_date: string;
+  campaign_wet_cr: string;
+  campaign_moisture_pct: string;
+  campaign_cr: string;
+  campaign_au_grade: string;
+  campaign_ag_grade: string;
   status: "NUEVA" | "ACTUALIZAR" | "INVÁLIDA";
   errors: string;
   duplicate_count: number;
@@ -219,6 +220,24 @@ function campaignNoFromId(campaign_id: unknown) {
   return String(Number(m[1]));
 }
 
+function getPeriodKey(campaign_date: string | null | undefined) {
+  return campaign_date ? String(campaign_date).slice(0, 7) : "";
+}
+
+function getMaxExistingCampaignNoForPeriod(rows: CampaignRow[], periodKey: string) {
+  let max = 0;
+
+  for (const row of rows) {
+    const rowPeriodKey = row.campaign_date ? String(row.campaign_date).slice(0, 7) : "";
+    if (rowPeriodKey !== periodKey) continue;
+
+    const rowNo = clampInt_1to99_OrNull(campaignNoFromId(row.campaign_id));
+    if (rowNo !== null && rowNo > max) max = rowNo;
+  }
+
+  return max;
+}
+
 function getFileStamp() {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -227,6 +246,206 @@ function getFileStamp() {
   const hh = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   return `${yyyy}${mm}${dd}_${hh}${mi}`;
+}
+
+function buildImportSummary(
+  previewRows: ImportPreviewRow[],
+  file_name: string,
+  total_excel_rows: number
+): ImportSummary {
+  const counts = new Map<string, number>();
+
+  for (const row of previewRows) {
+    const id = normalizeText(row.campaign_id).toUpperCase();
+    if (!id || id === "—") continue;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+
+  const validRows = previewRows.filter((row) => row.valid);
+  const newRows = validRows.filter((row) => row.status === "NUEVA").length;
+  const updateRows = validRows.filter((row) => row.status === "ACTUALIZAR").length;
+  const repeatedCampaigns = Array.from(counts.values()).filter((count) => count > 1).length;
+  const repeatedExtraRows = Array.from(counts.values()).reduce(
+    (acc, count) => acc + (count > 1 ? count - 1 : 0),
+    0
+  );
+
+  return {
+    file_name,
+    total_excel_rows,
+    unique_rows: previewRows.length,
+    valid_rows: validRows.length,
+    invalid_rows: previewRows.length - validRows.length,
+    repeated_campaigns: repeatedCampaigns,
+    repeated_extra_rows: repeatedExtraRows,
+    new_rows: newRows,
+    update_rows: updateRows,
+  };
+}
+
+function revalidatePreviewRows(
+  draftRows: ImportPreviewRow[],
+  latestRows: CampaignRow[],
+  file_name: string,
+  total_excel_rows: number
+): { rows: ImportPreviewRow[]; summary: ImportSummary } {
+  const freshExistingIdSet = new Set(
+    latestRows
+      .map((x) => normalizeText(x.campaign_id).toUpperCase())
+      .filter(Boolean)
+  );
+
+  const counts = new Map<string, number>();
+
+  const rows: ImportPreviewRow[] = draftRows.map((draft): ImportPreviewRow => {
+    const campaign_no_raw = normalizeText(draft.campaign_no_raw);
+    const campaign_date = normalizeText(draft.campaign_date);
+    const campaign_wet_cr = normalizeText(draft.campaign_wet_cr);
+    const campaign_moisture_pct = normalizeText(draft.campaign_moisture_pct);
+    const campaign_au_grade = normalizeText(draft.campaign_au_grade);
+    const campaign_ag_grade = normalizeText(draft.campaign_ag_grade);
+
+    const campaign_id = buildCampaignId(campaign_date, campaign_no_raw);
+    if (campaign_id) {
+      counts.set(campaign_id, (counts.get(campaign_id) || 0) + 1);
+    }
+
+    const no = clampInt_1to99_OrNull(campaign_no_raw);
+    const wet = gt0_OrNull(campaign_wet_cr);
+    const moistPct = clampPct_1to100_OrNull(campaign_moisture_pct);
+    const au = gt0_OrNull(campaign_au_grade);
+    const ag = gt0_OrNull(campaign_ag_grade);
+    const dateIsValid = !!campaign_date && campaign_date <= isoTodayPe();
+
+    const errors: string[] = [];
+    if (no === null) errors.push("#campaña inválida (1-99)");
+    if (!campaign_date) errors.push("fecha inválida");
+    else if (!dateIsValid) errors.push("fecha mayor a hoy");
+    if (wet === null) errors.push("campaign_wet_cr inválido (>0)");
+    if (moistPct === null) errors.push("campaign_moisture_pct inválido (1-100)");
+    if (au === null) errors.push("campaign_au_grade inválido (>0)");
+    if (ag === null) errors.push("campaign_ag_grade inválido (>0)");
+    if (!campaign_id) errors.push("no se pudo construir campaign_id");
+
+    const validBase =
+      !!campaign_id &&
+      !!campaign_date &&
+      dateIsValid &&
+      no !== null &&
+      wet !== null &&
+      moistPct !== null &&
+      au !== null &&
+      ag !== null;
+
+    const moistDec = moistPct !== null ? round6(moistPct / 100) : null;
+    const campaign_cr =
+      wet !== null && moistDec !== null ? round3(wet * (1 - moistDec)) : null;
+
+    const existsInDb = campaign_id
+      ? freshExistingIdSet.has(campaign_id.toUpperCase())
+      : false;
+
+    const status: ImportPreviewRow["status"] = !validBase
+      ? "INVÁLIDA"
+      : existsInDb
+      ? "ACTUALIZAR"
+      : "NUEVA";
+
+    return {
+      ...draft,
+      campaign_no_raw,
+      campaign_id: campaign_id || "—",
+      campaign_date,
+      campaign_wet_cr,
+      campaign_moisture_pct,
+      campaign_cr: campaign_cr !== null ? campaign_cr.toFixed(3) : "",
+      campaign_au_grade,
+      campaign_ag_grade,
+      status,
+      errors: errors.join(" | "),
+      duplicate_count: 0,
+      is_duplicate: false,
+      valid: validBase,
+      payload:
+        validBase && campaign_id && moistDec !== null && campaign_cr !== null
+          ? {
+              campaign_id,
+              campaign_date,
+              campaign_wet_cr: round3(wet!),
+              campaign_moisture_pct: moistDec,
+              campaign_au_grade: round3(au!),
+              campaign_ag_grade: round3(ag!),
+              campaign_cr,
+            }
+          : null,
+    };
+  });
+
+  for (const row of rows) {
+    const id = normalizeText(row.campaign_id).toUpperCase();
+    const count = id && id !== "—" ? counts.get(id) || 0 : 0;
+
+    row.duplicate_count = count;
+    row.is_duplicate = count > 1;
+
+    if (row.is_duplicate) {
+      row.status = "INVÁLIDA";
+      row.valid = false;
+      row.payload = null;
+      row.errors = row.errors
+        ? `${row.errors} | campaign_id repetido en preview`
+        : "campaign_id repetido en preview";
+    }
+  }
+
+  const previewByPeriod = new Map<string, ImportPreviewRow[]>();
+
+  for (const row of rows) {
+    const rowId = normalizeText(row.campaign_id).toUpperCase();
+    if (!rowId || rowId === "—") continue;
+    if (freshExistingIdSet.has(rowId)) continue;
+
+    const periodKey = getPeriodKey(row.campaign_date);
+    if (!periodKey) continue;
+
+    if (!previewByPeriod.has(periodKey)) {
+      previewByPeriod.set(periodKey, []);
+    }
+
+    previewByPeriod.get(periodKey)!.push(row);
+  }
+
+  for (const [periodKey, group] of previewByPeriod.entries()) {
+    let expectedNext = getMaxExistingCampaignNoForPeriod(latestRows, periodKey) + 1;
+
+    const sortedGroup = [...group].sort((a, b) => {
+      const aNo = clampInt_1to99_OrNull(a.campaign_no_raw) ?? 0;
+      const bNo = clampInt_1to99_OrNull(b.campaign_no_raw) ?? 0;
+      return aNo - bNo;
+    });
+
+    for (const row of sortedGroup) {
+      const rowNo = clampInt_1to99_OrNull(row.campaign_no_raw);
+      if (rowNo === null) continue;
+
+      if (rowNo !== expectedNext) {
+        row.status = "INVÁLIDA";
+        row.valid = false;
+        row.payload = null;
+        row.errors = row.errors
+          ? `${row.errors} | salto de campaña en el periodo (esperada ${pad2(expectedNext)})`
+          : `salto de campaña en el periodo (esperada ${pad2(expectedNext)})`;
+        continue;
+      }
+
+      expectedNext += 1;
+    }
+  }
+
+  return {
+    rows,
+    summary: buildImportSummary(rows, file_name, total_excel_rows),
+  };
 }
 
 function DatePicker({
@@ -369,6 +588,35 @@ export default function RefineryCampaignPage() {
     fileInputRef.current?.click();
   }
 
+  function onEditPreviewCell(
+    rowNum: number,
+    field:
+      | "campaign_no_raw"
+      | "campaign_date"
+      | "campaign_wet_cr"
+      | "campaign_moisture_pct"
+      | "campaign_au_grade"
+      | "campaign_ag_grade",
+    value: string
+  ) {
+    const file_name = importSummary?.file_name || "Campaigns";
+    const total_excel_rows = importSummary?.total_excel_rows || previewRows.length;
+
+    const draftRows = previewRows.map((row) =>
+      row.row_num === rowNum ? { ...row, [field]: value } : row
+    );
+
+    const { rows: revalidatedRows, summary } = revalidatePreviewRows(
+      draftRows,
+      rows,
+      file_name,
+      total_excel_rows
+    );
+
+    setPreviewRows(revalidatedRows);
+    setImportSummary(summary);
+  }
+
   function onExportExcel() {
     if (!rows.length) {
       setMsg("No hay campañas para exportar.");
@@ -446,6 +694,16 @@ export default function RefineryCampaignPage() {
           `Faltan columnas: ${missingHeaders.join(", ")}. Deben venir: #campaña, campaign_date, campaign_wet_cr, campaign_moisture_pct, campaign_au_grade, campaign_ag_grade`
         );
       }
+      
+      const latestRows = rows.length
+        ? rows
+        : (((await apiGet("/api/refineria/campaigns")) as CampaignsResp).rows || []);
+
+      const freshExistingIdSet = new Set(
+        latestRows
+          .map((x) => normalizeText(x.campaign_id).toUpperCase())
+          .filter(Boolean)
+      );
 
       const baseRows = rawRows
         .map((raw, idx) => {
@@ -494,98 +752,42 @@ export default function RefineryCampaignPage() {
       const rowsWithoutId: ImportPreviewRow[] = [];
 
       for (const row of baseRows) {
-        const no = clampInt_1to99_OrNull(row.campaign_no_raw);
-        const wet = gt0_OrNull(row.campaign_wet_cr_raw);
-        const moistPct = clampPct_1to100_OrNull(row.campaign_moisture_pct_raw);
-        const au = gt0_OrNull(row.campaign_au_grade_raw);
-        const ag = gt0_OrNull(row.campaign_ag_grade_raw);
-        const dateIsValid = !!row.campaign_date && row.campaign_date <= isoTodayPe();
-
-        const errors: string[] = [];
-        if (no === null) errors.push("#campaña inválida (1-99)");
-        if (!row.campaign_date) errors.push("fecha inválida");
-        else if (!dateIsValid) errors.push("fecha mayor a hoy");
-        if (wet === null) errors.push("campaign_wet_cr inválido (>0)");
-        if (moistPct === null) errors.push("campaign_moisture_pct inválido (1-100)");
-        if (au === null) errors.push("campaign_au_grade inválido (>0)");
-        if (ag === null) errors.push("campaign_ag_grade inválido (>0)");
-        if (!row.campaign_id) errors.push("no se pudo construir campaign_id");
-
-        const valid =
-          !!row.campaign_id &&
-          !!row.campaign_date &&
-          dateIsValid &&
-          no !== null &&
-          wet !== null &&
-          moistPct !== null &&
-          au !== null &&
-          ag !== null;
-
-        const moistDec = moistPct !== null ? round6(moistPct / 100) : null;
-        const campaign_cr = wet !== null && moistDec !== null ? round3(wet * (1 - moistDec)) : null;
-
-        const previewRow: ImportPreviewRow = {
+        const seedRow: ImportPreviewRow = {
           row_num: row.row_num,
+          campaign_no_raw: row.campaign_no_raw,
           campaign_id: row.campaign_id || "—",
-          campaign_date: row.campaign_date,
-          campaign_wet_cr: wet !== null ? round3(wet).toFixed(3) : null,
-          campaign_moisture_pct: moistPct !== null ? round3(moistPct).toFixed(3) : null,
-          campaign_cr: campaign_cr !== null ? campaign_cr.toFixed(3) : null,
-          campaign_au_grade: au !== null ? round3(au).toFixed(3) : null,
-          campaign_ag_grade: ag !== null ? round3(ag).toFixed(3) : null,
-          status: !valid
-            ? "INVÁLIDA"
-            : existingIdSet.has(row.campaign_id.toUpperCase())
-            ? "ACTUALIZAR"
-            : "NUEVA",
-          errors: errors.join(" | "),
-          duplicate_count: row.campaign_id ? counts.get(row.campaign_id) || 0 : 0,
-          is_duplicate: row.campaign_id ? (counts.get(row.campaign_id) || 0) > 1 : false,
-          valid,
-          payload:
-            valid && moistDec !== null && campaign_cr !== null
-              ? {
-                  campaign_id: row.campaign_id,
-                  campaign_date: row.campaign_date!,
-                  campaign_wet_cr: round3(wet!),
-                  campaign_moisture_pct: moistDec,
-                  campaign_au_grade: round3(au!),
-                  campaign_ag_grade: round3(ag!),
-                  campaign_cr,
-                }
-              : null,
+          campaign_date: row.campaign_date || "",
+          campaign_wet_cr: row.campaign_wet_cr_raw,
+          campaign_moisture_pct: row.campaign_moisture_pct_raw,
+          campaign_cr: "",
+          campaign_au_grade: row.campaign_au_grade_raw,
+          campaign_ag_grade: row.campaign_ag_grade_raw,
+          status: "INVÁLIDA",
+          errors: "",
+          duplicate_count: 0,
+          is_duplicate: false,
+          valid: false,
+          payload: null,
         };
 
         if (!row.campaign_id) {
-          rowsWithoutId.push(previewRow);
+          rowsWithoutId.push(seedRow);
         } else {
-          dedupMap.set(row.campaign_id, previewRow);
+          dedupMap.set(row.campaign_id, seedRow);
         }
       }
 
       const preview = [...rowsWithoutId, ...Array.from(dedupMap.values())].sort((a, b) => a.row_num - b.row_num);
 
-      const validRows = preview.filter((row) => row.valid);
-      const newRows = validRows.filter((row) => row.status === "NUEVA").length;
-      const updateRows = validRows.filter((row) => row.status === "ACTUALIZAR").length;
-      const repeatedCampaigns = Array.from(counts.values()).filter((count) => count > 1).length;
-      const repeatedExtraRows = Array.from(counts.values()).reduce(
-        (acc, count) => acc + (count > 1 ? count - 1 : 0),
-        0
+      const { rows: revalidatedRows, summary } = revalidatePreviewRows(
+        preview,
+        latestRows,
+        file.name,
+        rawRows.length
       );
 
-      setPreviewRows(preview);
-      setImportSummary({
-        file_name: file.name,
-        total_excel_rows: rawRows.length,
-        unique_rows: preview.length,
-        valid_rows: validRows.length,
-        invalid_rows: preview.length - validRows.length,
-        repeated_campaigns: repeatedCampaigns,
-        repeated_extra_rows: repeatedExtraRows,
-        new_rows: newRows,
-        update_rows: updateRows,
-      });
+      setPreviewRows(revalidatedRows);
+      setImportSummary(summary);
       setPreviewOpen(true);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo importar el archivo")}`);
@@ -597,8 +799,13 @@ export default function RefineryCampaignPage() {
   }
 
   async function confirmImport() {
-    if (!validPreviewRows.length) {
-      setMsg("No hay filas válidas para importar.");
+    if (!previewRows.length) {
+      setMsg("No hay filas para importar.");
+      return;
+    }
+
+    if (previewRows.some((row) => !row.valid)) {
+      setMsg("ERROR: corrige las filas inválidas del preview antes de importar.");
       return;
     }
 
@@ -606,7 +813,7 @@ export default function RefineryCampaignPage() {
     setMsg(null);
 
     try {
-      for (const row of validPreviewRows) {
+      for (const row of previewRows) {
         if (!row.payload) continue;
         await apiPost("/api/refineria/campaign/upsert", row.payload);
       }
@@ -709,6 +916,24 @@ export default function RefineryCampaignPage() {
         return;
       }
 
+      const latestRows = rows.length
+        ? rows
+        : (((await apiGet("/api/refineria/campaigns")) as CampaignsResp).rows || []);
+
+      const campaignExists = latestRows.some(
+        (x) => normalizeText(x.campaign_id).toUpperCase() === campaign_id.toUpperCase()
+      );
+
+      if (!campaignExists) {
+        const periodKey = getPeriodKey(form.campaign_date);
+        const expectedNo = getMaxExistingCampaignNoForPeriod(latestRows, periodKey) + 1;
+
+        if (no !== expectedNo) {
+          setMsg(`ERROR: salto de campaña en el periodo. La siguiente debe ser ${pad2(expectedNo)}.`);
+          return;
+        }
+      }
+
       const moistDec = round6(moistPct / 100);
       const campaign_cr = round3(wet * (1 - moistDec));
 
@@ -751,6 +976,19 @@ export default function RefineryCampaignPage() {
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
+    boxSizing: "border-box",
+  };
+
+  const previewInputStyle: React.CSSProperties = {
+    width: "100%",
+    background: "rgba(0,0,0,.12)",
+    border: "1px solid rgba(191,231,255,.16)",
+    color: "var(--text)",
+    borderRadius: 8,
+    padding: "6px 8px",
+    outline: "none",
+    fontWeight: 800,
+    fontSize: 12,
     boxSizing: "border-box",
   };
 
@@ -1095,17 +1333,89 @@ export default function RefineryCampaignPage() {
 
                     return (
                       <tr key={`${row.row_num}_${row.campaign_id}`} className="capex-tr">
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>{row.row_num}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }} title={row.campaign_id}>{row.campaign_id}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>{row.campaign_date || "—"}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>{row.campaign_wet_cr || "—"}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>{row.campaign_moisture_pct || "—"}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>{row.campaign_cr || "—"}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>{row.campaign_au_grade || "—"}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>{row.campaign_ag_grade || "—"}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>{row.status}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>{row.is_duplicate ? `Sí (${row.duplicate_count})` : "No"}</td>
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }} title={row.errors || "—"}>{row.errors || "—"}</td>
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
+                          {row.row_num}
+                        </td>
+
+                        <td
+                          className="capex-td"
+                          style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}
+                          title={row.campaign_id}
+                        >
+                          <div style={{ display: "grid", gap: 6 }}>
+                            <div style={{ fontWeight: 900 }}>{row.campaign_id || "—"}</div>
+                            <input
+                              value={row.campaign_no_raw}
+                              onChange={(e) =>
+                                onEditPreviewCell(
+                                  row.row_num,
+                                  "campaign_no_raw",
+                                  String(e.target.value || "").replace(/[^\d]/g, "").slice(0, 2)
+                                )
+                              }
+                              placeholder="# campaña"
+                              style={previewInputStyle}
+                            />
+                          </div>
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
+                          <input
+                            type="date"
+                            value={row.campaign_date || ""}
+                            max={isoTodayPe()}
+                            onChange={(e) => onEditPreviewCell(row.row_num, "campaign_date", e.target.value)}
+                            style={previewInputStyle}
+                          />
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
+                          <input
+                            value={row.campaign_wet_cr}
+                            onChange={(e) => onEditPreviewCell(row.row_num, "campaign_wet_cr", e.target.value)}
+                            style={previewInputStyle}
+                          />
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
+                          <input
+                            value={row.campaign_moisture_pct}
+                            onChange={(e) => onEditPreviewCell(row.row_num, "campaign_moisture_pct", e.target.value)}
+                            style={previewInputStyle}
+                          />
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
+                          {row.campaign_cr || "—"}
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
+                          <input
+                            value={row.campaign_au_grade}
+                            onChange={(e) => onEditPreviewCell(row.row_num, "campaign_au_grade", e.target.value)}
+                            style={previewInputStyle}
+                          />
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
+                          <input
+                            value={row.campaign_ag_grade}
+                            onChange={(e) => onEditPreviewCell(row.row_num, "campaign_ag_grade", e.target.value)}
+                            style={previewInputStyle}
+                          />
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                          {row.status}
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                          {row.is_duplicate ? `Sí (${row.duplicate_count})` : "No"}
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }} title={row.errors || "—"}>
+                          {row.errors || "—"}
+                        </td>
                       </tr>
                     );
                   })}
@@ -1123,14 +1433,22 @@ export default function RefineryCampaignPage() {
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
-                Se postearán exactamente {validPreviewRows.length} fila(s) válidas con el mismo payload actual.
+                {previewRows.some((row) => !row.valid)
+                  ? "Corrige las filas inválidas para habilitar la importación."
+                  : `Se postearán exactamente ${previewRows.length} fila(s) con el mismo payload actual.`}
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <Button type="button" size="sm" variant="default" onClick={closePreview} disabled={importing}>
                   Cancelar
                 </Button>
-                <Button type="button" size="sm" variant="primary" onClick={confirmImport} disabled={importing || validPreviewRows.length === 0}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  onClick={confirmImport}
+                  disabled={importing || previewRows.length === 0 || previewRows.some((row) => !row.valid)}
+                >
                   {importing ? "Importando…" : "Confirmar importación"}
                 </Button>
               </div>
