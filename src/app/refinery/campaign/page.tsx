@@ -415,18 +415,15 @@ export default function RefineryCampaignPage() {
                   opacity: saving ? 0.7 : 1,
                 }}
               />
-            </div>
-
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>TMS</div>
-              <div style={{ minHeight: 44 }} />
-              <div className="muted" style={{ fontWeight: 900, fontSize: 13, lineHeight: 1.2 }}>
-                {visualTms !== null ? visualTms.toFixed(3) : "-"}
+              <div className="muted" style={{ fontWeight: 900, fontSize: 13, lineHeight: 1.2, color: "rgba(102,199,255,.95)" }}>
+                {visualTms !== null ? `TMS=${visualTms.toFixed(3)}` : "TMS=-"}
               </div>
             </div>
 
+            <div />
+
             <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>% de Humedad</div>
+              <div style={{ fontWeight: 900, fontSize: 13 }}>% de Humedad (1-100)</div>
               <input
                 value={form.campaign_moisture_pct}
                 disabled={saving}
