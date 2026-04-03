@@ -127,6 +127,10 @@ function round3(n: number) {
   return Math.round((n + Number.EPSILON) * 1000) / 1000;
 }
 
+function round6(n: number) {
+  return Math.round((n + Number.EPSILON) * 1000000) / 1000000;
+}
+
 function buildCampaignId(campaign_date: string, campaign_no: string) {
   const no = clampInt_1to99_OrNull(campaign_no);
   if (!campaign_date || no === null) return "";
@@ -517,7 +521,7 @@ export default function RefineryCampaignPage() {
           au !== null &&
           ag !== null;
 
-        const moistDec = moistPct !== null ? round3(moistPct / 100) : null;
+        const moistDec = moistPct !== null ? round6(moistPct / 100) : null;
         const campaign_cr = wet !== null && moistDec !== null ? round3(wet * (1 - moistDec)) : null;
 
         const previewRow: ImportPreviewRow = {
@@ -705,7 +709,7 @@ export default function RefineryCampaignPage() {
         return;
       }
 
-      const moistDec = round3(moistPct / 100);
+      const moistDec = round6(moistPct / 100);
       const campaign_cr = round3(wet * (1 - moistDec));
 
       const payload = {
