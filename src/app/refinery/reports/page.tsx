@@ -302,7 +302,7 @@ export default function RefineryReportsPage() {
       {/* FILA 1: dropdown */}
       <div className="panel-inner" style={{ padding: 12 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "flex-end", width: "100%", flexWrap: "wrap" }}>
-          <div style={{ flex: "0 0 420px", minWidth: 320, maxWidth: 420 }}>
+          <div style={{ flex: "0 0 252px", minWidth: 252, maxWidth: 252 }}>
             <SearchableDropdown
               label="Campaña"
               placeholder={loading ? "Cargando campañas..." : "Buscar..."}
