@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Button } from "../../../components/ui/Button";
 import { Table } from "../../../components/ui/Table";
+import ConsImpExp from "../../../components/refinery/ConsImpExp";
 
 type CampaignRow = { campaign_id: string };
 type CampaignsResp = { ok: boolean; rows: CampaignRow[] };
@@ -799,6 +800,15 @@ export default function RefineryConsumptionPage() {
             >
               {loadingMeta || loadingTable ? "Cargando..." : "Refrescar"}
             </Button>
+
+            <ConsImpExp
+              setMsgAction={setMsg}
+              afterImportAction={async () => {
+                await loadRows(campaignId, reagent);
+              }}
+              disabled={loadingMeta || loadingTable || saving}
+              exportCampaignId={campaignId || undefined}
+            />
 
             <Button
               type="button"
