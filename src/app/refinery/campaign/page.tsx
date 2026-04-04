@@ -364,8 +364,19 @@ export default function RefineryCampaignPage() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
-      <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+    <div style={{ display: "grid", gap: 12 }}>
+      <div
+        className="panel-inner"
+        style={{
+          padding: 10,
+          display: "flex",
+          gap: 10,
+          alignItems: "center",
+          flexWrap: "wrap",
+          width: "100%",
+          maxWidth: 1180,
+        }}
+      >
         <div style={{ fontWeight: 900 }}>Crear Campaña</div>
         <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
           {campaign_id
@@ -403,7 +414,7 @@ export default function RefineryCampaignPage() {
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 14 }}>
+      <div className="panel-inner" style={{ padding: 14, width: "100%", maxWidth: 820 }}>
         <div style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gridTemplateColumns: "260px 260px 1fr", gap: 12, alignItems: "end" }}>
             <div style={{ display: "grid", gap: 6 }}>
