@@ -1,13 +1,16 @@
 // src/components/refinery/ConsImpExp.tsx
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 
-type CampaignRow = { campaign_id: string };
+type CampaignRow = {
+  campaign_id: string;
+  campaign_date: string | null;
+};
 type CampaignsResp = { ok: boolean; rows: CampaignRow[] };
 
 type MapRow = { reagent_name: string; subprocess_name: string };
@@ -22,14 +25,8 @@ type ConsumptionRow = {
 };
 type ConsumptionResp = { ok: boolean; rows: ConsumptionRow[] };
 
-type ImportField =
-  | "campaign_id"
-  | "reagent_name"
-  | "consumption_date"
-  | "subprocess_name"
-  | "consumption_qty";
-
 type ImportPreviewRow = {
+  sheet_name: string;
   row_num: number;
   campaign_id: string;
   reagent_name: string;
@@ -107,6 +104,15 @@ const FIXED_MAPPING: MapRow[] = [
   { reagent_name: "Urea", subprocess_name: "Agua Regia - Precipitación" },
 ];
 
+const REAGENT_ORDER = Array.from(new Set(FIXED_MAPPING.map((x) => x.reagent_name)));
+
+const SUBPROCESSES_BY_REAGENT = new Map<string, string[]>(
+  REAGENT_ORDER.map((reagent) => [
+    reagent,
+    FIXED_MAPPING.filter((x) => x.reagent_name === reagent).map((x) => x.subprocess_name),
+  ])
+);
+
 type Props = {
   setMsgAction: React.Dispatch<React.SetStateAction<string | null>>;
   afterImportAction?: () => Promise<void> | void;
@@ -130,20 +136,49 @@ function normalizeHeader(v: unknown) {
     .replace(/[\s_]+/g, "");
 }
 
-function getImportField(header: unknown): ImportField | "" {
-  const h = normalizeHeader(header);
-
-  if (["campaignid", "campaign_id", "campaign"].includes(h)) return "campaign_id";
-  if (["reagentname", "reagent_name", "reagent", "insumo"].includes(h)) return "reagent_name";
-  if (["consumptiondate", "consumption_date", "fecha", "fechaconsumo"].includes(h))
-    return "consumption_date";
-  if (["subprocessname", "subprocess_name", "subprocess", "subproceso"].includes(h))
-    return "subprocess_name";
-  if (["consumptionqty", "consumption_qty", "qty", "cantidad", "consumo"].includes(h))
-    return "consumption_qty";
-
-  return "";
+function normalizeLooseKey(v: unknown) {
+  return normalizeText(v)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
 }
+
+function sanitizeSheetName(name: string) {
+  const clean = normalizeText(name).replace(/[:\\/?*\[\]]/g, " ").trim();
+  return clean.slice(0, 31) || "Hoja";
+}
+
+const SHEET_NAME_BY_REAGENT = (() => {
+  const used = new Set<string>();
+  const map = new Map<string, string>();
+
+  for (const reagent of REAGENT_ORDER) {
+    const base = sanitizeSheetName(reagent);
+    let candidate = base;
+    let i = 1;
+
+    while (used.has(candidate.toUpperCase())) {
+      const suffix = `_${i}`;
+      candidate = `${base.slice(0, Math.max(0, 31 - suffix.length))}${suffix}`;
+      i += 1;
+    }
+
+    used.add(candidate.toUpperCase());
+    map.set(reagent, candidate);
+  }
+
+  return map;
+})();
+
+const REAGENT_BY_SHEET_KEY = (() => {
+  const map = new Map<string, string>();
+  for (const reagent of REAGENT_ORDER) {
+    const sheetName = SHEET_NAME_BY_REAGENT.get(reagent)!;
+    map.set(normalizeLooseKey(sheetName), reagent);
+  }
+  return map;
+})();
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -247,21 +282,38 @@ function buildDbKey(campaign_id: string, reagent_name: string, subprocess_name: 
   return `${normalizeText(campaign_id).toUpperCase()}||${normalizeText(reagent_name).toUpperCase()}||${normalizeText(subprocess_name).toUpperCase()}`;
 }
 
+function getCampaignEomonth(campaign_id: string) {
+  const m = normalizeText(campaign_id).match(/^(\d{2})-C(\d{2})-\d{2}$/i);
+  if (!m) return "";
+
+  const yyyy = 2000 + Number(m[1]);
+  const mm = Number(m[2]);
+
+  if (!Number.isFinite(yyyy) || !Number.isFinite(mm) || mm < 1 || mm > 12) return "";
+
+  const lastDay = new Date(yyyy, mm, 0).getDate();
+  return `${yyyy}-${pad2(mm)}-${pad2(lastDay)}`;
+}
+
 function appendError(base: string, msg: string) {
   return base ? `${base} | ${msg}` : msg;
 }
 
 function sortPreviewRows(rows: ImportPreviewRow[]) {
   return [...rows].sort((a, b) => {
-    const ka = buildDbKey(a.campaign_id, a.reagent_name, a.subprocess_name);
-    const kb = buildDbKey(b.campaign_id, b.reagent_name, b.subprocess_name);
+    const reagentCmp = normalizeText(a.reagent_name).localeCompare(normalizeText(b.reagent_name));
+    if (reagentCmp !== 0) return reagentCmp;
 
-    if (!ka && !kb) return a.row_num - b.row_num;
-    if (!ka) return 1;
-    if (!kb) return -1;
+    const campaignCmp = normalizeText(a.campaign_id).localeCompare(normalizeText(b.campaign_id));
+    if (campaignCmp !== 0) return campaignCmp;
 
-    const cmp = ka.localeCompare(kb);
-    return cmp !== 0 ? cmp : a.row_num - b.row_num;
+    const dateCmp = normalizeText(a.consumption_date).localeCompare(normalizeText(b.consumption_date));
+    if (dateCmp !== 0) return dateCmp;
+
+    const subCmp = normalizeText(a.subprocess_name).localeCompare(normalizeText(b.subprocess_name));
+    if (subCmp !== 0) return subCmp;
+
+    return a.row_num - b.row_num;
   });
 }
 
@@ -313,6 +365,12 @@ function revalidatePreviewRows(
     (refData.campaigns || []).map((x) => normalizeText(x.campaign_id).toUpperCase()).filter(Boolean)
   );
 
+  const campaignDateById = new Map<string, string>(
+    (refData.campaigns || [])
+      .map((x) => [normalizeText(x.campaign_id).toUpperCase(), normalizeText(x.campaign_date)] as const)
+      .filter(([campaign_id]) => !!campaign_id)
+  );
+
   const mapLookup = new Map<string, { reagent_name: string; subprocess_name: string }>();
   const validReagentLookup = new Map<string, string>();
   const validSubprocessLookup = new Map<string, string>();
@@ -354,7 +412,7 @@ function revalidatePreviewRows(
     const campaign_id = normalizeText(draft.campaign_id).toUpperCase();
     const reagent_name_raw = normalizeText(draft.reagent_name);
     const subprocess_name_raw = normalizeText(draft.subprocess_name);
-    const consumption_date = normalizeText(draft.consumption_date);
+    const consumption_date = campaignDateById.get(campaign_id) || "";
     const consumption_qty = normalizeText(draft.consumption_qty);
 
     let errors = "";
@@ -400,8 +458,18 @@ function revalidatePreviewRows(
       errors = appendError(errors, "subprocess_name no corresponde a reagent_name");
     }
 
-    if (!consumption_date || !isIsoDate(consumption_date)) {
-      errors = appendError(errors, "consumption_date inválida");
+    if (campaign_id && campaignSet.has(campaign_id)) {
+      if (!consumption_date || !isIsoDate(consumption_date)) {
+        errors = appendError(errors, "campaign_date no encontrada para la campaña");
+      } else {
+        const eomonth = getCampaignEomonth(campaign_id);
+
+        if (!eomonth) {
+          errors = appendError(errors, "campaign_id con formato inválido");
+        } else if (consumption_date > eomonth) {
+          errors = appendError(errors, `campaign_date mayor al fin de mes de la campaña (${eomonth})`);
+        }
+      }
     }
 
     const qty = toDecimalStrOrNullFront(consumption_qty, 9);
@@ -474,18 +542,196 @@ export default function ConsImpExp({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const busy = importing || exporting;
 
-    async function getReferenceData(): Promise<RefData> {
-    const [campaignsRes, consumptionsRes] = await Promise.all([
-        apiGet("/api/refineria/campaigns") as Promise<CampaignsResp>,
-        apiGet("/api/refineria/consumption") as Promise<ConsumptionResp>,
+  const [runtimeMapping, setRuntimeMapping] = useState<MapRow[]>(FIXED_MAPPING);
+
+const REAGENT_ORDER = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        runtimeMapping
+          .map((x) => normalizeText(x.reagent_name))
+          .filter(Boolean)
+      )
+    ),
+  [runtimeMapping]
+);
+
+const SUBPROCESSES_BY_REAGENT = useMemo(
+  () =>
+    new Map<string, string[]>(
+      REAGENT_ORDER.map((reagent) => [
+        reagent,
+        runtimeMapping
+          .filter((x) => normalizeText(x.reagent_name) === reagent)
+          .map((x) => normalizeText(x.subprocess_name))
+          .filter(Boolean),
+      ])
+    ),
+  [REAGENT_ORDER, runtimeMapping]
+);
+
+const SHEET_NAME_BY_REAGENT = useMemo(() => {
+  const used = new Set<string>();
+  const map = new Map<string, string>();
+
+  for (const reagent of REAGENT_ORDER) {
+    const base = sanitizeSheetName(reagent);
+    let candidate = base;
+    let i = 1;
+
+    while (used.has(candidate.toUpperCase())) {
+      const suffix = `_${i}`;
+      candidate = `${base.slice(0, Math.max(0, 31 - suffix.length))}${suffix}`;
+      i += 1;
+    }
+
+    used.add(candidate.toUpperCase());
+    map.set(reagent, candidate);
+  }
+
+  return map;
+}, [REAGENT_ORDER]);
+
+const REAGENT_BY_SHEET_KEY = useMemo(() => {
+  const map = new Map<string, string>();
+
+  for (const reagent of REAGENT_ORDER) {
+    const sheetName = SHEET_NAME_BY_REAGENT.get(reagent)!;
+    map.set(normalizeLooseKey(sheetName), reagent);
+  }
+
+  return map;
+}, [REAGENT_ORDER, SHEET_NAME_BY_REAGENT]);
+
+useEffect(() => {
+  let mounted = true;
+
+  (async () => {
+    try {
+      const mappingRes = (await apiGet("/api/refineria/mapping")) as MappingResp;
+      const backendMapping =
+        Array.isArray(mappingRes?.rows) && mappingRes.rows.length
+          ? mappingRes.rows
+          : FIXED_MAPPING;
+
+      if (mounted) setRuntimeMapping(backendMapping);
+    } catch {
+      if (mounted) setRuntimeMapping(FIXED_MAPPING);
+    }
+  })();
+
+  return () => {
+    mounted = false;
+  };
+}, []);
+
+  const groupedPreview = useMemo(() => {
+    return REAGENT_ORDER.map((reagent_name) => ({
+      reagent_name,
+      sheet_name: SHEET_NAME_BY_REAGENT.get(reagent_name) || reagent_name,
+      rows: previewRows.filter((x) => x.reagent_name === reagent_name),
+    })).filter((g) => g.rows.length > 0);
+  }, [previewRows]);
+
+  const [previewReagent, setPreviewReagent] = useState<string>("");
+
+  useEffect(() => {
+    if (!groupedPreview.length) {
+      setPreviewReagent("");
+      return;
+    }
+
+    if (!groupedPreview.some((g) => g.reagent_name === previewReagent)) {
+      setPreviewReagent(groupedPreview[0].reagent_name);
+    }
+  }, [groupedPreview, previewReagent]);
+
+  const selectedPreviewGroup = useMemo(() => {
+    return groupedPreview.find((g) => g.reagent_name === previewReagent) || null;
+  }, [groupedPreview, previewReagent]);
+
+  const previewMatrixRows = useMemo(() => {
+    if (!selectedPreviewGroup) return [];
+
+    const subprocesses = SUBPROCESSES_BY_REAGENT.get(selectedPreviewGroup.reagent_name) || [];
+    const map = new Map<
+      string,
+      {
+        row_num: number;
+        campaign_id: string;
+        consumption_date: string;
+        status: "NUEVA" | "ACTUALIZAR" | "INVÁLIDA";
+        has_duplicate: boolean;
+        errors: string;
+        cells: Record<string, string>;
+        cellValid: Record<string, boolean>;
+      }
+    >();
+
+    for (const row of selectedPreviewGroup.rows) {
+      const key = `${row.reagent_name}||${row.row_num}||${row.campaign_id}||${row.consumption_date}`;
+      if (!map.has(key)) {
+        const seedCells: Record<string, string> = {};
+        const seedValid: Record<string, boolean> = {};
+        for (const sp of subprocesses) {
+          seedCells[sp] = "";
+          seedValid[sp] = true;
+        }
+
+        map.set(key, {
+          row_num: row.row_num,
+          campaign_id: row.campaign_id,
+          consumption_date: row.consumption_date,
+          status: row.status,
+          has_duplicate: row.source_duplicate_count > 1,
+          errors: row.errors,
+          cells: seedCells,
+          cellValid: seedValid,
+        });
+      }
+
+      const item = map.get(key)!;
+      item.cells[row.subprocess_name] = row.consumption_qty;
+      item.cellValid[row.subprocess_name] = row.valid;
+
+      if (row.status === "INVÁLIDA") item.status = "INVÁLIDA";
+      else if (row.status === "ACTUALIZAR" && item.status !== "INVÁLIDA") item.status = "ACTUALIZAR";
+
+      if (row.source_duplicate_count > 1) item.has_duplicate = true;
+      if (row.errors) item.errors = item.errors ? `${item.errors} | ${row.errors}` : row.errors;
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      const cmpCampaign = normalizeText(a.campaign_id).localeCompare(normalizeText(b.campaign_id));
+      if (cmpCampaign !== 0) return cmpCampaign;
+
+      const cmpDate = normalizeText(a.consumption_date).localeCompare(normalizeText(b.consumption_date));
+      if (cmpDate !== 0) return cmpDate;
+
+      return a.row_num - b.row_num;
+    });
+  }, [selectedPreviewGroup]);
+
+  async function getReferenceData(): Promise<RefData> {
+    const [campaignsRes, mappingRes, consumptionsRes] = await Promise.all([
+      apiGet("/api/refineria/campaigns") as Promise<CampaignsResp>,
+      apiGet("/api/refineria/mapping") as Promise<MappingResp>,
+      apiGet("/api/refineria/consumption") as Promise<ConsumptionResp>,
     ]);
 
+    const backendMapping =
+      Array.isArray(mappingRes?.rows) && mappingRes.rows.length
+        ? mappingRes.rows
+        : FIXED_MAPPING;
+
+    setRuntimeMapping(backendMapping);
+
     return {
-        campaigns: Array.isArray(campaignsRes?.rows) ? campaignsRes.rows : [],
-        mapping: FIXED_MAPPING,
-        consumptions: Array.isArray(consumptionsRes?.rows) ? consumptionsRes.rows : [],
+      campaigns: Array.isArray(campaignsRes?.rows) ? campaignsRes.rows : [],
+      mapping: backendMapping,
+      consumptions: Array.isArray(consumptionsRes?.rows) ? consumptionsRes.rows : [],
     };
-    }
+  }
 
   function closePreview() {
     if (importing) return;
@@ -508,40 +754,57 @@ export default function ConsImpExp({
       const r = (await apiGet("/api/refineria/consumption")) as ConsumptionResp;
       const rows = Array.isArray(r?.rows) ? r.rows : [];
 
-      if (!rows.length) {
-        setMsgAction("No hay consumos para exportar.");
-        return;
+      const wb = XLSX.utils.book_new();
+
+      for (const reagent_name of REAGENT_ORDER) {
+        const sheetName = SHEET_NAME_BY_REAGENT.get(reagent_name)!;
+        const subprocesses = SUBPROCESSES_BY_REAGENT.get(reagent_name) || [];
+
+        const filtered = rows.filter(
+          (x) => normalizeText(x.reagent_name).toUpperCase() === normalizeText(reagent_name).toUpperCase()
+        );
+
+      const grouped = new Map<string, Record<string, any>>();
+
+      for (const row of filtered) {
+        const campaign_id = normalizeText(row.campaign_id).toUpperCase();
+        const subprocess_name = normalizeText(row.subprocess_name);
+        const key = campaign_id;
+
+        if (!grouped.has(key)) {
+          const seed: Record<string, any> = {
+            campaign_id,
+          };
+          for (const sp of subprocesses) seed[sp] = "";
+          grouped.set(key, seed);
+        }
+
+        grouped.get(key)![subprocess_name] =
+          row.consumption_qty == null ? "" : String(toNum(row.consumption_qty) ?? row.consumption_qty);
       }
 
-      const exportRows = [...rows]
-        .sort((a, b) => {
-          const ka = buildDbKey(a.campaign_id, a.reagent_name, a.subprocess_name);
-          const kb = buildDbKey(b.campaign_id, b.reagent_name, b.subprocess_name);
-          const cmp = ka.localeCompare(kb);
-          if (cmp !== 0) return cmp;
-          return normalizeText(a.consumption_date).localeCompare(normalizeText(b.consumption_date));
-        })
-        .map((row) => ({
-          campaign_id: normalizeText(row.campaign_id).toUpperCase(),
-          reagent_name: normalizeText(row.reagent_name),
-          consumption_date: normalizeText(row.consumption_date),
-          subprocess_name: normalizeText(row.subprocess_name),
-          consumption_qty:
-            row.consumption_qty == null ? "" : String(toNum(row.consumption_qty) ?? row.consumption_qty),
-        }));
+      const headers = ["campaign_id", ...subprocesses];
+      const orderedRows = Array.from(grouped.values()).sort((a, b) =>
+        normalizeText(a.campaign_id).localeCompare(normalizeText(b.campaign_id))
+      );
 
-      const ws = XLSX.utils.json_to_sheet(exportRows);
-      ws["!cols"] = [
-        { wch: 14 },
-        { wch: 28 },
-        { wch: 16 },
-        { wch: 38 },
-        { wch: 18 },
+      const aoa = [
+        headers,
+        ...orderedRows.map((row) => headers.map((h) => row[h] ?? "")),
       ];
 
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Consumption");
-      XLSX.writeFile(wb, `refinery_consumption_${getFileStamp()}.xlsx`);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"] = [
+        { wch: 14 },
+        ...subprocesses.map((sp) => ({
+          wch: Math.max(18, Math.min(40, sp.length + 4)),
+        })),
+      ];
+
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      }
+
+      XLSX.writeFile(wb, `refinery_consumption_by_reagent_${getFileStamp()}.xlsx`);
     } catch (e: any) {
       setMsgAction(`ERROR: ${String(e?.message || e || "No se pudo exportar")}`);
     } finally {
@@ -550,15 +813,18 @@ export default function ConsImpExp({
   }
 
   function onEditPreviewCell(
+    reagent_name: string,
     rowNum: number,
-    field: "campaign_id" | "reagent_name" | "consumption_date" | "subprocess_name" | "consumption_qty",
+    field: "campaign_id" | "consumption_date" | "subprocess_name" | "consumption_qty",
     value: string
   ) {
     const file_name = importSummary?.file_name || "Consumption";
     const total_excel_rows = importSummary?.total_excel_rows || previewRows.length;
 
     const draftRows = previewRows.map((row) =>
-      row.row_num === rowNum ? { ...row, [field]: value } : row
+      row.reagent_name === reagent_name && row.row_num === rowNum
+        ? { ...row, [field]: value }
+        : row
     );
 
     getReferenceData()
@@ -573,7 +839,87 @@ export default function ConsImpExp({
         setImportSummary(summary);
       })
       .catch(() => {
-        const fallbackRefData: RefData = { campaigns: [], mapping: [], consumptions: [] };
+        const fallbackRefData: RefData = { campaigns: [], mapping: FIXED_MAPPING, consumptions: [] };
+        const { rows, summary } = revalidatePreviewRows(
+          draftRows,
+          fallbackRefData,
+          file_name,
+          total_excel_rows
+        );
+        setPreviewRows(rows);
+        setImportSummary(summary);
+      });
+  }
+
+  function onEditPreviewRowField(
+    reagent_name: string,
+    rowNum: number,
+    field: "campaign_id",
+    value: string
+  ) {
+    const file_name = importSummary?.file_name || "Consumption";
+    const total_excel_rows = importSummary?.total_excel_rows || previewRows.length;
+
+    const draftRows = previewRows.map((row) =>
+      row.reagent_name === reagent_name && row.row_num === rowNum
+        ? { ...row, [field]: value }
+        : row
+    );
+
+    getReferenceData()
+      .then((refData) => {
+        const { rows, summary } = revalidatePreviewRows(
+          draftRows,
+          refData,
+          file_name,
+          total_excel_rows
+        );
+        setPreviewRows(rows);
+        setImportSummary(summary);
+      })
+      .catch(() => {
+        const fallbackRefData: RefData = { campaigns: [], mapping: FIXED_MAPPING, consumptions: [] };
+        const { rows, summary } = revalidatePreviewRows(
+          draftRows,
+          fallbackRefData,
+          file_name,
+          total_excel_rows
+        );
+        setPreviewRows(rows);
+        setImportSummary(summary);
+      });
+  }
+
+  function onEditPreviewQtyMatrixCell(
+    reagent_name: string,
+    rowNum: number,
+    subprocess_name: string,
+    value: string
+  ) {
+    const file_name = importSummary?.file_name || "Consumption";
+    const total_excel_rows = importSummary?.total_excel_rows || previewRows.length;
+
+    const draftRows = previewRows.map((row) =>
+      row.reagent_name === reagent_name &&
+      row.row_num === rowNum &&
+      row.subprocess_name === subprocess_name
+        ? { ...row, consumption_qty: value }
+        : row
+    );
+
+    getReferenceData()
+      .then((refData) => {
+        const { rows, summary } = revalidatePreviewRows(
+          draftRows,
+          refData,
+          file_name,
+          total_excel_rows
+        );
+        setPreviewRows(rows);
+        setImportSummary(summary);
+      })
+      .catch(() => {
+        const fallbackRefData: RefData = { campaigns: [], mapping: FIXED_MAPPING, consumptions: [] };
         const { rows, summary } = revalidatePreviewRows(
           draftRows,
           fallbackRefData,
@@ -594,77 +940,103 @@ export default function ConsImpExp({
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-      const firstSheetName = workbook.SheetNames[0];
 
-      if (!firstSheetName) {
+      if (!workbook.SheetNames.length) {
         throw new Error("El archivo no tiene hojas.");
-      }
-
-      const sheet = workbook.Sheets[firstSheetName];
-      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-        defval: "",
-        raw: true,
-      });
-
-      if (!rawRows.length) {
-        throw new Error("El Excel está vacío.");
-      }
-
-      const firstRowHeaders = Object.keys(rawRows[0] || {});
-      const normalizedFields: ImportField[] = firstRowHeaders
-        .map((h) => getImportField(h))
-        .filter((field): field is ImportField => field !== "");
-
-      const requiredFields: ImportField[] = [
-        "campaign_id",
-        "reagent_name",
-        "consumption_date",
-        "subprocess_name",
-        "consumption_qty",
-      ];
-
-      const missingHeaders = requiredFields.filter((field) => !normalizedFields.includes(field));
-
-      if (missingHeaders.length) {
-        throw new Error(
-          "Faltan columnas. Deben venir exactamente: campaign_id, reagent_name, consumption_date, subprocess_name, consumption_qty"
-        );
       }
 
       const refData = await getReferenceData();
 
-      const baseRows = rawRows
-        .map((raw, idx) => {
-          const getValue = (fieldName: ImportField) => {
-            const sourceKey = Object.keys(raw).find((k) => getImportField(k) === fieldName);
-            return sourceKey ? raw[sourceKey] : "";
-          };
+      const allEntries: ImportPreviewRow[] = [];
+      const recognizedSheets = workbook.SheetNames.filter((sheetName) =>
+        REAGENT_BY_SHEET_KEY.has(normalizeLooseKey(sheetName))
+      );
 
-          return {
-            row_num: idx + 2,
-            campaign_id: normalizeText(getValue("campaign_id")).toUpperCase(),
-            reagent_name: normalizeText(getValue("reagent_name")),
-            consumption_date: parseExcelDateToIso(getValue("consumption_date")),
-            subprocess_name: normalizeText(getValue("subprocess_name")),
-            consumption_qty: normalizeText(getValue("consumption_qty")),
-          };
-        })
-        .filter((row) => {
-          return (
-            !isBlank(row.campaign_id) ||
-            !isBlank(row.reagent_name) ||
-            !isBlank(row.consumption_date) ||
-            !isBlank(row.subprocess_name) ||
-            !isBlank(row.consumption_qty)
-          );
-        });
+      if (!recognizedSheets.length) {
+        throw new Error("No se reconocen hojas de reactivos válidas.");
+      }
 
-      if (!baseRows.length) {
-        throw new Error("No hay filas para importar.");
+      const campaignDateById = new Map<string, string>(
+        (refData.campaigns || [])
+          .map((x) => [normalizeText(x.campaign_id).toUpperCase(), normalizeText(x.campaign_date)] as const)
+          .filter(([campaign_id]) => !!campaign_id)
+      );
+
+      for (const sheetName of recognizedSheets) {
+        const reagent_name = REAGENT_BY_SHEET_KEY.get(normalizeLooseKey(sheetName))!;
+        const subprocesses = SUBPROCESSES_BY_REAGENT.get(reagent_name) || [];
+        const sheet = workbook.Sheets[sheetName];
+
+        const matrix = XLSX.utils.sheet_to_json(sheet, {
+          header: 1,
+          defval: "",
+          raw: true,
+        }) as unknown[][];
+
+        if (!matrix.length) {
+          continue;
+        }
+
+        const headersRaw = (matrix[0] || []).map((x) => normalizeText(x));
+        const headersNorm = headersRaw.map((x) => normalizeHeader(x));
+
+        const campaignIdx = headersNorm.findIndex((x) => x === "campaignid" || x === "campaign_id");
+
+        if (campaignIdx < 0) {
+          throw new Error(`En la hoja "${sheetName}" falta campaign_id.`);
+        }
+
+        const subIdxByName = new Map<string, number>();
+        const missingSubCols: string[] = [];
+
+        for (const sp of subprocesses) {
+          const idx = headersNorm.findIndex((x) => x === normalizeHeader(sp));
+          if (idx < 0) missingSubCols.push(sp);
+          else subIdxByName.set(sp, idx);
+        }
+
+        if (missingSubCols.length) {
+          throw new Error(`En la hoja "${sheetName}" faltan columnas: ${missingSubCols.join(", ")}`);
+        }
+
+        for (let i = 1; i < matrix.length; i++) {
+          const excelRowNum = i + 1;
+          const row = matrix[i] || [];
+
+          const campaign_id = normalizeText(row[campaignIdx]).toUpperCase();
+          const consumption_date = campaignDateById.get(campaign_id) || "";
+
+          for (const subprocess_name of subprocesses) {
+            const idx = subIdxByName.get(subprocess_name);
+            if (idx === undefined) continue;
+
+            const rawQty = normalizeText(row[idx]);
+            if (isBlank(rawQty)) continue;
+
+            allEntries.push({
+              sheet_name: sheetName,
+              row_num: excelRowNum,
+              campaign_id,
+              reagent_name,
+              consumption_date,
+              subprocess_name,
+              consumption_qty: rawQty,
+              status: "INVÁLIDA",
+              errors: "",
+              valid: false,
+              source_duplicate_count: 0,
+              payload: null,
+            });
+          }
+        }
+      }
+
+      if (!allEntries.length) {
+        throw new Error("No hay consumos para importar.");
       }
 
       const sourceDuplicateCounts = new Map<string, number>();
-      for (const row of baseRows) {
+      for (const row of allEntries) {
         const key = buildDbKey(row.campaign_id, row.reagent_name, row.subprocess_name);
         if (!key) continue;
         sourceDuplicateCounts.set(key, (sourceDuplicateCounts.get(key) || 0) + 1);
@@ -673,21 +1045,12 @@ export default function ConsImpExp({
       const dedupMap = new Map<string, ImportPreviewRow>();
       const rowsWithoutKey: ImportPreviewRow[] = [];
 
-      for (const row of baseRows) {
+      for (const row of allEntries) {
         const key = buildDbKey(row.campaign_id, row.reagent_name, row.subprocess_name);
 
         const seedRow: ImportPreviewRow = {
-          row_num: row.row_num,
-          campaign_id: row.campaign_id,
-          reagent_name: row.reagent_name,
-          consumption_date: row.consumption_date,
-          subprocess_name: row.subprocess_name,
-          consumption_qty: row.consumption_qty,
-          status: "INVÁLIDA",
-          errors: "",
-          valid: false,
+          ...row,
           source_duplicate_count: key ? sourceDuplicateCounts.get(key) || 0 : 0,
-          payload: null,
         };
 
         if (!key) {
@@ -703,7 +1066,7 @@ export default function ConsImpExp({
         preview,
         refData,
         file.name,
-        rawRows.length
+        allEntries.length
       );
 
       setPreviewRows(rows);
@@ -844,8 +1207,8 @@ export default function ConsImpExp({
           <div
             className="panel-inner"
             style={{
-              width: "min(1480px, 96vw)",
-              height: "min(82vh, 820px)",
+              width: "min(1520px, 96vw)",
+              height: "min(84vh, 860px)",
               display: "grid",
               gridTemplateRows: "auto auto 1fr auto",
               gap: 10,
@@ -863,10 +1226,12 @@ export default function ConsImpExp({
               }}
             >
               <div>
-                <div style={{ fontSize: 18, fontWeight: 900 }}>Preview de importación de consumos</div>
+                <div style={{ fontSize: 18, fontWeight: 900 }}>
+                  Preview de importación de consumos por reactivo
+                </div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
-                  Si la combinación campaign_id + reagent_name + subprocess_name se repite en el Excel,
-                  se tomará la fila más baja.
+                  Se leerán las 21 hojas por reactivo. Si una combinación campaign_id + reagent_name + subprocess_name
+                  se repite, se toma la fila más baja.
                 </div>
               </div>
 
@@ -907,135 +1272,183 @@ export default function ConsImpExp({
               </div>
             ) : null}
 
-            <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(191,231,255,.12)", borderRadius: 12 }}>
-              <Table stickyHeader disableScrollWrapper>
-                <colgroup>
-                  <col style={{ width: 70 }} />
-                  <col style={{ width: 140 }} />
-                  <col style={{ width: 240 }} />
-                  <col style={{ width: 150 }} />
-                  <col style={{ width: 340 }} />
-                  <col style={{ width: 150 }} />
-                  <col style={{ width: 130 }} />
-                  <col style={{ width: 120 }} />
-                  <col style={{ width: 360 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    {[
-                      "fila",
-                      "campaign_id",
-                      "reagent_name",
-                      "consumption_date",
-                      "subprocess_name",
-                      "consumption_qty",
-                      "estado",
-                      "repetido",
-                      "errores",
-                    ].map((label) => (
-                      <th
-                        key={label}
-                        className="capex-th"
+            <div
+              style={{
+                minWidth: 0,
+                minHeight: 0,
+                overflow: "auto",
+                border: "1px solid rgba(191,231,255,.12)",
+                borderRadius: 12,
+                padding: 10,
+                display: "grid",
+                gap: 10,
+              }}
+            >
+              {groupedPreview.length ? (
+                <>
+                  <div style={{ display: "grid", gap: 6, maxWidth: 380 }}>
+                    <div style={{ fontWeight: 900, fontSize: 13 }}>Reactivo a visualizar</div>
+                    <select
+                      value={previewReagent}
+                      onChange={(e) => setPreviewReagent(e.target.value)}
+                      style={{
+                        width: "100%",
+                        background: "rgba(0,0,0,.10)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        outline: "none",
+                        fontWeight: 900,
+                      }}
+                    >
+                      {groupedPreview.map((g) => (
+                        <option key={g.reagent_name} value={g.reagent_name}>
+                          {g.reagent_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedPreviewGroup ? (
+                    <div
+                      style={{
+                        border: "1px solid rgba(191,231,255,.12)",
+                        borderRadius: 12,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
                         style={{
-                          position: "sticky",
-                          top: 0,
-                          zIndex: 20,
-                          background: headerBg,
-                          border: headerBorder,
-                          borderBottom: headerBorder,
-                          textAlign: "left",
-                          padding: "8px 8px",
-                          fontSize: 12,
-                          whiteSpace: "nowrap",
+                          padding: "10px 12px",
+                          background: "rgba(255,255,255,.04)",
+                          borderBottom: "1px solid rgba(191,231,255,.10)",
+                          fontWeight: 900,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
                         }}
                       >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map((row) => {
-                    const bg = !row.valid ? "rgba(255,80,80,.10)" : rowBg;
+                        <span>{selectedPreviewGroup.reagent_name}</span>
+                        <span style={{ opacity: 0.8, fontSize: 12 }}>{selectedPreviewGroup.sheet_name}</span>
+                      </div>
 
-                    return (
-                      <tr
-                        key={`${row.row_num}_${row.campaign_id}_${row.reagent_name}_${row.subprocess_name}`}
-                        className="capex-tr"
-                      >
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
-                          {row.row_num}
-                        </td>
+                      <Table stickyHeader disableScrollWrapper>
+                        <thead>
+                          <tr>
+                            <th className="capex-th" style={{ position: "sticky", top: 0, zIndex: 20, background: headerBg, border: headerBorder, padding: "8px 8px", fontSize: 12, whiteSpace: "nowrap", textAlign: "left" }}>
+                              fila
+                            </th>
+                            <th className="capex-th" style={{ position: "sticky", top: 0, zIndex: 20, background: headerBg, border: headerBorder, padding: "8px 8px", fontSize: 12, whiteSpace: "nowrap", textAlign: "left" }}>
+                              campaign_id
+                            </th>
+                            {(SUBPROCESSES_BY_REAGENT.get(selectedPreviewGroup.reagent_name) || []).map((sp) => (
+                              <th
+                                key={sp}
+                                className="capex-th"
+                                style={{
+                                  position: "sticky",
+                                  top: 0,
+                                  zIndex: 20,
+                                  background: headerBg,
+                                  border: headerBorder,
+                                  padding: "8px 8px",
+                                  fontSize: 12,
+                                  whiteSpace: "nowrap",
+                                  textAlign: "left",
+                                }}
+                              >
+                                {sp}
+                              </th>
+                            ))}
+                            <th className="capex-th" style={{ position: "sticky", top: 0, zIndex: 20, background: headerBg, border: headerBorder, padding: "8px 8px", fontSize: 12, whiteSpace: "nowrap", textAlign: "left" }}>
+                              estado
+                            </th>
+                            <th className="capex-th" style={{ position: "sticky", top: 0, zIndex: 20, background: headerBg, border: headerBorder, padding: "8px 8px", fontSize: 12, whiteSpace: "nowrap", textAlign: "left" }}>
+                              repetido
+                            </th>
+                            <th className="capex-th" style={{ position: "sticky", top: 0, zIndex: 20, background: headerBg, border: headerBorder, padding: "8px 8px", fontSize: 12, whiteSpace: "nowrap", textAlign: "left" }}>
+                              errores
+                            </th>
+                          </tr>
+                        </thead>
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
-                          <input
-                            value={row.campaign_id}
-                            onChange={(e) => onEditPreviewCell(row.row_num, "campaign_id", String(e.target.value || "").toUpperCase())}
-                            style={previewInputStyle}
-                          />
-                        </td>
+                        <tbody>
+                          {previewMatrixRows.map((row) => {
+                            const bg = row.status === "INVÁLIDA" ? "rgba(255,80,80,.10)" : rowBg;
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
-                          <input
-                            value={row.reagent_name}
-                            onChange={(e) => onEditPreviewCell(row.row_num, "reagent_name", e.target.value)}
-                            style={previewInputStyle}
-                          />
-                        </td>
+                            return (
+                              <tr key={`${selectedPreviewGroup.reagent_name}_${row.row_num}_${row.campaign_id}_${row.consumption_date}`} className="capex-tr">
+                                <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
+                                  {row.row_num}
+                                </td>
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
-                          <input
-                            type="date"
-                            value={row.consumption_date || ""}
-                            onChange={(e) => onEditPreviewCell(row.row_num, "consumption_date", e.target.value)}
-                            style={previewInputStyle}
-                          />
-                        </td>
+                                <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
+                                  <input
+                                    value={row.campaign_id}
+                                    onChange={(e) =>
+                                      onEditPreviewRowField(
+                                        selectedPreviewGroup.reagent_name,
+                                        row.row_num,
+                                        "campaign_id",
+                                        String(e.target.value || "").toUpperCase()
+                                      )
+                                    }
+                                    style={previewInputStyle}
+                                  />
+                                </td>
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
-                          <input
-                            value={row.subprocess_name}
-                            onChange={(e) => onEditPreviewCell(row.row_num, "subprocess_name", e.target.value)}
-                            style={previewInputStyle}
-                          />
-                        </td>
+                                {(SUBPROCESSES_BY_REAGENT.get(selectedPreviewGroup.reagent_name) || []).map((sp) => {
+                                  const cellBg = row.cellValid[sp] ? bg : "rgba(255,80,80,.16)";
+                                  return (
+                                    <td
+                                      key={`${row.row_num}_${sp}`}
+                                      className="capex-td"
+                                      style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: cellBg }}
+                                    >
+                                      <input
+                                        value={row.cells[sp] || ""}
+                                        onChange={(e) =>
+                                          onEditPreviewQtyMatrixCell(
+                                            selectedPreviewGroup.reagent_name,
+                                            row.row_num,
+                                            sp,
+                                            e.target.value
+                                          )
+                                        }
+                                        style={previewInputStyle}
+                                      />
+                                    </td>
+                                  );
+                                })}
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
-                          <input
-                            value={row.consumption_qty}
-                            onChange={(e) => onEditPreviewCell(row.row_num, "consumption_qty", e.target.value)}
-                            style={previewInputStyle}
-                          />
-                        </td>
+                                <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                                  {row.status}
+                                </td>
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
-                          {row.status}
-                        </td>
+                                <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                                  {row.has_duplicate ? "Sí" : "No"}
+                                </td>
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
-                          {row.source_duplicate_count > 1 ? `Sí (${row.source_duplicate_count})` : "No"}
-                        </td>
-
-                        <td
-                          className="capex-td"
-                          style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}
-                          title={row.errors || "—"}
-                        >
-                          {row.errors || "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-
-                  {previewRows.length === 0 ? (
-                    <tr className="capex-tr">
-                      <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={9}>
-                        No hay filas para preview.
-                      </td>
-                    </tr>
+                                <td
+                                  className="capex-td"
+                                  style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}
+                                  title={row.errors || "—"}
+                                >
+                                  {row.errors || "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </Table>
+                    </div>
                   ) : null}
-                </tbody>
-              </Table>
+                </>
+              ) : (
+                <div style={{ padding: 12, fontWeight: 900 }}>No hay filas para preview.</div>
+              )}
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
