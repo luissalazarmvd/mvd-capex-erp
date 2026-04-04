@@ -1,7 +1,7 @@
 // src/components/capex/MapImpExp.tsx
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
@@ -126,7 +126,8 @@ function revalidatePreviewRows(
   draftRows: ImportPreviewRow[],
   file_name: string,
   total_excel_rows: number,
-  existingMap: Map<string, string>
+  existingMap: Map<string, string>,
+  validWbsSet: Set<string>
 ): { rows: ImportPreviewRow[]; summary: ImportSummary } {
   const counts = new Map<string, number>();
 
@@ -146,6 +147,10 @@ function revalidatePreviewRows(
     if (!capex_code) errors.push("capex_code vacío");
 
     const key = wbs_code.toUpperCase();
+
+    if (wbs_code && !validWbsSet.has(key)) {
+      errors.push("wbs_code no existe en dim.wbs");
+    }
     const duplicateCount = key ? counts.get(key) || 0 : 0;
     const isDuplicate = duplicateCount > 1;
 
@@ -196,15 +201,59 @@ export default function MapImpExp({
   disabled = false,
 }: Props) {
   const [importing, setImporting] = useState(false);
+  const [loadingWbs, setLoadingWbs] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewRows, setPreviewRows] = useState<ImportPreviewRow[]>([]);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [validWbsSet, setValidWbsSet] = useState<Set<string>>(new Set());
 
   const existingMap = new Map(
     rows.map((r) => [normalizeText(r.wbs_code).toUpperCase(), normalizeText(r.capex_code)])
   );
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      setLoadingWbs(true);
+      try {
+        const res = await fetch("/api/projects/meta", { cache: "no-store" });
+        const data = await res.json();
+
+        if (!res.ok || !data?.ok) {
+          throw new Error(data?.error || "No se pudo cargar dim.wbs");
+        }
+
+        const set = new Set<string>();
+
+        for (const project of Array.isArray(data?.tree) ? data.tree : []) {
+          for (const w of Array.isArray(project?.wbs) ? project.wbs : []) {
+            const code = normalizeText(w?.wbs_code).toUpperCase();
+            if (code) set.add(code);
+          }
+        }
+
+        if (active) {
+          setValidWbsSet(set);
+        }
+      } catch (e: any) {
+        if (active) {
+          setMsgAction(`ERROR: ${String(e?.message || e || "No se pudo cargar dim.wbs")}`);
+          setValidWbsSet(new Set());
+        }
+      } finally {
+        if (active) {
+          setLoadingWbs(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [setMsgAction]);
 
   function closePreview() {
     if (importing) return;
@@ -214,6 +263,16 @@ export default function MapImpExp({
   }
 
   function onClickImport() {
+    if (loadingWbs) {
+      setMsgAction("Espera a que cargue la lista de WBS válidos.");
+      return;
+    }
+
+    if (!validWbsSet.size) {
+      setMsgAction("No se pudo cargar la lista de WBS válidos desde dim.wbs.");
+      return;
+    }
+
     fileInputRef.current?.click();
   }
 
@@ -310,7 +369,8 @@ export default function MapImpExp({
         previewSeed,
         file.name,
         rawRows.length,
-        existingMap
+        existingMap,
+        validWbsSet
       );
 
       setPreviewRows(revalidatedRows);
@@ -414,9 +474,9 @@ export default function MapImpExp({
         size="sm"
         variant="ghost"
         onClick={onClickImport}
-        disabled={disabled || importing}
+        disabled={disabled || importing || loadingWbs}
       >
-        {importing ? "Importando…" : "Importar Mapping"}
+        {loadingWbs ? "Cargando WBS…" : importing ? "Importando…" : "Importar Mapping"}
       </Button>
 
       {previewOpen ? (
