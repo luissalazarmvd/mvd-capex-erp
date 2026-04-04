@@ -416,7 +416,7 @@ export default function MapImpExp({
         onClick={onExportExcel}
         disabled={disabled || importing || rows.length === 0}
       >
-        Exportar Excel
+        Exportar Mapping
       </Button>
 
       <Button
@@ -426,7 +426,7 @@ export default function MapImpExp({
         onClick={onClickImport}
         disabled={disabled || importing}
       >
-        {importing ? "Importando…" : "Importar Excel"}
+        {importing ? "Importando…" : "Importar Mapping"}
       </Button>
 
       {previewOpen ? (
