@@ -807,7 +807,6 @@ export default function RefineryConsumptionPage() {
                 await loadRows(campaignId, reagent);
               }}
               disabled={loadingMeta || loadingTable || saving}
-              exportCampaignId={campaignId || undefined}
             />
 
             <Button

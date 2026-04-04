@@ -505,11 +505,7 @@ export default function ConsImpExp({
     setMsgAction(null);
 
     try {
-      const q = exportCampaignId
-        ? `?campaign_id=${encodeURIComponent(normalizeText(exportCampaignId).toUpperCase())}`
-        : "";
-
-      const r = (await apiGet(`/api/refineria/consumption${q}`)) as ConsumptionResp;
+      const r = (await apiGet("/api/refineria/consumption")) as ConsumptionResp;
       const rows = Array.isArray(r?.rows) ? r.rows : [];
 
       if (!rows.length) {
