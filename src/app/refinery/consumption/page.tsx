@@ -795,45 +795,48 @@ export default function RefineryConsumptionPage() {
 
   return (
     <div style={{ display: "grid", gap: 12, width: "100%" }}>
-      <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
-        <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-          <div style={{ fontWeight: 900 }}>Consumos</div>
+      <div
+        className="panel-inner"
+        style={{ padding: 10, display: "flex", gap: 10, alignItems: "center", width: "100%" }}
+      >
+        <div style={{ fontWeight: 900 }}>Consumos</div>
 
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                loadLatestCampaignId();
-                loadMeta();
-                loadRows(campaignId, reagent);
-              }}
-              disabled={loadingMeta || loadingTable || saving}
-            >
-              {loadingMeta || loadingTable ? "Cargando..." : "Refrescar"}
-            </Button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              loadLatestCampaignId();
+              loadMeta();
+              loadRows(campaignId, reagent);
+            }}
+            disabled={loadingMeta || loadingTable || saving}
+          >
+            {loadingMeta || loadingTable ? "Cargando..." : "Refrescar"}
+          </Button>
 
-            <ConsImpExp
-              setMsgAction={setMsg}
-              afterImportAction={async () => {
-                await loadRows(campaignId, reagent);
-              }}
-              disabled={loadingMeta || loadingTable || saving}
-            />
+          <ConsImpExp
+            setMsgAction={setMsg}
+            afterImportAction={async () => {
+              await loadRows(campaignId, reagent);
+            }}
+            disabled={loadingMeta || loadingTable || saving}
+          />
 
-            <Button
-              type="button"
-              size="sm"
-              variant="primary"
-              onClick={onSaveAll}
-              disabled={!dirtyCount || saving || !canQuery}
-            >
-              {saving ? "Guardando…" : `Guardar${dirtyCount ? ` (${dirtyCount})` : ""}`}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            onClick={onSaveAll}
+            disabled={!dirtyCount || saving || !canQuery}
+          >
+            {saving ? "Guardando…" : `Guardar${dirtyCount ? ` (${dirtyCount})` : ""}`}
+          </Button>
         </div>
+      </div>
 
+      <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
         {msg ? (
           <div
             className="panel-inner"
