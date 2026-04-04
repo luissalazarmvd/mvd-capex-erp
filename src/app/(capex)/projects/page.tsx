@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ProjectTree, ProjectNode } from "../../../components/capex/ProjectTree";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
+import MapImpExp from "../../../components/capex/MapImpExp";
 
 export type SelectOption = { value: string; label: string };
 
@@ -51,6 +52,17 @@ type ProjectRow = {
   proj_condition_id: number | null;
   proj_area_id: number | null;
   priority_id: number | null;
+};
+
+type MappingRow = {
+  wbs_code: string;
+  capex_code: string;
+  updated_at?: string | null;
+};
+
+type MappingResp = {
+  ok: boolean;
+  rows: MappingRow[];
 };
 
 type ProjectsMeta = {
@@ -235,7 +247,7 @@ function DarkSelect({
 export default function ProjectsPage() {
   const [data, setData] = useState<ProjectNode[]>([]);
   const [projectsFlat, setProjectsFlat] = useState<ProjectRow[]>([]);
-
+  const [mappingRows, setMappingRows] = useState<MappingRow[]>([]);
   const [optGroups, setOptGroups] = useState<SelectOption[]>(OPT_EMPTY);
   const [optInvClass, setOptInvClass] = useState<SelectOption[]>(OPT_EMPTY);
   const [optCond, setOptCond] = useState<SelectOption[]>(OPT_EMPTY);
@@ -256,6 +268,15 @@ export default function ProjectsPage() {
   const isCodeLocked = useMemo(() => {
     return !!lockedProjectCode;
   }, [lockedProjectCode]);
+
+  async function fetchMapping() {
+    try {
+      const r = (await apiGet("/api/capex/mapping")) as MappingResp;
+      setMappingRows(Array.isArray(r?.rows) ? r.rows : []);
+    } catch {
+      setMappingRows([]);
+    }
+  }
 
   async function fetchMeta() {
     setLoading(true);
@@ -280,6 +301,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     fetchMeta();
+    fetchMapping();
   }, []);
 
   const selectedProjectNode = useMemo(() => {
@@ -453,7 +475,15 @@ export default function ProjectsPage() {
         <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10 }}>
           <div style={{ fontWeight: 900 }}>Proyecto + WBS</div>
 
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <MapImpExp
+              rows={mappingRows}
+              setMsgAction={setMsg}
+              loadMappingAction={async () => {
+                await fetchMapping();
+              }}
+              disabled={loading}
+            />
             <Button
               type="button"
               size="sm"
@@ -470,7 +500,16 @@ export default function ProjectsPage() {
               Nuevo
             </Button>
 
-            <Button type="button" size="sm" variant="ghost" onClick={() => fetchMeta()} disabled={loading}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={async () => {
+                await fetchMeta();
+                await fetchMapping();
+              }}
+              disabled={loading}
+            >
               {loading ? "Cargando..." : "Refrescar"}
             </Button>
           </div>
