@@ -278,6 +278,11 @@ function toNum(v: any) {
   return Number.isFinite(n) ? n : null;
 }
 
+function isZeroLike(v: unknown) {
+  const n = toNum(v);
+  return n !== null && n === 0;
+}
+
 function toDecimalStrOrNullFront(v: string, scale = 9) {
   const s0 = String(v ?? "").trim();
   if (!s0) return null;
@@ -648,8 +653,10 @@ function revalidatePreviewRows(
       }
     }
 
-    const qty = toDecimalStrOrNullFront(consumption_qty, 9);
-    if (qty === null) {
+    const qtyIsZero = isZeroLike(consumption_qty);
+    const qty = qtyIsZero ? null : toDecimalStrOrNullFront(consumption_qty, 9);
+
+    if (!qtyIsZero && qty === null) {
       errors = appendError(errors, "consumption_qty inválido (>0)");
     }
 
@@ -1260,8 +1267,10 @@ useEffect(() => {
             const idx = subIdxByName.get(subprocess_name);
             if (idx === undefined) continue;
 
-            const rawQty = normalizeText(row[idx]);
-            if (isBlank(rawQty)) continue;
+            const rawQtyCell = row[idx];
+            const rawQty = normalizeText(rawQtyCell);
+
+            if (isBlank(rawQtyCell) || isZeroLike(rawQtyCell)) continue;
 
             allEntries.push({
               sheet_name: sheetName,
