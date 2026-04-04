@@ -197,6 +197,123 @@ function SearchableDropdown({
   );
 }
 
+function Select({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const currentLabel =
+    options.find((o) => o.value === value)?.label ?? options.find((o) => o.value === "")?.label ?? "";
+
+  useEffect(() => {
+    function onDocDown(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as any)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, []);
+
+  return (
+    <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
+      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((s) => !s)}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          background: "rgba(0,0,0,.10)",
+          border: "1px solid var(--border)",
+          color: "var(--text)",
+          borderRadius: 10,
+          padding: "10px 12px",
+          outline: "none",
+          fontWeight: 900,
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.7 : 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <span style={{ opacity: value ? 1 : 0.6 }}>{currentLabel}</span>
+        <span style={{ opacity: 0.8 }}>▾</span>
+      </button>
+
+      {open ? (
+        <div style={{ position: "relative", zIndex: 50 }}>
+          <div
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 0,
+              right: 0,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,.10)",
+              background: "rgba(5, 25, 45, .98)",
+              boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+              overflow: "hidden",
+              maxHeight: 6 * 44,
+              overflowY: "auto",
+              overscrollBehavior: "contain",
+            }}
+          >
+            {options.map((o) => {
+              const active = o.value === value;
+              const isEmpty = o.value === "";
+              return (
+                <button
+                  key={o.value || "__empty__"}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 900,
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as any).style.background = active
+                      ? "rgba(102,199,255,.18)"
+                      : "rgba(255,255,255,.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as any).style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function RefineryReportsPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [msg, setMsg] = useState<string | null>(null);
@@ -337,28 +454,14 @@ export default function RefineryReportsPage() {
             />
           </div>
 
-          <div style={{ display: "grid", gap: 6, minWidth: 160 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Mes</div>
-            <select
+          <div style={{ minWidth: 160 }}>
+            <Select
+              label="Mes"
               value={String(fromMonth)}
-              onChange={(e) => setFromMonth(Number(e.target.value))}
-              style={{
-                width: "100%",
-                background: "rgba(0,0,0,.10)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                outline: "none",
-                fontWeight: 900,
-              }}
-            >
-              {monthOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setFromMonth(Number(v))}
+              disabled={loading}
+              options={monthOptions}
+            />
           </div>
 
           <div style={{ display: "grid", gap: 6, minWidth: 110 }}>
@@ -379,28 +482,14 @@ export default function RefineryReportsPage() {
             />
           </div>
 
-          <div style={{ display: "grid", gap: 6, minWidth: 160 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Mes</div>
-            <select
+          <div style={{ minWidth: 160 }}>
+            <Select
+              label="Mes"
               value={String(toMonth)}
-              onChange={(e) => setToMonth(Number(e.target.value))}
-              style={{
-                width: "100%",
-                background: "rgba(0,0,0,.10)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                outline: "none",
-                fontWeight: 900,
-              }}
-            >
-              {monthOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setToMonth(Number(v))}
+              disabled={loading}
+              options={monthOptions}
+            />
           </div>
 
           <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
