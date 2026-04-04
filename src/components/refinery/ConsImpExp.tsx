@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { Input } from "../ui/Input";
 import { Table } from "../ui/Table";
 
 type CampaignRow = {
@@ -120,6 +121,43 @@ type Props = {
   disabled?: boolean;
   exportCampaignId?: string;
 };
+
+const MONTHS = [
+  { value: 1, label: "Enero" },
+  { value: 2, label: "Febrero" },
+  { value: 3, label: "Marzo" },
+  { value: 4, label: "Abril" },
+  { value: 5, label: "Mayo" },
+  { value: 6, label: "Junio" },
+  { value: 7, label: "Julio" },
+  { value: 8, label: "Agosto" },
+  { value: 9, label: "Septiembre" },
+  { value: 10, label: "Octubre" },
+  { value: 11, label: "Noviembre" },
+  { value: 12, label: "Diciembre" },
+] as const;
+
+function defaultExportRange() {
+  const d = new Date();
+  return {
+    fromYear: String(d.getFullYear()),
+    fromMonth: 1,
+    toYear: String(d.getFullYear()),
+    toMonth: d.getMonth() + 1,
+  };
+}
+
+function ymFromInputs(year: string, month: number) {
+  const y = String(year || "").trim();
+  if (!/^\d{4}$/.test(y)) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  return `${y}${pad2(month)}`;
+}
+
+function getRowYm(consumption_date: string | null | undefined) {
+  const s = String(consumption_date || "").slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(s) ? s.replace("-", "") : "";
+}
 
 function normalizeText(v: unknown) {
   return String(v ?? "").trim();
@@ -685,6 +723,22 @@ export default function ConsImpExp({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const busy = importing || exporting;
 
+  const initRange = useMemo(() => defaultExportRange(), []);
+  const [fromYear, setFromYear] = useState<string>(initRange.fromYear);
+  const [fromMonth, setFromMonth] = useState<number>(initRange.fromMonth);
+  const [toYear, setToYear] = useState<string>(initRange.toYear);
+  const [toMonth, setToMonth] = useState<number>(initRange.toMonth);
+
+  const monthOptions = useMemo(
+    () => MONTHS.map((m) => ({ value: String(m.value), label: m.label })),
+    []
+  );
+
+  const fromYm = useMemo(() => ymFromInputs(fromYear, fromMonth) ?? "", [fromYear, fromMonth]);
+  const toYm = useMemo(() => ymFromInputs(toYear, toMonth) ?? "", [toYear, toMonth]);
+
+  const exportRangeValid = !!fromYm && !!toYm && fromYm <= toYm;
+
   const [runtimeMapping, setRuntimeMapping] = useState<MapRow[]>(FIXED_MAPPING);
 
 const REAGENT_ORDER = useMemo(
@@ -928,12 +982,27 @@ useEffect(() => {
   async function onExportExcel() {
     if (busy) return;
 
+    if (!exportRangeValid) {
+      setMsgAction("ERROR: rango Desde/Hasta inválido.");
+      return;
+    }
+
     setExporting(true);
     setMsgAction(null);
 
     try {
       const r = (await apiGet("/api/refineria/consumption")) as ConsumptionResp;
-      const rows = Array.isArray(r?.rows) ? r.rows : [];
+      const allRows = Array.isArray(r?.rows) ? r.rows : [];
+
+      const rows = allRows.filter((row) => {
+        const rowYm = getRowYm(row.consumption_date);
+        return !!rowYm && rowYm >= fromYm && rowYm <= toYm;
+      });
+
+      if (!rows.length) {
+        setMsgAction("No hay campañas para exportar en el rango seleccionado.");
+        return;
+      }
 
       const wb = XLSX.utils.book_new();
 
@@ -1357,25 +1426,71 @@ useEffect(() => {
         style={{ display: "none" }}
       />
 
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={onExportExcel}
-        disabled={disabled || busy}
-      >
-        {exporting ? "Exportando…" : "Exportar Excel"}
-      </Button>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "grid", gap: 4 }}>
+          <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9 }}>Desde</div>
+          <Input
+            value={fromYear}
+            onChange={(e: any) => {
+              const v = String(e.target.value || "").trim();
+              setFromYear(v);
+            }}
+            hint="Año (YYYY)"
+          />
+        </div>
 
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={onClickImport}
-        disabled={disabled || busy}
-      >
-        {importing ? "Importando…" : "Importar Excel"}
-      </Button>
+        <div style={{ minWidth: 190 }}>
+          <Select
+            label="Mes"
+            value={String(fromMonth)}
+            onChange={(v) => setFromMonth(Number(v))}
+            disabled={disabled || busy}
+            options={monthOptions}
+          />
+        </div>
+
+        <div style={{ display: "grid", gap: 4 }}>
+          <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9 }}>Hasta</div>
+          <Input
+            value={toYear}
+            onChange={(e: any) => {
+              const v = String(e.target.value || "").trim();
+              setToYear(v);
+            }}
+            hint="Año (YYYY)"
+          />
+        </div>
+
+        <div style={{ minWidth: 190 }}>
+          <Select
+            label="Mes"
+            value={String(toMonth)}
+            onChange={(v) => setToMonth(Number(v))}
+            disabled={disabled || busy}
+            options={monthOptions}
+          />
+        </div>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={onExportExcel}
+          disabled={disabled || busy || !exportRangeValid}
+        >
+          {exporting ? "Exportando…" : "Exportar Excel"}
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={onClickImport}
+          disabled={disabled || busy}
+        >
+          {importing ? "Importando…" : "Importar Excel"}
+        </Button>
+      </div>
 
       {previewOpen ? (
         <div
