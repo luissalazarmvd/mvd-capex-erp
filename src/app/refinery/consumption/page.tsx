@@ -802,6 +802,14 @@ export default function RefineryConsumptionPage() {
         <div style={{ fontWeight: 900 }}>Consumos</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+          <ConsImpExp
+            setMsgAction={setMsg}
+            afterImportAction={async () => {
+              await loadRows(campaignId, reagent);
+            }}
+            disabled={loadingMeta || loadingTable || saving}
+          />
+
           <Button
             type="button"
             size="sm"
@@ -815,14 +823,6 @@ export default function RefineryConsumptionPage() {
           >
             {loadingMeta || loadingTable ? "Cargando..." : "Refrescar"}
           </Button>
-
-          <ConsImpExp
-            setMsgAction={setMsg}
-            afterImportAction={async () => {
-              await loadRows(campaignId, reagent);
-            }}
-            disabled={loadingMeta || loadingTable || saving}
-          />
 
           <Button
             type="button"

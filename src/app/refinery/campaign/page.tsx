@@ -384,15 +384,15 @@ export default function RefineryCampaignPage() {
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={() => loadCampaigns()} disabled={loadingList || saving}>
-            {loadingList ? "Cargando..." : "Refrescar"}
-          </Button>
           <CampImpExp
             rows={rows}
             setMsgAction={setMsg}
             loadCampaignsAction={loadCampaigns}
             disabled={loadingList || saving}
           />
+          <Button type="button" size="sm" variant="ghost" onClick={() => loadCampaigns()} disabled={loadingList || saving}>
+            {loadingList ? "Cargando..." : "Refrescar"}
+          </Button>
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
             {saving ? "Guardando…" : "Guardar"}
           </Button>

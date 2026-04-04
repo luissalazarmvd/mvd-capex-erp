@@ -14,6 +14,38 @@ type CampaignRow = { campaign_id: string };
 type CampaignsResp = { ok: boolean; rows: CampaignRow[]; error?: string };
 type LatestResp = { ok: boolean; campaign_id: string | null; error?: string };
 
+const MONTHS = [
+  { value: 1, label: "Enero" },
+  { value: 2, label: "Febrero" },
+  { value: 3, label: "Marzo" },
+  { value: 4, label: "Abril" },
+  { value: 5, label: "Mayo" },
+  { value: 6, label: "Junio" },
+  { value: 7, label: "Julio" },
+  { value: 8, label: "Agosto" },
+  { value: 9, label: "Septiembre" },
+  { value: 10, label: "Octubre" },
+  { value: 11, label: "Noviembre" },
+  { value: 12, label: "Diciembre" },
+] as const;
+
+function defaultExportRange() {
+  const d = new Date();
+  return {
+    fromYear: String(d.getFullYear()),
+    fromMonth: 1,
+    toYear: String(d.getFullYear()),
+    toMonth: d.getMonth() + 1,
+  };
+}
+
+function ymFromInputs(year: string, month: number) {
+  const y = String(year || "").trim();
+  if (!/^\d{4}$/.test(y)) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  return `${y}${String(month).padStart(2, "0")}`;
+}
+
 function SearchableDropdown({
   label,
   placeholder,
@@ -174,10 +206,31 @@ export default function RefineryReportsPage() {
 
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
+  const initRange = useMemo(() => defaultExportRange(), []);
+  const [fromYear, setFromYear] = useState<string>(initRange.fromYear);
+  const [fromMonth, setFromMonth] = useState<number>(initRange.fromMonth);
+  const [toYear, setToYear] = useState<string>(initRange.toYear);
+  const [toMonth, setToMonth] = useState<number>(initRange.toMonth);
+
+  const monthOptions = useMemo(
+    () => MONTHS.map((m) => ({ value: String(m.value), label: m.label })),
+    []
+  );
+
+  const fromYm = useMemo(() => ymFromInputs(fromYear, fromMonth) ?? "", [fromYear, fromMonth]);
+  const toYm = useMemo(() => ymFromInputs(toYear, toMonth) ?? "", [toYear, toMonth]);
+  const exportRangeValid = !!fromYm && !!toYm && fromYm <= toYm;
+
     async function onExportExcel() {
     try {
+      if (!exportRangeValid) {
+        setMsg("ERROR: rango Desde/Hasta inválido.");
+        return;
+      }
+
       setMsg(null);
-      const r = (await apiGet("/api/refineria/reports/excel")) as any;
+      const q = `?from_ym=${encodeURIComponent(fromYm)}&to_ym=${encodeURIComponent(toYm)}`;
+      const r = (await apiGet(`/api/refineria/reports/excel${q}`)) as any;
 
       if (!r?.ok || !r?.file_base64) {
         setMsg(r?.error ? `ERROR: ${r.error}` : "ERROR exportando");
@@ -248,8 +301,8 @@ export default function RefineryReportsPage() {
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       {/* FILA 1: dropdown */}
       <div className="panel-inner" style={{ padding: 12 }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "flex-end", width: "100%" }}>
-          <div style={{ flex: 1, minWidth: 320, maxWidth: 720 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end", width: "100%", flexWrap: "wrap" }}>
+          <div style={{ flex: "0 0 420px", minWidth: 320, maxWidth: 420 }}>
             <SearchableDropdown
               label="Campaña"
               placeholder={loading ? "Cargando campañas..." : "Buscar..."}
@@ -266,7 +319,95 @@ export default function RefineryReportsPage() {
             />
           </div>
 
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "grid", gap: 6, minWidth: 110 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Desde</div>
+            <input
+              value={fromYear}
+              onChange={(e) => setFromYear(String(e.target.value || "").trim())}
+              style={{
+                width: "100%",
+                background: "rgba(0,0,0,.10)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                outline: "none",
+                fontWeight: 900,
+              }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6, minWidth: 160 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Mes</div>
+            <select
+              value={String(fromMonth)}
+              onChange={(e) => setFromMonth(Number(e.target.value))}
+              style={{
+                width: "100%",
+                background: "rgba(0,0,0,.10)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                outline: "none",
+                fontWeight: 900,
+              }}
+            >
+              {monthOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "grid", gap: 6, minWidth: 110 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Hasta</div>
+            <input
+              value={toYear}
+              onChange={(e) => setToYear(String(e.target.value || "").trim())}
+              style={{
+                width: "100%",
+                background: "rgba(0,0,0,.10)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                outline: "none",
+                fontWeight: 900,
+              }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6, minWidth: 160 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Mes</div>
+            <select
+              value={String(toMonth)}
+              onChange={(e) => setToMonth(Number(e.target.value))}
+              style={{
+                width: "100%",
+                background: "rgba(0,0,0,.10)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                outline: "none",
+                fontWeight: 900,
+              }}
+            >
+              {monthOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Button type="button" size="sm" variant="primary" onClick={onExportExcel} disabled={loading || !exportRangeValid}>
+              Exportar Excel
+            </Button>
+
             <Button
               type="button"
               size="sm"
@@ -275,10 +416,6 @@ export default function RefineryReportsPage() {
               disabled={loading}
             >
               {loading ? "Cargando..." : "Refrescar"}
-            </Button>
-
-            <Button type="button" size="sm" variant="primary" onClick={onExportExcel} disabled={loading}>
-              Exportar Excel
             </Button>
           </div>
         </div>
