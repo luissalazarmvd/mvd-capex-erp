@@ -207,7 +207,7 @@ export function WbsMatrix({
 
   const showRowTotal = mode === "budget" || mode === "forecast";
   const showProjectTotals = mode === "budget" || mode === "forecast";
-  const showProgressTotals = mode === "progress" && !!progressDouble;
+  const showProgressTotals = mode === "progress";
 
   const baseRowsForTotals = rowsForTotals ?? rows;
 
@@ -345,12 +345,14 @@ export function WbsMatrix({
             <span style={{ fontWeight: 900 }}>{fmtPct(progressTop.evPct)}%</span>
           </div>
 
-          <div className="panel-inner" style={{ padding: "8px 10px" }}>
-            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
-              AC Proyecto:
-            </span>
-            <span style={{ fontWeight: 900 }}>{fmtMoney(progressTop.ac)}</span>
-          </div>
+          {progressDouble ? (
+            <div className="panel-inner" style={{ padding: "8px 10px" }}>
+              <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+                AC Proyecto:
+              </span>
+              <span style={{ fontWeight: 900 }}>{fmtMoney(progressTop.ac)}</span>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -433,22 +435,24 @@ export function WbsMatrix({
                   >
                     EV% (último)
                   </th>
-                  <th
-                    style={{
-                      position: "sticky",
-                      top: 0,
-                      zIndex: 1,
-                      background: "rgba(0,0,0,.22)",
-                      borderBottom: "1px solid var(--border)",
-                      padding: "10px 10px",
-                      textAlign: "center",
-                      fontWeight: 900,
-                      width: ACTOTAL_W,
-                      minWidth: ACTOTAL_W,
-                    }}
-                  >
-                    AC (total)
-                  </th>
+                  {progressDouble ? (
+                    <th
+                      style={{
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 1,
+                        background: "rgba(0,0,0,.22)",
+                        borderBottom: "1px solid var(--border)",
+                        padding: "10px 10px",
+                        textAlign: "center",
+                        fontWeight: 900,
+                        width: ACTOTAL_W,
+                        minWidth: ACTOTAL_W,
+                      }}
+                    >
+                      AC (total)
+                    </th>
+                  ) : null}
                 </>
               ) : null}
             </tr>
@@ -547,7 +551,7 @@ export function WbsMatrix({
                 <td
                   className="muted"
                   style={{ padding: 12 }}
-                  colSpan={1 + periods.length * cols.length + (showRowTotal ? 1 : 0) + (showProgressTotals ? 2 : 0)}
+                  colSpan={1 + periods.length * cols.length + (showRowTotal ? 1 : 0) + (showProgressTotals ? 1 : 0) + (showProgressTotals && progressDouble ? 1 : 0)}
                 >
                   Selecciona un proyecto o WBS.
                 </td>
@@ -641,20 +645,22 @@ export function WbsMatrix({
                         >
                           {fmtPct(evLast)}%
                         </td>
-                        <td
-                          style={{
-                            borderBottom: "1px solid rgba(191,231,255,.10)",
-                            padding: "6px 10px",
-                            width: ACTOTAL_W,
-                            minWidth: ACTOTAL_W,
-                            textAlign: "right",
-                            fontWeight: 900,
-                            whiteSpace: "nowrap",
-                          }}
-                          title={String(acTot)}
-                        >
-                          {fmtMoney(acTot)}
-                        </td>
+                        {progressDouble ? (
+                          <td
+                            style={{
+                              borderBottom: "1px solid rgba(191,231,255,.10)",
+                              padding: "6px 10px",
+                              width: ACTOTAL_W,
+                              minWidth: ACTOTAL_W,
+                              textAlign: "right",
+                              fontWeight: 900,
+                              whiteSpace: "nowrap",
+                            }}
+                            title={String(acTot)}
+                          >
+                            {fmtMoney(acTot)}
+                          </td>
+                        ) : null}
                       </>
                     ) : null}
                   </tr>
