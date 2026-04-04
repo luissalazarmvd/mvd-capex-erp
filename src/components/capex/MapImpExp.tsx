@@ -217,29 +217,6 @@ export default function MapImpExp({
     fileInputRef.current?.click();
   }
 
-  function onEditPreviewCell(
-    rowNum: number,
-    field: "wbs_code" | "capex_code",
-    value: string
-  ) {
-    const file_name = importSummary?.file_name || "capex_mapping";
-    const total_excel_rows = importSummary?.total_excel_rows || previewRows.length;
-
-    const draftRows = previewRows.map((row) =>
-      row.row_num === rowNum ? { ...row, [field]: value } : row
-    );
-
-    const { rows: revalidatedRows, summary } = revalidatePreviewRows(
-      draftRows,
-      file_name,
-      total_excel_rows,
-      existingMap
-    );
-
-    setPreviewRows(revalidatedRows);
-    setImportSummary(summary);
-  }
-
   function onExportExcel() {
     if (!rows.length) {
       setMsgAction("No hay mapping para exportar.");
@@ -409,19 +386,6 @@ export default function MapImpExp({
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    boxSizing: "border-box",
-  };
-
-  const previewInputStyle: React.CSSProperties = {
-    width: "100%",
-    background: "rgba(0,0,0,.12)",
-    border: "1px solid rgba(191,231,255,.16)",
-    color: "var(--text)",
-    borderRadius: 8,
-    padding: "6px 8px",
-    outline: "none",
-    fontWeight: 800,
-    fontSize: 12,
     boxSizing: "border-box",
   };
 
@@ -703,11 +667,7 @@ export default function MapImpExp({
                             background: bg,
                           }}
                         >
-                          <input
-                            value={row.wbs_code}
-                            onChange={(e) => onEditPreviewCell(row.row_num, "wbs_code", e.target.value)}
-                            style={previewInputStyle}
-                          />
+                          {row.wbs_code || "—"}
                         </td>
 
                         <td
@@ -720,11 +680,7 @@ export default function MapImpExp({
                             background: bg,
                           }}
                         >
-                          <input
-                            value={row.capex_code}
-                            onChange={(e) => onEditPreviewCell(row.row_num, "capex_code", e.target.value)}
-                            style={previewInputStyle}
-                          />
+                          {row.capex_code || "—"}
                         </td>
 
                         <td
