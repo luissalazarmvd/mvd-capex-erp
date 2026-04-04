@@ -19,7 +19,7 @@ type ImportPreviewRow = {
   row_num: number;
   wbs_code: string;
   capex_code: string;
-  status: "OK" | "INVÁLIDA";
+  status: "NUEVA" | "ACTUALIZAR" | "IGUAL" | "INVÁLIDA";
   errors: string;
   duplicate_count: number;
   is_duplicate: boolean;
@@ -125,7 +125,8 @@ function buildImportSummary(
 function revalidatePreviewRows(
   draftRows: ImportPreviewRow[],
   file_name: string,
-  total_excel_rows: number
+  total_excel_rows: number,
+  existingMap: Map<string, string>
 ): { rows: ImportPreviewRow[]; summary: ImportSummary } {
   const counts = new Map<string, number>();
 
@@ -152,13 +153,27 @@ function revalidatePreviewRows(
       errors.push("wbs_code repetido en preview");
     }
 
+    let status: "NUEVA" | "ACTUALIZAR" | "IGUAL" | "INVÁLIDA" = "INVÁLIDA";
+
+    if (errors.length === 0) {
+      const existingCapex = existingMap.get(key);
+
+      if (existingCapex === undefined) {
+        status = "NUEVA";
+      } else if (normalizeText(existingCapex) === capex_code) {
+        status = "IGUAL";
+      } else {
+        status = "ACTUALIZAR";
+      }
+    }
+
     const valid = errors.length === 0;
 
     return {
       ...draft,
       wbs_code,
       capex_code,
-      status: valid ? "OK" : "INVÁLIDA",
+      status,
       errors: errors.join(" | "),
       duplicate_count: duplicateCount,
       is_duplicate: isDuplicate,
@@ -184,6 +199,10 @@ export default function MapImpExp({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewRows, setPreviewRows] = useState<ImportPreviewRow[]>([]);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+
+  const existingMap = new Map(
+    rows.map((r) => [normalizeText(r.wbs_code).toUpperCase(), normalizeText(r.capex_code)])
+  );
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -213,7 +232,8 @@ export default function MapImpExp({
     const { rows: revalidatedRows, summary } = revalidatePreviewRows(
       draftRows,
       file_name,
-      total_excel_rows
+      total_excel_rows,
+      existingMap
     );
 
     setPreviewRows(revalidatedRows);
@@ -312,7 +332,8 @@ export default function MapImpExp({
       const { rows: revalidatedRows, summary } = revalidatePreviewRows(
         previewSeed,
         file.name,
-        rawRows.length
+        rawRows.length,
+        existingMap
       );
 
       setPreviewRows(revalidatedRows);
@@ -343,14 +364,14 @@ export default function MapImpExp({
 
     try {
       const payloadRows = sortRowsByWbs(previewRows)
-        .filter((row) => row.valid)
+        .filter((row) => row.valid && row.status !== "IGUAL")
         .map((row) => ({
           wbs_code: normalizeText(row.wbs_code),
           capex_code: normalizeText(row.capex_code),
         }));
 
       if (!payloadRows.length) {
-        setMsgAction("No hay filas válidas para importar.");
+        setMsgAction("No hay filas nuevas ni por actualizar. Todo está IGUAL.");
         return;
       }
 
@@ -362,7 +383,12 @@ export default function MapImpExp({
       setPreviewOpen(false);
       setPreviewRows([]);
       setImportSummary(null);
-      setMsgAction(`OK: se importaron ${payloadRows.length} fila(s) de mapping.`);
+      const nuevas = previewRows.filter((row) => row.valid && row.status === "NUEVA").length;
+      const actualizar = previewRows.filter((row) => row.valid && row.status === "ACTUALIZAR").length;
+
+      setMsgAction(
+        `OK: se procesaron ${payloadRows.length} fila(s) de mapping. Nuevas: ${nuevas}. Actualizadas: ${actualizar}.`
+      );
     } catch (e: any) {
       setMsgAction(`ERROR: ${String(e?.message || e || "No se pudo importar el archivo")}`);
     } finally {
@@ -466,7 +492,7 @@ export default function MapImpExp({
               <div>
                 <div style={{ fontSize: 18, fontWeight: 900 }}>Preview de importación de mapping CAPEX</div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
-                  No se permite ni un solo wbs_code repetido.
+                  Se reconocerán filas NUEVAS, ACTUALIZAR e IGUAL. Las IGUAL no se importan.
                 </div>
               </div>
 
@@ -644,8 +670,12 @@ export default function MapImpExp({
                   {previewRows.map((row) => {
                     const bg = !row.valid
                       ? "rgba(255,80,80,.10)"
-                      : row.is_duplicate
+                      : row.status === "IGUAL"
+                      ? "rgba(160,160,160,.10)"
+                      : row.status === "ACTUALIZAR"
                       ? "rgba(255,170,60,.12)"
+                      : row.status === "NUEVA"
+                      ? "rgba(102,199,255,.10)"
                       : rowBg;
 
                     return (
@@ -765,7 +795,15 @@ export default function MapImpExp({
               <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
                 {previewRows.some((row) => !row.valid)
                   ? "Corrige las filas inválidas para habilitar la importación."
-                  : `Se reemplazará todo el mapping con ${previewRows.filter((row) => row.valid).length} fila(s).`}
+                  : `Se importarán ${
+                      previewRows.filter((row) => row.valid && row.status !== "IGUAL").length
+                    } fila(s): ${
+                      previewRows.filter((row) => row.status === "NUEVA").length
+                    } nuevas, ${
+                      previewRows.filter((row) => row.status === "ACTUALIZAR").length
+                    } por actualizar y ${
+                      previewRows.filter((row) => row.status === "IGUAL").length
+                    } iguales.`}
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
