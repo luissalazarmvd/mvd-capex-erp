@@ -425,7 +425,7 @@ export default function ConsSubStock({
                             minWidth: c.w ?? 160,
                             padding: "6px 6px",
                             background: isZeroTotal
-                              ? "rgba(255,80,80,.16)"
+                              ? "rgb(90, 24, 24)"
                               : isTotal
                               ? (stickyRightCell.background as any)
                               : "rgba(0,0,0,.10)",
