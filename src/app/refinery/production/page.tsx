@@ -5,9 +5,11 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
+import ProdImpExp from "../../../components/refinery/ProdImpExp";
 
 type CampaignRow = {
   campaign_id: string;
+  campaign_date: string | null;
   campaign_au: any;
   campaign_ag: any;
   campaign_cu: any;
@@ -359,14 +361,35 @@ export default function RefineryProductionPage() {
   const campaignLabel = (x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase();
 
   return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
-      <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
+    <div style={{ display: "grid", gap: 12, width: "100%", maxWidth: "100%" }}>
+      <div
+        className="panel-inner"
+        style={{
+          padding: 10,
+          display: "flex",
+          gap: 10,
+          alignItems: "center",
+          width: "100%",
+          maxWidth: "100%",
+          flexWrap: "wrap",
+        }}
+      >
         <div style={{ fontWeight: 900 }}>Producción</div>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <ProdImpExp
+            rows={campaigns}
+            setMsgAction={setMsg}
+            loadCampaignsAction={async (clearMsg = true) => {
+              await loadCampaigns({ keepMsg: !clearMsg });
+            }}
+            disabled={loading || saving}
+          />
+
           <Button type="button" size="sm" variant="ghost" onClick={() => loadCampaigns()} disabled={loading || saving}>
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
+
           <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
             {saving ? "Guardando…" : "Guardar"}
           </Button>
