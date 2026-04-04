@@ -168,7 +168,7 @@ function Select({
           justifyContent: "space-between",
           gap: 12,
           height: 38,
-          minWidth: 190,
+          minWidth: 114,
         }}
       >
         <span style={{ opacity: value ? 1 : 0.6 }}>{currentLabel}</span>
@@ -1002,13 +1002,15 @@ export default function CampImpExp({
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9 }}>Desde</div>
 
-        <Input
-          value={fromYear}
-          onChange={(e: any) => {
-            const v = String(e.target.value || "").trim();
-            setFromYear(v);
-          }}
-        />
+        <div style={{ width: 114 }}>
+          <Input
+            value={fromYear}
+            onChange={(e: any) => {
+              const v = String(e.target.value || "").trim();
+              setFromYear(v);
+            }}
+          />
+        </div>
 
         <div style={{ display: "grid", gap: 4 }}>
           <Select
@@ -1021,13 +1023,15 @@ export default function CampImpExp({
 
         <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, marginLeft: 6 }}>Hasta</div>
 
-        <Input
-          value={toYear}
-          onChange={(e: any) => {
-            const v = String(e.target.value || "").trim();
-            setToYear(v);
-          }}
-        />
+        <div style={{ width: 114 }}>
+          <Input
+            value={toYear}
+            onChange={(e: any) => {
+              const v = String(e.target.value || "").trim();
+              setToYear(v);
+            }}
+          />
+        </div>
 
         <div style={{ display: "grid", gap: 4 }}>
           <Select
