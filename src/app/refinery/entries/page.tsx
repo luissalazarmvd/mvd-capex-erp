@@ -254,7 +254,7 @@ export default function RefineryEntriesPage() {
     const set = new Set<string>();
     for (const r of mapping || []) {
       const k = String(r.reagent_name || "").trim();
-      if (k) set.add(k);
+      if (k && k.toUpperCase() !== "GLP") set.add(k);
     }
     return Array.from(set)
       .sort((a, b) => a.localeCompare(b))
@@ -304,8 +304,13 @@ export default function RefineryEntriesPage() {
       setReagents(rRows);
 
       if (!reagent) {
-        const first = Array.from(new Set(mRows.map((x) => String(x.reagent_name || "").trim()).filter((x) => !!x)))
-          .sort((a, b) => a.localeCompare(b))[0];
+        const first = Array.from(
+          new Set(
+            mRows
+              .map((x) => String(x.reagent_name || "").trim())
+              .filter((x) => !!x && x.toUpperCase() !== "GLP")
+          )
+        ).sort((a, b) => a.localeCompare(b))[0];
         if (first) setReagent(first);
       }
     } catch (e: any) {
