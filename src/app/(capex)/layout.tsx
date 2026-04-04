@@ -9,7 +9,7 @@ const NAV = [
   { href: "/projects", label: "Proyectos" },
   { href: "/budget", label: "Budget" },
   { href: "/forecast", label: "Forecast" },
-  { href: "/progress", label: "EV / AC" },
+  { href: "/progress", label: "EV" },
   { href: "/reports", label: "Reportes" },
 ];
 
@@ -60,7 +60,7 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – CAPEX ERP</div>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Presupuesto · Forecast · EV · Actuals
+                  Presupuesto · Forecast · EV · Reportes
                 </div>
               </div>
             </div>

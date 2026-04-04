@@ -111,19 +111,14 @@ export default function ProgressPage() {
     setMsg(null);
 
     const evRows = payload.filter((r) => r.key.endsWith("|EV_PCT"));
-    const acRows = payload.filter((r) => r.key.endsWith("|AC"));
 
-    if (!evRows.length && !acRows.length) {
+    if (!evRows.length) {
       setDraft({});
       return;
     }
 
     try {
-      const tasks: Promise<any>[] = [];
-      if (evRows.length) tasks.push(apiPost("/api/ev/upsert", { rows: evRows }));
-      if (acRows.length) tasks.push(apiPost("/api/actual/upsert", { rows: acRows }));
-
-      await Promise.all(tasks);
+      await apiPost("/api/ev/upsert", { rows: evRows });
 
       setDraft({});
       await loadAll();
@@ -185,7 +180,7 @@ export default function ProgressPage() {
 
         <WbsMatrix
           mode="progress"
-          title={loading ? "Avance y Costos (cargando…)" : "Avance y Costos (EV% y AC)"}
+          title={loading ? "Avance EV (cargando…)" : "Avance EV (EV%)"}
           projectLabel={projectLabel}
           headerActions={headerActions}
           periods={periods}
@@ -193,7 +188,6 @@ export default function ProgressPage() {
           latest={latest}
           draft={draft}
           budgetLatest={budgetLatest}
-          progressDouble
           onChangeDraft={onChangeDraft}
           onSave={onSave}
         />
