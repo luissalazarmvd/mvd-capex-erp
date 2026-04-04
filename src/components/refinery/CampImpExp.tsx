@@ -1008,7 +1008,6 @@ export default function CampImpExp({
             const v = String(e.target.value || "").trim();
             setFromYear(v);
           }}
-          hint="Año (YYYY)"
         />
 
         <div style={{ display: "grid", gap: 4 }}>
@@ -1018,9 +1017,6 @@ export default function CampImpExp({
             disabled={disabled || importing}
             options={monthOptions}
           />
-          <div className="muted" style={{ fontWeight: 900, fontSize: 12, paddingLeft: 2 }}>
-            Mes
-          </div>
         </div>
 
         <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, marginLeft: 6 }}>Hasta</div>
@@ -1031,7 +1027,6 @@ export default function CampImpExp({
             const v = String(e.target.value || "").trim();
             setToYear(v);
           }}
-          hint="Año (YYYY)"
         />
 
         <div style={{ display: "grid", gap: 4 }}>
@@ -1041,9 +1036,6 @@ export default function CampImpExp({
             disabled={disabled || importing}
             options={monthOptions}
           />
-          <div className="muted" style={{ fontWeight: 900, fontSize: 12, paddingLeft: 2 }}>
-            Mes
-          </div>
         </div>
 
         <Button

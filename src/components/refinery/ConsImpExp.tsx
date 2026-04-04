@@ -1435,7 +1435,6 @@ useEffect(() => {
               const v = String(e.target.value || "").trim();
               setFromYear(v);
             }}
-            hint="Año (YYYY)"
           />
         </div>
 
@@ -1457,7 +1456,6 @@ useEffect(() => {
               const v = String(e.target.value || "").trim();
               setToYear(v);
             }}
-            hint="Año (YYYY)"
           />
         </div>
 
