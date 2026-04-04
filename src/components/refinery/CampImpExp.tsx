@@ -920,7 +920,8 @@ export default function CampImpExp({
               <Table stickyHeader disableScrollWrapper>
                 <colgroup>
                   <col style={{ width: 70 }} />
-                  <col style={{ width: 120 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 100 }} />
                   <col style={{ width: 120 }} />
                   <col style={{ width: 130 }} />
                   <col style={{ width: 150 }} />
@@ -936,6 +937,7 @@ export default function CampImpExp({
                     {[
                       "fila",
                       "Campaña",
+                      "#Campaña",
                       "Fecha de Campaña",
                       "Carbón Húmedo (kg)",
                       "%Humedad (1-100)",
@@ -983,24 +985,28 @@ export default function CampImpExp({
 
                         <td
                           className="capex-td"
-                          style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}
+                          style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}
                           title={row.campaign_id}
                         >
-                          <div style={{ display: "grid", gap: 6 }}>
-                            <div style={{ fontWeight: 900 }}>{row.campaign_id || "—"}</div>
-                            <input
-                              value={row.campaign_no_raw}
-                              onChange={(e) =>
-                                onEditPreviewCell(
-                                  row.row_num,
-                                  "campaign_no_raw",
-                                  String(e.target.value || "").replace(/[^\d]/g, "").slice(0, 2)
-                                )
-                              }
-                              placeholder="# campaña"
-                              style={previewInputStyle}
-                            />
-                          </div>
+                          {row.campaign_id || "—"}
+                        </td>
+
+                        <td
+                          className="capex-td"
+                          style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}
+                        >
+                          <input
+                            value={row.campaign_no_raw}
+                            onChange={(e) =>
+                              onEditPreviewCell(
+                                row.row_num,
+                                "campaign_no_raw",
+                                String(e.target.value || "").replace(/[^\d]/g, "").slice(0, 2)
+                              )
+                            }
+                            placeholder="# campaña"
+                            style={previewInputStyle}
+                          />
                         </td>
 
                         <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg }}>
@@ -1066,7 +1072,7 @@ export default function CampImpExp({
 
                   {previewRows.length === 0 ? (
                     <tr className="capex-tr">
-                      <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={11}>
+                      <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={12}>
                         No hay filas para preview.
                       </td>
                     </tr>
