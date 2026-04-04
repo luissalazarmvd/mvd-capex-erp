@@ -7,7 +7,10 @@ import { Button } from "../../../components/ui/Button";
 import { Table } from "../../../components/ui/Table";
 import ConsImpExp from "../../../components/refinery/ConsImpExp";
 
-type CampaignRow = { campaign_id: string };
+type CampaignRow = {
+  campaign_id: string;
+  campaign_date: string | null;
+};
 type CampaignsResp = { ok: boolean; rows: CampaignRow[] };
 type LatestResp = { ok: boolean; campaign_id: string | null };
 
@@ -417,9 +420,19 @@ export default function RefineryConsumptionPage() {
   const [rows, setRows] = useState<ViewRow[]>([]);
 
   const [campaignId, setCampaignId] = useState<string>("");
-  const [reagent, setReagent] = useState<string>("");
+    const [reagent, setReagent] = useState<string>("");
 
-  const consDate = useMemo(() => isoTodayPe(), []);
+    const campaignDateById = useMemo(
+      () =>
+        new Map<string, string>(
+          (campaigns || [])
+            .map((x) => [String(x.campaign_id || "").trim().toUpperCase(), String(x.campaign_date || "").trim()] as const)
+            .filter(([campaign_id]) => !!campaign_id)
+        ),
+      [campaigns]
+    );
+
+    const consDate = useMemo(() => campaignDateById.get(campaignId) || "", [campaignDateById, campaignId]);
 
   const [orig, setOrig] = useState<Record<string, number | null>>({});
   const [edit, setEdit] = useState<Record<string, string>>({});
