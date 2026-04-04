@@ -1,10 +1,11 @@
 // src/components/refinery/CampImpExp.tsx
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { Input } from "../ui/Input";
 import { Table } from "../ui/Table";
 
 type CampaignRow = {
@@ -78,6 +79,159 @@ type Props = {
   loadCampaignsAction: (clearMsg?: boolean) => Promise<void>;
   disabled?: boolean;
 };
+
+const MONTHS = [
+  { value: 1, label: "Enero" },
+  { value: 2, label: "Febrero" },
+  { value: 3, label: "Marzo" },
+  { value: 4, label: "Abril" },
+  { value: 5, label: "Mayo" },
+  { value: 6, label: "Junio" },
+  { value: 7, label: "Julio" },
+  { value: 8, label: "Agosto" },
+  { value: 9, label: "Septiembre" },
+  { value: 10, label: "Octubre" },
+  { value: 11, label: "Noviembre" },
+  { value: 12, label: "Diciembre" },
+] as const;
+
+function defaultExportRange() {
+  const d = new Date();
+  return {
+    fromYear: String(d.getFullYear()),
+    fromMonth: 1,
+    toYear: String(d.getFullYear()),
+    toMonth: d.getMonth() + 1,
+  };
+}
+
+function ymFromInputs(year: string, month: number) {
+  const y = String(year || "").trim();
+  if (!/^\d{4}$/.test(y)) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  return `${y}${pad2(month)}`;
+}
+
+function getRowYm(campaign_date: string | null | undefined) {
+  const s = String(campaign_date || "").slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(s) ? s.replace("-", "") : "";
+}
+
+function Select({
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const currentLabel =
+    options.find((o) => o.value === value)?.label ??
+    options.find((o) => o.value === "")?.label ??
+    "";
+
+  useEffect(() => {
+    function onDocDown(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as any)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, []);
+
+  return (
+    <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((s) => !s)}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          background: "rgba(0,0,0,.10)",
+          border: "1px solid var(--border)",
+          color: "var(--text)",
+          borderRadius: 10,
+          padding: "10px 12px",
+          outline: "none",
+          fontWeight: 900,
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.7 : 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          height: 38,
+          minWidth: 190,
+        }}
+      >
+        <span style={{ opacity: value ? 1 : 0.6 }}>{currentLabel}</span>
+        <span style={{ opacity: 0.8 }}>▾</span>
+      </button>
+
+      {open ? (
+        <div style={{ position: "relative", zIndex: 50 }}>
+          <div
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 0,
+              right: 0,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,.10)",
+              background: "rgba(5, 25, 45, .98)",
+              boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+              overflow: "hidden",
+            }}
+          >
+            {options.map((o) => {
+              const active = o.value === value;
+              const isEmpty = o.value === "";
+              return (
+                <button
+                  key={o.value || "__empty__"}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 900,
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as any).style.background = active
+                      ? "rgba(102,199,255,.18)"
+                      : "rgba(255,255,255,.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as any).style.background = active
+                      ? "rgba(102,199,255,.18)"
+                      : "transparent";
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function isoTodayPe(): string {
   const now = new Date();
@@ -519,6 +673,31 @@ export default function CampImpExp({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const initRange = useMemo(() => defaultExportRange(), []);
+  const [fromYear, setFromYear] = useState<string>(initRange.fromYear);
+  const [fromMonth, setFromMonth] = useState<number>(initRange.fromMonth);
+  const [toYear, setToYear] = useState<string>(initRange.toYear);
+  const [toMonth, setToMonth] = useState<number>(initRange.toMonth);
+
+  const monthOptions = useMemo(
+    () => MONTHS.map((m) => ({ value: String(m.value), label: m.label })),
+    []
+  );
+
+  const fromYm = useMemo(() => ymFromInputs(fromYear, fromMonth) ?? "", [fromYear, fromMonth]);
+  const toYm = useMemo(() => ymFromInputs(toYear, toMonth) ?? "", [toYear, toMonth]);
+
+  const exportRangeValid = !!fromYm && !!toYm && fromYm <= toYm;
+
+  const exportRowsInRange = useMemo(() => {
+    if (!exportRangeValid) return [];
+
+    return rows.filter((row) => {
+      const rowYm = getRowYm(row.campaign_date);
+      return !!rowYm && rowYm >= fromYm && rowYm <= toYm;
+    });
+  }, [rows, fromYm, toYm, exportRangeValid]);
+
   async function getLatestRows() {
     try {
       const r = (await apiGet("/api/refineria/campaigns")) as CampaignsResp;
@@ -569,12 +748,17 @@ export default function CampImpExp({
   }
 
   function onExportExcel() {
-      if (!rows.length) {
-        setMsgAction("No hay campañas para exportar.");
-        return;
-      }
+    if (!exportRangeValid) {
+      setMsgAction("ERROR: rango Desde/Hasta inválido.");
+      return;
+    }
 
-    const exportRows = [...rows]
+    if (!exportRowsInRange.length) {
+      setMsgAction("No hay campañas para exportar en el rango seleccionado.");
+      return;
+    }
+
+    const exportRows = [...exportRowsInRange]
       .sort((a, b) => normalizeText(a.campaign_id).localeCompare(normalizeText(b.campaign_id)))
       .map((row) => ({
         "#Campaña": campaignNoFromId(row.campaign_id),
@@ -815,25 +999,73 @@ export default function CampImpExp({
         style={{ display: "none" }}
       />
 
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={onExportExcel}
-        disabled={disabled || importing || rows.length === 0}
-      >
-        Exportar Excel
-      </Button>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9 }}>Desde</div>
 
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={onClickImport}
-        disabled={disabled || importing}
-      >
-        {importing ? "Importando…" : "Importar Excel"}
-      </Button>
+        <Input
+          value={fromYear}
+          onChange={(e: any) => {
+            const v = String(e.target.value || "").trim();
+            setFromYear(v);
+          }}
+          hint="Año (YYYY)"
+        />
+
+        <div style={{ display: "grid", gap: 4 }}>
+          <Select
+            value={String(fromMonth)}
+            onChange={(v) => setFromMonth(Number(v))}
+            disabled={disabled || importing}
+            options={monthOptions}
+          />
+          <div className="muted" style={{ fontWeight: 900, fontSize: 12, paddingLeft: 2 }}>
+            Mes
+          </div>
+        </div>
+
+        <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, marginLeft: 6 }}>Hasta</div>
+
+        <Input
+          value={toYear}
+          onChange={(e: any) => {
+            const v = String(e.target.value || "").trim();
+            setToYear(v);
+          }}
+          hint="Año (YYYY)"
+        />
+
+        <div style={{ display: "grid", gap: 4 }}>
+          <Select
+            value={String(toMonth)}
+            onChange={(v) => setToMonth(Number(v))}
+            disabled={disabled || importing}
+            options={monthOptions}
+          />
+          <div className="muted" style={{ fontWeight: 900, fontSize: 12, paddingLeft: 2 }}>
+            Mes
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={onExportExcel}
+          disabled={disabled || importing || !exportRangeValid || exportRowsInRange.length === 0}
+        >
+          Exportar Excel
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={onClickImport}
+          disabled={disabled || importing}
+        >
+          {importing ? "Importando…" : "Importar Excel"}
+        </Button>
+      </div>
 
       {previewOpen ? (
         <div
