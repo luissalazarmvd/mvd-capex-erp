@@ -364,7 +364,7 @@ export default function RefineryCampaignPage() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: 12, width: "100%" }}>
       <div
         className="panel-inner"
         style={{
@@ -374,7 +374,6 @@ export default function RefineryCampaignPage() {
           alignItems: "center",
           flexWrap: "wrap",
           width: "100%",
-          maxWidth: 1180,
         }}
       >
         <div style={{ fontWeight: 900 }}>Crear Campaña</div>
