@@ -43,7 +43,7 @@ type ImportPreviewRow = {
   campaign_cr: string;
   campaign_au_grade: string;
   campaign_ag_grade: string;
-  status: "NUEVA" | "ACTUALIZAR" | "INVÁLIDA";
+  status: "NUEVA" | "ACTUALIZAR" | "IGUAL" | "INVÁLIDA";
   errors: string;
   duplicate_count: number;
   is_duplicate: boolean;
@@ -69,6 +69,7 @@ type ImportSummary = {
   repeated_extra_rows: number;
   new_rows: number;
   update_rows: number;
+  equal_rows: number;
 };
 
 type Props = {
@@ -128,6 +129,18 @@ function round3(n: number) {
 
 function round6(n: number) {
   return Math.round((n + Number.EPSILON) * 1000000) / 1000000;
+}
+
+function toCompareFixed3(v: unknown) {
+  const n = toNumOrNaN(String(v ?? ""));
+  if (!Number.isFinite(n)) return null;
+  return round3(n).toFixed(3);
+}
+
+function toCompareFixed6(v: unknown) {
+  const n = toNumOrNaN(String(v ?? ""));
+  if (!Number.isFinite(n)) return null;
+  return round6(n).toFixed(6);
 }
 
 function buildCampaignId(campaign_date: string, campaign_no: string) {
@@ -275,6 +288,7 @@ function buildImportSummary(
   const validRows = previewRows.filter((row) => row.valid);
   const newRows = validRows.filter((row) => row.status === "NUEVA").length;
   const updateRows = validRows.filter((row) => row.status === "ACTUALIZAR").length;
+  const equalRows = validRows.filter((row) => row.status === "IGUAL").length;
   const repeatedCampaigns = Array.from(counts.values()).filter((count) => count > 1).length;
   const repeatedExtraRows = Array.from(counts.values()).reduce(
     (acc, count) => acc + (count > 1 ? count - 1 : 0),
@@ -291,6 +305,7 @@ function buildImportSummary(
     repeated_extra_rows: repeatedExtraRows,
     new_rows: newRows,
     update_rows: updateRows,
+    equal_rows: equalRows,
   };
 }
 
@@ -304,6 +319,12 @@ function revalidatePreviewRows(
     latestRows
       .map((x) => normalizeText(x.campaign_id).toUpperCase())
       .filter(Boolean)
+  );
+
+  const freshExistingById = new Map<string, CampaignRow>(
+    latestRows
+      .filter((x) => !!normalizeText(x.campaign_id))
+      .map((x) => [normalizeText(x.campaign_id).toUpperCase(), x] as const)
   );
 
   const counts = new Map<string, number>();
@@ -349,15 +370,32 @@ function revalidatePreviewRows(
       ag !== null;
 
     const moistDec = moistPct !== null ? round6(moistPct / 100) : null;
+    const payloadWet = wet !== null ? round3(wet) : null;
+    const payloadAu = au !== null ? round3(au) : null;
+    const payloadAg = ag !== null ? round3(ag) : null;
     const campaign_cr =
       wet !== null && moistDec !== null ? round3(wet * (1 - moistDec)) : null;
 
-    const existsInDb = campaign_id
-      ? freshExistingIdSet.has(campaign_id.toUpperCase())
-      : false;
+    const existingRow = campaign_id
+      ? freshExistingById.get(campaign_id.toUpperCase()) ?? null
+      : null;
+
+    const existsInDb = !!existingRow;
+
+    const isEqualToDb =
+      validBase &&
+      !!existingRow &&
+      normalizeText(existingRow.campaign_date).slice(0, 10) === campaign_date &&
+      toCompareFixed3(existingRow.campaign_wet_cr) === toCompareFixed3(payloadWet) &&
+      toCompareFixed6(existingRow.campaign_moisture_pct) === toCompareFixed6(moistDec) &&
+      toCompareFixed3(existingRow.campaign_au_grade) === toCompareFixed3(payloadAu) &&
+      toCompareFixed3(existingRow.campaign_ag_grade) === toCompareFixed3(payloadAg) &&
+      toCompareFixed3(existingRow.campaign_cr) === toCompareFixed3(campaign_cr);
 
     const status: ImportPreviewRow["status"] = !validBase
       ? "INVÁLIDA"
+      : isEqualToDb
+      ? "IGUAL"
       : existsInDb
       ? "ACTUALIZAR"
       : "NUEVA";
@@ -378,14 +416,21 @@ function revalidatePreviewRows(
       is_duplicate: false,
       valid: validBase,
       payload:
-        validBase && campaign_id && moistDec !== null && campaign_cr !== null
+        validBase &&
+        campaign_id &&
+        moistDec !== null &&
+        campaign_cr !== null &&
+        payloadWet !== null &&
+        payloadAu !== null &&
+        payloadAg !== null &&
+        status !== "IGUAL"
           ? {
               campaign_id,
               campaign_date,
-              campaign_wet_cr: round3(wet!),
+              campaign_wet_cr: payloadWet,
               campaign_moisture_pct: moistDec,
-              campaign_au_grade: round3(au!),
-              campaign_ag_grade: round3(ag!),
+              campaign_au_grade: payloadAu,
+              campaign_ag_grade: payloadAg,
               campaign_cr,
             }
           : null,
@@ -707,7 +752,12 @@ export default function CampImpExp({
     setMsgAction(null);
 
     try {
-      const orderedPreviewRows = sortPreviewRowsByCampaignId(previewRows);
+      const orderedPreviewRows = sortPreviewRowsByCampaignId(previewRows).filter((row) => !!row.payload);
+
+      if (!orderedPreviewRows.length) {
+        setMsgAction("No hay cambios para importar.");
+        return;
+      }
 
       for (const row of orderedPreviewRows) {
         if (!row.payload) continue;
@@ -859,6 +909,9 @@ export default function CampImpExp({
                 </div>
                 <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                   Actualizar: {importSummary.update_rows}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Iguales: {importSummary.equal_rows}
                 </div>
               </div>
             ) : null}
@@ -1026,7 +1079,7 @@ export default function CampImpExp({
               <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
                 {previewRows.some((row) => !row.valid)
                   ? "Corrige las filas inválidas para habilitar la importación."
-                  : `Se postearán exactamente ${previewRows.length} fila(s) con el mismo payload actual.`}
+                  : `Se postearán exactamente ${previewRows.filter((row) => !!row.payload).length} fila(s) con cambios.`}
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

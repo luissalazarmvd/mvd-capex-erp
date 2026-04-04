@@ -33,7 +33,7 @@ type ImportPreviewRow = {
   consumption_date: string;
   subprocess_name: string;
   consumption_qty: string;
-  status: "NUEVA" | "ACTUALIZAR" | "INVÁLIDA";
+  status: "NUEVA" | "ACTUALIZAR" | "IGUAL" | "INVÁLIDA";
   errors: string;
   valid: boolean;
   source_duplicate_count: number;
@@ -56,6 +56,7 @@ type ImportSummary = {
   repeated_extra_rows: number;
   new_rows: number;
   update_rows: number;
+  equal_rows: number;
 };
 
 type RefData = {
@@ -274,6 +275,12 @@ function toDecimalStrOrNullFront(v: string, scale = 9) {
   return rounded.toFixed(scale);
 }
 
+function toCompareFixed6(v: unknown) {
+  const n = toNum(v);
+  if (n === null) return null;
+  return n.toFixed(6);
+}
+
 function buildMapKey(reagent_name: string, subprocess_name: string) {
   return `${normalizeText(reagent_name).toUpperCase()}||${normalizeText(subprocess_name).toUpperCase()}`;
 }
@@ -335,6 +342,7 @@ function buildImportSummary(
   const validRows = previewRows.filter((row) => row.valid);
   const newRows = validRows.filter((row) => row.status === "NUEVA").length;
   const updateRows = validRows.filter((row) => row.status === "ACTUALIZAR").length;
+  const equalRows = validRows.filter((row) => row.status === "IGUAL").length;
 
   const repeatedKeys = previewRows.filter((row) => row.source_duplicate_count > 1).length;
   const repeatedExtraRows = previewRows.reduce(
@@ -352,6 +360,7 @@ function buildImportSummary(
     repeated_extra_rows: repeatedExtraRows,
     new_rows: newRows,
     update_rows: updateRows,
+    equal_rows: equalRows,
   };
 }
 
@@ -395,11 +404,23 @@ function revalidatePreviewRows(
     }
   }
 
-  const existingKeySet = new Set(
-    (refData.consumptions || [])
-      .map((x) => buildDbKey(x.campaign_id, x.reagent_name, x.subprocess_name))
-      .filter(Boolean)
-  );
+    const existingRows = (refData.consumptions || []).map((x) => ({
+      key: buildDbKey(x.campaign_id, x.reagent_name, x.subprocess_name),
+      qty6: toCompareFixed6(x.consumption_qty),
+    }));
+
+    const existingKeySet = new Set(
+      existingRows
+        .map((x) => x.key)
+        .filter(Boolean)
+    );
+
+    const existingQtyByKey = new Map<string, string>();
+    for (const row of existingRows) {
+      if (row.key && row.qty6 !== null && !existingQtyByKey.has(row.key)) {
+        existingQtyByKey.set(row.key, row.qty6);
+      }
+    }
 
   const previewCounts = new Map<string, number>();
   for (const row of draftRows) {
@@ -489,9 +510,14 @@ function revalidatePreviewRows(
 
     const validBase = !errors;
     const existsInDb = comboKey ? existingKeySet.has(comboKey) : false;
+    const incomingQty6 = qty !== null ? Number(qty).toFixed(6) : null;
+    const existingQty6 = comboKey ? existingQtyByKey.get(comboKey) ?? null : null;
+    const isEqualToDb = existsInDb && incomingQty6 !== null && existingQty6 !== null && incomingQty6 === existingQty6;
 
     const status: ImportPreviewRow["status"] = !validBase
       ? "INVÁLIDA"
+      : isEqualToDb
+      ? "IGUAL"
       : existsInDb
       ? "ACTUALIZAR"
       : "NUEVA";
@@ -507,7 +533,7 @@ function revalidatePreviewRows(
       errors,
       valid: validBase,
       payload:
-        validBase && qty !== null
+        validBase && qty !== null && status !== "IGUAL"
           ? {
               campaign_id,
               reagent_name,
@@ -660,7 +686,7 @@ useEffect(() => {
         row_num: number;
         campaign_id: string;
         consumption_date: string;
-        status: "NUEVA" | "ACTUALIZAR" | "INVÁLIDA";
+        status: "NUEVA" | "ACTUALIZAR" | "IGUAL" | "INVÁLIDA";
         has_duplicate: boolean;
         errors: string;
         cells: Record<string, string>;
@@ -694,8 +720,21 @@ useEffect(() => {
       item.cells[row.subprocess_name] = row.consumption_qty;
       item.cellValid[row.subprocess_name] = row.valid;
 
-      if (row.status === "INVÁLIDA") item.status = "INVÁLIDA";
-      else if (row.status === "ACTUALIZAR" && item.status !== "INVÁLIDA") item.status = "ACTUALIZAR";
+      if (row.status === "INVÁLIDA") {
+        item.status = "INVÁLIDA";
+      } else if (item.status !== "INVÁLIDA") {
+        if (row.status === "ACTUALIZAR") {
+          item.status = "ACTUALIZAR";
+        } else if (row.status === "NUEVA" && item.status !== "ACTUALIZAR") {
+          item.status = "NUEVA";
+        } else if (
+          row.status === "IGUAL" &&
+          item.status !== "ACTUALIZAR" &&
+          item.status !== "NUEVA"
+        ) {
+          item.status = "IGUAL";
+        }
+      }
 
       if (row.source_duplicate_count > 1) item.has_duplicate = true;
       if (row.errors) item.errors = item.errors ? `${item.errors} | ${row.errors}` : row.errors;
@@ -1110,7 +1149,12 @@ useEffect(() => {
         return;
       }
 
-      const orderedRows = sortPreviewRows(latestPreviewRows);
+      const orderedRows = sortPreviewRows(latestPreviewRows.filter((row) => !!row.payload));
+
+      if (!orderedRows.length) {
+        setMsgAction("No hay cambios para importar.");
+        return;
+      }
 
       for (const row of orderedRows) {
         if (!row.payload) continue;
@@ -1268,6 +1312,9 @@ useEffect(() => {
                 </div>
                 <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                   Actualizar: {importSummary.update_rows}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Iguales: {importSummary.equal_rows}
                 </div>
               </div>
             ) : null}
