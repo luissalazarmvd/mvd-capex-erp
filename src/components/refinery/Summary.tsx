@@ -41,9 +41,11 @@ function fmtPct100(v: any) {
 function Stat({
   label,
   value,
+  danger = false,
 }: {
   label: string;
   value: string;
+  danger?: boolean;
 }) {
   return (
     <div
@@ -52,13 +54,17 @@ function Stat({
         gap: 4,
         padding: "8px 10px",
         borderRadius: 12,
-        border: "1px solid rgba(255,255,255,.08)",
-        background: "rgba(0,0,0,.08)",
+        border: danger ? "1px solid rgba(255,80,80,.45)" : "1px solid rgba(255,255,255,.08)",
+        background: danger ? "rgba(255,80,80,.12)" : "rgba(0,0,0,.08)",
         minWidth: 150,
       }}
     >
-      <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9 }}>{label}</div>
-      <div style={{ fontWeight: 900, fontSize: 16, lineHeight: "18px" }}>{value}</div>
+      <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, color: danger ? "#ff9b9b" : undefined }}>
+        {label}
+      </div>
+      <div style={{ fontWeight: 900, fontSize: 16, lineHeight: "18px", color: danger ? "#ffb3b3" : undefined }}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -105,6 +111,16 @@ export default function Summary({ campaignId }: { campaignId: string }) {
   const valueAg = fmt2(selected?.campaign_ag);
   const valueCu = fmt2(selected?.campaign_cu);
 
+  const isBadDate = !selected?.campaign_date;
+  const isBadWet = (toNum(selected?.campaign_wet_cr) ?? 0) === 0;
+  const isBadMoist = (toNum(selected?.campaign_moisture_pct) ?? 0) === 0;
+  const isBadDry = (toNum(selected?.campaign_cr) ?? 0) === 0;
+  const isBadAuGrade = (toNum(selected?.campaign_au_grade) ?? 0) === 0;
+  const isBadAgGrade = (toNum(selected?.campaign_ag_grade) ?? 0) === 0;
+  const isBadAu = (toNum(selected?.campaign_au) ?? 0) === 0;
+  const isBadAg = (toNum(selected?.campaign_ag) ?? 0) === 0;
+  const isBadCu = (toNum(selected?.campaign_cu) ?? 0) === 0;
+
   return (
     <div className="panel-inner" style={{ padding: 12, width: "100%", overflow: "hidden" }}>
       {msg ? (
@@ -133,15 +149,15 @@ export default function Summary({ campaignId }: { campaignId: string }) {
           paddingBottom: 2,
         }}
       >
-        <Stat label="Fecha de Campaña" value={valueCampaignDate} />
-        <Stat label="Carbón Húmedo (kg)" value={valueWet} />
-        <Stat label="% Humedad" value={valueMoist} />
-        <Stat label="Carbón Seco (kg)" value={valueDry} />
-        <Stat label="Ley Au" value={valueAuGrade} />
-        <Stat label="Ley Ag" value={valueAgGrade} />
-        <Stat label="Producción Au (kg)" value={valueAu} />
-        <Stat label="Producción Ag (kg)" value={valueAg} />
-        <Stat label="Producción Cu (kg)" value={valueCu} />
+        <Stat label="Fecha de Campaña" value={valueCampaignDate} danger={isBadDate} />
+        <Stat label="Carbón Húmedo (kg)" value={valueWet} danger={isBadWet} />
+        <Stat label="% Humedad" value={valueMoist} danger={isBadMoist} />
+        <Stat label="Carbón Seco (kg)" value={valueDry} danger={isBadDry} />
+        <Stat label="Ley Au" value={valueAuGrade} danger={isBadAuGrade} />
+        <Stat label="Ley Ag" value={valueAgGrade} danger={isBadAgGrade} />
+        <Stat label="Producción Au (kg)" value={valueAu} danger={isBadAu} />
+        <Stat label="Producción Ag (kg)" value={valueAg} danger={isBadAg} />
+        <Stat label="Producción Cu (kg)" value={valueCu} danger={isBadCu} />
       </div>
 
       <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>

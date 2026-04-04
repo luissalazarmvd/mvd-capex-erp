@@ -403,6 +403,8 @@ export default function ConsSubStock({
                     {cols.map((c) => {
                       const isText = c.key === "campaign_id" || c.key === "reagent_name";
                       const isTotal = String(c.key) === "__total__";
+                      const totalValue = rowTotal(row);
+                      const isZeroTotal = isTotal && totalValue !== null && totalValue === 0;
 
                       let txt = "";
                       if (isTotal) {
@@ -422,9 +424,16 @@ export default function ConsSubStock({
                             width: c.w ?? 160,
                             minWidth: c.w ?? 160,
                             padding: "6px 6px",
-                            background: isTotal ? (stickyRightCell.background as any) : "rgba(0,0,0,.10)",
-                            borderBottom: "1px solid rgba(255,255,255,.06)",
+                            background: isZeroTotal
+                              ? "rgba(255,80,80,.16)"
+                              : isTotal
+                              ? (stickyRightCell.background as any)
+                              : "rgba(0,0,0,.10)",
+                            borderBottom: isZeroTotal
+                              ? "1px solid rgba(255,80,80,.35)"
+                              : "1px solid rgba(255,255,255,.06)",
                             fontWeight: isTotal || c.key === "stock" ? 900 : 800,
+                            color: isZeroTotal ? "#ffb3b3" : undefined,
                           }}
                           title={String(txt)}
                         >
