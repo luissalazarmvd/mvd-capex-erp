@@ -1109,7 +1109,8 @@ export default function RefineryConsumptionPage() {
                               : "rgba(0,0,0,.10)",
                             borderBottom: "1px solid rgba(255,255,255,.06)",
                             fontWeight: 800,
-                            opacity: !isMapped ? 0.45 : 1,
+                            opacity: !isMapped ? 0.7 : 1,
+                            cursor: !isMapped ? "not-allowed" : "default",
                           }}
                           title={isMapped ? v : ""}
                         >
@@ -1126,7 +1127,21 @@ export default function RefineryConsumptionPage() {
                                 cursor: saving ? "not-allowed" : "text",
                               }}
                             />
-                          ) : null}
+                          ) : (
+                            <div
+                              style={{
+                                ...inputStyle,
+                                opacity: 0.32,
+                                cursor: "not-allowed",
+                                pointerEvents: "none",
+                                userSelect: "none",
+                                border: "1px solid rgba(255,255,255,.08)",
+                                background: "rgba(0,0,0,.14)",
+                              }}
+                            >
+                              &nbsp;
+                            </div>
+                          )}
                         </td>
                       );
                     })}
