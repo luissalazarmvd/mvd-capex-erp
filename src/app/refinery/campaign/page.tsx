@@ -379,7 +379,7 @@ export default function RefineryCampaignPage() {
         <div style={{ fontWeight: 900 }}>Crear Campaña</div>
         <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
           {campaign_id
-            ? `campaign_id: ${campaign_id}${existingDateIso ? `  |  fecha: ${existingDateIso}` : ""}`
+            ? `${campaign_id}${existingDateIso ? `  |  fecha: ${existingDateIso}` : ""}`
             : "Completa # campaña y fecha"}
         </div>
 
