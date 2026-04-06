@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 
@@ -31,6 +32,26 @@ type MlRunResp = {
   error?: string;
 };
 
+type OptRow = {
+  campaign_id: string | null;
+  process_name: string | null;
+  subprocess_name: string | null;
+  reagent_name: string | null;
+  unit_name: string | null;
+  consumption_qty: any;
+  ml_consumption_qty: any;
+  consumption_cost_us: any;
+  ml_consumption_cost_us: any;
+  desv_pct: any;
+  [k: string]: any;
+};
+
+type OptResp = {
+  ok: boolean;
+  rows: OptRow[];
+  error?: string;
+};
+
 type Props = {
   disabled?: boolean;
   setMsgAction?: React.Dispatch<React.SetStateAction<string | null>>;
@@ -47,6 +68,16 @@ const EMPTY_STATUS: MlStatus = {
   logFileName: null,
   logFilePath: null,
 };
+
+function getFileStamp() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}${mm}${dd}_${hh}${mi}`;
+}
 
 function normalizeStatus(status?: Partial<MlStatus> | null): MlStatus {
   return {
@@ -70,6 +101,7 @@ export default function CampRunML({
 
   const [status, setStatus] = useState<MlStatus>(EMPTY_STATUS);
   const [runBusy, setRunBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
   const [elapsedMmss, setElapsedMmss] = useState("00:00");
 
   const loadStatus = useCallback(
@@ -120,6 +152,65 @@ export default function CampRunML({
     };
   }, [loadStatus]);
 
+  const handleExport = useCallback(async () => {
+    if (disabled || exportBusy || runBusy || status.isRunning) return;
+
+    setExportBusy(true);
+    setMsgAction?.(null);
+
+    try {
+      const r = (await apiGet("/api/refineria/cons-ml-web")) as OptResp;
+      if (!mountedRef.current) return;
+
+      const rr = Array.isArray(r?.rows) ? r.rows : [];
+
+      if (!rr.length) {
+        setMsgAction?.("No hay datos para exportar.");
+        return;
+      }
+
+      const exportRows = rr.map((x) => ({
+        campaign_id: x.campaign_id ?? "",
+        process_name: x.process_name ?? "",
+        subprocess_name: x.subprocess_name ?? "",
+        reagent_name: x.reagent_name ?? "",
+        unit_name: x.unit_name ?? "",
+        consumption_qty: x.consumption_qty ?? "",
+        ml_consumption_qty: x.ml_consumption_qty ?? "",
+        consumption_cost_us: x.consumption_cost_us ?? "",
+        ml_consumption_cost_us: x.ml_consumption_cost_us ?? "",
+        desv_pct: x.desv_pct ?? "",
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      ws["!cols"] = [
+        { wch: 12 },
+        { wch: 18 },
+        { wch: 32 },
+        { wch: 28 },
+        { wch: 10 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 12 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "ML Table");
+      XLSX.writeFile(wb, `refinery_ml_table_${getFileStamp()}.xlsx`);
+
+      setMsgAction?.("OK: exportado Excel ML");
+    } catch (e: any) {
+      if (!mountedRef.current) return;
+      setMsgAction?.(`ERROR: ${String(e?.message || e || "No se pudo exportar Excel ML")}`);
+    } finally {
+      if (mountedRef.current) {
+        setExportBusy(false);
+      }
+    }
+  }, [disabled, exportBusy, runBusy, status.isRunning, setMsgAction]);
+
   const handleRun = useCallback(async () => {
     if (disabled || runBusy || status.isRunning) return;
 
@@ -167,23 +258,37 @@ export default function CampRunML({
   }, [disabled, runBusy, status.isRunning, loadStatus, setMsgAction, onRunningChange]);
 
   const mlBlocked = disabled || runBusy || status.isRunning;
+  const exportBlocked = disabled || exportBusy || runBusy || status.isRunning;
 
   return (
     <div style={{ display: "grid", gap: 4, justifyItems: "start" }}>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={handleRun}
-        disabled={mlBlocked}
-        title={
-          status.isRunning
-            ? `Corriendo${status.logFileName ? ` | ${status.logFileName}` : ""}`
-            : "Calcular ML"
-        }
-      >
-        {runBusy || status.isRunning ? "Calculando ML…" : "Calcular ML"}
-      </Button>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={handleExport}
+          disabled={exportBlocked}
+          title="Exportar Excel"
+        >
+          {exportBusy ? "Exportando…" : "Exportar Excel"}
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={handleRun}
+          disabled={mlBlocked}
+          title={
+            status.isRunning
+              ? `Corriendo${status.logFileName ? ` | ${status.logFileName}` : ""}`
+              : "Calcular ML"
+          }
+        >
+          {runBusy || status.isRunning ? "Calculando ML…" : "Calcular ML"}
+        </Button>
+      </div>
 
       <div
         className="muted"
