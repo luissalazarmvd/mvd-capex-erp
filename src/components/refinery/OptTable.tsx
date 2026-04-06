@@ -222,16 +222,16 @@ function buildTree(rows: OptRow[]): TreeNode[] {
 }
 
 function colWidth(key: string) {
-  if (key === "campaign") return 150;
-  if (key === "process") return 190;
-  if (key === "subprocess") return 230;
-  if (key === "reagent") return 230;
-  if (key === "ml_consumption_qty") return 140;
-  if (key === "consumption_qty") return 140;
-  if (key === "ml_consumption_cost_us") return 150;
-  if (key === "consumption_cost_us") return 140;
-  if (key === "desv_pct") return 120;
-  return 140;
+  if (key === "campaign") return 90;
+  if (key === "process") return 120;
+  if (key === "subprocess") return 150;
+  if (key === "reagent") return 130;
+  if (key === "ml_consumption_qty") return 95;
+  if (key === "consumption_qty") return 95;
+  if (key === "ml_consumption_cost_us") return 110;
+  if (key === "consumption_cost_us") return 105;
+  if (key === "desv_pct") return 75;
+  return 100;
 }
 
 export default function OptTable({
@@ -371,7 +371,7 @@ export default function OptTable({
       (key === "subprocess" && node.kind === "subprocess" && node.children.length > 0);
 
     const indent =
-      node.kind === "campaign" ? 0 : node.kind === "process" ? 8 : node.kind === "subprocess" ? 16 : 24;
+    node.kind === "campaign" ? 0 : node.kind === "process" ? 4 : node.kind === "subprocess" ? 8 : 12;
 
     return (
       <div
@@ -410,13 +410,14 @@ export default function OptTable({
         )}
 
         <span
-          style={{
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
+        style={{
+            whiteSpace: "normal",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+            lineHeight: "14px",
+        }}
         >
-          {txt}
+        {txt}
         </span>
       </div>
     );
@@ -524,19 +525,22 @@ export default function OptTable({
                     {cols.map((c) => {
                       const isText = c.align === "left";
                       const txt = isText ? null : renderNumericCell(node, c.key);
-                      const baseStyle: React.CSSProperties = {
+                        const baseStyle: React.CSSProperties = {
                         ...cellBase,
                         width: c.w,
                         minWidth: c.w,
-                        padding: "6px 8px",
+                        padding: "6px 6px",
                         background: rowBg(node.kind),
                         borderBottom: "1px solid rgba(255,255,255,.06)",
                         fontWeight: rowWeight(node.kind),
                         textAlign: c.align,
-                        whiteSpace: "nowrap",
+                        whiteSpace: isText ? "normal" : "nowrap",
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      };
+                        textOverflow: isText ? "clip" : "ellipsis",
+                        overflowWrap: isText ? "anywhere" : "normal",
+                        wordBreak: isText ? "break-word" : "normal",
+                        lineHeight: isText ? "14px" : "16px",
+                        };
 
                       const extraStyle: React.CSSProperties =
                         c.key === "desv_pct"

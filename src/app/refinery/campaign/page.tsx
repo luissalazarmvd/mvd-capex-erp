@@ -466,7 +466,7 @@ export default function RefineryCampaignPage() {
         <div style={{ flex: "0 0 820px", minWidth: 0, display: "grid", gap: 12 }}>
           <div className="panel-inner" style={{ padding: 14, width: "100%", maxWidth: 820 }}>
             <div style={{ display: "grid", gap: 12 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "260px 260px 1fr", gap: 12, alignItems: "end" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "234px 234px 1fr", gap: 12, alignItems: "end" }}>
                 <div style={{ display: "grid", gap: 6 }}>
                   <div style={{ fontWeight: 900, fontSize: 13 }}># de Campaña en el Mes</div>
                   <input
@@ -505,7 +505,7 @@ export default function RefineryCampaignPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "0.6fr 0.6fr", gap: 12, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "234px 234px", gap: 12, alignItems: "start" }}>
                 <div style={{ display: "grid", gap: 6 }}>
                   <div style={{ fontWeight: 900, fontSize: 13 }}>TMH</div>
                   <input
@@ -562,7 +562,7 @@ export default function RefineryCampaignPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "0.6fr 0.6fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "234px 234px", gap: 12 }}>
                 <div style={{ display: "grid", gap: 6 }}>
                   <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Au</div>
                   <input
