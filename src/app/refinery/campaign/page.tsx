@@ -397,24 +397,28 @@ export default function RefineryCampaignPage() {
         <div
           style={{
             marginLeft: "auto",
-            display: "grid",
-            gridTemplateColumns: "auto auto auto",
-            gridTemplateRows: "auto auto",
-            columnGap: 10,
-            rowGap: 8,
-            alignItems: "start",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 8,
           }}
         >
-          <div style={{ gridColumn: "1 / 2", gridRow: "1 / 2" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
             <CampImpExp
               rows={rows}
               setMsgAction={setMsg}
               loadCampaignsAction={loadCampaigns}
-            disabled={loadingList || saving || mlRunning}
+              disabled={loadingList || saving || mlRunning}
             />
-          </div>
 
-          <div style={{ gridColumn: "2 / 3", gridRow: "1 / 2" }}>
             <Button
               type="button"
               size="sm"
@@ -424,9 +428,7 @@ export default function RefineryCampaignPage() {
             >
               {loadingList ? "Cargando..." : "Refrescar"}
             </Button>
-          </div>
 
-          <div style={{ gridColumn: "3 / 4", gridRow: "1 / 2", justifySelf: "end" }}>
             <Button
               type="button"
               size="sm"
@@ -438,13 +440,11 @@ export default function RefineryCampaignPage() {
             </Button>
           </div>
 
-          <div style={{ gridColumn: "3 / 4", gridRow: "2 / 3", justifySelf: "end" }}>
-            <CampRunML
-              disabled={loadingList || saving}
-              setMsgAction={setMsg}
-              onRunningChange={setMlRunning}
-            />
-          </div>
+          <CampRunML
+            disabled={loadingList || saving}
+            setMsgAction={setMsg}
+            onRunningChangeAction={setMlRunning}
+          />
         </div>
       </div>
 

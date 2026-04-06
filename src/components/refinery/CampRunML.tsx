@@ -55,7 +55,7 @@ type OptResp = {
 type Props = {
   disabled?: boolean;
   setMsgAction?: React.Dispatch<React.SetStateAction<string | null>>;
-  onRunningChange?: (isRunning: boolean) => void;
+  onRunningChangeAction?: (isRunning: boolean) => void;
 };
 
 const EMPTY_STATUS: MlStatus = {
@@ -95,7 +95,7 @@ function normalizeStatus(status?: Partial<MlStatus> | null): MlStatus {
 export default function CampRunML({
   disabled = false,
   setMsgAction,
-  onRunningChange,
+  onRunningChangeAction,
 }: Props) {
   const mountedRef = useRef(true);
 
@@ -114,13 +114,13 @@ export default function CampRunML({
           const nextStatus = normalizeStatus(r.status);
           setStatus(nextStatus);
           setElapsedMmss(String(r.elapsed_mmss || "00:00"));
-          onRunningChange?.(nextStatus.isRunning);
+          onRunningChangeAction?.(nextStatus.isRunning);
           return;
         }
 
         setStatus(EMPTY_STATUS);
         setElapsedMmss("00:00");
-        onRunningChange?.(false);
+        onRunningChangeAction?.(false);
 
         if (!silent && r?.error) {
           setMsgAction?.(`ERROR: ${String(r.error)}`);
@@ -133,8 +133,7 @@ export default function CampRunML({
           );
         }
       }
-    },
-    [setMsgAction]
+    }, [setMsgAction, onRunningChangeAction]
   );
 
   useEffect(() => {
@@ -225,7 +224,7 @@ export default function CampRunML({
         const nextStatus = normalizeStatus(r.status);
         setStatus(nextStatus);
         setElapsedMmss("00:00");
-        onRunningChange?.(nextStatus.isRunning);
+        onRunningChangeAction?.(nextStatus.isRunning);
       } else {
         await loadStatus(true);
       }
@@ -255,7 +254,7 @@ export default function CampRunML({
         setRunBusy(false);
       }
     }
-  }, [disabled, runBusy, status.isRunning, loadStatus, setMsgAction, onRunningChange]);
+  }, [disabled, runBusy, status.isRunning, loadStatus, setMsgAction, onRunningChangeAction]);
 
   const mlBlocked = disabled || runBusy || status.isRunning;
   const exportBlocked = disabled || exportBusy || runBusy || status.isRunning;
