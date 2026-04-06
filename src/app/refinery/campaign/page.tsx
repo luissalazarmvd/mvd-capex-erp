@@ -463,10 +463,10 @@ export default function RefineryCampaignPage() {
       ) : null}
 
       <div style={{ display: "flex", gap: 14, alignItems: "flex-start", width: "100%" }}>
-        <div style={{ flex: "0 0 820px", minWidth: 0, display: "grid", gap: 12 }}>
-          <div className="panel-inner" style={{ padding: 14, width: "100%", maxWidth: 820 }}>
+        <div style={{ flex: "0 0 auto", width: "fit-content", maxWidth: "100%", minWidth: 0, display: "grid", gap: 12 }}>
+          <div className="panel-inner" style={{ padding: 14, width: "fit-content", maxWidth: "100%" }}>
             <div style={{ display: "grid", gap: 12 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "234px 234px 1fr", gap: 12, alignItems: "end" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "234px 234px auto", gap: 12, alignItems: "end", width: "fit-content" }}>
                 <div style={{ display: "grid", gap: 6 }}>
                   <div style={{ fontWeight: 900, fontSize: 13 }}># de Campaña en el Mes</div>
                   <input
@@ -505,7 +505,7 @@ export default function RefineryCampaignPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "234px 234px", gap: 12, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "234px 234px", gap: 12, alignItems: "start", width: "fit-content" }}>
                 <div style={{ display: "grid", gap: 6 }}>
                   <div style={{ fontWeight: 900, fontSize: 13 }}>TMH</div>
                   <input
@@ -562,7 +562,7 @@ export default function RefineryCampaignPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "234px 234px", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "234px 234px", gap: 12, width: "fit-content" }}>
                 <div style={{ display: "grid", gap: 6 }}>
                   <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Au</div>
                   <input
@@ -610,7 +610,7 @@ export default function RefineryCampaignPage() {
 
               {!inputsOk ? (
                 <div className="muted" style={{ fontWeight: 900, fontSize: 12, color: "rgba(255,255,255,.70)" }}>
-                  Completa todos los campos y respeta rangos: # campaña 1-99, humedad 1-100, kg y leyes &gt; 0.
+                  Completa todos los campos y respeta rangos &gt; 0.
                 </div>
               ) : null}
             </div>
