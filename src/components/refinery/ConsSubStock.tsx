@@ -247,7 +247,6 @@ export default function ConsSubStock({
 
   const cols = useMemo(() => {
     const base = [
-      { key: "campaign_id", label: "Campaña", w: colWidth("campaign_id"), fmt: (v: any) => String(v ?? "") },
       { key: "reagent_name", label: "Insumo", w: colWidth("reagent_name"), fmt: (v: any) => String(v ?? "") },
       { key: "stock", label: "Stock", w: colWidth("stock"), fmt: (v: any) => fmtFixed(v, 2) },
     ];
@@ -293,10 +292,24 @@ export default function ConsSubStock({
     boxShadow: headerShadow,
   };
 
+  const stickyLeftHead: React.CSSProperties = {
+    ...stickyHead,
+    left: 0,
+    zIndex: 13,
+  };
+
   const stickyRightHead: React.CSSProperties = {
     ...stickyHead,
     right: 0,
     zIndex: 12,
+  };
+
+  const stickyLeftCell: React.CSSProperties = {
+    position: "sticky",
+    left: 0,
+    zIndex: 7,
+    background: "rgb(5, 40, 63)",
+    boxShadow: " 10px 0 18px rgba(0,0,0,.22)",
   };
 
   const stickyRightCell: React.CSSProperties = {
@@ -366,12 +379,13 @@ export default function ConsSubStock({
                 <tr>
                   {cols.map((c) => {
                     const isTotal = String(c.key) === "__total__";
+                    const isReagent = String(c.key) === "reagent_name";
                     return (
                       <th
                         key={String(c.key)}
                         className="capex-th"
                         style={{
-                          ...(isTotal ? stickyRightHead : stickyHead),
+                          ...(isTotal ? stickyRightHead : isReagent ? stickyLeftHead : stickyHead),
                           width: c.w ?? 160,
                           minWidth: c.w ?? 160,
                           border: headerBorder,
@@ -411,7 +425,8 @@ export default function ConsSubStock({
                 {rows.map((row, ridx) => (
                   <tr key={`${String(row.reagent_name || ridx)}-${ridx}`} className="capex-tr">
                     {cols.map((c) => {
-                      const isText = c.key === "campaign_id" || c.key === "reagent_name";
+                      const isText = c.key === "reagent_name";
+                      const isReagent = String(c.key) === "reagent_name";
                       const isTotal = String(c.key) === "__total__";
                       const totalValue = rowTotal(row);
                       const isZeroRow = totalValue !== null && totalValue === 0;
@@ -423,7 +438,6 @@ export default function ConsSubStock({
                       if (isTotal) {
                         txt = (c as any).fmt(null, row);
                       } else if (
-                        c.key !== "campaign_id" &&
                         c.key !== "reagent_name" &&
                         c.key !== "stock" &&
                         !mappedCellSet.has(`${String(row.reagent_name || "").trim()}||${String(c.key)}`)
@@ -440,7 +454,7 @@ export default function ConsSubStock({
                           className="capex-td"
                           style={{
                             ...(isText ? textCell : numCell),
-                            ...(isTotal ? stickyRightCell : null),
+                            ...(isTotal ? stickyRightCell : isReagent ? stickyLeftCell : null),
                             width: c.w ?? 160,
                             minWidth: c.w ?? 160,
                             padding: "6px 6px",
@@ -448,6 +462,8 @@ export default function ConsSubStock({
                               ? "rgb(90, 24, 24)"
                               : isTotal
                               ? (stickyRightCell.background as any)
+                              : isReagent
+                              ? (stickyLeftCell.background as any)
                               : "rgba(0,0,0,.10)",
                             borderBottom: isZeroHighlight
                               ? "1px solid rgba(255,80,80,.35)"
