@@ -269,7 +269,7 @@ export default function CampRunML({
           variant="ghost"
           onClick={handleExport}
           disabled={exportBlocked}
-          title="Exportar Excel"
+          title="Exportar ML"
         >
           {exportBusy ? "Exportando…" : "Exportar Excel"}
         </Button>
