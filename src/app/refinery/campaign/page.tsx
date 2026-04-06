@@ -167,6 +167,7 @@ export default function RefineryCampaignPage() {
   const [loadingList, setLoadingList] = useState<boolean>(true);
   const [loadingExisting, setLoadingExisting] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
+  const [mlRunning, setMlRunning] = useState<boolean>(false);
 
   const [rows, setRows] = useState<CampaignRow[]>([]);
   const [existingDateIso, setExistingDateIso] = useState<string | null>(null);
@@ -206,7 +207,10 @@ export default function RefineryCampaignPage() {
     form.campaign_ag_grade,
   ]);
 
-  const canSave = useMemo(() => inputsOk && !!campaign_id && !saving, [inputsOk, campaign_id, saving]);
+  const canSave = useMemo(
+    () => inputsOk && !!campaign_id && !saving && !mlRunning,
+    [inputsOk, campaign_id, saving, mlRunning]
+  );
 
   const visualTms = useMemo(() => {
     const tmh = toNumOrNaN(form.campaign_wet_cr);
@@ -309,6 +313,11 @@ export default function RefineryCampaignPage() {
   }, [campaign_id]);
 
   async function onSave() {
+    if (mlRunning) {
+      setMsg("ERROR: no se puede guardar mientras el modelo ML está corriendo.");
+      return;
+    }
+
     setMsg(null);
     setSaving(true);
     try {
@@ -400,7 +409,7 @@ export default function RefineryCampaignPage() {
               rows={rows}
               setMsgAction={setMsg}
               loadCampaignsAction={loadCampaigns}
-              disabled={loadingList || saving}
+            disabled={loadingList || saving || mlRunning}
             />
           </div>
 
@@ -432,6 +441,7 @@ export default function RefineryCampaignPage() {
             <CampRunML
               disabled={loadingList || saving}
               setMsgAction={setMsg}
+              onRunningChange={setMlRunning}
             />
           </div>
         </div>

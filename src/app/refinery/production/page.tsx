@@ -250,6 +250,7 @@ export default function RefineryProductionPage() {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [mlRunning, setMlRunning] = useState<boolean>(false);
   const [loadingExisting, setLoadingExisting] = useState<boolean>(false);
 
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
@@ -260,8 +261,8 @@ export default function RefineryProductionPage() {
   const [cuKg, setCuKg] = useState<string>("");
 
   const canSave = useMemo(() => {
-    return !!campaignId && qtyOkGt0(auKg) && qtyOkGt0(agKg) && qtyOkGte0(cuKg) && !saving;
-  }, [campaignId, auKg, agKg, cuKg, saving]);
+    return !!campaignId && qtyOkGt0(auKg) && qtyOkGt0(agKg) && qtyOkGte0(cuKg) && !saving && !mlRunning;
+  }, [campaignId, auKg, agKg, cuKg, saving, mlRunning]);
 
   function numToStr(v: any) {
     if (v === null || v === undefined) return "";
@@ -306,6 +307,32 @@ export default function RefineryProductionPage() {
   }, []);
 
   useEffect(() => {
+    let alive = true;
+
+    async function loadMlStatus() {
+      try {
+        const r = await apiGet("/api/refineria/ml/status");
+        if (!alive) return;
+        setMlRunning(!!(r as any)?.status?.isRunning);
+      } catch {
+        if (!alive) return;
+        setMlRunning(false);
+      }
+    }
+
+    loadMlStatus();
+
+    const timer = window.setInterval(() => {
+      loadMlStatus();
+    }, 4000);
+
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!campaignId) return;
     setLoadingExisting(true);
 
@@ -328,6 +355,11 @@ export default function RefineryProductionPage() {
   }, [campaignId, campaigns]);
 
   async function onSave() {
+    if (mlRunning) {
+      setMsg("ERROR: no se puede guardar mientras el modelo ML está corriendo.");
+      return;
+    }
+
     setSaving(true);
     setMsg(null);
     try {
@@ -383,10 +415,10 @@ export default function RefineryProductionPage() {
             loadCampaignsAction={async (clearMsg = true) => {
               await loadCampaigns({ keepMsg: !clearMsg });
             }}
-            disabled={loading || saving}
+            disabled={loading || saving || mlRunning}
           />
 
-          <Button type="button" size="sm" variant="ghost" onClick={() => loadCampaigns()} disabled={loading || saving}>
+          <Button type="button" size="sm" variant="ghost" onClick={() => loadCampaigns()} disabled={loading || saving || mlRunning}>
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
 
@@ -420,7 +452,7 @@ export default function RefineryProductionPage() {
             getKey={(x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase()}
             getLabel={(x: CampaignRow) => campaignLabel(x)}
             onSelect={(x: CampaignRow) => setCampaignId(String(x.campaign_id || "").trim().toUpperCase())}
-            disabled={saving}
+            disabled={saving || mlRunning}
           />
 
           <div style={{ display: "grid", gap: 6 }}>

@@ -413,6 +413,7 @@ export default function RefineryConsumptionPage() {
   const [loadingMeta, setLoadingMeta] = useState<boolean>(true);
   const [loadingTable, setLoadingTable] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
+  const [mlRunning, setMlRunning] = useState<boolean>(false);
 
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [mapping, setMapping] = useState<MapRow[]>([]);
@@ -530,6 +531,32 @@ export default function RefineryConsumptionPage() {
     loadRows(campaignId, reagent);
   }, [campaignId, reagent]);
 
+  useEffect(() => {
+    let alive = true;
+
+    async function loadMlStatus() {
+      try {
+        const r = await apiGet("/api/refineria/ml/status");
+        if (!alive) return;
+        setMlRunning(!!(r as any)?.status?.isRunning);
+      } catch {
+        if (!alive) return;
+        setMlRunning(false);
+      }
+    }
+
+    loadMlStatus();
+
+    const timer = window.setInterval(() => {
+      loadMlStatus();
+    }, 4000);
+
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   const reagentOptions = useMemo(() => {
     const set = new Set<string>();
     for (const r of mapping || []) {
@@ -639,6 +666,11 @@ export default function RefineryConsumptionPage() {
 
   async function onSaveAll() {
     if (saving) return;
+
+    if (mlRunning) {
+      setMsg("ERROR: no se puede guardar mientras el modelo ML está corriendo.");
+      return;
+    }
 
     const cId = String(campaignId || "").trim().toUpperCase();
     if (!cId) {
@@ -807,7 +839,7 @@ export default function RefineryConsumptionPage() {
             afterImportAction={async () => {
               await loadRows(campaignId, reagent);
             }}
-            disabled={loadingMeta || loadingTable || saving}
+            disabled={loadingMeta || loadingTable || saving || mlRunning}
           />
 
           <Button
@@ -829,7 +861,7 @@ export default function RefineryConsumptionPage() {
             size="sm"
             variant="primary"
             onClick={onSaveAll}
-            disabled={!dirtyCount || saving || !canQuery}
+            disabled={!dirtyCount || saving || !canQuery || mlRunning}
           >
             {saving ? "Guardando…" : `Guardar${dirtyCount ? ` (${dirtyCount})` : ""}`}
           </Button>

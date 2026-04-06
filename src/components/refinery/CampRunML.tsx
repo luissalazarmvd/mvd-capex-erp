@@ -34,6 +34,7 @@ type MlRunResp = {
 type Props = {
   disabled?: boolean;
   setMsgAction?: React.Dispatch<React.SetStateAction<string | null>>;
+  onRunningChange?: (isRunning: boolean) => void;
 };
 
 const EMPTY_STATUS: MlStatus = {
@@ -63,6 +64,7 @@ function normalizeStatus(status?: Partial<MlStatus> | null): MlStatus {
 export default function CampRunML({
   disabled = false,
   setMsgAction,
+  onRunningChange,
 }: Props) {
   const mountedRef = useRef(true);
 
@@ -77,13 +79,16 @@ export default function CampRunML({
         if (!mountedRef.current) return;
 
         if (r?.status) {
-          setStatus(normalizeStatus(r.status));
+          const nextStatus = normalizeStatus(r.status);
+          setStatus(nextStatus);
           setElapsedMmss(String(r.elapsed_mmss || "00:00"));
+          onRunningChange?.(nextStatus.isRunning);
           return;
         }
 
         setStatus(EMPTY_STATUS);
         setElapsedMmss("00:00");
+        onRunningChange?.(false);
 
         if (!silent && r?.error) {
           setMsgAction?.(`ERROR: ${String(r.error)}`);
@@ -126,8 +131,10 @@ export default function CampRunML({
       if (!mountedRef.current) return;
 
       if (r?.status) {
-        setStatus(normalizeStatus(r.status));
+        const nextStatus = normalizeStatus(r.status);
+        setStatus(nextStatus);
         setElapsedMmss("00:00");
+        onRunningChange?.(nextStatus.isRunning);
       } else {
         await loadStatus(true);
       }
@@ -157,7 +164,7 @@ export default function CampRunML({
         setRunBusy(false);
       }
     }
-  }, [disabled, runBusy, status.isRunning, loadStatus, setMsgAction]);
+  }, [disabled, runBusy, status.isRunning, loadStatus, setMsgAction, onRunningChange]);
 
   const mlBlocked = disabled || runBusy || status.isRunning;
 
