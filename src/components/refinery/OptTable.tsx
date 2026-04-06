@@ -293,6 +293,44 @@ export default function OptTable({
     return out;
   }, [tree, expanded]);
 
+  const leafRows = useMemo(() => {
+    const out: TreeNode[] = [];
+
+    function walk(node: TreeNode) {
+      if (!node.children.length) {
+        out.push(node);
+        return;
+      }
+      for (const ch of node.children) walk(ch);
+    }
+
+    for (const root of tree) walk(root);
+    return out;
+  }, [tree]);
+
+  const totals = useMemo(() => {
+    const ml_consumption_qty = sumNullable(leafRows.map((x) => x.ml_consumption_qty));
+    const consumption_qty = sumNullable(leafRows.map((x) => x.consumption_qty));
+    const ml_consumption_cost_us = sumNullable(leafRows.map((x) => x.ml_consumption_cost_us));
+    const consumption_cost_us = sumNullable(leafRows.map((x) => x.consumption_cost_us));
+
+    const desvVals = leafRows
+      .map((x) => x.desv_pct)
+      .filter((x): x is number => typeof x === "number" && Number.isFinite(x));
+
+    const avg_desv_pct = desvVals.length
+      ? desvVals.reduce((a, b) => a + b, 0) / desvVals.length
+      : null;
+
+    return {
+      ml_consumption_qty,
+      consumption_qty,
+      ml_consumption_cost_us,
+      consumption_cost_us,
+      avg_desv_pct,
+    };
+  }, [leafRows]);
+
   function toggleNode(key: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -331,6 +369,14 @@ export default function OptTable({
     zIndex: 8,
     background: headerBg,
     boxShadow: headerShadow,
+  };
+
+  const stickyFoot: React.CSSProperties = {
+    position: "sticky",
+    bottom: 0,
+    zIndex: 7,
+    background: "rgb(8, 52, 84)",
+    boxShadow: "0 -8px 18px rgba(0,0,0,.18)",
   };
 
   function rowBg(kind: NodeKind) {
@@ -556,6 +602,44 @@ export default function OptTable({
                   </tr>
                 ))}
               </tbody>
+
+              <tfoot>
+                <tr>
+                  {cols.map((c) => {
+                    let txt = "";
+
+                    if (c.key === "campaign") txt = "Total";
+                    else if (c.key === "ml_consumption_qty") txt = fmtFixed(totals.ml_consumption_qty, 2);
+                    else if (c.key === "consumption_qty") txt = fmtFixed(totals.consumption_qty, 2);
+                    else if (c.key === "ml_consumption_cost_us") txt = fmtMoney(totals.ml_consumption_cost_us);
+                    else if (c.key === "consumption_cost_us") txt = fmtMoney(totals.consumption_cost_us);
+                    else if (c.key === "desv_pct") txt = fmtPct(totals.avg_desv_pct);
+
+                    const isDesv = c.key === "desv_pct";
+
+                    return (
+                      <td
+                        key={`tfoot-${c.key}`}
+                        className="capex-td"
+                        style={{
+                          ...stickyFoot,
+                          width: c.w,
+                          minWidth: c.w,
+                          padding: "8px 6px",
+                          borderTop: "1px solid rgba(255,255,255,.18)",
+                          textAlign: c.align,
+                          fontWeight: 900,
+                          whiteSpace: "nowrap",
+                          color: isDesv ? desvColor(totals.avg_desv_pct) : "inherit",
+                        }}
+                        title={String(txt || "")}
+                      >
+                        {txt}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
             </Table>
           </div>
         ) : (
