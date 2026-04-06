@@ -208,9 +208,31 @@ export default function RefineryCampaignPage() {
     form.campaign_ag_grade,
   ]);
 
+  const campaignSequenceError = useMemo(() => {
+    if (loadingList) return null;
+
+    const no = clampInt_1to99_OrNull(form.campaign_no);
+    if (!dateOk || no === null || !campaign_id) return null;
+
+    const latestRows = rows || [];
+    const campaignExists = latestRows.some(
+      (x) => normalizeText(x.campaign_id).toUpperCase() === campaign_id.toUpperCase()
+    );
+
+    if (campaignExists) return null;
+
+    const periodKey = getPeriodKey(form.campaign_date);
+    const expectedNo = getMaxExistingCampaignNoForPeriod(latestRows, periodKey) + 1;
+
+    if (no === expectedNo) return null;
+
+    const expectedCampaignId = buildCampaignId(form.campaign_date, String(expectedNo));
+    return `salto de campaña en el periodo. La siguiente debe ser ${expectedCampaignId}.`;
+  }, [loadingList, rows, form.campaign_no, form.campaign_date, campaign_id, dateOk]);
+
   const canSave = useMemo(
-    () => inputsOk && !!campaign_id && !saving && !mlRunning,
-    [inputsOk, campaign_id, saving, mlRunning]
+    () => inputsOk && !!campaign_id && !campaignSequenceError && !saving && !mlRunning,
+    [inputsOk, campaign_id, campaignSequenceError, saving, mlRunning]
   );
 
   const visualTms = useMemo(() => {
@@ -346,7 +368,8 @@ export default function RefineryCampaignPage() {
         const expectedNo = getMaxExistingCampaignNoForPeriod(latestRows, periodKey) + 1;
 
         if (no !== expectedNo) {
-          setMsg(`ERROR: salto de campaña en el periodo. La siguiente debe ser ${pad2(expectedNo)}.`);
+          const expectedCampaignId = buildCampaignId(form.campaign_date, String(expectedNo));
+          setMsg(`ERROR: salto de campaña en el periodo. La siguiente debe ser ${expectedCampaignId}.`);
           return;
         }
       }
@@ -448,17 +471,21 @@ export default function RefineryCampaignPage() {
         </div>
       </div>
 
-      {msg ? (
+      {(campaignSequenceError || msg) ? (
         <div
           className="panel-inner"
           style={{
             padding: 12,
-            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            border: (campaignSequenceError || msg || "").startsWith("OK")
+              ? "1px solid rgba(102,199,255,.45)"
+              : "1px solid rgba(255,80,80,.45)",
+            background: (campaignSequenceError || msg || "").startsWith("OK")
+              ? "rgba(102,199,255,.10)"
+              : "rgba(255,80,80,.10)",
             fontWeight: 800,
           }}
         >
-          {msg}
+          {campaignSequenceError ? `ERROR: ${campaignSequenceError}` : msg}
         </div>
       ) : null}
 
