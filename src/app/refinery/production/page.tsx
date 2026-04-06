@@ -452,7 +452,7 @@ export default function RefineryProductionPage() {
             getKey={(x: CampaignRow) => String(x.campaign_id || "").trim().toUpperCase()}
             getLabel={(x: CampaignRow) => campaignLabel(x)}
             onSelect={(x: CampaignRow) => setCampaignId(String(x.campaign_id || "").trim().toUpperCase())}
-            disabled={saving || mlRunning}
+            disabled={saving}
           />
 
           <div style={{ display: "grid", gap: 6 }}>
