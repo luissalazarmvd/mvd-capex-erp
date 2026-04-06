@@ -128,7 +128,7 @@ function toDecimalStrOrNullFront(v: string, scale = 9) {
 
   const n = Number(s);
   if (!Number.isFinite(n)) return null;
-  if (n <= 0) return null;
+  if (n < 0) return null;
   if (Math.abs(n) > 9e15) return null;
 
   const f = Math.pow(10, scale);
@@ -568,6 +568,16 @@ export default function RefineryConsumptionPage() {
       .map((x) => ({ value: x, label: x }));
   }, [mapping]);
 
+  const mappedCellSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of mapping || []) {
+      const rn = String(m.reagent_name || "").trim();
+      const sp = String(m.subprocess_name || "").trim();
+      if (rn && sp) set.add(cellKey(rn, sp));
+    }
+    return set;
+  }, [mapping]);
+
   const mappedSubpros = useMemo(() => {
     const colsInView = new Set<string>(SUBPRO_COLS as any);
 
@@ -630,9 +640,14 @@ export default function RefineryConsumptionPage() {
     for (const r of rows || []) {
       const rn = String(r.reagent_name || "").trim();
       if (!rn) continue;
+
       for (const sp of visibleSubpros || []) {
         const k = cellKey(rn, sp);
-        const n = toNum((r as any)[sp]);
+        if (!mappedCellSet.has(k)) continue;
+
+        const raw = toNum((r as any)[sp]);
+        const n = raw === 0 ? null : raw;
+
         o[k] = n;
         e[k] = n === null ? "" : String(n);
         d[k] = false;
@@ -642,12 +657,37 @@ export default function RefineryConsumptionPage() {
     setOrig(o);
     setEdit(e);
     setDirty(d);
-  }, [rows, visibleSubpros]);
+  }, [rows, visibleSubpros, mappedCellSet]);
 
-  const dirtyCount = useMemo(() => Object.values(dirty || {}).filter(Boolean).length, [dirty]);
+  const dirtyCount = useMemo(() => {
+    let n = 0;
+
+    for (const r of rows || []) {
+      const rn = String(r.reagent_name || "").trim();
+      if (!rn) continue;
+
+      for (const sp of visibleSubpros || []) {
+        const k = cellKey(rn, sp);
+        if (!mappedCellSet.has(k)) continue;
+        if (!dirty[k]) continue;
+
+        const raw = String(edit[k] ?? "").trim();
+        if (!raw) continue;
+
+        const q = toDecimalStrOrNullFront(raw, 9);
+        if (q === null) continue;
+
+        n += 1;
+      }
+    }
+
+    return n;
+  }, [dirty, edit, rows, visibleSubpros, mappedCellSet]);
 
   function onChangeCell(reagent_name: string, sp: string, v: string) {
     const k = cellKey(reagent_name, sp);
+    if (!mappedCellSet.has(k)) return;
+
     setEdit((m) => ({ ...m, [k]: v }));
     setDirty((m) => {
       const raw = String(v ?? "");
@@ -705,7 +745,7 @@ export default function RefineryConsumptionPage() {
 
           const q = toDecimalStrOrNullFront(raw, 9);
           if (q === null) {
-            setMsg(`ERROR: valor inválido en "${rn}" · "${sp}" (debe ser > 0)`);
+            setMsg(`ERROR: valor inválido en "${rn}" · "${sp}" (debe ser >= 0)`);
             return;
           }
 
@@ -1049,8 +1089,9 @@ export default function RefineryConsumptionPage() {
                       const rn = String(row.reagent_name || "").trim();
                       const sp = key;
                       const k = cellKey(rn, sp);
-                      const v = String(edit[k] ?? "");
-                      const isDirty = !!dirty[k];
+                      const isMapped = mappedCellSet.has(k);
+                      const v = isMapped ? String(edit[k] ?? "") : "";
+                      const isDirty = isMapped ? !!dirty[k] : false;
 
                       return (
                         <td
@@ -1061,24 +1102,31 @@ export default function RefineryConsumptionPage() {
                             width: c.w ?? 160,
                             minWidth: c.w ?? 160,
                             padding: "6px 6px",
-                            background: isDirty ? "rgba(102,199,255,.08)" : "rgba(0,0,0,.10)",
+                            background: !isMapped
+                              ? "rgba(255,255,255,.03)"
+                              : isDirty
+                              ? "rgba(102,199,255,.08)"
+                              : "rgba(0,0,0,.10)",
                             borderBottom: "1px solid rgba(255,255,255,.06)",
                             fontWeight: 800,
+                            opacity: !isMapped ? 0.45 : 1,
                           }}
-                          title={v}
+                          title={isMapped ? v : ""}
                         >
-                          <input
-                            value={v}
-                            disabled={saving}
-                            placeholder=""
-                            onChange={(e) => onChangeCell(rn, sp, e.target.value)}
-                            style={{
-                              ...inputStyle,
-                              border: isDirty ? "1px solid rgba(102,199,255,.55)" : inputStyle.border,
-                              opacity: saving ? 0.7 : 1,
-                              cursor: saving ? "not-allowed" : "text",
-                            }}
-                          />
+                          {isMapped ? (
+                            <input
+                              value={v}
+                              disabled={saving}
+                              placeholder=""
+                              onChange={(e) => onChangeCell(rn, sp, e.target.value)}
+                              style={{
+                                ...inputStyle,
+                                border: isDirty ? "1px solid rgba(102,199,255,.55)" : inputStyle.border,
+                                opacity: saving ? 0.7 : 1,
+                                cursor: saving ? "not-allowed" : "text",
+                              }}
+                            />
+                          ) : null}
                         </td>
                       );
                     })}
