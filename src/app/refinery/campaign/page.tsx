@@ -426,7 +426,7 @@ export default function RefineryCampaignPage() {
             </Button>
           </div>
 
-          <div style={{ gridColumn: "3 / 4", gridRow: "1 / 2" }}>
+          <div style={{ gridColumn: "3 / 4", gridRow: "1 / 2", justifySelf: "end" }}>
             <Button
               type="button"
               size="sm"
@@ -438,7 +438,7 @@ export default function RefineryCampaignPage() {
             </Button>
           </div>
 
-          <div style={{ gridColumn: "3 / 4", gridRow: "2 / 3" }}>
+          <div style={{ gridColumn: "3 / 4", gridRow: "2 / 3", justifySelf: "end" }}>
             <CampRunML
               disabled={loadingList || saving}
               setMsgAction={setMsg}
@@ -499,10 +499,6 @@ export default function RefineryCampaignPage() {
                   onChangeIso={(iso) => setForm((s) => ({ ...s, campaign_date: iso }))}
                   disabled={saving}
                 />
-
-                <div className="muted" style={{ fontWeight: 900, fontSize: 12, alignSelf: "center", opacity: 0.9 }}>
-                  {loadingExisting ? "Cargando existente…" : campaign_id ? "Si existe, se autocompleta" : ""}
-                </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "234px 234px", gap: 12, alignItems: "start", width: "fit-content" }}>
