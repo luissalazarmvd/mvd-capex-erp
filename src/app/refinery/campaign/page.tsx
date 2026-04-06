@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Button } from "../../../components/ui/Button";
 import CampImpExp from "../../../components/refinery/CampImpExp";
+import CampRunML from "../../../components/refinery/CampRunML";
 
 type CampaignRow = {
   campaign_id: string;
@@ -371,7 +372,7 @@ export default function RefineryCampaignPage() {
           padding: 10,
           display: "flex",
           gap: 10,
-          alignItems: "center",
+          alignItems: "flex-start",
           flexWrap: "wrap",
           width: "100%",
         }}
@@ -383,19 +384,56 @@ export default function RefineryCampaignPage() {
             : "Completa # campaña y fecha"}
         </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <CampImpExp
-            rows={rows}
-            setMsgAction={setMsg}
-            loadCampaignsAction={loadCampaigns}
-            disabled={loadingList || saving}
-          />
-          <Button type="button" size="sm" variant="ghost" onClick={() => loadCampaigns()} disabled={loadingList || saving}>
-            {loadingList ? "Cargando..." : "Refrescar"}
-          </Button>
-          <Button type="button" size="sm" variant="primary" onClick={onSave} disabled={!canSave}>
-            {saving ? "Guardando…" : "Guardar"}
-          </Button>
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "grid",
+            gridTemplateColumns: "auto auto auto",
+            gridTemplateRows: "auto auto",
+            columnGap: 10,
+            rowGap: 8,
+            alignItems: "start",
+          }}
+        >
+          <div style={{ gridColumn: "1 / 2", gridRow: "1 / 2" }}>
+            <CampImpExp
+              rows={rows}
+              setMsgAction={setMsg}
+              loadCampaignsAction={loadCampaigns}
+              disabled={loadingList || saving}
+            />
+          </div>
+
+          <div style={{ gridColumn: "2 / 3", gridRow: "1 / 2" }}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => loadCampaigns()}
+              disabled={loadingList || saving}
+            >
+              {loadingList ? "Cargando..." : "Refrescar"}
+            </Button>
+          </div>
+
+          <div style={{ gridColumn: "3 / 4", gridRow: "1 / 2" }}>
+            <Button
+              type="button"
+              size="sm"
+              variant="primary"
+              onClick={onSave}
+              disabled={!canSave}
+            >
+              {saving ? "Guardando…" : "Guardar"}
+            </Button>
+          </div>
+
+          <div style={{ gridColumn: "3 / 4", gridRow: "2 / 3" }}>
+            <CampRunML
+              disabled={loadingList || saving}
+              setMsgAction={setMsg}
+            />
+          </div>
         </div>
       </div>
 
