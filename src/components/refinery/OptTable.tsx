@@ -438,8 +438,8 @@ export default function OptTable({
     return "inherit";
   }
 
-  return (
-    <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+    return (
+    <div style={{ display: "grid", gap: 12, minWidth: 0, width: "100%" }}>
       <div className="panel-inner" style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
         <div style={{ fontWeight: 900 }}>Consumo Óptimo vs Real</div>
 
@@ -474,7 +474,7 @@ export default function OptTable({
         }}
       >
         {flatRows.length ? (
-          <div style={{ display: "inline-block", width: "max-content", maxWidth: "100%" }}>
+        <div style={{ minWidth: 0, width: "100%" }}>
             <Table stickyHeader maxHeight={"calc(100vh - 260px)"}>
               <thead>
                 <tr>

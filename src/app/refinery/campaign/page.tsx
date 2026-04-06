@@ -463,7 +463,7 @@ export default function RefineryCampaignPage() {
       ) : null}
 
       <div style={{ display: "flex", gap: 14, alignItems: "flex-start", width: "100%" }}>
-        <div style={{ flex: "1 1 auto", minWidth: 0, display: "grid", gap: 12 }}>
+        <div style={{ flex: "0 0 820px", minWidth: 0, display: "grid", gap: 12 }}>
           <div className="panel-inner" style={{ padding: 14, width: "100%", maxWidth: 820 }}>
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ display: "grid", gridTemplateColumns: "260px 260px 1fr", gap: 12, alignItems: "end" }}>
@@ -617,7 +617,7 @@ export default function RefineryCampaignPage() {
           </div>
         </div>
 
-        <div style={{ flex: "0 0 auto", width: "fit-content", maxWidth: "100%" }}>
+        <div style={{ flex: "1 1 0", minWidth: 0 }}>
           <OptTable autoLoad />
         </div>
       </div>
