@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Button } from "../../../components/ui/Button";
 import CampImpExp from "../../../components/refinery/CampImpExp";
 import CampRunML from "../../../components/refinery/CampRunML";
+import OptTable from "../../../components/refinery/OptTable";
 
 type CampaignRow = {
   campaign_id: string;
@@ -461,155 +462,163 @@ export default function RefineryCampaignPage() {
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 14, width: "100%", maxWidth: 820 }}>
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "260px 260px 1fr", gap: 12, alignItems: "end" }}>
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}># de Campaña en el Mes</div>
-              <input
-                value={form.campaign_no}
-                disabled={saving}
-                onChange={(e) =>
-                  setForm((s) => ({
-                    ...s,
-                    campaign_no: String(e.target.value || "").replace(/[^\d]/g, "").slice(0, 2),
-                  }))
-                }
-                placeholder=""
-                inputMode="numeric"
-                style={{
-                  width: "100%",
-                  background: "rgba(0,0,0,.10)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  outline: "none",
-                  fontWeight: 900,
-                  opacity: saving ? 0.7 : 1,
-                }}
-              />
-            </div>
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", width: "100%" }}>
+        <div style={{ flex: "1 1 auto", minWidth: 0, display: "grid", gap: 12 }}>
+          <div className="panel-inner" style={{ padding: 14, width: "100%", maxWidth: 820 }}>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "260px 260px 1fr", gap: 12, alignItems: "end" }}>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontWeight: 900, fontSize: 13 }}># de Campaña en el Mes</div>
+                  <input
+                    value={form.campaign_no}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setForm((s) => ({
+                        ...s,
+                        campaign_no: String(e.target.value || "").replace(/[^\d]/g, "").slice(0, 2),
+                      }))
+                    }
+                    placeholder=""
+                    inputMode="numeric"
+                    style={{
+                      width: "100%",
+                      background: "rgba(0,0,0,.10)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      outline: "none",
+                      fontWeight: 900,
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  />
+                </div>
 
-            <DatePicker
-              valueIso={form.campaign_date}
-              onChangeIso={(iso) => setForm((s) => ({ ...s, campaign_date: iso }))}
-              disabled={saving}
-            />
+                <DatePicker
+                  valueIso={form.campaign_date}
+                  onChangeIso={(iso) => setForm((s) => ({ ...s, campaign_date: iso }))}
+                  disabled={saving}
+                />
 
-            <div className="muted" style={{ fontWeight: 900, fontSize: 12, alignSelf: "center", opacity: 0.9 }}>
-              {loadingExisting ? "Cargando existente…" : campaign_id ? "Si existe, se autocompleta" : ""}
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>TMH</div>
-              <input
-                value={form.campaign_wet_cr}
-                disabled={saving}
-                onChange={(e) => setForm((s) => ({ ...s, campaign_wet_cr: e.target.value }))}
-                placeholder=""
-                inputMode="decimal"
-                style={{
-                  width: "100%",
-                  background: "rgba(0,0,0,.10)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  outline: "none",
-                  fontWeight: 900,
-                  opacity: saving ? 0.7 : 1,
-                }}
-              />
-              <div
-                className="muted"
-                style={{
-                  fontWeight: 900,
-                  fontSize: 13,
-                  lineHeight: 1.2,
-                  color: "rgba(102,199,255,.95)",
-                }}
-              >
-                {visualTms !== null ? `TMS=${visualTms.toFixed(3)}` : "TMS=-"}
+                <div className="muted" style={{ fontWeight: 900, fontSize: 12, alignSelf: "center", opacity: 0.9 }}>
+                  {loadingExisting ? "Cargando existente…" : campaign_id ? "Si existe, se autocompleta" : ""}
+                </div>
               </div>
-            </div>
 
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>% de Humedad (1-100)</div>
-              <input
-                value={form.campaign_moisture_pct}
-                disabled={saving}
-                onChange={(e) => setForm((s) => ({ ...s, campaign_moisture_pct: e.target.value }))}
-                placeholder=""
-                inputMode="decimal"
-                style={{
-                  width: "100%",
-                  background: "rgba(0,0,0,.10)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  outline: "none",
-                  fontWeight: 900,
-                  opacity: saving ? 0.7 : 1,
-                }}
-              />
+              <div style={{ display: "grid", gridTemplateColumns: "0.6fr 0.6fr", gap: 12, alignItems: "start" }}>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontWeight: 900, fontSize: 13 }}>TMH</div>
+                  <input
+                    value={form.campaign_wet_cr}
+                    disabled={saving}
+                    onChange={(e) => setForm((s) => ({ ...s, campaign_wet_cr: e.target.value }))}
+                    placeholder=""
+                    inputMode="decimal"
+                    style={{
+                      width: "100%",
+                      background: "rgba(0,0,0,.10)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      outline: "none",
+                      fontWeight: 900,
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  />
+                  <div
+                    className="muted"
+                    style={{
+                      fontWeight: 900,
+                      fontSize: 13,
+                      lineHeight: 1.2,
+                      color: "rgba(102,199,255,.95)",
+                    }}
+                  >
+                    {visualTms !== null ? `TMS=${visualTms.toFixed(3)}` : "TMS=-"}
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontWeight: 900, fontSize: 13 }}>% de Humedad (1-100)</div>
+                  <input
+                    value={form.campaign_moisture_pct}
+                    disabled={saving}
+                    onChange={(e) => setForm((s) => ({ ...s, campaign_moisture_pct: e.target.value }))}
+                    placeholder=""
+                    inputMode="decimal"
+                    style={{
+                      width: "100%",
+                      background: "rgba(0,0,0,.10)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      outline: "none",
+                      fontWeight: 900,
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "0.6fr 0.6fr", gap: 12 }}>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Au</div>
+                  <input
+                    value={form.campaign_au_grade}
+                    disabled={saving}
+                    onChange={(e) => setForm((s) => ({ ...s, campaign_au_grade: e.target.value }))}
+                    placeholder=""
+                    inputMode="decimal"
+                    style={{
+                      width: "100%",
+                      background: "rgba(0,0,0,.10)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      outline: "none",
+                      fontWeight: 900,
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Ag</div>
+                  <input
+                    value={form.campaign_ag_grade}
+                    disabled={saving}
+                    onChange={(e) => setForm((s) => ({ ...s, campaign_ag_grade: e.target.value }))}
+                    placeholder=""
+                    inputMode="decimal"
+                    style={{
+                      width: "100%",
+                      background: "rgba(0,0,0,.10)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      outline: "none",
+                      fontWeight: 900,
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {!inputsOk ? (
+                <div className="muted" style={{ fontWeight: 900, fontSize: 12, color: "rgba(255,255,255,.70)" }}>
+                  Completa todos los campos y respeta rangos: # campaña 1-99, humedad 1-100, kg y leyes &gt; 0.
+                </div>
+              ) : null}
             </div>
           </div>
+        </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Au</div>
-              <input
-                value={form.campaign_au_grade}
-                disabled={saving}
-                onChange={(e) => setForm((s) => ({ ...s, campaign_au_grade: e.target.value }))}
-                placeholder=""
-                inputMode="decimal"
-                style={{
-                  width: "100%",
-                  background: "rgba(0,0,0,.10)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  outline: "none",
-                  fontWeight: 900,
-                  opacity: saving ? 0.7 : 1,
-                }}
-              />
-            </div>
-
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Ag</div>
-              <input
-                value={form.campaign_ag_grade}
-                disabled={saving}
-                onChange={(e) => setForm((s) => ({ ...s, campaign_ag_grade: e.target.value }))}
-                placeholder=""
-                inputMode="decimal"
-                style={{
-                  width: "100%",
-                  background: "rgba(0,0,0,.10)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  outline: "none",
-                  fontWeight: 900,
-                  opacity: saving ? 0.7 : 1,
-                }}
-              />
-            </div>
-          </div>
-
-          {!inputsOk ? (
-            <div className="muted" style={{ fontWeight: 900, fontSize: 12, color: "rgba(255,255,255,.70)" }}>
-              Completa todos los campos y respeta rangos: # campaña 1-99, humedad 1-100, kg y leyes &gt; 0.
-            </div>
-          ) : null}
+        <div style={{ flex: "0 0 auto", width: "fit-content", maxWidth: "100%" }}>
+          <OptTable autoLoad />
         </div>
       </div>
     </div>
