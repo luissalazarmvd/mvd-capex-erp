@@ -222,15 +222,12 @@ function buildTree(rows: OptRow[]): TreeNode[] {
 }
 
 function colWidth(key: string) {
-  if (key === "campaign") return 90;
-  if (key === "process") return 120;
-  if (key === "subprocess") return 150;
-  if (key === "reagent") return 130;
-  if (key === "ml_consumption_qty") return 95;
-  if (key === "consumption_qty") return 95;
-  if (key === "ml_consumption_cost_us") return 110;
-  if (key === "consumption_cost_us") return 105;
-  if (key === "desv_pct") return 75;
+  if (key === "campaign") return 320;
+  if (key === "ml_consumption_qty") return 105;
+  if (key === "consumption_qty") return 105;
+  if (key === "ml_consumption_cost_us") return 125;
+  if (key === "consumption_cost_us") return 115;
+  if (key === "desv_pct") return 85;
   return 100;
 }
 
@@ -305,20 +302,17 @@ export default function OptTable({
     });
   }
 
-  const cols = useMemo(
+    const cols = useMemo(
     () => [
-      { key: "campaign", label: "Campaña", w: colWidth("campaign"), align: "left" as const },
-      { key: "process", label: "Proceso", w: colWidth("process"), align: "left" as const },
-      { key: "subprocess", label: "Subproceso", w: colWidth("subprocess"), align: "left" as const },
-      { key: "reagent", label: "Insumo", w: colWidth("reagent"), align: "left" as const },
-      { key: "ml_consumption_qty", label: "Cons. Óptimo", w: colWidth("ml_consumption_qty"), align: "right" as const },
-      { key: "consumption_qty", label: "Cons. Real", w: colWidth("consumption_qty"), align: "right" as const },
-      { key: "ml_consumption_cost_us", label: "Costo Óptimo $", w: colWidth("ml_consumption_cost_us"), align: "right" as const },
-      { key: "consumption_cost_us", label: "Costo Real $", w: colWidth("consumption_cost_us"), align: "right" as const },
-      { key: "desv_pct", label: "Desv. %", w: colWidth("desv_pct"), align: "right" as const },
+        { key: "campaign", label: "Campaña", w: colWidth("campaign"), align: "left" as const },
+        { key: "ml_consumption_qty", label: "Cons. Óptimo", w: colWidth("ml_consumption_qty"), align: "right" as const },
+        { key: "consumption_qty", label: "Cons. Real", w: colWidth("consumption_qty"), align: "right" as const },
+        { key: "ml_consumption_cost_us", label: "Costo Óptimo $", w: colWidth("ml_consumption_cost_us"), align: "right" as const },
+        { key: "consumption_cost_us", label: "Costo Real $", w: colWidth("consumption_cost_us"), align: "right" as const },
+        { key: "desv_pct", label: "Desv. %", w: colWidth("desv_pct"), align: "right" as const },
     ],
     []
-  );
+    );
 
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
@@ -353,75 +347,76 @@ export default function OptTable({
     return 700;
   }
 
-  function labelForNode(node: TreeNode, key: string) {
-    if (key === "campaign" && node.kind === "campaign") return node.campaign_id;
-    if (key === "process" && node.kind === "process") return node.process_name;
-    if (key === "subprocess" && node.kind === "subprocess") return node.subprocess_name;
-    if (key === "reagent" && node.kind === "reagent") return node.reagent_name;
+    function labelForNode(node: TreeNode, _key: string) {
+    if (node.kind === "campaign") return node.campaign_id;
+    if (node.kind === "process") return node.process_name;
+    if (node.kind === "subprocess") return node.subprocess_name;
+    if (node.kind === "reagent") return node.reagent_name;
     return "";
-  }
+    }
 
-  function renderTextCell(node: TreeNode, key: string) {
+    function renderTextCell(node: TreeNode, key: string) {
     const txt = labelForNode(node, key);
     if (!txt) return "";
 
-    const showToggle =
-      (key === "campaign" && node.kind === "campaign" && node.children.length > 0) ||
-      (key === "process" && node.kind === "process" && node.children.length > 0) ||
-      (key === "subprocess" && node.kind === "subprocess" && node.children.length > 0);
+    const showToggle = node.children.length > 0;
 
     const indent =
-    node.kind === "campaign" ? 0 : node.kind === "process" ? 4 : node.kind === "subprocess" ? 8 : 12;
+        node.kind === "campaign" ? 0 :
+        node.kind === "process" ? 18 :
+        node.kind === "subprocess" ? 36 :
+        54;
 
     return (
-      <div
+        <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          paddingLeft: indent,
-          minHeight: 20,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            paddingLeft: indent,
+            minHeight: 20,
         }}
-      >
+        >
         {showToggle ? (
-          <button
+            <button
             type="button"
             onClick={() => toggleNode(node.key)}
             title={expanded.has(node.key) ? "Contraer" : "Expandir"}
             style={{
-              width: 16,
-              height: 16,
-              minWidth: 16,
-              borderRadius: 3,
-              border: "1px solid rgba(255,255,255,.22)",
-              background: "rgba(255,255,255,.06)",
-              color: "inherit",
-              cursor: "pointer",
-              padding: 0,
-              lineHeight: "14px",
-              fontSize: 12,
-              fontWeight: 900,
+                width: 16,
+                height: 16,
+                minWidth: 16,
+                borderRadius: 3,
+                border: "1px solid rgba(255,255,255,.22)",
+                background: "rgba(255,255,255,.06)",
+                color: "inherit",
+                cursor: "pointer",
+                padding: 0,
+                lineHeight: "14px",
+                fontSize: 12,
+                fontWeight: 900,
+                marginTop: 1,
             }}
-          >
+            >
             {expanded.has(node.key) ? "−" : "+"}
-          </button>
+            </button>
         ) : (
-          <span style={{ width: 16, minWidth: 16, display: "inline-block" }} />
+            <span style={{ width: 16, minWidth: 16, display: "inline-block" }} />
         )}
 
         <span
-        style={{
+            style={{
             whiteSpace: "normal",
             overflowWrap: "anywhere",
             wordBreak: "break-word",
             lineHeight: "14px",
-        }}
+            }}
         >
-        {txt}
+            {txt}
         </span>
-      </div>
+        </div>
     );
-  }
+    }
 
   function renderNumericCell(node: TreeNode, key: string) {
     if (key === "ml_consumption_qty") return fmtFixed(node.ml_consumption_qty, 2);
