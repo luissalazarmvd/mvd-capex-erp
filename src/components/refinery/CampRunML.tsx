@@ -19,6 +19,8 @@ type MlStatus = {
 type MlStatusResp = {
   ok: boolean;
   status?: Partial<MlStatus>;
+  elapsed_seconds?: number;
+  elapsed_mmss?: string;
   error?: string;
 };
 
@@ -66,6 +68,7 @@ export default function CampRunML({
 
   const [status, setStatus] = useState<MlStatus>(EMPTY_STATUS);
   const [runBusy, setRunBusy] = useState(false);
+  const [elapsedMmss, setElapsedMmss] = useState("00:00");
 
   const loadStatus = useCallback(
     async (silent = true) => {
@@ -75,10 +78,12 @@ export default function CampRunML({
 
         if (r?.status) {
           setStatus(normalizeStatus(r.status));
+          setElapsedMmss(String(r.elapsed_mmss || "00:00"));
           return;
         }
 
         setStatus(EMPTY_STATUS);
+        setElapsedMmss("00:00");
 
         if (!silent && r?.error) {
           setMsgAction?.(`ERROR: ${String(r.error)}`);
@@ -102,7 +107,7 @@ export default function CampRunML({
 
     const timer = window.setInterval(() => {
       loadStatus(true);
-    }, 4000);
+    }, 1000);
 
     return () => {
       mountedRef.current = false;
@@ -122,6 +127,7 @@ export default function CampRunML({
 
       if (r?.status) {
         setStatus(normalizeStatus(r.status));
+        setElapsedMmss("00:00");
       } else {
         await loadStatus(true);
       }
@@ -137,9 +143,7 @@ export default function CampRunML({
     } catch (e: any) {
       if (!mountedRef.current) return;
 
-      const msg = String(
-        e?.message || e || "No se pudo iniciar el proceso ML"
-      );
+      const msg = String(e?.message || e || "No se pudo iniciar el proceso ML");
 
       await loadStatus(true);
 
@@ -157,20 +161,34 @@ export default function CampRunML({
 
   const mlBlocked = disabled || runBusy || status.isRunning;
 
-    return (
-        <Button
+  return (
+    <div style={{ display: "grid", gap: 4, justifyItems: "start" }}>
+      <Button
         type="button"
         size="sm"
         variant="ghost"
         onClick={handleRun}
         disabled={mlBlocked}
         title={
-            status.isRunning
+          status.isRunning
             ? `Corriendo${status.logFileName ? ` | ${status.logFileName}` : ""}`
             : "Calcular ML"
         }
-        >
+      >
         {runBusy || status.isRunning ? "Calculando ML…" : "Calcular ML"}
-        </Button>
-    );
+      </Button>
+
+      <div
+        className="muted"
+        style={{
+          fontSize: 12,
+          fontWeight: 800,
+          lineHeight: 1.1,
+          minHeight: 14,
+        }}
+      >
+        {status.isRunning || runBusy ? `T: ${elapsedMmss}` : ""}
+      </div>
+    </div>
+  );
 }
