@@ -3,7 +3,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../lib/apiClient";
-import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 
 type OptRow = {
@@ -481,18 +480,8 @@ export default function OptTable({
   }
 
     return (
-    <div style={{ display: "grid", gap: 12, minWidth: 0, width: "100%" }}>
-      <div className="panel-inner" style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Consumo Óptimo vs Real</div>
-
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-          <Button type="button" size="sm" variant="ghost" onClick={load} disabled={loading}>
-            {loading ? "Cargando..." : "Refrescar"}
-          </Button>
-        </div>
-      </div>
-
-      {msg ? (
+        <div style={{ display: "grid", gap: 12, minWidth: 0, width: "100%" }}>
+        {msg ? (
         <div
           className="panel-inner"
           style={{
