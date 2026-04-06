@@ -492,18 +492,18 @@ export default function RefineryConsumptionPage() {
     }
   }
 
-  async function loadRows(cId: string, rName?: string) {
+  async function loadRows(cId: string, rName?: string, clearMsg: boolean = true) {
     const c = String(cId || "").trim().toUpperCase();
     const rn = String(rName || "").trim();
 
     if (!c) {
       setRows([]);
-      setMsg(null);
+      if (clearMsg) setMsg(null);
       return;
     }
 
     setLoadingTable(true);
-    setMsg(null);
+    if (clearMsg) setMsg(null);
     try {
       const q = rn
         ? `?campaign_id=${encodeURIComponent(c)}&reagent_name=${encodeURIComponent(rn)}`
@@ -513,7 +513,9 @@ export default function RefineryConsumptionPage() {
       const rr = Array.isArray(r?.rows) ? r.rows : [];
       setRows(rr);
 
-      if (!rr.length) setMsg(rn ? "Sin datos para esa campaña/insumo." : "Sin datos para esa campaña.");
+      if (!rr.length && clearMsg) {
+        setMsg(rn ? "Sin datos para esa campaña/insumo." : "Sin datos para esa campaña.");
+      }
     } catch (e: any) {
       setRows([]);
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando");
@@ -768,8 +770,8 @@ export default function RefineryConsumptionPage() {
         await apiPost("/api/refineria/consumption/insert", p);
       }
 
+      await loadRows(campaignId, reagent, false);
       setMsg(`OK: guardado (${payloads.length} celdas) · Fecha ${consDate}`);
-      await loadRows(campaignId, reagent);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando");
     } finally {
@@ -901,7 +903,7 @@ export default function RefineryConsumptionPage() {
             size="sm"
             variant="primary"
             onClick={onSaveAll}
-            disabled={!dirtyCount || saving || !canQuery || mlRunning}
+            disabled={saving || !canQuery || mlRunning}
           >
             {saving ? "Guardando…" : `Guardar${dirtyCount ? ` (${dirtyCount})` : ""}`}
           </Button>
