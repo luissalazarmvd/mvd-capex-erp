@@ -10,6 +10,7 @@ type OptRow = {
   process_name: string | null;
   subprocess_name: string | null;
   reagent_name: string | null;
+  unit_name: string | null;
   consumption_qty: any;
   ml_consumption_qty: any;
   consumption_cost_us: any;
@@ -33,6 +34,7 @@ type TreeNode = {
   process_name: string;
   subprocess_name: string;
   reagent_name: string;
+  unit_name: string;
   consumption_qty: number | null;
   ml_consumption_qty: number | null;
   consumption_cost_us: number | null;
@@ -111,6 +113,7 @@ function buildTree(rows: OptRow[]): TreeNode[] {
     const process_name = String(raw.process_name || "").trim() || "(Sin proceso)";
     const subprocess_name = String(raw.subprocess_name || "").trim() || "(Sin subproceso)";
     const reagent_name = String(raw.reagent_name || "").trim() || "(Sin insumo)";
+    const unit_name = String(raw.unit_name || "").trim();
 
     let camp = campaigns.get(campaign_id);
     if (!camp) {
@@ -122,6 +125,7 @@ function buildTree(rows: OptRow[]): TreeNode[] {
           process_name: "",
           subprocess_name: "",
           reagent_name: "",
+          unit_name: "",
           consumption_qty: null,
           ml_consumption_qty: null,
           consumption_cost_us: null,
@@ -143,6 +147,7 @@ function buildTree(rows: OptRow[]): TreeNode[] {
         process_name,
         subprocess_name: "",
         reagent_name: "",
+        unit_name: "",
         consumption_qty: null,
         ml_consumption_qty: null,
         consumption_cost_us: null,
@@ -164,6 +169,7 @@ function buildTree(rows: OptRow[]): TreeNode[] {
         process_name,
         subprocess_name,
         reagent_name: "",
+        unit_name: "",
         consumption_qty: null,
         ml_consumption_qty: null,
         consumption_cost_us: null,
@@ -183,6 +189,7 @@ function buildTree(rows: OptRow[]): TreeNode[] {
       process_name,
       subprocess_name,
       reagent_name,
+      unit_name,
       consumption_qty: toNum(raw.consumption_qty),
       ml_consumption_qty: toNum(raw.ml_consumption_qty),
       consumption_cost_us: toNum(raw.consumption_cost_us),
@@ -221,7 +228,8 @@ function buildTree(rows: OptRow[]): TreeNode[] {
 }
 
 function colWidth(key: string) {
-  if (key === "campaign") return 320;
+  if (key === "campaign") return 288;
+  if (key === "unit_name") return 60;
   if (key === "ml_consumption_qty") return 105;
   if (key === "consumption_qty") return 105;
   if (key === "ml_consumption_cost_us") return 125;
@@ -339,17 +347,18 @@ export default function OptTable({
     });
   }
 
-    const cols = useMemo(
+  const cols = useMemo(
     () => [
-        { key: "campaign", label: "Campaña", w: colWidth("campaign"), align: "left" as const },
-        { key: "ml_consumption_qty", label: "Cons. Óptimo", w: colWidth("ml_consumption_qty"), align: "right" as const },
-        { key: "consumption_qty", label: "Cons. Real", w: colWidth("consumption_qty"), align: "right" as const },
-        { key: "ml_consumption_cost_us", label: "Costo Óptimo $", w: colWidth("ml_consumption_cost_us"), align: "right" as const },
-        { key: "consumption_cost_us", label: "Costo Real $", w: colWidth("consumption_cost_us"), align: "right" as const },
-        { key: "desv_pct", label: "Desv. %", w: colWidth("desv_pct"), align: "right" as const },
+      { key: "campaign", label: "Campaña", w: colWidth("campaign"), align: "left" as const },
+      { key: "unit_name", label: "Und", w: colWidth("unit_name"), align: "center" as const },
+      { key: "ml_consumption_qty", label: "Cons. Óptimo", w: colWidth("ml_consumption_qty"), align: "right" as const },
+      { key: "consumption_qty", label: "Cons. Real", w: colWidth("consumption_qty"), align: "right" as const },
+      { key: "ml_consumption_cost_us", label: "Costo Óptimo $", w: colWidth("ml_consumption_cost_us"), align: "right" as const },
+      { key: "consumption_cost_us", label: "Costo Real $", w: colWidth("consumption_cost_us"), align: "right" as const },
+      { key: "desv_pct", label: "Desv. %", w: colWidth("desv_pct"), align: "right" as const },
     ],
     []
-    );
+  );
 
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
@@ -392,76 +401,92 @@ export default function OptTable({
     return 700;
   }
 
-    function labelForNode(node: TreeNode, _key: string) {
+  function labelForNode(node: TreeNode, key: string) {
+    if (key === "unit_name") return node.kind === "reagent" ? node.unit_name : "";
     if (node.kind === "campaign") return node.campaign_id;
     if (node.kind === "process") return node.process_name;
     if (node.kind === "subprocess") return node.subprocess_name;
     if (node.kind === "reagent") return node.reagent_name;
     return "";
-    }
+  }
 
-    function renderTextCell(node: TreeNode, key: string) {
+  function renderTextCell(node: TreeNode, key: string) {
     const txt = labelForNode(node, key);
     if (!txt) return "";
+
+    if (key === "unit_name") {
+      return (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: 20,
+          }}
+        >
+          <span style={{ whiteSpace: "nowrap" }}>{txt}</span>
+        </div>
+      );
+    }
 
     const showToggle = node.children.length > 0;
 
     const indent =
-        node.kind === "campaign" ? 0 :
-        node.kind === "process" ? 18 :
-        node.kind === "subprocess" ? 36 :
-        54;
+      node.kind === "campaign" ? 0 :
+      node.kind === "process" ? 18 :
+      node.kind === "subprocess" ? 36 :
+      54;
 
     return (
-        <div
+      <div
         style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 8,
-            paddingLeft: indent,
-            minHeight: 20,
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 8,
+          paddingLeft: indent,
+          minHeight: 20,
         }}
-        >
+      >
         {showToggle ? (
-            <button
+          <button
             type="button"
             onClick={() => toggleNode(node.key)}
             title={expanded.has(node.key) ? "Contraer" : "Expandir"}
             style={{
-                width: 16,
-                height: 16,
-                minWidth: 16,
-                borderRadius: 3,
-                border: "1px solid rgba(255,255,255,.22)",
-                background: "rgba(255,255,255,.06)",
-                color: "inherit",
-                cursor: "pointer",
-                padding: 0,
-                lineHeight: "14px",
-                fontSize: 12,
-                fontWeight: 900,
-                marginTop: 1,
+              width: 16,
+              height: 16,
+              minWidth: 16,
+              borderRadius: 3,
+              border: "1px solid rgba(255,255,255,.22)",
+              background: "rgba(255,255,255,.06)",
+              color: "inherit",
+              cursor: "pointer",
+              padding: 0,
+              lineHeight: "14px",
+              fontSize: 12,
+              fontWeight: 900,
+              marginTop: 1,
             }}
-            >
+          >
             {expanded.has(node.key) ? "−" : "+"}
-            </button>
+          </button>
         ) : (
-            <span style={{ width: 16, minWidth: 16, display: "inline-block" }} />
+          <span style={{ width: 16, minWidth: 16, display: "inline-block" }} />
         )}
 
         <span
-            style={{
+          style={{
             whiteSpace: "normal",
             overflowWrap: "anywhere",
             wordBreak: "break-word",
             lineHeight: "14px",
-            }}
+          }}
         >
-            {txt}
+          {txt}
         </span>
-        </div>
+      </div>
     );
-    }
+  }
 
   function renderNumericCell(node: TreeNode, key: string) {
     if (key === "ml_consumption_qty") return fmtFixed(node.ml_consumption_qty, 2);
@@ -553,7 +578,7 @@ export default function OptTable({
                 {flatRows.map(({ node }, idx) => (
                   <tr key={`${node.key}-${idx}`} className="capex-tr">
                     {cols.map((c) => {
-                      const isText = c.align === "left";
+                      const isText = c.key === "campaign" || c.key === "unit_name";
                       const txt = isText ? null : renderNumericCell(node, c.key);
                         const baseStyle: React.CSSProperties = {
                         ...cellBase,
