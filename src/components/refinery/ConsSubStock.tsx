@@ -181,6 +181,16 @@ export default function ConsSubStock({
     return u ? `${s} ${u}` : s;
   }
 
+  const mappedCellSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of mapping || []) {
+      const rn = String(m.reagent_name || "").trim();
+      const sp = String(m.subprocess_name || "").trim();
+      if (rn && sp) set.add(`${rn}||${sp}`);
+    }
+    return set;
+  }, [mapping]);
+
   const mappedSubpros = useMemo(() => {
     const colsInView = new Set<string>(SUBPRO_COLS as any);
 
@@ -404,11 +414,21 @@ export default function ConsSubStock({
                       const isText = c.key === "campaign_id" || c.key === "reagent_name";
                       const isTotal = String(c.key) === "__total__";
                       const totalValue = rowTotal(row);
-                      const isZeroTotal = isTotal && totalValue !== null && totalValue === 0;
+                      const isZeroRow = totalValue !== null && totalValue === 0;
+                      const isZeroHighlight = isTotal || c.key === "reagent_name"
+                        ? isZeroRow
+                        : false;
 
                       let txt = "";
                       if (isTotal) {
                         txt = (c as any).fmt(null, row);
+                      } else if (
+                        c.key !== "campaign_id" &&
+                        c.key !== "reagent_name" &&
+                        c.key !== "stock" &&
+                        !mappedCellSet.has(`${String(row.reagent_name || "").trim()}||${String(c.key)}`)
+                      ) {
+                        txt = "";
                       } else {
                         const v = (row as any)[c.key];
                         txt = (c as any).fmt(v);
@@ -424,16 +444,16 @@ export default function ConsSubStock({
                             width: c.w ?? 160,
                             minWidth: c.w ?? 160,
                             padding: "6px 6px",
-                            background: isZeroTotal
+                            background: isZeroHighlight
                               ? "rgb(90, 24, 24)"
                               : isTotal
                               ? (stickyRightCell.background as any)
                               : "rgba(0,0,0,.10)",
-                            borderBottom: isZeroTotal
+                            borderBottom: isZeroHighlight
                               ? "1px solid rgba(255,80,80,.35)"
                               : "1px solid rgba(255,255,255,.06)",
                             fontWeight: isTotal || c.key === "stock" ? 900 : 800,
-                            color: isZeroTotal ? "#ffb3b3" : undefined,
+                            color: isZeroHighlight ? "#ffb3b3" : undefined,
                           }}
                           title={String(txt)}
                         >
