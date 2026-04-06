@@ -771,7 +771,7 @@ export default function RefineryConsumptionPage() {
       }
 
       await loadRows(campaignId, reagent, false);
-      setMsg(`OK: guardado (${payloads.length} celdas) · Fecha ${consDate}`);
+      setMsg(`OK: guardado (${payloads.length} celdas)`);
     } catch (e: any) {
       setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR guardando");
     } finally {
