@@ -168,7 +168,15 @@ export default function CampRunML({
         return;
       }
 
-      const exportRows = rr.map((x) => ({
+      const dosificacionRows = rr.map((x) => ({
+        "Campaña": x.campaign_id ?? "",
+        "Subproceso": x.subprocess_name ?? "",
+        "Insumo": x.reagent_name ?? "",
+        "Unidad": x.unit_name ?? "",
+        "Dosificacion Recomendada": x.ml_consumption_qty ?? "",
+      }));
+
+      const resultadosRows = rr.map((x) => ({
         campaign_id: x.campaign_id ?? "",
         process_name: x.process_name ?? "",
         subprocess_name: x.subprocess_name ?? "",
@@ -181,8 +189,17 @@ export default function CampRunML({
         desv_pct: x.desv_pct ?? "",
       }));
 
-      const ws = XLSX.utils.json_to_sheet(exportRows);
-      ws["!cols"] = [
+      const wsDosificacion = XLSX.utils.json_to_sheet(dosificacionRows);
+      wsDosificacion["!cols"] = [
+        { wch: 12 },
+        { wch: 32 },
+        { wch: 28 },
+        { wch: 10 },
+        { wch: 24 },
+      ];
+
+      const wsResultados = XLSX.utils.json_to_sheet(resultadosRows);
+      wsResultados["!cols"] = [
         { wch: 12 },
         { wch: 18 },
         { wch: 32 },
@@ -196,7 +213,8 @@ export default function CampRunML({
       ];
 
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "ML Table");
+      XLSX.utils.book_append_sheet(wb, wsDosificacion, "dosificacion");
+      XLSX.utils.book_append_sheet(wb, wsResultados, "resultados");
       XLSX.writeFile(wb, `refinery_ml_table_${getFileStamp()}.xlsx`);
 
       setMsgAction?.("OK: exportado ML");
