@@ -173,7 +173,10 @@ export default function CampRunML({
         "Subproceso": x.subprocess_name ?? "",
         "Insumo": x.reagent_name ?? "",
         "Unidad": x.unit_name ?? "",
-        "Dosificacion Recomendada": x.ml_consumption_qty ?? "",
+        "Dosificacion Recomendada":
+          x.ml_consumption_qty == null || x.ml_consumption_qty === ""
+            ? ""
+            : Number(Number(x.ml_consumption_qty).toFixed(3)),
       }));
 
       const resultadosRows = rr.map((x) => ({
