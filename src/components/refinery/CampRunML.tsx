@@ -199,10 +199,10 @@ export default function CampRunML({
       XLSX.utils.book_append_sheet(wb, ws, "ML Table");
       XLSX.writeFile(wb, `refinery_ml_table_${getFileStamp()}.xlsx`);
 
-      setMsgAction?.("OK: exportado Excel ML");
+      setMsgAction?.("OK: exportado ML");
     } catch (e: any) {
       if (!mountedRef.current) return;
-      setMsgAction?.(`ERROR: ${String(e?.message || e || "No se pudo exportar Excel ML")}`);
+      setMsgAction?.(`ERROR: ${String(e?.message || e || "No se pudo exportar ML")}`);
     } finally {
       if (mountedRef.current) {
         setExportBusy(false);
@@ -270,7 +270,7 @@ export default function CampRunML({
           disabled={exportBlocked}
           title="Exportar ML"
         >
-          {exportBusy ? "Exportando…" : "Exportar Excel"}
+          {exportBusy ? "Exportando…" : "Exportar ML"}
         </Button>
 
         <Button
