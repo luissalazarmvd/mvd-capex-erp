@@ -256,8 +256,8 @@ export default function CampRunML({
         },
         headStyles: {
           fontStyle: "bold",
-          fillColor: [255, 255, 255],
-          textColor: [0, 0, 0],
+          fillColor: [0, 103, 172],
+          textColor: [255, 255, 255],
           lineColor: [0, 0, 0],
           lineWidth: 0.5,
         },
