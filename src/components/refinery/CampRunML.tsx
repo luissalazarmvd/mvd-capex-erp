@@ -3,6 +3,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 
@@ -215,10 +217,55 @@ export default function CampRunML({
         { wch: 12 },
       ];
 
+      const fileStamp = getFileStamp();
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, wsDosificacion, "dosificacion");
       XLSX.utils.book_append_sheet(wb, wsResultados, "resultados");
-      XLSX.writeFile(wb, `refinery_ml_table_${getFileStamp()}.xlsx`);
+      XLSX.writeFile(wb, `refinery_ml_table_${fileStamp}.xlsx`);
+
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "pt",
+        format: "a4",
+      });
+
+      autoTable(pdf, {
+        head: [[
+          "Campaña",
+          "Subproceso",
+          "Insumo",
+          "Unidad",
+          "Dosificacion Recomendada",
+        ]],
+        body: dosificacionRows.map((x) => [
+          x["Campaña"],
+          x["Subproceso"],
+          x["Insumo"],
+          x["Unidad"],
+          x["Dosificacion Recomendada"],
+        ]),
+        startY: 40,
+        theme: "grid",
+        styles: {
+          fontSize: 9,
+          cellPadding: 4,
+          lineColor: [0, 0, 0],
+          lineWidth: 0.5,
+          textColor: [0, 0, 0],
+        },
+        headStyles: {
+          fontStyle: "bold",
+          fillColor: [255, 255, 255],
+          textColor: [0, 0, 0],
+          lineColor: [0, 0, 0],
+          lineWidth: 0.5,
+        },
+        margin: { top: 40, right: 24, bottom: 24, left: 24 },
+        tableWidth: "auto",
+      });
+
+      pdf.save(`refinery_ml_dosificacion_${fileStamp}.pdf`);
 
       setMsgAction?.("OK: exportado ML");
     } catch (e: any) {
