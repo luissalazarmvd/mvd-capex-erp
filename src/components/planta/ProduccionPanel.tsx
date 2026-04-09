@@ -1,35 +1,17 @@
 // src/components/planta/ProduccionPanel.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
-import { Table } from "../ui/Table";
+import { Input } from "../ui/Input";
 
-type DetRow = {
-  shift_id: string;
-  var_code: string;
-  sample_no: number;
-  val: any;
-  updated_at: any;
+type UpsertResp = { ok: boolean; error?: string };
+
+type FactsHeader = {
+  density_of?: any;
+  pct_200?: any;
 };
-
-type DetResp = { ok: boolean; shift_id: string; var_code: string; rows: DetRow[]; error?: string };
-type ReplaceResp = { ok: boolean; shift_id: string; var_code: string; inserted: number; error?: string };
-
-const VARS = [
-  { code: "density_of", label: "Densidad (g/l)", kind: "nonneg" as const },
-  { code: "pct_200", label: "%-m-200 (1-100)", kind: "pct" as const },
-  { code: "nacn_of", label: "NaCN OF (1-20)", kind: "nacn" as const },
-  { code: "nacn_ads", label: "NaCN TK1 (1-20)", kind: "nacn" as const },
-  { code: "nacn_tail", label: "NaCN TK11 (1-20)", kind: "nacn" as const },
-  { code: "ph_of", label: "pH OF", kind: "ph" as const },
-  { code: "ph_ads", label: "pH TK1", kind: "ph" as const },
-  { code: "ph_tail", label: "pH TK11", kind: "ph" as const },
-] as const;
-
-type VarCode = (typeof VARS)[number]["code"];
-type Kind = (typeof VARS)[number]["kind"];
 
 function toNumOrNaN(s: string) {
   if (s === null || s === undefined) return NaN;
@@ -39,158 +21,87 @@ function toNumOrNaN(s: string) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+function toTextNum(v: any) {
+  if (v === null || v === undefined || v === "") return "";
+  const n = Number(String(v).trim());
+  return Number.isFinite(n) ? String(n) : "";
+}
+
 function isShiftId(s: string) {
   return /^\d{8}-[AB]$/.test(String(s || "").trim().toUpperCase());
 }
 
-function blank12() {
-  return Array.from({ length: 12 }, () => "");
+function parseShiftIdToQuery(shift_id: string): { date: string; shift: "A" | "B" } | null {
+  const s = String(shift_id || "").trim().toUpperCase();
+  const m = s.match(/^(\d{8})-([AB])$/);
+  if (!m) return null;
+  const ymd = m[1];
+  const shift = m[2] as "A" | "B";
+  const date = `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
+  return { date, shift };
 }
 
-function cellIsEmptyOrZero(s: string) {
-  const t = String(s ?? "").trim();
-  if (!t) return true;
-  const n = toNumOrNaN(t);
-  return !Number.isFinite(n) || n === 0;
-}
-
-function validateCell(kind: Kind, s: string): boolean {
+function validateDensityUi(s: string): boolean {
   const t = String(s ?? "").trim();
   if (!t) return true;
   const n = toNumOrNaN(t);
   if (!Number.isFinite(n)) return false;
   if (n === 0) return true;
-  if (kind === "nonneg") return n >= 0;
-  if (kind === "pct") return n >= 1 && n <= 100;
-  if (kind === "nacn") return n >= 1 && n <= 20;
-  if (kind === "ph") return n >= 1 && n <= 14;
-  return false;
+  return n >= 0;
 }
 
-function computeAvgFromColumn(arr: string[]) {
-  const vals: number[] = [];
-  for (let i = 0; i < 12; i++) {
-    const s = String(arr[i] ?? "").trim();
-    if (!s) continue;
-    const n = toNumOrNaN(s);
-    if (!Number.isFinite(n) || n === 0) continue;
-    vals.push(n);
-  }
-  if (!vals.length) return null;
-  const sum = vals.reduce((a, b) => a + b, 0);
-  return sum / vals.length;
+function validatePctUi(s: string): boolean {
+  const t = String(s ?? "").trim();
+  if (!t) return true;
+  const n = toNumOrNaN(t);
+  if (!Number.isFinite(n)) return false;
+  if (n === 0) return true;
+  return n >= 1 && n <= 100;
 }
 
-function fmtAvg(v: number | null, digits = 2) {
-  if (v === null || !Number.isFinite(v)) return "";
-  return v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+function densityUiToDbOrNull(s: string): number | null {
+  const t = String(s ?? "").trim();
+  if (!t) return null;
+  const n = toNumOrNaN(t);
+  if (!Number.isFinite(n)) return NaN;
+  if (n === 0) return 0;
+  if (n < 0) return NaN;
+  return n;
 }
 
-function pctToDecimalOrNull(avg: number | null) {
-  if (avg === null) return null;
-  if (!Number.isFinite(avg)) return null;
-  if (avg < 1 || avg > 100) return null;
-  return avg / 100;
+function pctUiToDbOrNull(s: string): number | null {
+  const t = String(s ?? "").trim();
+  if (!t) return null;
+  const n = toNumOrNaN(t);
+  if (!Number.isFinite(n)) return NaN;
+  if (n === 0) return null;
+  if (n < 1 || n > 100) return NaN;
+  return n / 100;
 }
 
-function nacnUiToDbOrNull(avgUi: number | null) {
-  if (avgUi === null || !Number.isFinite(avgUi)) return null;
-  if (avgUi < 1 || avgUi > 20) return null;
-  return avgUi / 100;
-}
-
-type FactsHeader = Partial<Record<VarCode, any>>;
-
-function numOrNull(v: any): number | null {
-  const n = typeof v === "number" ? v : toNumOrNaN(String(v ?? ""));
-  return Number.isFinite(n) ? n : null;
-}
-
-function rowTimeLabel(sid: string, rIdx: number) {
-  const s = String(sid || "").trim().toUpperCase();
-  const isA = /-A$/.test(s);
-  const start = isA ? 8 : 20;
-  const h = (start + rIdx) % 24;
-  return `${String(h).padStart(2, "0")}:00`;
-}
-
-export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; facts?: FactsHeader | null }) {
+export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: FactsHeader | null }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const sid = useMemo(() => String(shiftId || "").trim().toUpperCase(), [shiftId]);
 
-  const [mat, setMat] = useState<Record<VarCode, string[]>>(() => {
-    const o: any = {};
-    for (const v of VARS) o[v.code] = blank12();
-    return o;
-  });
+  const [densityOf, setDensityOf] = useState<string>("");
+  const [pct200, setPct200] = useState<string>("");
 
-  const cellRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  const avgsUi = useMemo(() => {
-    const o: Record<VarCode, number | null> = {} as any;
-    for (const v of VARS) o[v.code] = computeAvgFromColumn(mat[v.code] || []);
-    return o;
-  }, [mat]);
-
-  const avgsDisplay = useMemo(() => {
-    const o: Record<VarCode, number | null> = {} as any;
-
-    for (const v of VARS) {
-      const fromDet = avgsUi[v.code];
-      if (fromDet !== null && Number.isFinite(fromDet as any)) {
-        o[v.code] = fromDet;
-        continue;
-      }
-
-      const fv = numOrNull((facts as any)?.[v.code]);
-      if (fv === null) {
-        o[v.code] = null;
-        continue;
-      }
-
-      if (v.code === "pct_200" || v.code === "nacn_of" || v.code === "nacn_ads" || v.code === "nacn_tail") {
-        o[v.code] = fv * 100;
-      } else {
-        o[v.code] = fv;
-      }
-    }
-
-    return o;
-  }, [avgsUi, facts]);
-
-  const colStatus = useMemo(() => {
-    const o: Record<VarCode, { ok: boolean; firstGapAt: number | null; firstInvalidAt: number | null }> = {} as any;
-    for (const v of VARS)
-      o[v.code] = { ok: (mat[v.code] || []).every((s) => validateCell(v.kind, String(s ?? ""))), firstGapAt: null, firstInvalidAt: null };
-    return o;
-  }, [mat]);
+  const densityInvalid = useMemo(() => !validateDensityUi(densityOf), [densityOf]);
+  const pct200Invalid = useMemo(() => !validatePctUi(pct200), [pct200]);
 
   const allValid = useMemo(() => {
     if (!sid || !isShiftId(sid)) return false;
-    return VARS.every((v) => colStatus[v.code]?.ok);
-  }, [sid, colStatus]);
+    return !densityInvalid && !pct200Invalid;
+  }, [sid, densityInvalid, pct200Invalid]);
 
   const canSave = useMemo(() => allValid && !saving && !loadingExisting, [allValid, saving, loadingExisting]);
 
   function clearAll() {
-    setMat(() => {
-      const o: any = {};
-      for (const v of VARS) o[v.code] = blank12();
-      return o;
-    });
-  }
-
-  function setCell(varCode: VarCode, idx: number, value: string) {
-    setMat((prev) => {
-      const next = { ...prev };
-      const arr = [...(next[varCode] || blank12())];
-      arr[idx] = value;
-      next[varCode] = arr;
-      return next;
-    });
+    setDensityOf("");
+    setPct200("");
   }
 
   async function loadExisting(nextSid: string, opts?: { silentMsg?: boolean }) {
@@ -199,39 +110,31 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
       return;
     }
 
+    const q = parseShiftIdToQuery(nextSid);
+    if (!q) {
+      clearAll();
+      return;
+    }
+
     setLoadingExisting(true);
     if (!opts?.silentMsg) setMsg(null);
 
     try {
-      const next: Record<VarCode, string[]> = {} as any;
+      const r = (await apiGet(
+        `/api/planta/guardia/get?date=${encodeURIComponent(q.date)}&shift=${encodeURIComponent(q.shift)}`
+      )) as any;
 
-      for (const v of VARS) {
-        next[v.code] = blank12();
+      const h: FactsHeader = (r?.header as any) || {};
 
-        try {
-          const r = (await apiGet(
-            `/api/planta/production/det?shift_id=${encodeURIComponent(nextSid)}&var_code=${encodeURIComponent(v.code)}`
-          )) as DetResp;
-
-          const rows = Array.isArray(r.rows) ? r.rows : [];
-          for (const row of rows) {
-            const k = Number(row.sample_no);
-            if (!Number.isInteger(k) || k < 1 || k > 12) continue;
-
-            const raw = row.val;
-            const n = typeof raw === "number" ? raw : toNumOrNaN(String(raw));
-            if (!Number.isFinite(n)) continue;
-
-            if (v.code === "nacn_of" || v.code === "nacn_ads" || v.code === "nacn_tail") {
-              next[v.code][k - 1] = String(n * 100);
-            } else {
-              next[v.code][k - 1] = String(n);
-            }
-          }
-        } catch {}
-      }
-
-      setMat(next);
+      setDensityOf(toTextNum(h.density_of));
+      setPct200(
+        h.pct_200 === null || h.pct_200 === undefined || h.pct_200 === ""
+          ? ""
+          : toTextNum(Number(h.pct_200) * 100)
+      );
+    } catch (e: any) {
+      clearAll();
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR cargando producción");
     } finally {
       setLoadingExisting(false);
     }
@@ -246,26 +149,6 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
     loadExisting(sid);
   }, [sid]);
 
-  function buildItems(varCode: VarCode) {
-    const arr = mat[varCode] || blank12();
-    const items: { sample_no: number; val: number }[] = [];
-
-    const isNacn = varCode === "nacn_of" || varCode === "nacn_ads" || varCode === "nacn_tail";
-
-    for (let i = 0; i < 12; i++) {
-      const s = String(arr[i] ?? "").trim();
-      if (!s) continue;
-
-      const nUi = toNumOrNaN(s);
-      if (!Number.isFinite(nUi) || nUi === 0) continue;
-
-      const nDb = isNacn ? nUi / 100 : nUi;
-      items.push({ sample_no: i + 1, val: nDb });
-    }
-
-    return items;
-  }
-
   async function onSave() {
     if (!sid || !isShiftId(sid)) {
       setMsg("ERROR: shift_id inválido");
@@ -273,7 +156,7 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
     }
 
     if (!allValid) {
-      setMsg("ERROR: corrige celdas inválidas.");
+      setMsg("ERROR: corrige valores inválidos.");
       return;
     }
 
@@ -281,25 +164,22 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
     setMsg(null);
 
     try {
-      for (const v of VARS) {
-        const payload = { shift_id: sid, var_code: v.code, items: buildItems(v.code) };
-        const rr = (await apiPost("/api/planta/production/replace", payload)) as ReplaceResp;
-        if (!rr?.ok) throw new Error(rr?.error || `Error guardando ${v.code}`);
+      const densityDb = densityUiToDbOrNull(densityOf);
+      const pct200Db = pctUiToDbOrNull(pct200);
+
+      if (Number.isNaN(densityDb as number) || Number.isNaN(pct200Db as number)) {
+        setMsg("ERROR: corrige valores inválidos.");
+        return;
       }
 
       const payloadFacts = {
         shift_id: sid,
-        density_of: avgsUi.density_of ?? null,
-        pct_200: pctToDecimalOrNull(avgsUi.pct_200),
-        nacn_of: nacnUiToDbOrNull(avgsUi.nacn_of),
-        nacn_ads: nacnUiToDbOrNull(avgsUi.nacn_ads),
-        nacn_tail: nacnUiToDbOrNull(avgsUi.nacn_tail),
-        ph_of: avgsUi.ph_of ?? null,
-        ph_ads: avgsUi.ph_ads ?? null,
-        ph_tail: avgsUi.ph_tail ?? null,
+        density_of: densityDb,
+        pct_200: pct200Db,
       };
 
-      await apiPost("/api/planta/produccion/upsert", payloadFacts);
+      const rr = (await apiPost("/api/planta/produccion/upsert", payloadFacts)) as UpsertResp;
+      if (!rr?.ok) throw new Error(rr?.error || "Error guardando producción");
 
       await loadExisting(sid, { silentMsg: true });
 
@@ -309,83 +189,6 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
     } finally {
       setSaving(false);
     }
-  }
-
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "2px solid rgba(191, 231, 255, 0.16)";
-  const gridH = "2px solid rgba(191, 231, 255, 0.10)";
-  const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
-
-  const stickyHead: React.CSSProperties = {
-    position: "sticky",
-    top: 0,
-    zIndex: 8,
-    background: headerBg,
-    boxShadow: headerShadow,
-  };
-
-  const cellBase: React.CSSProperties = {
-    padding: "6px 8px",
-    fontSize: 12,
-    lineHeight: "14px",
-    whiteSpace: "nowrap",
-  };
-
-  const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
-
-  const inputCell: React.CSSProperties = {
-    width: "100%",
-    border: "1px solid rgba(191,231,255,.18)",
-    background: "rgba(0,0,0,.10)",
-    color: "white",
-    fontWeight: 900,
-    padding: "6px 8px",
-    borderRadius: 8,
-    outline: "none",
-    textAlign: "right",
-    fontSize: 12,
-    lineHeight: "14px",
-  };
-
-  const errInput: React.CSSProperties = {
-    border: "1px solid rgba(255,80,80,.55)",
-    background: "rgba(255,80,80,.10)",
-  };
-
-  const rowBg = "rgba(0,0,0,.10)";
-
-  function keyForCell(varCode: VarCode, rIdx: number) {
-    return `${varCode}__${rIdx}`;
-  }
-
-  function isCellDisabled(varCode: VarCode, rIdx: number) {
-    return !sid || saving || loadingExisting;
-  }
-
-  function focusCell(varCode: VarCode, rIdx: number) {
-    const el = cellRefs.current[keyForCell(varCode, rIdx)];
-    if (el) {
-      el.focus();
-      try {
-        el.select();
-      } catch {}
-    }
-  }
-
-  function onGridKeyDown(e: React.KeyboardEvent<HTMLInputElement>, varCode: VarCode, rIdx: number) {
-    const key = e.key;
-    if (key !== "Enter" && key !== "Tab") return;
-
-    e.preventDefault();
-
-    const dir = e.shiftKey ? -1 : 1;
-    const nextRow = rIdx + dir;
-    if (nextRow < 0 || nextRow > 11) return;
-
-    if (isCellDisabled(varCode, nextRow)) return;
-
-    focusCell(varCode, nextRow);
   }
 
   return (
@@ -427,141 +230,50 @@ export default function ProduccionPanel({ shiftId, facts }: { shiftId: string; f
         </div>
       ) : null}
 
-      <div className="panel-inner" style={{ padding: 0, overflow: "visible" }}>
-        <Table stickyHeader>
-          <thead>
-            <tr>
-              <th
-                className="capex-th"
-                style={{
-                  ...stickyHead,
-                  border: headerBorder,
-                  borderBottom: headerBorder,
-                  textAlign: "center",
-                  padding: "8px 8px",
-                  fontSize: 12,
-                  minWidth: 52,
-                }}
-              >
-                #
-              </th>
+      <div className="panel-inner" style={{ padding: 14 }}>
+        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>Densidad (g/l)</div>
+            <Input
+              placeholder="vacío o >= 0"
+              value={densityOf}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDensityOf(e.target.value)}
+              disabled={!sid || saving || loadingExisting}
+              hint=""
+              style={densityInvalid ? { border: "1px solid rgba(255,80,80,.55)", background: "rgba(255,80,80,.10)" } : undefined}
+            />
+          </div>
 
-              {VARS.map((v) => {
-                const st = colStatus[v.code];
-                const hasErr = !!sid && !st.ok;
-                const title = hasErr ? "Revisa valores inválidos" : "";
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>%-m-200 (1-100)</div>
+            <Input
+              placeholder="vacío, 0 o 1-100"
+              value={pct200}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPct200(e.target.value)}
+              disabled={!sid || saving || loadingExisting}
+              hint=""
+              style={pct200Invalid ? { border: "1px solid rgba(255,80,80,.55)", background: "rgba(255,80,80,.10)" } : undefined}
+            />
+          </div>
+        </div>
 
-                return (
-                  <th
-                    key={v.code}
-                    className="capex-th"
-                    style={{
-                      ...stickyHead,
-                      border: headerBorder,
-                      borderBottom: headerBorder,
-                      textAlign: "left",
-                      padding: "8px 8px",
-                      fontSize: 12,
-                      minWidth: 140,
-                    }}
-                    title={title}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-                      <div style={{ fontWeight: 900 }}>{v.label}</div>
-                      <div style={{ fontWeight: 900, opacity: 0.95 }}>{fmtAvg(avgsDisplay[v.code], 2)}</div>
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
+        {!sid ? (
+          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12 }}>
+            Selecciona una guardia en el page.
+          </div>
+        ) : null}
 
-          <tbody>
-            {Array.from({ length: 12 }).map((_, rIdx) => {
-              const rowBorder = gridH;
+        {sid && !loadingExisting && !allValid ? (
+          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12, color: "rgba(255,120,120,.95)" }}>
+            Corrige valores inválidos.
+          </div>
+        ) : null}
 
-              return (
-                <tr key={rIdx} className="capex-tr">
-                  <td
-                    className="capex-td capex-td-strong"
-                    style={{
-                      ...cellBase,
-                      borderTop: rowBorder,
-                      borderBottom: rowBorder,
-                      borderRight: gridV,
-                      background: rowBg,
-                      textAlign: "center",
-                      fontWeight: 900,
-                    }}
-                  >
-                    {sid ? rowTimeLabel(sid, rIdx) : rIdx + 1}
-                  </td>
-
-                  {VARS.map((v) => {
-                    const value = mat[v.code]?.[rIdx] ?? "";
-                    const invalidCell = !validateCell(v.kind, value);
-                    const disabled = isCellDisabled(v.code, rIdx);
-
-                    return (
-                      <td
-                        key={v.code}
-                        className="capex-td"
-                        style={{
-                          ...numCell,
-                          borderTop: rowBorder,
-                          borderBottom: rowBorder,
-                          borderRight: gridV,
-                          background: rowBg,
-                          padding: "6px 8px",
-                        }}
-                      >
-                        <input
-                          ref={(el) => {
-                            cellRefs.current[keyForCell(v.code, rIdx)] = el;
-                          }}
-                          value={value}
-                          disabled={disabled}
-                          onChange={(e) => setCell(v.code, rIdx, (e.target as any).value)}
-                          onKeyDown={(e) => onGridKeyDown(e, v.code, rIdx)}
-                          inputMode="decimal"
-                          style={{ ...inputCell, ...(invalidCell ? errInput : {}) }}
-                        />
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-
-            {!sid ? (
-              <tr className="capex-tr">
-                <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={1 + VARS.length}>
-                  Selecciona una guardia en el page.
-                </td>
-              </tr>
-            ) : null}
-
-            {sid && !loadingExisting && !allValid ? (
-              <tr className="capex-tr">
-                <td
-                  className="capex-td"
-                  style={{ ...cellBase, fontWeight: 900, color: "rgba(255,120,120,.95)" }}
-                  colSpan={1 + VARS.length}
-                >
-                  Corrige columnas con error (valores inválidos).
-                </td>
-              </tr>
-            ) : null}
-
-            {loadingExisting ? (
-              <tr className="capex-tr">
-                <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={1 + VARS.length}>
-                  Cargando datos existentes…
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </Table>
+        {loadingExisting ? (
+          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12 }}>
+            Cargando datos existentes…
+          </div>
+        ) : null}
       </div>
     </div>
   );
