@@ -19,6 +19,7 @@ type TraceabilityRow = {
   au_oz: number | null;
   ag_oz: number | null;
   au_rec: number | null;
+  ag_rec: number | null;
   pio: number | null;
   pio_disc: number | null;
   maquila: number | null;
@@ -46,6 +47,7 @@ type DraftRow = {
   au_oz: string;
   ag_oz: string;
   au_rec: string;
+  ag_rec: string;
   pio: string;
   pio_disc: string;
   maquila: string;
@@ -64,6 +66,7 @@ const EXPORT_COLUMNS = [
   { key: "ag_grade_oztc", label: "Ag (Oz/TC)" },
   { key: "cu_grade_pct", label: "Cu %" },
   { key: "au_rec", label: "Au Rec" },
+  { key: "ag_rec", label: "Ag Rec" },
   { key: "pio", label: "PIO" },
   { key: "pio_disc", label: "PIO Desc." },
   { key: "maquila", label: "Maquila" },
@@ -80,6 +83,7 @@ const EDITABLE_FIELDS = [
   "ag_grade_oztc",
   "cu_grade_pct",
   "au_rec",
+  "ag_rec",
   "pio",
   "pio_disc",
   "maquila",
@@ -90,7 +94,7 @@ const EDITABLE_FIELDS = [
 
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
-const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct", "au_rec"];
+const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct", "au_rec", "ag_rec"];
 
 const DECIMALS_3_FIELDS: EditableField[] = [
   "tmh",
@@ -124,6 +128,7 @@ const COLUMNS: {
   { key: "au_oz", label: "Au Oz", editable: false, kind: "readonly", width: 88 },
   { key: "ag_oz", label: "Ag Oz", editable: false, kind: "readonly", width: 88 },
   { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 88 },
+  { key: "ag_rec", label: "Ag Rec", editable: true, kind: "number", width: 88 },
   { key: "pio", label: "PIO", editable: true, kind: "number", width: 88 },
   { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 96 },
   { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 88 },
@@ -282,8 +287,8 @@ function formatFieldValue(field: EditableField, value: unknown) {
   const n = toNumOrNull(value);
   if (n === null) return "";
 
-    if (field === "au_rec") {
-    return n.toFixed(2);
+    if (field === "au_rec" || field === "ag_rec") {
+      return n.toFixed(2);
     }
 
   return DECIMALS_3_FIELDS.includes(field) ? n.toFixed(3) : n.toFixed(2);
@@ -362,6 +367,7 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
     au_oz: calcAuOzValue(r.tms, r.au_grade_oztc, r.au_rec)?.toFixed(2) ?? "",
     ag_oz: "0.00",
     au_rec: formatFieldValue("au_rec", r.au_rec),
+    ag_rec: formatFieldValue("ag_rec", r.ag_rec),
     pio: formatFieldValue("pio", r.pio),
     pio_disc: formatFieldValue("pio_disc", r.pio_disc),
     maquila: formatFieldValue("maquila", r.maquila),
@@ -377,6 +383,7 @@ function validateNumericRange(field: EditableField, value: number | null) {
     if (field === "h2o") return "H2O debe estar entre 0 y 100.";
     if (field === "cu_grade_pct") return "Cu % debe estar entre 0 y 100.";
     if (field === "au_rec") return "Au Rec debe estar entre 0 y 100.";
+    if (field === "ag_rec") return "Ag Rec debe estar entre 0 y 100.";
   }
   return null;
 }
@@ -396,6 +403,7 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
     au_oz: null,
     ag_oz: null,
     au_rec: null,
+    ag_rec: null,
     pio: null,
     pio_disc: null,
     maquila: null,
@@ -412,7 +420,7 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
     const err = validateNumericRange(f, num);
     if (err) throw new Error(err);
 
-    if (f === "au_rec") {
+    if (f === "au_rec" || f === "ag_rec") {
       payload[f] = num === null ? null : num * 100;
     } else {
       payload[f] = num;
@@ -461,6 +469,7 @@ function hydrateRowsFromDrafts(sourceDrafts: Record<string, DraftRow>) {
       au_oz: calcAuOz(draft),
       ag_oz: 0,
       au_rec: toNumOrNull(draft.au_rec),
+      ag_rec: toNumOrNull(draft.ag_rec),
       pio: toNumOrNull(draft.pio),
       pio_disc: toNumOrNull(draft.pio_disc),
       maquila: toNumOrNull(draft.maquila),
@@ -759,6 +768,7 @@ export default function TraceabilityComerForm() {
           au_oz: calcAuOzValue(raw["TMS"], raw["Au (Oz/TC)"], raw["Au Rec"]),
           ag_oz: 0,
           au_rec: toNumOrNull(raw["Au Rec"]),
+          ag_rec: toNumOrNull(raw["Ag Rec"]),
           pio: toNumOrNull(raw["PIO"]),
           pio_disc: toNumOrNull(raw["PIO Desc."]),
           maquila: toNumOrNull(raw["Maquila"]),
@@ -820,8 +830,8 @@ export default function TraceabilityComerForm() {
 
     let formatted = "";
 
-    if (editableField === "au_rec") {
-    formatted = n.toFixed(2);
+    if (editableField === "au_rec" || editableField === "ag_rec") {
+      formatted = n.toFixed(2);
     } else {
     formatted = DECIMALS_3_FIELDS.includes(editableField) ? n.toFixed(3) : n.toFixed(2);
     }
