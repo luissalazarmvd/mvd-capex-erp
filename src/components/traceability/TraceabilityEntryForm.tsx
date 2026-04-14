@@ -34,6 +34,7 @@ type TraceabilityRow = {
   au_oz: number | null;
   ag_oz: number | null;
   au_rec: number | null;
+  ag_rec: number | null;
   pio: number | null;
   pio_disc: number | null;
   maquila: number | null;
@@ -78,6 +79,7 @@ const EDITABLE_FIELDS = [
   "au_oz",
   "ag_oz",
   "au_rec",
+  "ag_rec",
   "pio",
   "pio_disc",
   "maquila",
@@ -99,6 +101,7 @@ const NUMERIC_FIELDS: EditableField[] = [
   "au_oz",
   "ag_oz",
   "au_rec",
+  "ag_rec",
   "pio",
   "pio_disc",
   "maquila",
@@ -155,6 +158,7 @@ const COLUMNS: {
   { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 88 },
   { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 88 },
   { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 88 },
+  { key: "ag_rec", label: "Ag Rec", editable: true, kind: "number", width: 88 },
   { key: "pio", label: "PIO", editable: true, kind: "number", width: 88 },
   { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 88 },
   { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 88 },
@@ -1219,6 +1223,7 @@ useEffect(() => {
         "Au Oz": row.au_oz ?? "",
         "Ag Oz": row.ag_oz ?? "",
         "Rec Au": row.au_rec ?? "",
+        "Rec Ag": row.ag_rec ?? "",
         "PIO": row.pio ?? "",
         "PIO Disc": row.pio_disc ?? "",
         "Maquila": row.maquila ?? "",
@@ -1245,9 +1250,9 @@ useEffect(() => {
     for (let i = 0; i < exportRows.length; i++) {
       const excelRow = i + 2;
 
-      ws[`AL${excelRow}`] = {
+      ws[`AM${excelRow}`] = {
         t: "n",
-        f: `ROUND(ROUND((((U${excelRow}*Z${excelRow}*0.01)*(AA${excelRow}-AB${excelRow})-AC${excelRow}-AD${excelRow}-AE${excelRow})*1.1023),2)*ROUND(T${excelRow},3)+IF(AH${excelRow}="",0,AH${excelRow}),2)`
+        f: `ROUND(ROUND((((U${excelRow}*Z${excelRow}*0.01)*(AB${excelRow}-AC${excelRow})-AD${excelRow}-AE${excelRow}-AF${excelRow})*1.1023),2)*ROUND(T${excelRow},3)+IF(AI${excelRow}="",0,AI${excelRow}),2)`
       };
     }
     ws["!cols"] = [
@@ -1268,6 +1273,7 @@ useEffect(() => {
       { wch: 18 },
       { wch: 12 },
       { wch: 16 },
+      { wch: 12 },
       { wch: 12 },
       { wch: 12 },
       { wch: 12 },
