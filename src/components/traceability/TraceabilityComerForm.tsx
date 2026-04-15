@@ -10,6 +10,7 @@ import { Table } from "../ui/Table";
 type TraceabilityRow = {
   lot: string | null;
   entry_date: string | null;
+  valuation_date: string | null;
   tmh: number | null;
   h2o: number | null;
   tms: number | null;
@@ -38,6 +39,7 @@ type SaveResp = {
 type DraftRow = {
   lot: string;
   entry_date: string;
+  valuation_date: string;
   tmh: string;
   h2o: string;
   tms: string;
@@ -59,6 +61,7 @@ type DraftRow = {
 const EXPORT_COLUMNS = [
   { key: "lot", label: "Lote" },
   { key: "entry_date", label: "F. Ingreso" },
+  { key: "valuation_date", label: "F. Valorizacion" },
   { key: "tmh", label: "TMH" },
   { key: "h2o", label: "H2O" },
   { key: "tms", label: "TMS" },
@@ -110,7 +113,7 @@ type SortDir = "asc" | "desc";
 const PAGE_SIZE = 100;
 
 const COLUMNS: {
-  key: "lot" | "entry_date" | EditableField | "au_oz" | "ag_oz" | "au_usd" | "usd_tms" | "monto_usd";
+  key: "lot" | "entry_date" | "valuation_date" | EditableField | "au_oz" | "ag_oz" | "au_usd" | "usd_tms" | "monto_usd";
   label: string;
   editable: boolean;
   kind: "text" | "date" | "number" | "readonly";
@@ -119,6 +122,7 @@ const COLUMNS: {
 }[] = [
   { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 130, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110 },
+  { key: "valuation_date", label: "F. Valorizacion", editable: false, kind: "readonly", width: 110 },
   { key: "tmh", label: "TMH", editable: true, kind: "number", width: 88 },
   { key: "h2o", label: "H2O", editable: true, kind: "number", width: 88 },
   { key: "tms", label: "TMS", editable: true, kind: "number", width: 88 },
@@ -358,6 +362,7 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
   return {
     lot: toText(r.lot),
     entry_date: normalizeDateInput(r.entry_date),
+    valuation_date: normalizeDateInput(r.valuation_date),
     tmh: formatFieldValue("tmh", r.tmh),
     h2o: formatFieldValue("h2o", r.h2o),
     tms: formatFieldValue("tms", r.tms),
@@ -391,6 +396,7 @@ function validateNumericRange(field: EditableField, value: number | null) {
 function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
   const payload: Record<string, any> = {
     lot: String(row.lot ?? "").trim() || null,
+    valuation_date: normalizeDateInput(row.valuation_date) || null,
     pay_type: "Transferencia",
     source_name: "CO",
     updated_at: batchUpdatedAt || null,
@@ -460,6 +466,7 @@ function hydrateRowsFromDrafts(sourceDrafts: Record<string, DraftRow>) {
     return {
       lot: draft.lot || null,
       entry_date: draft.entry_date || null,
+      valuation_date: draft.valuation_date || null,
       tmh: toNumOrNull(draft.tmh),
       h2o: toNumOrNull(draft.h2o),
       tms: toNumOrNull(draft.tms),
@@ -522,14 +529,14 @@ const RowItem = React.memo(function RowItem({
 
           if (c.key === "lot") raw = draft.lot;
           if (c.key === "entry_date") raw = draft.entry_date;
+          if (c.key === "valuation_date") raw = draft.valuation_date;
           if (c.key === "au_oz") raw = calcAuOz(draft);
-          if (c.key === "ag_oz") raw = calcAgOz();
           if (c.key === "au_usd") raw = calcAuUsd(draft);
           if (c.key === "usd_tms") raw = calcUsdTms(draft);
           if (c.key === "monto_usd") raw = calcMontoUsd(draft);
 
-          const decimals = c.key === "lot" || c.key === "entry_date" ? 0 : 2;
-          const isNumber = c.key !== "lot" && c.key !== "entry_date";
+          const decimals = c.key === "lot" || c.key === "entry_date" || c.key === "valuation_date" ? 0 : 2;
+          const isNumber = c.key !== "lot" && c.key !== "entry_date" && c.key !== "valuation_date";
           const show =
             isNumber && !isBlank(raw)
               ? Number(raw).toLocaleString("en-US", {
@@ -699,6 +706,7 @@ export default function TraceabilityComerForm() {
         ...row,
         lot: normalizedLot,
         entry_date: normalizedEntryDate || null,
+        valuation_date: normalizeDateInput(row.valuation_date) || null,
       };
 
       const draft = toDraftRow(rowNormalized);
@@ -753,12 +761,14 @@ export default function TraceabilityComerForm() {
 
       for (const raw of rawRows) {
         const entryDate = normalizeDateInput(raw["F. Ingreso"]);
+        const valuationDate = normalizeDateInput(raw["F. Valorizacion"]);
         const lotNormalized = normalizeLot(raw["Lote"], entryDate);
         if (!lotNormalized) continue;
 
         const row: TraceabilityRow = {
           lot: lotNormalized,
           entry_date: entryDate || null,
+          valuation_date: valuationDate || null,
           tmh: toNumOrNull(raw["TMH"]),
           h2o: toNumOrNull(raw["H2O"]),
           tms: toNumOrNull(raw["TMS"]),

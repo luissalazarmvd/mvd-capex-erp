@@ -11,6 +11,7 @@ type TraceabilityRow = {
   lot: string | null;
   entry_date: string | null;
   process_date: string | null;
+  valuation_date: string | null;
   sack_qty: number | null;
   miner_name: string | null;
   plate: string | null;
@@ -1201,6 +1202,7 @@ useEffect(() => {
     const exportRows = preparedRows.map((row) => {
       return {
         "F ingreso": row.entry_date ?? "",
+        "F valorizacion": row.valuation_date ?? "",
         "F proceso": row.process_date ?? "",
         "Lote": row.lot ?? "",
         "Sacos": row.sack_qty ?? "",
