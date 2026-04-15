@@ -504,11 +504,27 @@ function inDateRange(entryDate: string | null, from: string, to: string) {
   return true;
 }
 
-function matchesLot(rowLot: string | null, lotFilter: string) {
-  const lot = String(rowLot || "").trim().toLowerCase();
+function matchesLot(row: TraceabilityRow, lotFilter: string) {
   const filter = String(lotFilter || "").trim().toLowerCase();
   if (!filter) return true;
-  return lot.includes(filter);
+
+  const values = [
+    row.lot,
+    row.doc_number,
+    row.miner_name,
+    row.plate,
+    row.ruc,
+    row.concession_name,
+    row.concession_code,
+    row.district,
+    row.province,
+    row.department,
+    row.sender_guide_number,
+  ];
+
+  return values.some((value) =>
+    String(value || "").trim().toLowerCase().includes(filter)
+  );
 }
 
 function matchesValuationFilter(
@@ -809,19 +825,6 @@ export default function TraceabilityEntryForm() {
     loadData();
   }, [loadData]);
 
-  const lotOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const list: string[] = [];
-    for (const row of rows) {
-      const lot = String(row.lot || "").trim();
-      if (!lot) continue;
-      if (seen.has(lot)) continue;
-      seen.add(lot);
-      list.push(lot);
-    }
-    return list.sort((a, b) => compareLot(a, b));
-  }, [rows]);
-
   const entryDateBounds = useMemo(() => {
   const dates = rows
     .map((row) => String(row.entry_date || "").trim())
@@ -906,7 +909,7 @@ useEffect(() => {
     const preparedRows = useMemo(() => {
       const filtered = rows.filter((row) => {
         if (!inDateRange(row.entry_date, dateFrom, dateTo)) return false;
-        if (!matchesLot(row.lot, lotFilter)) return false;
+        if (!matchesLot(row, lotFilter)) return false;
 
         const key = String(row.lot || "").trim();
         const pendingValuation = !!pendingValuationMap[key];
@@ -1568,20 +1571,14 @@ useEffect(() => {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Lote</div>
+            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Buscador global</div>
             <input
-              list="traceability-lot-options"
               type="text"
               value={lotFilter}
               onChange={(e) => setLotFilter(e.target.value)}
-              placeholder="Buscar lote"
+              placeholder="Buscar lote, factura, minero, placa, RUC, concesión..."
               style={{ ...inputBase, minWidth: 170 }}
             />
-            <datalist id="traceability-lot-options">
-              {lotOptions.map((lot) => (
-                <option key={lot} value={lot} />
-              ))}
-            </datalist>
           </div>
 
           <Button type="button" size="sm" variant="default" onClick={loadData} disabled={loading || saving}>
