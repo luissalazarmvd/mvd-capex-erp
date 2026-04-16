@@ -732,6 +732,21 @@ export default function TraceabilityComerForm() {
     return map;
     }, [editedTick]);
 
+    const hasInvalidPayload = useMemo(() => {
+    editedTick;
+    for (const key of Object.keys(draftsRef.current)) {
+        const row = draftsRef.current[key];
+        if (!row) return true;
+
+        try {
+            buildPayload(row);
+        } catch {
+            return true;
+        }
+    }
+    return false;
+    }, [editedTick]);
+
   const registerInput = useCallback((key: string, field: keyof DraftRow, el: HTMLInputElement | null) => {
     if (!inputsRef.current[key]) inputsRef.current[key] = {};
     inputsRef.current[key][field] = el;
@@ -1093,7 +1108,14 @@ export default function TraceabilityComerForm() {
             </datalist>
           </div>
 
-          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={saving}>
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            onClick={onSaveAll}
+            disabled={saving || editedCount === 0 || hasInvalidPayload}
+            title={hasInvalidPayload ? "Hay datos inválidos en el preview." : editedCount === 0 ? "No hay filas para guardar." : ""}
+          >
             {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
