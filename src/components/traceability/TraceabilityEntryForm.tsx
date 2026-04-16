@@ -1255,9 +1255,9 @@ useEffect(() => {
     for (let i = 0; i < exportRows.length; i++) {
       const excelRow = i + 2;
 
-      ws[`AM${excelRow}`] = {
+      ws[`AN${excelRow}`] = {
         t: "n",
-        f: `ROUND(ROUND((((U${excelRow}*Z${excelRow}*0.01)*(AB${excelRow}-AC${excelRow})-AD${excelRow}-AE${excelRow}-AF${excelRow})*1.1023),2)*ROUND(T${excelRow},3)+IF(AI${excelRow}="",0,AI${excelRow}),2)`
+        f: `ROUND(ROUND((((V${excelRow}*AA${excelRow}*0.01)*(AC${excelRow}-AD${excelRow})-AE${excelRow}-AF${excelRow}-AG${excelRow})*1.1023),2)*ROUND(U${excelRow},3)+IF(AJ${excelRow}="",0,AJ${excelRow}),2)`
       };
     }
     ws["!cols"] = [
