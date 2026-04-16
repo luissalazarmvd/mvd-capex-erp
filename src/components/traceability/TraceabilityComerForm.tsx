@@ -181,8 +181,35 @@ function toNumOrNull(v: unknown) {
   return n === null ? null : n;
 }
 
+function isValidNormalizedDate(v: unknown) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? "").trim());
+}
+
 function normalizeDateInput(v: unknown) {
-  const raw = String(v ?? "").trim();
+  if (v === null || v === undefined || String(v).trim() === "") return "";
+
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    const yyyy = v.getFullYear();
+    const mm = String(v.getMonth() + 1).padStart(2, "0");
+    const dd = String(v.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+    const serial = Math.floor(v);
+    const utcDays = serial - 25569;
+    const utcValue = utcDays * 86400 * 1000;
+    const excelDate = new Date(utcValue);
+
+    if (!Number.isNaN(excelDate.getTime())) {
+      const yyyy = excelDate.getUTCFullYear();
+      const mm = String(excelDate.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(excelDate.getUTCDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  const raw = String(v).trim();
   if (!raw) return "";
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
@@ -207,14 +234,6 @@ function normalizeDateInput(v: unknown) {
     const dd = dmyMatch[1].padStart(2, "0");
     const mm = dmyMatch[2].padStart(2, "0");
     const yyyy = dmyMatch[3];
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
-  const jsDate = new Date(raw);
-  if (!Number.isNaN(jsDate.getTime())) {
-    const yyyy = jsDate.getFullYear();
-    const mm = String(jsDate.getMonth() + 1).padStart(2, "0");
-    const dd = String(jsDate.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
   }
 
@@ -312,8 +331,18 @@ function calcAuOz(draft: DraftRow) {
   return calcAuOzValue(draft.tms, draft.au_grade_oztc, draft.au_rec);
 }
 
-function calcAgOz() {
-  return 0;
+function calcAgOzValue(tms: unknown, agGrade: unknown, agRec: unknown) {
+  const tmsNum = toNumOrNull(tms);
+  const agGradeNum = toNumOrNull(agGrade);
+  const agRecNum = toNumOrNull(agRec);
+
+  if (tmsNum === null || agGradeNum === null || agRecNum === null) return null;
+
+  return tmsNum * agGradeNum * agRecNum * 1.1023;
+}
+
+function calcAgOz(draft: DraftRow) {
+  return calcAgOzValue(draft.tms, draft.ag_grade_oztc, draft.ag_rec);
 }
 
 function calcAuUsd(draft: DraftRow) {
@@ -370,7 +399,7 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
     ag_grade_oztc: formatFieldValue("ag_grade_oztc", r.ag_grade_oztc),
     cu_grade_pct: formatFieldValue("cu_grade_pct", r.cu_grade_pct),
     au_oz: calcAuOzValue(r.tms, r.au_grade_oztc, r.au_rec)?.toFixed(2) ?? "",
-    ag_oz: "0.00",
+    ag_oz: calcAgOzValue(r.tms, r.ag_grade_oztc, r.ag_rec)?.toFixed(2) ?? "",
     au_rec: formatFieldValue("au_rec", r.au_rec),
     ag_rec: formatFieldValue("ag_rec", r.ag_rec),
     pio: formatFieldValue("pio", r.pio),
@@ -394,9 +423,21 @@ function validateNumericRange(field: EditableField, value: number | null) {
 }
 
 function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
+  const lot = String(row.lot ?? "").trim() || null;
+  const entryDate = normalizeDateInput(row.entry_date);
+  const valuationDate = normalizeDateInput(row.valuation_date);
+
+  if (!isValidNormalizedDate(entryDate)) {
+    throw new Error(`Fecha de ingreso inválida en ${lot || "lote sin código"}.`);
+  }
+
+  if (!isValidNormalizedDate(valuationDate)) {
+    throw new Error(`Fecha de valorización inválida en ${lot || "lote sin código"}.`);
+  }
+
   const payload: Record<string, any> = {
-    lot: String(row.lot ?? "").trim() || null,
-    valuation_date: normalizeDateInput(row.valuation_date) || null,
+    lot,
+    valuation_date: valuationDate,
     pay_type: "Transferencia",
     source_name: "CO",
     updated_at: batchUpdatedAt || null,
@@ -434,11 +475,12 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
   }
 
   const auOz = calcAuOz(row);
+  const agOz = calcAgOz(row);
   const auUsd = calcAuUsd(row);
   const usdTms = calcUsdTms(row);
 
   payload.au_oz = auOz === null ? null : round2(auOz);
-  payload.ag_oz = 0;
+  payload.ag_oz = agOz === null ? null : round2(agOz);
   payload.au_usd = auUsd === null ? null : round2(auUsd);
   payload.usd_tms = usdTms === null ? null : round2(usdTms);
 
@@ -474,7 +516,7 @@ function hydrateRowsFromDrafts(sourceDrafts: Record<string, DraftRow>) {
       ag_grade_oztc: toNumOrNull(draft.ag_grade_oztc),
       cu_grade_pct: toNumOrNull(draft.cu_grade_pct),
       au_oz: calcAuOz(draft),
-      ag_oz: 0,
+      ag_oz: calcAgOz(draft),
       au_rec: toNumOrNull(draft.au_rec),
       ag_rec: toNumOrNull(draft.ag_rec),
       pio: toNumOrNull(draft.pio),
@@ -531,12 +573,15 @@ const RowItem = React.memo(function RowItem({
           if (c.key === "entry_date") raw = draft.entry_date;
           if (c.key === "valuation_date") raw = draft.valuation_date;
           if (c.key === "au_oz") raw = calcAuOz(draft);
+          if (c.key === "ag_oz") raw = calcAgOz(draft);
           if (c.key === "au_usd") raw = calcAuUsd(draft);
           if (c.key === "usd_tms") raw = calcUsdTms(draft);
           if (c.key === "monto_usd") raw = calcMontoUsd(draft);
 
           const decimals = c.key === "lot" || c.key === "entry_date" || c.key === "valuation_date" ? 0 : 2;
           const isNumber = c.key !== "lot" && c.key !== "entry_date" && c.key !== "valuation_date";
+          const invalidDateCell =
+            (c.key === "entry_date" || c.key === "valuation_date") && !isValidNormalizedDate(raw);
           const show =
             isNumber && !isBlank(raw)
               ? Number(raw).toLocaleString("en-US", {
@@ -554,14 +599,14 @@ const RowItem = React.memo(function RowItem({
                 borderTop: gridH,
                 borderBottom: gridH,
                 borderRight: gridV,
-                background: currentRowBg,
+                background: invalidDateCell ? "rgba(255,80,80,.18)" : currentRowBg,
                 textAlign: isNumber ? "right" : "left",
                 fontWeight: c.key === "lot" ? 800 : 400,
                 width: c.width || 110,
                 minWidth: c.width || 110,
                 maxWidth: c.width || 110,
                 padding: isNumber ? "6px 4px" : "6px 8px",
-                color: "rgb(185,185,185)",
+                color: invalidDateCell ? "rgb(255,160,160)" : "rgb(185,185,185)",
               }}
               title={show || "—"}
             >
@@ -745,11 +790,14 @@ export default function TraceabilityComerForm() {
 
     try {
       const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(buffer, { type: "array" });
+      const wb = XLSX.read(buffer, {
+        type: "array",
+        cellDates: true,
+      });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {
         defval: "",
-        raw: false,
+        raw: true,
       });
 
       if (!rawRows.length) {
@@ -776,7 +824,7 @@ export default function TraceabilityComerForm() {
           ag_grade_oztc: toNumOrNull(raw["Ag (Oz/TC)"]),
           cu_grade_pct: toNumOrNull(raw["Cu %"]),
           au_oz: calcAuOzValue(raw["TMS"], raw["Au (Oz/TC)"], raw["Au Rec"]),
-          ag_oz: 0,
+          ag_oz: calcAgOzValue(raw["TMS"], raw["Ag (Oz/TC)"], raw["Ag Rec"]),
           au_rec: toNumOrNull(raw["Au Rec"]),
           ag_rec: toNumOrNull(raw["Ag Rec"]),
           pio: toNumOrNull(raw["PIO"]),
@@ -862,6 +910,22 @@ export default function TraceabilityComerForm() {
 
     if (editedKeys.length === 0) {
       setMsg("No hay filas cargadas para guardar.");
+      return;
+    }
+
+    const invalidDateLots: string[] = [];
+
+    for (const key of editedKeys) {
+      const row = draftsRef.current[key];
+      if (!row) continue;
+
+      if (!isValidNormalizedDate(row.entry_date) || !isValidNormalizedDate(row.valuation_date)) {
+        invalidDateLots.push(String(row.lot || "").trim() || key);
+      }
+    }
+
+    if (invalidDateLots.length) {
+      setMsg(`ERROR: hay fechas inválidas en el preview. Corrige el Excel y vuelve a importar. Lotes: ${invalidDateLots.join(", ")}`);
       return;
     }
 
