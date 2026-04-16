@@ -184,6 +184,8 @@ const COLUMNS: {
   { key: "province", label: "Provincia", editable: false, kind: "readonly", width: 100 },
   { key: "department", label: "Departamento", editable: false, kind: "readonly", width: 120 },
   { key: "sender_guide_number", label: "Guía Remitente", editable: false, kind: "readonly", width: 125 },
+  { key: "transport_guide_number", label: "Guía Transportista", editable: false, kind: "readonly", width: 125 },
+  { key: "transport_name", label: "Transportista", editable: false, kind: "readonly", width: 125 },
 ];
 
 function isBlank(v: unknown) {
