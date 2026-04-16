@@ -50,6 +50,7 @@ type TraceabilityRow = {
   lot_usd: number | null;
   doc_date: string | null;
   doc_number: string | null;
+  updated_at?: string | null;
 };
 
 type GetResp = {
@@ -276,6 +277,23 @@ function formatDateTime2_3(d: Date) {
 function toNumOrNull(v: unknown) {
   const n = parseNum(String(v ?? ""));
   return n === null ? null : n;
+}
+
+function formatDateDdMmYyyy(value: string | null | undefined) {
+  const v = String(value || "").trim();
+  if (!v) return "—";
+
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+
+  return `${dd}/${mm}/${yyyy}`;
 }
 
 function calcAuUsd(draft: DraftRow) {
@@ -1012,6 +1030,17 @@ useEffect(() => {
     return count;
   }, [rows, pendingValuationMap]);
 
+  const latestUpdatedAtLabel = useMemo(() => {
+    const maxUpdatedAt = rows.reduce<string | null>((acc, row) => {
+      const current = String(row.updated_at || "").trim();
+      if (!current) return acc;
+      if (!acc) return current;
+      return current > acc ? current : acc;
+    }, null);
+
+    return maxUpdatedAt ? formatDateDdMmYyyy(maxUpdatedAt) : "—";
+  }, [rows]);
+
   const hasInvalidEditedRows = Object.keys(draftsRef.current).some((key) => editedMap[key] && invalidUsdMap[key]);
 
   const activeDraft = activeLot ? draftsRef.current[activeLot] : undefined;
@@ -1547,7 +1576,21 @@ useEffect(() => {
                 maximumFractionDigits: 2,
               })}`
             : ""}
-        </div>        
+        </div>
+
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.06)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: "rgba(255,255,255,0.9)",
+          }}
+        >
+          Última Actualización: {latestUpdatedAtLabel}
+        </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
