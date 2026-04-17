@@ -97,7 +97,28 @@ const EDITABLE_FIELDS = [
 
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
+const OPTIONAL_EMPTY_FIELDS = new Set<EditableField>(["escalador", "ag_usd"]);
+
 const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct", "au_rec", "ag_rec"];
+
+function formatEditableNumber(field: EditableField, n: number) {
+  if (field === "au_rec" || field === "ag_rec") return n.toFixed(2);
+  return DECIMALS_3_FIELDS.includes(field) ? n.toFixed(3) : n.toFixed(2);
+}
+
+function parseImportedField(field: EditableField, raw: unknown) {
+  const text = String(raw ?? "").trim();
+  if (!text) {
+    return { value: 0, invalid: !OPTIONAL_EMPTY_FIELDS.has(field) };
+  }
+
+  const num = toNumOrNull(raw);
+  if (num === null) {
+    return { value: 0, invalid: true };
+  }
+
+  return { value: num, invalid: false };
+}
 
 const DECIMALS_3_FIELDS: EditableField[] = [
   "tmh",
@@ -309,12 +330,7 @@ function normalizeLot(rawLot: unknown, entryDateRaw: unknown) {
 function formatFieldValue(field: EditableField, value: unknown) {
   const n = toNumOrNull(value);
   if (n === null) return "";
-
-    if (field === "au_rec" || field === "ag_rec") {
-      return n.toFixed(2);
-    }
-
-  return DECIMALS_3_FIELDS.includes(field) ? n.toFixed(3) : n.toFixed(2);
+  return formatEditableNumber(field, n);
 }
 
 function calcAuOzValue(tms: unknown, auGrade: unknown, auRec: unknown) {
@@ -544,6 +560,7 @@ type RowItemProps = {
   gridV: string;
   rowBg: string;
   editedRowBg: string;
+  invalidFields?: Partial<Record<EditableField, boolean>>;
 };
 
 const RowItem = React.memo(function RowItem({
@@ -559,7 +576,8 @@ const RowItem = React.memo(function RowItem({
   gridV,
   rowBg,
   editedRowBg,
-}: RowItemProps) {
+  invalidFields,
+  }: RowItemProps) {
   const key = String(row.lot || "").trim();
   const currentRowBg = edited ? editedRowBg : rowBg;
 
@@ -649,12 +667,20 @@ const RowItem = React.memo(function RowItem({
                 maxWidth: "100%",
                 padding: "4px 6px",
                 textAlign: "right",
-                ...(edited
-                  ? {
-                      border: "1px solid rgba(92, 211, 158, 0.55)",
-                      background: "rgba(38, 120, 88, 0.18)",
-                    }
-                  : null),
+                ...(
+                  (invalidFields?.[c.key as EditableField] ||
+                    !!validateNumericRange(c.key as EditableField, toNumOrNull(draft[c.key as keyof DraftRow])))
+                    ? {
+                        border: "1px solid rgba(255,80,80,.75)",
+                        background: "rgba(255,80,80,.18)",
+                        color: "rgb(255,190,190)",
+                      }
+                    : edited
+                    ? {
+                        border: "1px solid rgba(92, 211, 158, 0.55)",
+                        background: "rgba(38, 120, 88, 0.18)",
+                      }
+                    : null),
               }}
             />
           </td>
@@ -677,6 +703,7 @@ export default function TraceabilityComerForm() {
   const draftsRef = useRef<Record<string, DraftRow>>({});
   const originalsRef = useRef<Record<string, DraftRow>>({});
   const inputsRef = useRef<Record<string, Partial<Record<keyof DraftRow, HTMLInputElement | null>>>>({});
+  const invalidImportedRef = useRef<Record<string, Partial<Record<EditableField, boolean>>>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const lotOptions = useMemo(() => {
@@ -732,20 +759,23 @@ export default function TraceabilityComerForm() {
     return map;
     }, [editedTick]);
 
-    const hasInvalidPayload = useMemo(() => {
-    editedTick;
-    for (const key of Object.keys(draftsRef.current)) {
-        const row = draftsRef.current[key];
-        if (!row) return true;
+  const hasInvalidPayload = useMemo(() => {
+  editedTick;
+  for (const key of Object.keys(draftsRef.current)) {
+      const row = draftsRef.current[key];
+      if (!row) return true;
 
-        try {
-            buildPayload(row);
-        } catch {
-            return true;
-        }
-    }
-    return false;
-    }, [editedTick]);
+      const invalids = invalidImportedRef.current[key];
+      if (invalids && Object.values(invalids).some(Boolean)) return true;
+
+      try {
+          buildPayload(row);
+      } catch {
+          return true;
+      }
+  }
+  return false;
+  }, [editedTick]);
 
   const registerInput = useCallback((key: string, field: keyof DraftRow, el: HTMLInputElement | null) => {
     if (!inputsRef.current[key]) inputsRef.current[key] = {};
@@ -821,6 +851,7 @@ export default function TraceabilityComerForm() {
       }
 
       const deduped = new Map<string, TraceabilityRow>();
+      const dedupedInvalid = new Map<string, Partial<Record<EditableField, boolean>>>();
 
       for (const raw of rawRows) {
         const entryDate = normalizeDateInput(raw["F. Ingreso"]);
@@ -828,31 +859,62 @@ export default function TraceabilityComerForm() {
         const lotNormalized = normalizeLot(raw["Lote"], entryDate);
         if (!lotNormalized) continue;
 
+        const tmh = parseImportedField("tmh", raw["TMH"]);
+        const h2o = parseImportedField("h2o", raw["H2O"]);
+        const tms = parseImportedField("tms", raw["TMS"]);
+        const au_grade_oztc = parseImportedField("au_grade_oztc", raw["Au (Oz/TC)"]);
+        const ag_grade_oztc = parseImportedField("ag_grade_oztc", raw["Ag (Oz/TC)"]);
+        const cu_grade_pct = parseImportedField("cu_grade_pct", raw["Cu %"]);
+        const au_rec = parseImportedField("au_rec", raw["Au Rec"]);
+        const ag_rec = parseImportedField("ag_rec", raw["Ag Rec"]);
+        const pio = parseImportedField("pio", raw["PIO"]);
+        const pio_disc = parseImportedField("pio_disc", raw["PIO Desc."]);
+        const maquila = parseImportedField("maquila", raw["Maquila"]);
+        const nacn = parseImportedField("nacn", raw["NaCN"]);
+        const escalador = parseImportedField("escalador", raw["Escalador"]);
+        const ag_usd = parseImportedField("ag_usd", raw["Ag USD"]);
+
         const row: TraceabilityRow = {
           lot: lotNormalized,
           entry_date: entryDate || null,
           valuation_date: valuationDate || null,
-          tmh: toNumOrNull(raw["TMH"]),
-          h2o: toNumOrNull(raw["H2O"]),
-          tms: toNumOrNull(raw["TMS"]),
-          au_grade_oztc: toNumOrNull(raw["Au (Oz/TC)"]),
-          ag_grade_oztc: toNumOrNull(raw["Ag (Oz/TC)"]),
-          cu_grade_pct: toNumOrNull(raw["Cu %"]),
-          au_oz: calcAuOzValue(raw["TMS"], raw["Au (Oz/TC)"], raw["Au Rec"]),
-          ag_oz: calcAgOzValue(raw["TMS"], raw["Ag (Oz/TC)"], raw["Ag Rec"]),
-          au_rec: toNumOrNull(raw["Au Rec"]),
-          ag_rec: toNumOrNull(raw["Ag Rec"]),
-          pio: toNumOrNull(raw["PIO"]),
-          pio_disc: toNumOrNull(raw["PIO Desc."]),
-          maquila: toNumOrNull(raw["Maquila"]),
-          nacn: toNumOrNull(raw["NaCN"]),
-          escalador: toNumOrNull(raw["Escalador"]) ?? 0,
+          tmh: tmh.value,
+          h2o: h2o.value,
+          tms: tms.value,
+          au_grade_oztc: au_grade_oztc.value,
+          ag_grade_oztc: ag_grade_oztc.value,
+          cu_grade_pct: cu_grade_pct.value,
+          au_oz: calcAuOzValue(tms.value, au_grade_oztc.value, au_rec.value),
+          ag_oz: calcAgOzValue(tms.value, ag_grade_oztc.value, ag_rec.value),
+          au_rec: au_rec.value,
+          ag_rec: ag_rec.value,
+          pio: pio.value,
+          pio_disc: pio_disc.value,
+          maquila: maquila.value,
+          nacn: nacn.value,
+          escalador: escalador.value,
           au_usd: null,
-          ag_usd: toNumOrNull(raw["Ag USD"]),
+          ag_usd: ag_usd.value,
           usd_tms: null,
         };
 
         deduped.set(lotNormalized, row);
+        dedupedInvalid.set(lotNormalized, {
+          tmh: tmh.invalid,
+          h2o: h2o.invalid,
+          tms: tms.invalid,
+          au_grade_oztc: au_grade_oztc.invalid,
+          ag_grade_oztc: ag_grade_oztc.invalid,
+          cu_grade_pct: cu_grade_pct.invalid,
+          au_rec: au_rec.invalid,
+          ag_rec: ag_rec.invalid,
+          pio: pio.invalid,
+          pio_disc: pio_disc.invalid,
+          maquila: maquila.invalid,
+          nacn: nacn.invalid,
+          escalador: escalador.invalid,
+          ag_usd: ag_usd.invalid,
+        });
       }
 
       const importedRows = Array.from(deduped.values());
@@ -862,6 +924,7 @@ export default function TraceabilityComerForm() {
         return;
       }
 
+      invalidImportedRef.current = Object.fromEntries(dedupedInvalid);
       loadRowsFromImported(importedRows);
       setMsg(`OK: se importaron ${importedRows.length} lote(s) desde Excel.`);
     } catch (error: any) {
@@ -879,17 +942,32 @@ export default function TraceabilityComerForm() {
     const editableField = field as EditableField;
     const n = parseNum(trimmed);
 
+    if (!invalidImportedRef.current[key]) invalidImportedRef.current[key] = {};
+
     if (trimmed.trim() === "") {
-      current[field] = "";
+      const formatted = formatEditableNumber(editableField, 0);
+      current[field] = formatted;
+      invalidImportedRef.current[key][editableField] = !OPTIONAL_EMPTY_FIELDS.has(editableField);
+
+      const input = inputsRef.current[key]?.[field];
+      if (input && input.value !== formatted) input.value = formatted;
+
       setRows(hydrateRowsFromDrafts(draftsRef.current));
       setEditedTick((v) => v + 1);
       return;
     }
 
     if (n === null) {
+      const formatted = formatEditableNumber(editableField, 0);
+      current[field] = formatted;
+      invalidImportedRef.current[key][editableField] = true;
+
       const input = inputsRef.current[key]?.[field];
-      if (input) input.value = previousValue;
+      if (input && input.value !== formatted) input.value = formatted;
+
       setMsg("ERROR: valor numérico inválido.");
+      setRows(hydrateRowsFromDrafts(draftsRef.current));
+      setEditedTick((v) => v + 1);
       return;
     }
 
@@ -901,15 +979,9 @@ export default function TraceabilityComerForm() {
       return;
     }
 
-    let formatted = "";
-
-    if (editableField === "au_rec" || editableField === "ag_rec") {
-      formatted = n.toFixed(2);
-    } else {
-    formatted = DECIMALS_3_FIELDS.includes(editableField) ? n.toFixed(3) : n.toFixed(2);
-    }
-
+    const formatted = formatEditableNumber(editableField, n);
     current[field] = formatted;
+    delete invalidImportedRef.current[key][editableField];
 
     const input = inputsRef.current[key]?.[field];
     if (input && input.value !== formatted) {
@@ -1219,7 +1291,8 @@ export default function TraceabilityComerForm() {
                     gridV={gridV}
                     rowBg={rowBg}
                     editedRowBg={editedRowBg}
-                  />
+                    invalidFields={invalidImportedRef.current[rowKey]}
+                    />
                 );
               })}
 
