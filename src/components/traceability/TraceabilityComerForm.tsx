@@ -97,7 +97,7 @@ const EDITABLE_FIELDS = [
 
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
-const OPTIONAL_EMPTY_FIELDS = new Set<EditableField>(["escalador", "ag_usd"]);
+const OPTIONAL_EMPTY_FIELDS = new Set<EditableField>(["ag_rec", "escalador", "ag_usd"]);
 
 const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct", "au_rec", "ag_rec"];
 
@@ -114,6 +114,10 @@ function parseImportedField(field: EditableField, raw: unknown) {
 
   const num = toNumOrNull(raw);
   if (num === null) {
+    return { value: 0, invalid: true };
+  }
+
+  if (num === 0 && !OPTIONAL_EMPTY_FIELDS.has(field)) {
     return { value: 0, invalid: true };
   }
 
@@ -479,12 +483,21 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
 
   for (const f of EDITABLE_FIELDS) {
     const raw = String(row[f] ?? "").trim();
-    const num = raw === "" ? null : parseNum(raw);
+    const num = raw === "" ? 0 : parseNum(raw);
+
+    if (num === null) {
+      throw new Error(`${f} inválido`);
+    }
+
+    if (num === 0 && !OPTIONAL_EMPTY_FIELDS.has(f)) {
+      throw new Error(`${f} no puede ser 0 o vacío`);
+    }
+
     const err = validateNumericRange(f, num);
     if (err) throw new Error(err);
 
     if (f === "au_rec" || f === "ag_rec") {
-      payload[f] = num === null ? null : num * 100;
+      payload[f] = num * 100;
     } else {
       payload[f] = num;
     }
@@ -668,8 +681,14 @@ const RowItem = React.memo(function RowItem({
                 padding: "4px 6px",
                 textAlign: "right",
                 ...(
-                  (invalidFields?.[c.key as EditableField] ||
-                    !!validateNumericRange(c.key as EditableField, toNumOrNull(draft[c.key as keyof DraftRow])))
+                  (
+                    invalidFields?.[c.key as EditableField] ||
+                    !!validateNumericRange(c.key as EditableField, toNumOrNull(draft[c.key as keyof DraftRow])) ||
+                    (
+                      toNumOrNull(draft[c.key as keyof DraftRow]) === 0 &&
+                      !OPTIONAL_EMPTY_FIELDS.has(c.key as EditableField)
+                    )
+                  )
                     ? {
                         border: "1px solid rgba(255,80,80,.75)",
                         background: "rgba(255,80,80,.18)",
@@ -981,7 +1000,12 @@ export default function TraceabilityComerForm() {
 
     const formatted = formatEditableNumber(editableField, n);
     current[field] = formatted;
-    delete invalidImportedRef.current[key][editableField];
+
+    if (n === 0 && !OPTIONAL_EMPTY_FIELDS.has(editableField)) {
+      invalidImportedRef.current[key][editableField] = true;
+    } else {
+      delete invalidImportedRef.current[key][editableField];
+    }
 
     const input = inputsRef.current[key]?.[field];
     if (input && input.value !== formatted) {
