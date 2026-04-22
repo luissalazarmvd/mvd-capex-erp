@@ -1,10 +1,11 @@
 // src/app/compliance/downloads/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { apiGet } from "../../../lib/apiClient";
 import { Button } from "../../../components/ui/Button";
+import ComplianceProvImpExp from "../../../components/compliance/ComplianceProvImpExp";
 
 type ComplianceBuyRow = {
   item: any;
@@ -147,6 +148,15 @@ type TraceabilityResp = {
   error?: string;
 };
 
+type ComplianceProvRow = any;
+
+type ComplianceProvResp = {
+  ok: boolean;
+  rows?: ComplianceProvRow[];
+  count?: number;
+  error?: string;
+};
+
 function asText(value: any) {
   if (value === null || value === undefined) return "";
   return String(value);
@@ -161,11 +171,33 @@ function asDate(value: any) {
 
 export default function ComplianceDownloadsPage() {
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [provRows, setProvRows] = useState<ComplianceProvRow[]>([]);
+
+  async function loadComplianceProvRows(clearMsg = true) {
+    if (clearMsg) setMsg(null);
+
+    try {
+      const data = (await apiGet("/api/compliance/provider-format")) as ComplianceProvResp;
+
+      if (!data?.ok) {
+        throw new Error(data?.error || "No se pudo consultar provider format");
+      }
+
+      setProvRows(Array.isArray(data?.rows) ? data.rows : []);
+    } catch (e: any) {
+      setMsg(String(e?.message || "No se pudo consultar provider format"));
+      setProvRows([]);
+    }
+  }
+
+  useEffect(() => {
+    loadComplianceProvRows(false);
+  }, []);
 
   async function downloadBuyExcel() {
     setLoading(true);
-    setMsg("");
+    setMsg(null);
 
     try {
       const data = (await apiGet("/api/compliance/buy")) as ComplianceBuyResp;
@@ -320,7 +352,7 @@ export default function ComplianceDownloadsPage() {
 
   async function downloadTraceabilityExcel() {
     setLoading(true);
-    setMsg("");
+    setMsg(null);
 
     try {
       const data = (await apiGet("/api/traceability")) as TraceabilityResp;
@@ -483,7 +515,7 @@ export default function ComplianceDownloadsPage() {
 
   async function downloadSellExcel() {
     setLoading(true);
-    setMsg("");
+    setMsg(null);
 
     try {
       const data = (await apiGet("/api/compliance/sell")) as ComplianceSellResp;
@@ -670,6 +702,15 @@ export default function ComplianceDownloadsPage() {
         >
           {loading ? "Descargando..." : "Descargar Trazabilidad"}
         </Button>
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <ComplianceProvImpExp
+          rows={provRows}
+          setMsgAction={setMsg}
+          loadRowsAction={loadComplianceProvRows}
+          disabled={loading}
+        />
       </div>
 
       {msg ? (
