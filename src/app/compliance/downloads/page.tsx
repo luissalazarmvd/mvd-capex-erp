@@ -718,7 +718,26 @@ export default function ComplianceDownloadsPage() {
       </div>
 
       {msg ? (
-        <div style={{ marginTop: 12, color: "#b91c1c", fontWeight: 600 }}>{msg}</div>
+        <div
+          className="panel-inner"
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: String(msg).startsWith("OK:")
+              ? "1px solid rgba(191, 231, 255, 0.22)"
+              : "1px solid rgba(255, 107, 107, 0.28)",
+            background: String(msg).startsWith("OK:")
+              ? "rgba(255, 255, 255, 0.04)"
+              : "rgba(255, 107, 107, 0.10)",
+            color: "var(--text)",
+            fontWeight: 800,
+            fontSize: 13,
+            lineHeight: 1.35,
+          }}
+        >
+          {msg}
+        </div>
       ) : null}
     </div>
   );
