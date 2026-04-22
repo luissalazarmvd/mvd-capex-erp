@@ -5,6 +5,7 @@ import React, { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { Table } from "../ui/Table";
 
 type ComplianceRow = {
   rucodm: string;
@@ -800,7 +801,33 @@ export default function ComplianceProvImpExp({
   }
 
   const headerBg = "rgb(6, 36, 58)";
+  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
+  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const rowBg = "rgba(0,0,0,.10)";
   const border = "1px solid rgba(191, 231, 255, 0.18)";
+
+  const cellBase: React.CSSProperties = {
+    padding: "8px 10px",
+    verticalAlign: "middle",
+    fontSize: 13,
+    whiteSpace: "nowrap",
+  };
+
+const previewInputStyle: React.CSSProperties = {
+  width: "100%",
+  minWidth: 0,
+  height: 32,
+  padding: "6px 10px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,.10)",
+  background: "rgba(0,0,0,.10)",
+  color: "var(--text)",
+  fontSize: 13,
+  fontWeight: 800,
+  boxSizing: "border-box",
+  whiteSpace: "nowrap",
+};
 
   return (
     <>
@@ -827,172 +854,325 @@ export default function ComplianceProvImpExp({
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,.45)",
-            zIndex: 1000,
+            background: "rgba(0,0,0,0.55)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             padding: 20,
-            display: "grid",
-            placeItems: "center",
           }}
         >
           <div
+            className="panel-inner"
             style={{
-              width: "min(96vw, 1700px)",
-              height: "min(88vh, 980px)",
-              background: "var(--bg)",
-              border: border,
-              borderRadius: 14,
-              boxShadow: "0 20px 60px rgba(0,0,0,.45)",
+              width: "min(1700px, 96vw)",
+              height: "min(86vh, 900px)",
               display: "grid",
               gridTemplateRows: "auto auto 1fr auto",
+              gap: 10,
+              padding: 14,
               overflow: "hidden",
             }}
           >
             <div
               style={{
-                padding: "14px 16px",
-                borderBottom: border,
-                background: "rgba(255,255,255,.02)",
                 display: "flex",
                 justifyContent: "space-between",
-                gap: 12,
                 alignItems: "center",
+                gap: 12,
                 flexWrap: "wrap",
               }}
             >
               <div style={{ display: "grid", gap: 4 }}>
-                <strong style={{ fontSize: 16 }}>Preview de importación</strong>
-                <span style={{ fontSize: 12, opacity: 0.8 }}>
+                <div style={{ fontSize: 18, fontWeight: 900 }}>Preview de importación</div>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>
                   Celdas en rojo = inválidas. No se guarda mientras exista una sola inválida.
-                </span>
-                <span style={{ fontSize: 12, opacity: 0.7 }}>
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>
                   El updated_at no se envía desde el front: tu POST ya lo guarda con SQL_NOW_PE (GMT-5).
-                </span>
+                </div>
               </div>
 
-              <div style={{ display: "flex", gap: 10 }}>
-                <Button onClick={closePreview} disabled={importing}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="default"
+                  onClick={closePreview}
+                  disabled={importing}
+                >
                   Cerrar
                 </Button>
-                <Button onClick={confirmImport} disabled={importing || invalidCount > 0}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  onClick={confirmImport}
+                  disabled={importing || previewRows.length === 0 || previewRows.some((row) => !row.valid)}
+                >
                   {importing ? "Guardando..." : "Guardar importación"}
                 </Button>
               </div>
             </div>
 
+            {importSummary ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Archivo: {importSummary.file_name || "-"}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Total Excel: {importSummary.total_excel_rows || 0}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Preview: {importSummary.preview_rows || 0}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Válidas: {importSummary.valid_rows || 0}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Inválidas: {importSummary.invalid_rows || 0}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Nuevas: {importSummary.new_rows || 0}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Actualizar: {importSummary.update_rows || 0}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  Igual: {importSummary.equal_rows || 0}
+                </div>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  RUC ODM repetidos: {importSummary.repeated_keys || 0}
+                </div>
+              </div>
+            ) : null}
+
             <div
               style={{
-                padding: "10px 16px",
-                borderBottom: border,
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 10,
-                fontSize: 12,
+                minWidth: 0,
+                minHeight: 0,
+                overflow: "auto",
+                border: "1px solid rgba(191,231,255,.12)",
+                borderRadius: 12,
               }}
             >
-              <span><strong>Archivo:</strong> {importSummary?.file_name || "-"}</span>
-              <span><strong>Total Excel:</strong> {importSummary?.total_excel_rows || 0}</span>
-              <span><strong>Preview:</strong> {importSummary?.preview_rows || 0}</span>
-              <span><strong>Válidas:</strong> {importSummary?.valid_rows || 0}</span>
-              <span><strong>Inválidas:</strong> {importSummary?.invalid_rows || 0}</span>
-              <span><strong>Nuevas:</strong> {importSummary?.new_rows || 0}</span>
-              <span><strong>Actualizar:</strong> {importSummary?.update_rows || 0}</span>
-              <span><strong>Igual:</strong> {importSummary?.equal_rows || 0}</span>
-              <span><strong>RUC ODM repetidos:</strong> {importSummary?.repeated_keys || 0}</span>
-            </div>
+              <Table stickyHeader disableScrollWrapper>
+                <colgroup>
+                  <col style={{ width: 70 }} />
+                  <col style={{ width: 120 }} />
+                  {PREVIEW_COLUMNS.map((col) => (
+                    <col key={col.key} style={{ width: col.width || 140 }} />
+                  ))}
+                  <col style={{ width: 320 }} />
+                </colgroup>
 
-            <div style={{ overflow: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 3200 }}>
                 <thead>
                   <tr>
-                    <th style={{ ...thStyle(headerBg), minWidth: 70 }}>Fila</th>
-                    <th style={{ ...thStyle(headerBg), minWidth: 120 }}>Estado</th>
+                    <th
+                      className="capex-th"
+                      style={{
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 20,
+                        background: headerBg,
+                        border: headerBorder,
+                        borderBottom: headerBorder,
+                        textAlign: "left",
+                        padding: "8px 8px",
+                        fontSize: 12,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Fila
+                    </th>
+                    <th
+                      className="capex-th"
+                      style={{
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 20,
+                        background: headerBg,
+                        border: headerBorder,
+                        borderBottom: headerBorder,
+                        textAlign: "left",
+                        padding: "8px 8px",
+                        fontSize: 12,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Estado
+                    </th>
+
                     {PREVIEW_COLUMNS.map((col) => (
-                      <th key={col.key} style={{ ...thStyle(headerBg), minWidth: col.width || 140 }}>
+                      <th
+                        key={col.key}
+                        className="capex-th"
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 20,
+                          background: headerBg,
+                          border: headerBorder,
+                          borderBottom: headerBorder,
+                          textAlign: "left",
+                          padding: "8px 8px",
+                          fontSize: 12,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {col.label}
                       </th>
                     ))}
-                    <th style={{ ...thStyle(headerBg), minWidth: 320 }}>Errores</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map((row) => (
-                    <tr
-                      key={row.row_num}
+
+                    <th
+                      className="capex-th"
                       style={{
-                        background:
-                          row.status === "INVÁLIDA"
-                            ? "rgba(255, 77, 77, 0.08)"
-                            : row.status === "ACTUALIZAR"
-                            ? "rgba(255, 193, 7, 0.06)"
-                            : row.status === "NUEVA"
-                            ? "rgba(46, 204, 113, 0.06)"
-                            : "transparent",
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 20,
+                        background: headerBg,
+                        border: headerBorder,
+                        borderBottom: headerBorder,
+                        textAlign: "left",
+                        padding: "8px 8px",
+                        fontSize: 12,
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      <td style={tdStyle}>{row.row_num}</td>
-                      <td style={tdStyle}>
-                        <strong>{row.status}</strong>
-                        {row.is_duplicate ? (
-                          <div style={{ fontSize: 11, color: "#ff8b8b" }}>Repetido x{row.duplicate_count}</div>
-                        ) : null}
-                      </td>
+                      Errores
+                    </th>
+                  </tr>
+                </thead>
 
-                      {PREVIEW_COLUMNS.map((col) => {
-                        const error = row.fieldErrors[col.key];
-                        return (
-                          <td key={col.key} style={tdStyle}>
-                            <input
-                              value={String(row[col.key] ?? "")}
-                              onChange={(e) => onEditPreviewCell(row.row_num, col.key, e.target.value)}
+                <tbody>
+                  {previewRows.map((row) => {
+                    const bg = !row.valid
+                      ? "rgba(255,80,80,.10)"
+                      : row.is_duplicate
+                      ? "rgba(255,170,60,.12)"
+                      : rowBg;
+
+                    return (
+                      <tr key={row.row_num} className="capex-tr">
+                        <td
+                          className="capex-td"
+                          style={{
+                            ...cellBase,
+                            borderTop: gridH,
+                            borderBottom: gridH,
+                            borderRight: gridV,
+                            background: bg,
+                          }}
+                        >
+                          {row.row_num}
+                        </td>
+
+                        <td
+                          className="capex-td"
+                          style={{
+                            ...cellBase,
+                            borderTop: gridH,
+                            borderBottom: gridH,
+                            borderRight: gridV,
+                            background: bg,
+                            fontWeight: 900,
+                          }}
+                        >
+                          <div>{row.status}</div>
+                          {row.is_duplicate ? (
+                            <div style={{ fontSize: 11, opacity: 0.9 }}>
+                              Sí ({row.duplicate_count})
+                            </div>
+                          ) : null}
+                        </td>
+
+                        {PREVIEW_COLUMNS.map((col) => {
+                          const error = row.fieldErrors[col.key];
+                          return (
+                            <td
+                              key={col.key}
+                              className="capex-td"
                               style={{
-                                width: "100%",
-                                minWidth: col.width || 120,
-                                padding: "8px 10px",
-                                borderRadius: 8,
-                                border: error ? "1px solid #ff6b6b" : "1px solid rgba(255,255,255,.10)",
-                                background: error ? "rgba(255, 77, 77, 0.12)" : "rgba(0,0,0,.12)",
-                                color: "var(--text)",
-                                outline: "none",
+                                ...cellBase,
+                                borderTop: gridH,
+                                borderBottom: gridH,
+                                borderRight: gridV,
+                                background: bg,
                               }}
-                              title={error || ""}
-                            />
+                            >
+                            <div
+                            style={{
+                                ...previewInputStyle,
+                                minWidth: col.width || 120,
+                                border: error
+                                ? "1px solid #ff6b6b"
+                                : "1px solid rgba(255,255,255,.10)",
+                                background: error
+                                ? "rgba(255, 77, 77, 0.12)"
+                                : "rgba(0,0,0,.10)",
+                                display: "flex",
+                                alignItems: "center",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                userSelect: "text",
+                                cursor: "default",
+                            }}
+                            title={String(row[col.key] ?? "")}
+                            >
+                            {String(row[col.key] ?? "")}
+                            </div>
                             {error ? (
-                              <div style={{ marginTop: 4, fontSize: 11, color: "#ff8b8b" }}>{error}</div>
+                            <div style={{ marginTop: 4, fontSize: 11, color: "#ff8b8b" }}>
+                                {error}
+                            </div>
                             ) : null}
-                          </td>
-                        );
-                      })}
+                            </td>
+                          );
+                        })}
 
-                      <td style={{ ...tdStyle, color: row.errors ? "#ffb3b3" : "inherit" }}>
-                        {row.errors || "-"}
+                        <td
+                          className="capex-td"
+                          style={{
+                            ...cellBase,
+                            borderTop: gridH,
+                            borderBottom: gridH,
+                            borderRight: gridV,
+                            background: bg,
+                            whiteSpace: "normal",
+                            color: row.errors ? "#ffb3b3" : "inherit",
+                          }}
+                          title={row.errors || "—"}
+                        >
+                          {row.errors || "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {previewRows.length === 0 ? (
+                    <tr className="capex-tr">
+                      <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={PREVIEW_COLUMNS.length + 3}>
+                        No hay filas para preview.
                       </td>
                     </tr>
-                  ))}
+                  ) : null}
                 </tbody>
-              </table>
+              </Table>
             </div>
 
             <div
               style={{
-                padding: "12px 16px",
-                borderTop: border,
                 display: "flex",
                 justifyContent: "space-between",
-                gap: 12,
+                gap: 10,
                 alignItems: "center",
                 flexWrap: "wrap",
               }}
             >
-              <span style={{ fontSize: 12, opacity: 0.85 }}>
-                Validaciones aplicadas: sin vacíos, RUC solo numérico, fecha válida, North/East enteros mayores a 0.
-              </span>
-              <div style={{ display: "flex", gap: 10 }}>
-                <Button onClick={closePreview} disabled={importing}>
-                  Cerrar
-                </Button>
-                <Button onClick={confirmImport} disabled={importing || invalidCount > 0}>
-                  {importing ? "Guardando..." : "Guardar importación"}
-                </Button>
+              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+                {previewRows.some((row) => !row.valid)
+                  ? "Corrige las filas inválidas para habilitar la importación."
+                  : `Se postearán exactamente ${previewRows.filter((row) => !!row.payload).length} fila(s) con cambios.`}
               </div>
             </div>
           </div>
@@ -1001,26 +1181,3 @@ export default function ComplianceProvImpExp({
     </>
   );
 }
-
-function thStyle(headerBg: string): React.CSSProperties {
-  return {
-    position: "sticky",
-    top: 0,
-    zIndex: 2,
-    background: headerBg,
-    color: "#fff",
-    textAlign: "left",
-    padding: "10px 8px",
-    borderBottom: "1px solid rgba(191, 231, 255, 0.26)",
-    borderRight: "1px solid rgba(191, 231, 255, 0.12)",
-    fontSize: 12,
-    whiteSpace: "nowrap",
-  };
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: 8,
-  borderBottom: "1px solid rgba(191, 231, 255, 0.08)",
-  borderRight: "1px solid rgba(191, 231, 255, 0.06)",
-  verticalAlign: "top",
-};
