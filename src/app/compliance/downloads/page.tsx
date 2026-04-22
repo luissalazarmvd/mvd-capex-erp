@@ -704,7 +704,11 @@ export default function ComplianceDownloadsPage() {
         </Button>
       </div>
 
-      <div style={{ marginTop: 18 }}>
+      <div style={{ marginTop: 24 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 14 }}>
+          Formato de Proveedores
+        </div>
+
         <ComplianceProvImpExp
           rows={provRows}
           setMsgAction={setMsg}
