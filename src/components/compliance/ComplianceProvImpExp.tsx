@@ -888,9 +888,6 @@ const previewInputStyle: React.CSSProperties = {
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
                   Celdas en rojo = inválidas. No se guarda mientras exista una sola inválida.
                 </div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>
-                  El updated_at no se envía desde el front: tu POST ya lo guarda con SQL_NOW_PE (GMT-5).
-                </div>
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
