@@ -1,6 +1,7 @@
+// src/app/(portal)/PortalClient.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui/Button";
 
@@ -27,12 +28,44 @@ export default function PortalClient() {
   const [pw, setPw] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [hasInternalAccess, setHasInternalAccess] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
 
   function start(areaPick: Area) {
+    if (!hasInternalAccess) return;
     setErr("");
     setPw("");
     setArea(areaPick);
   }
+
+  useEffect(() => {
+    let alive = true;
+
+    async function checkAccess() {
+      setCheckingAccess(true);
+      try {
+        const res = await fetch("https://MVDLMPRDAT01.dgm.pe:3443/api/access-check", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!alive) return;
+        setHasInternalAccess(res.ok);
+      } catch {
+        if (!alive) return;
+        setHasInternalAccess(false);
+      } finally {
+        if (!alive) return;
+        setCheckingAccess(false);
+      }
+    }
+
+    checkAccess();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function login() {
     setErr("");
@@ -114,37 +147,93 @@ export default function PortalClient() {
 
         <h2 style={{ margin: "0 0 18px 0", fontWeight: 800 }}>Acceso MVD</h2>
 
+        <div style={{ margin: "0 0 18px 0", color: "#D8EEFF", fontWeight: 700 }}>
+          {checkingAccess
+            ? "Validando acceso corporativo..."
+            : hasInternalAccess
+            ? "Acceso corporativo detectado"
+            : "Conéctate a la red/VPN corporativa y usa equipo autorizado"}
+        </div>
+
         {!area ? (
           <div style={{ display: "grid", gap: 12 }}>
-            <Button type="button" size="lg" variant="primary" onClick={() => start("capex")}>
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("capex")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
               Proyectos CAPEX
             </Button>
 
-            <Button type="button" size="lg" variant="primary" onClick={() => start("planta")}>
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("planta")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
               Planta
             </Button>
 
-            <Button type="button" size="lg" variant="primary" onClick={() => start("refinery")}>
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("refinery")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
               Refinería
             </Button>
 
-            <Button type="button" size="lg" variant="primary" onClick={() => start("traceability")}>
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("traceability")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
               Trazabilidad
             </Button>
 
-            <Button type="button" size="lg" variant="primary" onClick={() => start("compliance")}>
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("compliance")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
               Compliance
             </Button>
 
-            <Button type="button" size="lg" variant="primary" onClick={() => start("logistics")}>
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("logistics")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
               Logística
             </Button>
 
-            <Button type="button" size="lg" variant="primary" onClick={() => start("sustainability")}>
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("sustainability")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
               Sostenibilidad
             </Button>
 
-            <Button type="button" size="lg" variant="primary" onClick={() => start("ti")}>
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("ti")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
               Tickets TI
             </Button>
           </div>
