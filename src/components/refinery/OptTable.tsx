@@ -194,10 +194,10 @@ function buildTree(rows: OptRow[]): TreeNode[] {
       ml_consumption_qty: toNum(raw.ml_consumption_qty),
       consumption_cost_us: toNum(raw.consumption_cost_us),
       ml_consumption_cost_us: toNum(raw.ml_consumption_cost_us),
-      desv_pct:
-        toNum(raw.desv_pct) !== null
-          ? toNum(raw.desv_pct)
-          : calcDesv(toNum(raw.consumption_qty), toNum(raw.ml_consumption_qty)),
+      desv_pct: calcDesv(
+        toNum(raw.consumption_cost_us),
+        toNum(raw.ml_consumption_cost_us)
+      ),
       children: [],
     });
   }
@@ -211,7 +211,7 @@ function buildTree(rows: OptRow[]): TreeNode[] {
     const ml_consumption_qty = sumNullable(children.map((c) => c.ml_consumption_qty));
     const consumption_cost_us = sumNullable(children.map((c) => c.consumption_cost_us));
     const ml_consumption_cost_us = sumNullable(children.map((c) => c.ml_consumption_cost_us));
-    const desv_pct = calcDesv(consumption_qty, ml_consumption_qty);
+    const desv_pct = calcDesv(consumption_cost_us, ml_consumption_cost_us);
 
     return {
       ...node,
@@ -321,20 +321,19 @@ export default function OptTable({
     const ml_consumption_cost_us = sumNullable(leafRows.map((x) => x.ml_consumption_cost_us));
     const consumption_cost_us = sumNullable(leafRows.map((x) => x.consumption_cost_us));
 
-    const desvVals = leafRows
-      .map((x) => x.desv_pct)
-      .filter((x): x is number => typeof x === "number" && Number.isFinite(x));
-
-    const avg_desv_pct = desvVals.length
-      ? desvVals.reduce((a, b) => a + b, 0) / desvVals.length
-      : null;
+    const total_desv_pct =
+      consumption_cost_us === null ||
+      ml_consumption_cost_us === null ||
+      ml_consumption_cost_us === 0
+        ? null
+        : (consumption_cost_us - ml_consumption_cost_us) / ml_consumption_cost_us;
 
     return {
       ml_consumption_qty,
       consumption_qty,
       ml_consumption_cost_us,
       consumption_cost_us,
-      avg_desv_pct,
+      total_desv_pct,
     };
   }, [leafRows]);
 
@@ -627,7 +626,7 @@ export default function OptTable({
                     else if (c.key === "consumption_qty") txt = fmtFixed(totals.consumption_qty, 2);
                     else if (c.key === "ml_consumption_cost_us") txt = fmtMoney(totals.ml_consumption_cost_us);
                     else if (c.key === "consumption_cost_us") txt = fmtMoney(totals.consumption_cost_us);
-                    else if (c.key === "desv_pct") txt = fmtPct(totals.avg_desv_pct);
+                    else if (c.key === "desv_pct") txt = fmtPct(totals.total_desv_pct);
 
                     const isDesv = c.key === "desv_pct";
 
@@ -644,7 +643,7 @@ export default function OptTable({
                           textAlign: c.align,
                           fontWeight: 900,
                           whiteSpace: "nowrap",
-                          color: isDesv ? desvColor(totals.avg_desv_pct) : "inherit",
+                          color: isDesv ? desvColor(totals.total_desv_pct) : "inherit",
                         }}
                         title={String(txt || "")}
                       >
