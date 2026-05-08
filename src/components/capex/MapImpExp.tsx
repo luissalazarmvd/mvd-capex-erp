@@ -13,6 +13,12 @@ type MappingRow = {
   updated_at?: string | null;
 };
 
+type MappingDetRow = {
+  wbs_code: string;
+  project_label: string;
+  capex_code: string;
+};
+
 type ImportField = "wbs_code" | "capex_code";
 
 type ImportPreviewRow = {
@@ -201,6 +207,7 @@ export default function MapImpExp({
   disabled = false,
 }: Props) {
   const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewRows, setPreviewRows] = useState<ImportPreviewRow[]>([]);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
@@ -239,23 +246,59 @@ export default function MapImpExp({
     fileInputRef.current?.click();
   }
 
-  function onExportExcel() {
+  async function onExportExcel() {
     if (!rows.length) {
       setMsgAction("No hay mapping para exportar.");
       return;
     }
 
-    const exportRows = sortRowsByWbs(rows).map((row) => ({
-      wbs_code: normalizeText(row.wbs_code),
-      capex_code: normalizeText(row.capex_code),
-    }));
+    setExporting(true);
+    setMsgAction(null);
 
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    ws["!cols"] = [{ wch: 18 }, { wch: 22 }];
+    try {
+      const stamp = getFileStamp();
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "capex_mapping");
-    XLSX.writeFile(wb, `capex_mapping_${getFileStamp()}.xlsx`);
+      // Excel 1: formato para importar
+      const importRows = sortRowsByWbs(rows).map((row) => ({
+        wbs_code: normalizeText(row.wbs_code),
+        capex_code: normalizeText(row.capex_code),
+      }));
+
+      const wsImport = XLSX.utils.json_to_sheet(importRows);
+      wsImport["!cols"] = [{ wch: 18 }, { wch: 22 }];
+
+      const wbImport = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wbImport, wsImport, "capex_mapping");
+      XLSX.writeFile(wbImport, `para_importar_capex_mapping_${stamp}.xlsx`);
+
+      // Excel 2: mapeo ERP desde dw.v_capex_mapping
+      const det = await apiGet("/api/capex/mapping-det");
+
+      if (!det?.ok) {
+        throw new Error(det?.error || "No se pudo cargar mapping-det.");
+      }
+
+      const detRows: MappingDetRow[] = Array.isArray(det?.rows) ? det.rows : [];
+
+      const erpRows = detRows.map((row) => ({
+        wbs_code: normalizeText(row.wbs_code),
+        project_label: normalizeText(row.project_label),
+        capex_code: normalizeText(row.capex_code),
+      }));
+
+      const wsErp = XLSX.utils.json_to_sheet(erpRows);
+      wsErp["!cols"] = [{ wch: 18 }, { wch: 70 }, { wch: 26 }];
+
+      const wbErp = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wbErp, wsErp, "mapeo_capex_erp");
+      XLSX.writeFile(wbErp, `mapeo_capex_erp_${stamp}.xlsx`);
+
+      setMsgAction(`OK: se exportaron 2 archivos. Filas importación: ${importRows.length}. Filas ERP: ${erpRows.length}.`);
+    } catch (e: any) {
+      setMsgAction(`ERROR: ${String(e?.message || e || "No se pudo exportar mapping")}`);
+    } finally {
+      setExporting(false);
+    }
   }
 
   async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -429,9 +472,9 @@ export default function MapImpExp({
         size="sm"
         variant="ghost"
         onClick={onExportExcel}
-        disabled={disabled || importing || rows.length === 0}
+        disabled={disabled || importing || exporting || rows.length === 0}
       >
-        Exportar Mapping
+        {exporting ? "Exportando…" : "Exportar Mapping"}
       </Button>
 
       <Button
@@ -439,7 +482,7 @@ export default function MapImpExp({
         size="sm"
         variant="ghost"
         onClick={onClickImport}
-        disabled={disabled || importing}
+        disabled={disabled || importing || exporting}
       >
         {importing ? "Importando…" : "Importar Mapping"}
       </Button>
