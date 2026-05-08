@@ -22,6 +22,11 @@ type LatestResp = {
   latest: Record<string, string | null>;
 };
 
+type RowsResp = {
+  ok: boolean;
+  rows: Record<string, any>[];
+};
+
 export default function ProgressPage() {
   const [projects, setProjects] = useState<ProjectNode[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
@@ -36,6 +41,7 @@ export default function ProgressPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [exporting, setExporting] = useState<boolean>(false);
+  const [exportingAC, setExportingAC] = useState<boolean>(false);
 
   const FROM_PERIOD = 202601;
   const N_PERIODS = 12;
@@ -141,10 +147,61 @@ export default function ProgressPage() {
     }
   }
 
+  async function onExportAC() {
+    setMsg(null);
+    setExportingAC(true);
+
+    try {
+      const [fullResp, mappedResp] = await Promise.all([
+        apiGet("/api/capex/actual-veta?top=1000000"),
+        apiGet("/api/capex/actual-det?top=1000000"),
+      ]);
+
+      const full = fullResp as RowsResp;
+      const mapped = mappedResp as RowsResp;
+
+      const XLSX = await import("xlsx");
+
+      const wb = XLSX.utils.book_new();
+
+      const wsFull = XLSX.utils.json_to_sheet(full.rows ?? []);
+      const wsMapped = XLSX.utils.json_to_sheet(mapped.rows ?? []);
+
+      XLSX.utils.book_append_sheet(wb, wsFull, "actual_full");
+      XLSX.utils.book_append_sheet(wb, wsMapped, "actual_mapped");
+
+      const fileName = `capex_actual_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+      XLSX.writeFile(wb, fileName);
+
+      setMsg("OK: export AC descargado");
+    } catch (e: any) {
+      setMsg(e?.message ? `ERROR: ${e.message}` : "ERROR exportando AC");
+    } finally {
+      setExportingAC(false);
+    }
+  }
+
   const headerActions = (
     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-      <Button type="button" size="sm" variant="ghost" disabled={loading || exporting} onClick={onExport}>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled={loading || exporting || exportingAC}
+        onClick={onExport}
+      >
         {exporting ? "Exportando…" : "Exportar"}
+      </Button>
+
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled={loading || exporting || exportingAC}
+        onClick={onExportAC}
+      >
+        {exportingAC ? "Exportando AC…" : "Exportar AC"}
       </Button>
     </div>
   );
