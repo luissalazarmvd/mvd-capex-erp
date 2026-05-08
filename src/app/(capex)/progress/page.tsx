@@ -191,7 +191,7 @@ export default function ProgressPage() {
         disabled={loading || exporting || exportingAC}
         onClick={onExport}
       >
-        {exporting ? "Exportando…" : "Exportar"}
+        {exporting ? "Exportando…" : "Exportar EV"}
       </Button>
 
       <Button
