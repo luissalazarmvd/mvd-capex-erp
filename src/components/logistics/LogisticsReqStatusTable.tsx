@@ -322,10 +322,7 @@ export default function LogisticsMreqStatusTable() {
             style={{
               width: "100%",
               height: 40,
-              borderRadius: 12,
-              padding: "0 10px",
-              fontWeight: 800,
-              outline: "none",
+              opacity: 1,
               cursor: "pointer",
             }}
           >
