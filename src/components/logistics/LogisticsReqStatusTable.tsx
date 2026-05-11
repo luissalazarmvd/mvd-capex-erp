@@ -192,16 +192,18 @@ export default function LogisticsMreqStatusTable() {
   }, [rows]);
 
   const filteredRows = useMemo(() => {
-    return rows.filter((r) => {
-      const reqDate = toDateInput(r.req_date);
-      const rowResponsible = normalizeText(r.responsible);
+    return rows
+      .filter((r) => {
+        const reqDate = toDateInput(r.req_date);
+        const rowResponsible = normalizeText(r.responsible);
 
-      if (fromDate && reqDate && reqDate < fromDate) return false;
-      if (toDate && reqDate && reqDate > toDate) return false;
-      if (responsible && rowResponsible !== responsible) return false;
+        if (fromDate && reqDate && reqDate < fromDate) return false;
+        if (toDate && reqDate && reqDate > toDate) return false;
+        if (responsible && rowResponsible !== responsible) return false;
 
-      return true;
-    });
+        return true;
+      })
+      .sort((a, b) => Number(a.item_ord ?? 0) - Number(b.item_ord ?? 0));
   }, [rows, fromDate, toDate, responsible]);
 
   useEffect(() => {
@@ -412,14 +414,7 @@ export default function LogisticsMreqStatusTable() {
         <thead>
           <tr>
             {columns.map((c) => (
-              <th
-                key={String(c.key)}
-                className="capex-th"
-                style={{
-                  background: "#0067ac",
-                  color: "#fff",
-                }}
-              >
+              <th key={String(c.key)} className="capex-th">
                 {c.label}
               </th>
             ))}
