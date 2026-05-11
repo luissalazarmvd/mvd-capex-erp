@@ -1,0 +1,432 @@
+// src/components/logistics/LogisticsMreqStatusTable.tsx
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { apiGet } from "../../lib/apiClient";
+import { Button } from "../ui/Button";
+import { Table } from "../ui/Table";
+
+type ReqStatusRow = {
+  item_ord: number | null;
+  req_num: string | null;
+  req_date: string | null;
+  assign_date: string | null;
+  modified_date: string | null;
+
+  mat_code: string | null;
+  mat_desc: string | null;
+  mat_unit: string | null;
+  mat_group: string | null;
+  mat_family: string | null;
+  responsible: string | null;
+
+  qty_requested: number | null;
+  qty_ordered: number | null;
+  qty_delivered: number | null;
+  qty_approved: number | null;
+
+  req_status: string | null;
+
+  cost_center_desc: string | null;
+  requester_desc: string | null;
+  requester_area: string | null;
+  office_desc: string | null;
+
+  po_num: string | null;
+  supplier_name: string | null;
+  po_date: string | null;
+  po_unit_price_us: number | null;
+  po_status: string | null;
+  po_est_delivery_date: string | null;
+
+  delivery_date: string | null;
+  partial_recep_qty: number | null;
+  ceva: number | null;
+  warehouse_dest: number | null;
+  warehouse_name: string | null;
+
+  updated_at: string | null;
+};
+
+type GetReqStatusResp = {
+  ok: boolean;
+  rows?: ReqStatusRow[];
+  count?: number;
+  error?: string;
+};
+
+const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }[] = [
+  { key: "item_ord", label: "Item", type: "num" },
+  { key: "req_num", label: "RQ" },
+  { key: "req_date", label: "F. Req", type: "date" },
+  { key: "assign_date", label: "F. Asig.", type: "date" },
+  { key: "modified_date", label: "F. Mod.", type: "date" },
+
+  { key: "mat_code", label: "Código" },
+  { key: "mat_desc", label: "Material" },
+  { key: "mat_unit", label: "Unidad" },
+  { key: "mat_group", label: "Grupo" },
+  { key: "mat_family", label: "Familia" },
+  { key: "responsible", label: "Responsable" },
+
+  { key: "qty_requested", label: "Cant. Solicitada", type: "num" },
+  { key: "qty_ordered", label: "Cant. Ordenada", type: "num" },
+  { key: "qty_delivered", label: "Cant. Entregada", type: "num" },
+  { key: "qty_approved", label: "Cant. Aprobada", type: "num" },
+
+  { key: "req_status", label: "Estado RQ" },
+
+  { key: "cost_center_desc", label: "Centro Costo" },
+  { key: "requester_desc", label: "Solicitante" },
+  { key: "requester_area", label: "Área Solicitante" },
+  { key: "office_desc", label: "Oficina" },
+
+  { key: "po_num", label: "OC" },
+  { key: "supplier_name", label: "Proveedor" },
+  { key: "po_date", label: "F. OC", type: "date" },
+  { key: "po_unit_price_us", label: "PU US$", type: "num" },
+  { key: "po_status", label: "Estado OC" },
+  { key: "po_est_delivery_date", label: "F. Entrega Est.", type: "date" },
+
+  { key: "delivery_date", label: "F. Entrega", type: "date" },
+  { key: "partial_recep_qty", label: "Recep. Parcial", type: "num" },
+  { key: "ceva", label: "CEVA", type: "num" },
+  { key: "warehouse_dest", label: "Alm. Destino", type: "num" },
+  { key: "warehouse_name", label: "Almacén" },
+
+  { key: "updated_at", label: "Actualizado", type: "date" },
+];
+
+function toDateInput(value: string | null | undefined) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
+  return d.toLocaleDateString("es-PE");
+}
+
+function formatNumber(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return "";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return n.toLocaleString("es-PE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  });
+}
+
+function normalizeText(value: string | null | undefined) {
+  return (value ?? "").trim();
+}
+
+export default function LogisticsMreqStatusTable() {
+  const [rows, setRows] = useState<ReqStatusRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [responsible, setResponsible] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadData() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = (await apiGet("/api/logistics/req-status")) as GetReqStatusResp;
+
+        if (!data?.ok) {
+        throw new Error(data?.error || "Error al consultar requerimientos");
+        }
+
+        const nextRows: ReqStatusRow[] = Array.isArray(data.rows) ? data.rows : [];
+
+        if (!alive) return;
+
+        setRows(nextRows);
+
+        const dates = nextRows
+          .map((r) => toDateInput(r.req_date))
+          .filter(Boolean)
+          .sort();
+
+        if (dates.length > 0) {
+          setFromDate(dates[0]);
+          setToDate(dates[dates.length - 1]);
+        }
+      } catch (err) {
+        if (!alive) return;
+        setError(err instanceof Error ? err.message : "Error inesperado");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const responsibleOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        rows
+          .map((r) => normalizeText(r.responsible))
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      const reqDate = toDateInput(r.req_date);
+      const rowResponsible = normalizeText(r.responsible);
+
+      if (fromDate && reqDate && reqDate < fromDate) return false;
+      if (toDate && reqDate && reqDate > toDate) return false;
+      if (responsible && rowResponsible !== responsible) return false;
+
+      return true;
+    });
+  }, [rows, fromDate, toDate, responsible]);
+
+  function exportExcel() {
+    const data = filteredRows.map((r) => ({
+      item_ord: r.item_ord,
+      req_num: r.req_num,
+      req_date: toDateInput(r.req_date),
+      assign_date: toDateInput(r.assign_date),
+      modified_date: toDateInput(r.modified_date),
+
+      mat_code: r.mat_code,
+      mat_desc: r.mat_desc,
+      mat_unit: r.mat_unit,
+      mat_group: r.mat_group,
+      mat_family: r.mat_family,
+      responsible: r.responsible,
+
+      qty_requested: r.qty_requested,
+      qty_ordered: r.qty_ordered,
+      qty_delivered: r.qty_delivered,
+      qty_approved: r.qty_approved,
+
+      req_status: r.req_status,
+
+      cost_center_desc: r.cost_center_desc,
+      requester_desc: r.requester_desc,
+      requester_area: r.requester_area,
+      office_desc: r.office_desc,
+
+      po_num: r.po_num,
+      supplier_name: r.supplier_name,
+      po_date: toDateInput(r.po_date),
+      po_unit_price_us: r.po_unit_price_us,
+      po_status: r.po_status,
+      po_est_delivery_date: toDateInput(r.po_est_delivery_date),
+
+      delivery_date: toDateInput(r.delivery_date),
+      partial_recep_qty: r.partial_recep_qty,
+      ceva: r.ceva,
+      warehouse_dest: r.warehouse_dest,
+      warehouse_name: r.warehouse_name,
+
+      updated_at: r.updated_at,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(wb, ws, "req_status");
+
+    const suffixFrom = fromDate || "min";
+    const suffixTo = toDate || "max";
+    const suffixResponsible = responsible
+      ? responsible.replaceAll(" ", "_").replace(/[^\w-]/g, "")
+      : "todos";
+
+    XLSX.writeFile(
+      wb,
+      `logistics_req_status_${suffixFrom}_${suffixTo}_${suffixResponsible}.xlsx`
+    );
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+      <div
+        className="panel-inner"
+        style={{
+          padding: 12,
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(160px, 1fr)) auto",
+          gap: 10,
+          alignItems: "end",
+        }}
+      >
+        <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 900 }}>
+          Desde
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            style={inputStyle}
+          />
+        </label>
+
+        <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 900 }}>
+          Hasta
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            style={inputStyle}
+          />
+        </label>
+
+        <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 900 }}>
+          Responsable
+          <select
+            value={responsible}
+            onChange={(e) => setResponsible(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">Todos</option>
+            {responsibleOptions.map((x) => (
+              <option key={x} value={x}>
+                {x}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div
+          style={{
+            display: "grid",
+            gap: 2,
+            fontSize: 12,
+            color: "rgba(255,255,255,0.72)",
+            fontWeight: 800,
+          }}
+        >
+          <span>Total: {rows.length.toLocaleString("es-PE")}</span>
+          <span>Filtrado: {filteredRows.length.toLocaleString("es-PE")}</span>
+        </div>
+
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={exportExcel}
+          disabled={loading || filteredRows.length === 0}
+          style={{ whiteSpace: "nowrap" }}
+        >
+          Exportar Excel
+        </Button>
+      </div>
+
+      {error ? (
+        <div
+          className="panel-inner"
+          style={{
+            padding: 12,
+            color: "rgba(255,120,120,0.95)",
+            fontWeight: 900,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      <Table maxHeight="calc(100vh - 245px)">
+        <thead>
+          <tr>
+            {columns.map((c) => (
+              <th key={String(c.key)} className="capex-th">
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+
+        <tbody>
+          {loading ? (
+            <tr className="capex-tr">
+              <td className="capex-td" colSpan={columns.length}>
+                Cargando...
+              </td>
+            </tr>
+          ) : filteredRows.length === 0 ? (
+            <tr className="capex-tr">
+              <td className="capex-td" colSpan={columns.length}>
+                Sin registros.
+              </td>
+            </tr>
+          ) : (
+            filteredRows.map((row, idx) => (
+              <tr
+                key={`${row.req_num || "rq"}-${row.mat_code || "mat"}-${row.po_num || "po"}-${idx}`}
+                className="capex-tr"
+              >
+                {columns.map((c) => {
+                  const value = row[c.key];
+
+                  return (
+                    <td
+                      key={String(c.key)}
+                      className={`capex-td ${c.key === "req_num" ? "capex-td-strong" : ""}`}
+                      style={{
+                        whiteSpace:
+                          c.key === "mat_desc" ||
+                          c.key === "supplier_name" ||
+                          c.key === "warehouse_name" ||
+                          c.key === "cost_center_desc"
+                            ? "normal"
+                            : "nowrap",
+                        minWidth:
+                          c.key === "mat_desc" || c.key === "supplier_name"
+                            ? 240
+                            : c.key === "warehouse_name" || c.key === "cost_center_desc"
+                              ? 220
+                              : undefined,
+                        textAlign: c.type === "num" ? "right" : "left",
+                      }}
+                    >
+                      {c.type === "date"
+                        ? formatDate(value as string | null)
+                        : c.type === "num"
+                          ? formatNumber(value as number | string | null)
+                          : value ?? ""}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </Table>
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  height: 40,
+  borderRadius: 12,
+  border: "1px solid var(--border)",
+  background: "rgba(0,0,0,.12)",
+  color: "var(--text)",
+  padding: "0 10px",
+  fontWeight: 800,
+  outline: "none",
+};
