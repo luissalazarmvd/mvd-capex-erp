@@ -134,6 +134,8 @@ export default function LogisticsMreqStatusTable() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [responsible, setResponsible] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 200;
 
   useEffect(() => {
     let alive = true;
@@ -201,6 +203,21 @@ export default function LogisticsMreqStatusTable() {
       return true;
     });
   }, [rows, fromDate, toDate, responsible]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [fromDate, toDate, responsible]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+
+  const pagedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, currentPage, pageSize]);
+
+  const pageStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = Math.min(currentPage * pageSize, filteredRows.length);
 
   function exportExcel() {
     const data = filteredRows.map((r) => ({
@@ -348,11 +365,61 @@ export default function LogisticsMreqStatusTable() {
         </div>
       ) : null}
 
-      <Table maxHeight="calc(100vh - 245px)">
+      <div
+        className="panel-inner"
+        style={{
+          padding: "8px 12px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.78)" }}>
+          Mostrando {pageStart.toLocaleString("es-PE")} - {pageEnd.toLocaleString("es-PE")} de{" "}
+          {filteredRows.length.toLocaleString("es-PE")}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+          >
+            ←
+          </Button>
+
+          <div style={{ fontSize: 12, fontWeight: 900 }}>
+            Página {currentPage} / {totalPages}
+          </div>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages}
+          >
+            →
+          </Button>
+        </div>
+      </div>
+
+      <Table maxHeight="calc(100vh - 300px)">
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={String(c.key)} className="capex-th">
+              <th
+                key={String(c.key)}
+                className="capex-th"
+                style={{
+                  background: "#0067ac",
+                  color: "#fff",
+                }}
+              >
                 {c.label}
               </th>
             ))}
@@ -373,9 +440,9 @@ export default function LogisticsMreqStatusTable() {
               </td>
             </tr>
           ) : (
-            filteredRows.map((row, idx) => (
+            pagedRows.map((row, idx) => (
               <tr
-                key={`${row.req_num || "rq"}-${row.mat_code || "mat"}-${row.po_num || "po"}-${idx}`}
+                key={`${row.req_num || "rq"}-${row.mat_code || "mat"}-${row.po_num || "po"}-${pageStart + idx}`}
                 className="capex-tr"
               >
                 {columns.map((c) => {
