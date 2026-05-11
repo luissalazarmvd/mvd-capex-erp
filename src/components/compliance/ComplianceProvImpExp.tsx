@@ -60,8 +60,8 @@ type CompliancePayload = {
   fecha_de_visita: string;
   coordinates_xy: string;
   zone_utm: string;
-  north: number;
-  east: number;
+  north: number | null;
+  east: number | null;
   tipo_vlm: string;
   geologist_name: string;
 };
@@ -287,6 +287,15 @@ function hasAnyLetter(v: unknown) {
   return /[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(normalizeText(v));
 }
 
+function isComercializadora(v: unknown) {
+  const value = normalizeText(v)
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return value === "COMERCIALIZADORA";
+}
+
 function normalizeFieldValue(field: ImportField, value: unknown) {
   if (field === "fecha_de_visita") {
     return parseExcelDateToIso(value);
@@ -326,9 +335,14 @@ function getImportField(header: unknown): ImportField | "" {
 
 function buildFieldErrors(row: Omit<PreviewRow, "status" | "errors" | "duplicate_count" | "is_duplicate" | "valid" | "payload" | "fieldErrors">) {
   const errors: Partial<Record<PreviewField, string>> = {};
+  const allowOptionalMineFields = isComercializadora(row.provider_condition);
 
-  const requiredTextWithLetters: PreviewField[] = [
+  const requiredAlwaysTextWithLetters: PreviewField[] = [
     "proveedor",
+    "provider_condition",
+  ];
+
+  const requiredConditionalTextWithLetters: PreviewField[] = [
     "concession_owner",
     "concession_status",
     "concession_name",
@@ -336,7 +350,6 @@ function buildFieldErrors(row: Omit<PreviewRow, "status" | "errors" | "duplicate
     "province",
     "district",
     "zona_acopio",
-    "provider_condition",
     "tipo_persona",
     "tipo_empresa",
     "flag_informe_verificacion_minera",
@@ -344,25 +357,44 @@ function buildFieldErrors(row: Omit<PreviewRow, "status" | "errors" | "duplicate
     "geologist_name",
   ];
 
-  const requiredTextOnly: PreviewField[] = [
+  const requiredAlwaysTextOnly: PreviewField[] = [
     "rucodm",
+  ];
+
+  const requiredConditionalTextOnly: PreviewField[] = [
     "concession_code",
     "geocatmin_xy",
     "coordinates_xy",
     "zone_utm",
   ];
 
-  for (const field of requiredTextOnly) {
+  for (const field of requiredAlwaysTextOnly) {
     if (isBlank(row[field])) {
       errors[field] = "Vacío";
     }
   }
 
-  for (const field of requiredTextWithLetters) {
+  for (const field of requiredConditionalTextOnly) {
+    if (!allowOptionalMineFields && isBlank(row[field])) {
+      errors[field] = "Vacío";
+    }
+  }
+
+  for (const field of requiredAlwaysTextWithLetters) {
     const value = row[field];
     if (isBlank(value)) {
       errors[field] = "Vacío";
     } else if (!hasAnyLetter(value)) {
+      errors[field] = "Debe contener texto";
+    }
+  }
+
+  for (const field of requiredConditionalTextWithLetters) {
+    const value = row[field];
+
+    if (!allowOptionalMineFields && isBlank(value)) {
+      errors[field] = "Vacío";
+    } else if (!isBlank(value) && !hasAnyLetter(value)) {
       errors[field] = "Debe contener texto";
     }
   }
@@ -373,18 +405,22 @@ function buildFieldErrors(row: Omit<PreviewRow, "status" | "errors" | "duplicate
     errors.ruc = "Solo números";
   }
 
-  if (isBlank(row.fecha_de_visita)) {
+  if (!allowOptionalMineFields && isBlank(row.fecha_de_visita)) {
     errors.fecha_de_visita = "Vacío";
-  } else if (!isValidIsoDate(row.fecha_de_visita)) {
+  } else if (!isBlank(row.fecha_de_visita) && !isValidIsoDate(row.fecha_de_visita)) {
     errors.fecha_de_visita = "Fecha inválida";
   }
 
-  if (toStrictPositiveIntOrNull(row.north) === null) {
-    errors.north = isBlank(row.north) ? "Vacío" : "Entero > 0";
+  if (!allowOptionalMineFields && isBlank(row.north)) {
+    errors.north = "Vacío";
+  } else if (!isBlank(row.north) && toStrictPositiveIntOrNull(row.north) === null) {
+    errors.north = "Entero > 0";
   }
 
-  if (toStrictPositiveIntOrNull(row.east) === null) {
-    errors.east = isBlank(row.east) ? "Vacío" : "Entero > 0";
+  if (!allowOptionalMineFields && isBlank(row.east)) {
+    errors.east = "Vacío";
+  } else if (!isBlank(row.east) && toStrictPositiveIntOrNull(row.east) === null) {
+    errors.east = "Entero > 0";
   }
 
   return errors;
@@ -413,8 +449,8 @@ function isEqualRow(existing: ComplianceRow | null, payload: CompliancePayload) 
     normalizeText(existing.fecha_de_visita).slice(0, 10) === payload.fecha_de_visita &&
     normalizeText(existing.coordinates_xy) === payload.coordinates_xy &&
     normalizeText(existing.zone_utm) === payload.zone_utm &&
-    Number(existing.north) === payload.north &&
-    Number(existing.east) === payload.east &&
+    ((isBlank(existing.north) && payload.north === null) || Number(existing.north) === payload.north) &&
+    ((isBlank(existing.east) && payload.east === null) || Number(existing.east) === payload.east) &&
     normalizeText(existing.tipo_vlm) === payload.tipo_vlm &&
     normalizeText(existing.geologist_name) === payload.geologist_name
   );
@@ -510,8 +546,8 @@ function revalidatePreviewRows(
           fecha_de_visita: normalized.fecha_de_visita,
           coordinates_xy: normalized.coordinates_xy,
           zone_utm: normalized.zone_utm,
-          north: Number(normalized.north),
-          east: Number(normalized.east),
+          north: isBlank(normalized.north) ? null : Number(normalized.north),
+          east: isBlank(normalized.east) ? null : Number(normalized.east),
           tipo_vlm: normalized.tipo_vlm,
           geologist_name: normalized.geologist_name,
         }
