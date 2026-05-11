@@ -134,6 +134,7 @@ export default function LogisticsMreqStatusTable() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [responsible, setResponsible] = useState("");
+  const [responsibleOpen, setResponsibleOpen] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 200;
 
@@ -313,26 +314,82 @@ export default function LogisticsMreqStatusTable() {
           />
         </label>
 
-        <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 900 }}>
+        <label
+          style={{
+            display: "grid",
+            gap: 6,
+            fontSize: 12,
+            fontWeight: 900,
+            position: "relative",
+          }}
+        >
           Responsable
-          <select
+
+          <button
+            type="button"
             className="input"
-            value={responsible}
-            onChange={(e) => setResponsible(e.target.value)}
+            onClick={() => setResponsibleOpen((v) => !v)}
             style={{
               width: "100%",
               height: 40,
-              opacity: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              textAlign: "left",
               cursor: "pointer",
+              fontWeight: 800,
             }}
           >
-            <option value="">Todos</option>
-            {responsibleOptions.map((x) => (
-              <option key={x} value={x}>
-                {x}
-              </option>
-            ))}
-          </select>
+            <span>{responsible || "Todos"}</span>
+            <span style={{ opacity: 0.8 }}>▾</span>
+          </button>
+
+          {responsibleOpen ? (
+            <div
+              style={{
+                position: "absolute",
+                top: 68,
+                left: 0,
+                right: 0,
+                zIndex: 20,
+                background: "#06192a",
+                border: "1px solid rgba(191,231,255,0.22)",
+                borderRadius: 12,
+                overflow: "hidden",
+                boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
+              }}
+            >
+              {["", ...responsibleOptions].map((x) => {
+                const label = x || "Todos";
+                const active = responsible === x;
+
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    className="req-status-dd-option"
+                    onClick={() => {
+                      setResponsible(x);
+                      setResponsibleOpen(false);
+                    }}
+                    style={{
+                      width: "100%",
+                      height: 38,
+                      padding: "0 12px",
+                      border: 0,
+                      background: active ? "rgba(102,199,255,0.18)" : "transparent",
+                      color: "var(--text)",
+                      textAlign: "left",
+                      fontWeight: 900,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </label>
 
         <div
@@ -483,6 +540,12 @@ export default function LogisticsMreqStatusTable() {
           )}
         </tbody>
       </Table>
+
+      <style jsx global>{`
+        .req-status-dd-option:hover {
+          background: rgba(102, 199, 255, 0.12) !important;
+        }
+      `}</style>
     </div>
   );
 }
