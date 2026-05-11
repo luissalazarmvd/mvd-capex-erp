@@ -314,7 +314,7 @@ export default function LogisticsMreqStatusTable() {
           />
         </label>
 
-        <label
+        <div
           style={{
             display: "grid",
             gap: 6,
@@ -328,7 +328,10 @@ export default function LogisticsMreqStatusTable() {
           <button
             type="button"
             className="input"
-            onClick={() => setResponsibleOpen((v) => !v)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setResponsibleOpen((v) => !v);
+            }}
             style={{
               width: "100%",
               height: 40,
@@ -368,7 +371,9 @@ export default function LogisticsMreqStatusTable() {
                     key={label}
                     type="button"
                     className="req-status-dd-option"
-                    onClick={() => {
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       setResponsible(x);
                       setResponsibleOpen(false);
                     }}
@@ -390,7 +395,7 @@ export default function LogisticsMreqStatusTable() {
               })}
             </div>
           ) : null}
-        </label>
+        </div>
 
         <div
           style={{
