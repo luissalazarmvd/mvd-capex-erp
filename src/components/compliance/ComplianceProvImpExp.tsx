@@ -680,13 +680,12 @@ export default function ComplianceProvImpExp({
         east: row.east ?? "",
         tipo_vlm: normalizeText(row.tipo_vlm),
         geologist_name: normalizeText(row.geologist_name),
-        updated_at: normalizeText(row.updated_at).slice(0, 23),
       }));
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
-    ws["!cols"] = PREVIEW_COLUMNS.map((c) => ({ wch: Math.max(12, Math.round((c.width || 120) / 8)) })).concat([
-      { wch: 22 },
-    ]);
+    ws["!cols"] = PREVIEW_COLUMNS.map((c) => ({
+      wch: Math.max(12, Math.round((c.width || 120) / 8)),
+    }));
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "provider_format");
