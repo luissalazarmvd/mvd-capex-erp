@@ -206,6 +206,10 @@ function isBlank(v: unknown) {
   return v === null || v === undefined || String(v).trim() === "";
 }
 
+function isDash(v: unknown) {
+  return String(v ?? "").trim() === "-";
+}
+
 function normalizeHeader(v: unknown) {
   return normalizeText(v)
     .toLowerCase()
@@ -394,7 +398,7 @@ function buildFieldErrors(row: Omit<PreviewRow, "status" | "errors" | "duplicate
 
     if (!allowOptionalMineFields && isBlank(value)) {
       errors[field] = "Vacío";
-    } else if (!isBlank(value) && !hasAnyLetter(value)) {
+    } else if (!(allowOptionalMineFields && isDash(value)) && !isBlank(value) && !hasAnyLetter(value)) {
       errors[field] = "Debe contener texto";
     }
   }
@@ -413,13 +417,13 @@ function buildFieldErrors(row: Omit<PreviewRow, "status" | "errors" | "duplicate
 
   if (!allowOptionalMineFields && isBlank(row.north)) {
     errors.north = "Vacío";
-  } else if (!isBlank(row.north) && toStrictPositiveIntOrNull(row.north) === null) {
+  } else if (!(allowOptionalMineFields && isDash(row.north)) && !isBlank(row.north) && toStrictPositiveIntOrNull(row.north) === null) {
     errors.north = "Entero > 0";
   }
 
   if (!allowOptionalMineFields && isBlank(row.east)) {
     errors.east = "Vacío";
-  } else if (!isBlank(row.east) && toStrictPositiveIntOrNull(row.east) === null) {
+  } else if (!(allowOptionalMineFields && isDash(row.east)) && !isBlank(row.east) && toStrictPositiveIntOrNull(row.east) === null) {
     errors.east = "Entero > 0";
   }
 
@@ -546,8 +550,17 @@ function revalidatePreviewRows(
           fecha_de_visita: normalized.fecha_de_visita,
           coordinates_xy: normalized.coordinates_xy,
           zone_utm: normalized.zone_utm,
-          north: isBlank(normalized.north) ? null : Number(normalized.north),
-          east: isBlank(normalized.east) ? null : Number(normalized.east),
+          north: isDash(normalized.north) && isComercializadora(normalized.provider_condition)
+            ? 0
+            : isBlank(normalized.north)
+              ? null
+              : Number(normalized.north),
+
+          east: isDash(normalized.east) && isComercializadora(normalized.provider_condition)
+            ? 0
+            : isBlank(normalized.east)
+              ? null
+              : Number(normalized.east),
           tipo_vlm: normalized.tipo_vlm,
           geologist_name: normalized.geologist_name,
         }
