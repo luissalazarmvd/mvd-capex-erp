@@ -316,9 +316,18 @@ export default function LogisticsMreqStatusTable() {
         <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 900 }}>
           Responsable
           <select
+            className="input"
             value={responsible}
             onChange={(e) => setResponsible(e.target.value)}
-            style={inputStyle}
+            style={{
+              width: "100%",
+              height: 40,
+              borderRadius: 12,
+              padding: "0 10px",
+              fontWeight: 800,
+              outline: "none",
+              cursor: "pointer",
+            }}
           >
             <option value="">Todos</option>
             {responsibleOptions.map((x) => (
