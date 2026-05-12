@@ -94,8 +94,6 @@ const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }
   { key: "ceva", label: "CEVA", type: "num" },
   { key: "warehouse_dest", label: "Alm. Destino", type: "num" },
   { key: "warehouse_name", label: "Almacén" },
-
-  { key: "updated_at", label: "Actualizado", type: "date" },
 ];
 
 function toDateInput(value: string | null | undefined) {
@@ -261,8 +259,6 @@ export default function LogisticsMreqStatusTable() {
       ceva: r.ceva,
       warehouse_dest: r.warehouse_dest,
       warehouse_name: r.warehouse_name,
-
-      updated_at: r.updated_at,
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -504,7 +500,7 @@ export default function LogisticsMreqStatusTable() {
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <div style={{ minWidth: "max-content" }}>
+        <div style={{ minWidth: 3200 }}>
           <Table stickyHeader disableScrollWrapper>
         <thead>
           <tr>
