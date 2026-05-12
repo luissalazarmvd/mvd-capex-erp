@@ -287,6 +287,21 @@ export default function LogisticsMreqStatusTable() {
       <div
         className="panel-inner"
         style={{
+          padding: "10px 12px",
+          display: "flex",
+          gap: 10,
+          alignItems: "center",
+          flexWrap: "wrap",
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ fontWeight: 900 }}>
+          Logística · Status de RQ
+        </div>
+      </div>
+      <div
+        className="panel-inner"
+        style={{
           padding: 12,
           display: "grid",
           gridTemplateColumns: "repeat(4, minmax(160px, 1fr)) auto",
@@ -482,7 +497,26 @@ export default function LogisticsMreqStatusTable() {
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={String(c.key)} className="capex-th">
+              <th
+                key={String(c.key)}
+                className="capex-th"
+                style={{
+                  background: "rgb(6, 36, 58)",
+                  border: "1px solid rgba(191, 231, 255, 0.26)",
+                  borderBottom: "1px solid rgba(191, 231, 255, 0.26)",
+                  textAlign: "left",
+                  padding: "6px 8px",
+                  fontSize: 12,
+                  lineHeight: "14px",
+                  height: 44,
+                  whiteSpace: "normal",
+                  overflow: "visible",
+                  textOverflow: "clip",
+                  wordBreak: "break-word",
+                  verticalAlign: "middle",
+                  boxSizing: "border-box",
+                }}
+              >
                 {c.label}
               </th>
             ))}

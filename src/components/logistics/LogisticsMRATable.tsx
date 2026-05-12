@@ -609,7 +609,7 @@ export default function LogisticsMRATable() {
           }}
         >
           <div style={{ fontWeight: 900 }}>
-            Logistics · MRA
+            Logistica · MRA
           </div>
 
           <div
