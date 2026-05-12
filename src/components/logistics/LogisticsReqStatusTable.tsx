@@ -493,7 +493,19 @@ export default function LogisticsMreqStatusTable() {
         </div>
       </div>
 
-      <Table maxHeight="calc(100vh - 300px)">
+      <div
+        className="panel-inner"
+        style={{
+          padding: 0,
+          minWidth: 0,
+          maxWidth: "100%",
+          maxHeight: "calc(100vh - 300px)",
+          overflow: "auto",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        <div style={{ minWidth: "max-content" }}>
+          <Table stickyHeader disableScrollWrapper>
         <thead>
           <tr>
             {columns.map((c) => (
@@ -565,7 +577,9 @@ export default function LogisticsMreqStatusTable() {
             ))
           )}
         </tbody>
-      </Table>
+          </Table>
+        </div>
+      </div>
 
       <style jsx global>{`
         .req-status-dd-option:hover {
