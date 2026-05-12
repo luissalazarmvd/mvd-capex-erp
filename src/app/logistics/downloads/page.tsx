@@ -16,7 +16,7 @@ export default function LogisticsDownloadsPage() {
           maxWidth: "100%",
           height: "calc(100vh - 140px)",
           minHeight: 0,
-          overflow: "hidden",
+          overflow: "auto",
         }}
       >
         <LogisticsMreqStatusTable />
