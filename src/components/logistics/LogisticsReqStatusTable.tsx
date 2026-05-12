@@ -502,19 +502,6 @@ export default function LogisticsMreqStatusTable() {
                 className="capex-th"
                 style={{
                   background: "rgb(6, 36, 58)",
-                  border: "1px solid rgba(191, 231, 255, 0.26)",
-                  borderBottom: "1px solid rgba(191, 231, 255, 0.26)",
-                  textAlign: "left",
-                  padding: "6px 8px",
-                  fontSize: 12,
-                  lineHeight: "14px",
-                  height: 44,
-                  whiteSpace: "normal",
-                  overflow: "visible",
-                  textOverflow: "clip",
-                  wordBreak: "break-word",
-                  verticalAlign: "middle",
-                  boxSizing: "border-box",
                 }}
               >
                 {c.label}
