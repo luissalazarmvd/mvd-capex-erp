@@ -96,6 +96,22 @@ const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }
   { key: "warehouse_name", label: "Almacén" },
 ];
 
+function getStatusColWidth(key: keyof ReqStatusRow) {
+  if (key === "mat_desc" || key === "supplier_name") return 260;
+  if (key === "warehouse_name" || key === "cost_center_desc") return 240;
+  if (key === "requester_desc" || key === "requester_area") return 220;
+  if (key === "po_est_delivery_date") return 150;
+  if (key === "qty_requested" || key === "qty_ordered" || key === "qty_delivered" || key === "qty_approved") return 150;
+  if (key === "partial_recep_qty") return 150;
+  if (key === "req_num" || key === "mat_code" || key === "po_num") return 120;
+  return 130;
+}
+
+const STATUS_TABLE_WIDTH = columns.reduce(
+  (acc, c) => acc + getStatusColWidth(c.key),
+  0
+);
+
 function toDateInput(value: string | null | undefined) {
   if (!value) return "";
   const d = new Date(value);
@@ -500,8 +516,16 @@ export default function LogisticsMreqStatusTable() {
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <div style={{ minWidth: 3200 }}>
+        <div style={{ width: `${STATUS_TABLE_WIDTH}px`, minWidth: `${STATUS_TABLE_WIDTH}px` }}>
           <Table stickyHeader disableScrollWrapper>
+            <colgroup>
+              {columns.map((c) => (
+                <col
+                  key={String(c.key)}
+                  style={{ width: getStatusColWidth(c.key) }}
+                />
+              ))}
+            </colgroup>
         <thead>
           <tr>
             {columns.map((c) => (
@@ -545,19 +569,7 @@ export default function LogisticsMreqStatusTable() {
                       key={String(c.key)}
                       className={`capex-td ${c.key === "req_num" ? "capex-td-strong" : ""}`}
                       style={{
-                        whiteSpace:
-                          c.key === "mat_desc" ||
-                          c.key === "supplier_name" ||
-                          c.key === "warehouse_name" ||
-                          c.key === "cost_center_desc"
-                            ? "normal"
-                            : "nowrap",
-                        minWidth:
-                          c.key === "mat_desc" || c.key === "supplier_name"
-                            ? 240
-                            : c.key === "warehouse_name" || c.key === "cost_center_desc"
-                              ? 220
-                              : undefined,
+                        whiteSpace: "nowrap",
                         textAlign: c.type === "num" ? "right" : "left",
                       }}
                     >
