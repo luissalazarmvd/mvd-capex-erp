@@ -662,16 +662,8 @@ function RowItem({
     ? editedRowBg
     : rowBg;
 
-  const [openDropdown, setOpenDropdown] = useState<keyof TraceabilityRow | null>(null);
-
   return (
-    <tr
-      className="capex-tr"
-      style={{
-        position: "relative",
-        zIndex: openDropdown ? 99999 : "auto",
-      }}
-    >
+    <tr className="capex-tr">
       {COLUMNS.map((c) => {
         if (!c.editable) {
           const isNumber =
@@ -760,133 +752,62 @@ function RowItem({
               width: c.width || 110,
               minWidth: c.width || 110,
               maxWidth: c.width || 110,
-              overflow: c.kind === "select" ? "visible" : "hidden",
-              position: c.kind === "select" ? "relative" : "static",
-              zIndex: c.kind === "select" && openDropdown === c.key ? 9999 : "auto",
+              overflow: "hidden",
               boxSizing: "border-box",
             }}
           >
             {c.key === "pay_type" || c.key === "observation_desc" || c.key === "situation_desc" ? (
-              (() => {
-                const options =
-                  c.key === "pay_type"
-                    ? ["Transferencia"]
-                    : c.key === "observation_desc"
-                    ? OBSERVATION_OPTIONS
-                    : SITUATION_OPTIONS;
-
-                const currentValue = toText(draft[c.key]) || (c.key === "pay_type" ? "Transferencia" : "");
-                const isOpen = openDropdown === c.key;
-
-                return (
+              <select
+                ref={(el) => registerInput(key, c.key, el)}
+                defaultValue={toText(draft[c.key]) || (c.key === "pay_type" ? "Transferencia" : "")}
+                disabled={loading || saving}
+                onFocus={() => onCellFocus(key)}
+                onChange={(e) => onCellBlur(key, c.key, e.target.value)}
+                onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
+                style={{
+                  ...inputBase,
+                  width: "100%",
+                  minWidth: 0,
+                  maxWidth: "100%",
+                  padding: "6px 8px",
+                  cursor: loading || saving ? "not-allowed" : "pointer",
+                  ...(pendingValuation
+                    ? null
+                    : invalidUsdMatch
+                    ? {
+                        border: "1px solid rgba(255, 92, 92, 0.75)",
+                        background: "rgba(120, 30, 30, 0.22)",
+                      }
+                    : validUsdMatch
+                    ? {
+                        border: "1px solid rgba(92, 211, 158, 0.55)",
+                        background: "rgba(38, 120, 88, 0.18)",
+                      }
+                    : null),
+                }}
+              >
+                {c.key === "pay_type" ? (
+                  <option value="Transferencia">Transferencia</option>
+                ) : c.key === "observation_desc" ? (
                   <>
-                    <button
-                      type="button"
-                      className="input"
-                      disabled={loading || saving}
-                      onFocus={() => onCellFocus(key)}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setOpenDropdown((v) => (v === c.key ? null : c.key));
-                      }}
-                      style={{
-                        width: "100%",
-                        height: 40,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        textAlign: "left",
-                        cursor: loading || saving ? "not-allowed" : "pointer",
-                        fontWeight: 800,
-                        opacity: loading || saving ? 0.7 : 1,
-                        ...(pendingValuation
-                          ? null
-                          : invalidUsdMatch
-                          ? {
-                              border: "1px solid rgba(255, 92, 92, 0.75)",
-                              background: "rgba(120, 30, 30, 0.22)",
-                            }
-                          : validUsdMatch
-                          ? {
-                              border: "1px solid rgba(92, 211, 158, 0.55)",
-                              background: "rgba(38, 120, 88, 0.18)",
-                            }
-                          : null),
-                      }}
-                    >
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {currentValue || ""}
-                      </span>
-                      <span style={{ opacity: 0.8 }}>▾</span>
-                    </button>
-
-                    {isOpen ? (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 44,
-                          left: 4,
-                          zIndex: 99999,
-                          width:
-                            c.key === "observation_desc"
-                              ? 280
-                              : c.key === "situation_desc"
-                              ? 260
-                              : 180,
-                          minWidth: "100%",
-                          maxHeight: 320,
-                          overflowY: "auto",
-                          overflowX: "hidden",
-                          background: "#06192a",
-                          border: "1px solid rgba(191,231,255,0.22)",
-                          borderRadius: 12,
-                          boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
-                        }}
-                      >
-                        {options.map((x) => {
-                          const active = currentValue === x;
-
-                          return (
-                            <button
-                              key={x}
-                              type="button"
-                              className="req-status-dd-option"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onCellBlur(key, c.key, x);
-                                setOpenDropdown(null);
-                              }}
-                              style={{
-                                width: "100%",
-                                minHeight: 38,
-                                padding: "0 12px",
-                                border: 0,
-                                background: active ? "rgba(102,199,255,0.18)" : "transparent",
-                                color: "#eaf6ff",
-                                textAlign: "left",
-                                fontWeight: 900,
-                                fontSize: 12,
-                                cursor: "pointer",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {x}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : null}
+                    <option value=""></option>
+                    {OBSERVATION_OPTIONS.map((x) => (
+                      <option key={x} value={x}>
+                        {x}
+                      </option>
+                    ))}
                   </>
-                );
-              })()
+                ) : (
+                  <>
+                    <option value=""></option>
+                    {SITUATION_OPTIONS.map((x) => (
+                      <option key={x} value={x}>
+                        {x}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
             ) : (
               <input
                 ref={(el) => registerInput(key, c.key, el)}
