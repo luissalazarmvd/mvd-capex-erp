@@ -760,9 +760,9 @@ function RowItem({
               width: c.width || 110,
               minWidth: c.width || 110,
               maxWidth: c.width || 110,
-              overflow: c.kind === "select" ? "visible" : "hidden",
-              position: c.kind === "select" ? "relative" : "static",
-              zIndex: c.kind === "select" && openDropdown === c.key ? 9999 : "auto",
+              overflow: "hidden",
+              position: "static",
+              zIndex: "auto",
               boxSizing: "border-box",
             }}
           >
@@ -815,29 +815,9 @@ function RowItem({
                         alignItems: "center",
                         justifyContent: "space-between",
                         gap: 12,
-                        ...(pendingValuation
-                          ? null
-                          : invalidUsdMatch
-                          ? {
-                              border: "1px solid rgba(255, 92, 92, 0.75)",
-                              background: "rgba(120, 30, 30, 0.22)",
-                            }
-                          : validUsdMatch
-                          ? {
-                              border: "1px solid rgba(92, 211, 158, 0.55)",
-                              background: "rgba(38, 120, 88, 0.18)",
-                            }
-                          : null),
                       }}
                     >
-                      <span
-                        style={{
-                          opacity: currentValue ? 1 : 0.6,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
+                      <span style={{ opacity: currentValue ? 1 : 0.6 }}>
                         {currentLabel}
                       </span>
                       <span style={{ opacity: 0.8 }}>▾</span>
@@ -853,13 +833,6 @@ function RowItem({
                           boxShadow: "0 10px 30px rgba(0,0,0,.45)",
                           overflow: "auto",
                           maxHeight: 280,
-                          width:
-                            c.key === "observation_desc"
-                              ? 280
-                              : c.key === "situation_desc"
-                              ? 260
-                              : 180,
-                          minWidth: "100%",
                         }}
                       >
                         {options.map((o) => {
@@ -885,7 +858,6 @@ function RowItem({
                                 border: "none",
                                 cursor: "pointer",
                                 fontWeight: 900,
-                                whiteSpace: "nowrap",
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.background = active
