@@ -831,8 +831,10 @@ function RowItem({
                           border: "1px solid rgba(255,255,255,.10)",
                           background: "rgba(5, 25, 45, .98)",
                           boxShadow: "0 10px 30px rgba(0,0,0,.45)",
-                          overflow: "auto",
+                          overflowY: "auto",
+                          overflowX: "hidden",
                           maxHeight: 280,
+                          whiteSpace: "normal",
                         }}
                       >
                         {options.map((o) => {
@@ -858,6 +860,9 @@ function RowItem({
                                 border: "none",
                                 cursor: "pointer",
                                 fontWeight: 900,
+                                whiteSpace: "normal",
+                                lineHeight: "16px",
+                                wordBreak: "normal",
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.background = active
