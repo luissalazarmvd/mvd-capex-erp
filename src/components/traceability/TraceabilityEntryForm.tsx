@@ -1636,7 +1636,13 @@ useEffect(() => {
             Exportar Excel
           </Button>
 
-          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={loading || saving || hasInvalidEditedRows}>
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            onClick={onSaveAll}
+            disabled={loading || saving || editedCount === 0 || hasInvalidEditedRows}
+          >
             {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
