@@ -807,7 +807,11 @@ function RowItem({
                         setOpenDropdown((s) => (s === c.key ? null : c.key));
                       }}
                       style={{
-                        width: "100%",
+                        width:
+                          c.key === "observation_desc" || c.key === "situation_desc"
+                            ? Math.max(144, Math.min(290, currentLabel.length * 9 + 52))
+                            : "100%",
+                        minWidth: "100%",
                         textAlign: "left",
                         background: "rgba(0,0,0,.10)",
                         border: "1px solid var(--border)",
@@ -824,7 +828,12 @@ function RowItem({
                         gap: 12,
                       }}
                     >
-                      <span style={{ opacity: currentValue ? 1 : 0.6 }}>
+                      <span
+                        style={{
+                          opacity: currentValue ? 1 : 0.6,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {currentLabel}
                       </span>
                       <span style={{ opacity: 0.8 }}>▾</span>
