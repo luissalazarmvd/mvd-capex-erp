@@ -12,6 +12,9 @@ type TraceabilityRow = {
   entry_date: string | null;
   process_date: string | null;
   valuation_date: string | null;
+  observation_desc: string | null;
+  situation_desc: string | null;
+  reg_date: string | null;
   sack_qty: number | null;
   miner_name: string | null;
   plate: string | null;
@@ -68,6 +71,8 @@ type DraftRow = Record<keyof TraceabilityRow, string>;
 
 const EDITABLE_FIELDS = [
   "process_date",
+  "observation_desc",
+  "situation_desc",
   "transport_name",
   "transport_guide_number",
   "zone_1",
@@ -118,6 +123,10 @@ type SortKey =
   | "lot"
   | "entry_date"
   | "process_date"
+  | "valuation_date"
+  | "observation_desc"
+  | "situation_desc"
+  | "reg_date"
   | "miner_name"
   | "ruc"
   | "doc_date"
@@ -132,6 +141,10 @@ const SORTABLE_KEYS: SortKey[] = [
   "lot",
   "entry_date",
   "process_date",
+  "valuation_date",
+  "observation_desc",
+  "situation_desc",
+  "reg_date",
   "miner_name",
   "ruc",
   "doc_date",
@@ -141,16 +154,44 @@ const SORTABLE_KEYS: SortKey[] = [
 
 const PAGE_SIZE = 100;
 
+const OBSERVATION_OPTIONS = [
+  "Mineral por Retirar",
+  "Ley Baja",
+  "Pendiente Factura",
+  "No Comercial",
+  "Análisis de Testigo",
+  "Pago en Trámite",
+  "Pendiente PM",
+  "Sin Conformidad del Proveedor",
+  "Baja Recuperación",
+];
+
+const SITUATION_OPTIONS = [
+  "Mineral Inmovilizado",
+  "Pendiente PM",
+  "No Comercial",
+  "Deuda Sunat R/C",
+  "En Conciliación de Leyes",
+  "Con Factura",
+  "Valorizado",
+  "Pendiente Ley",
+];
+
 const COLUMNS: {
   key: keyof TraceabilityRow;
   label: string;
   editable: boolean;
-  kind: "text" | "date" | "number" | "readonly";
+  kind: "text" | "date" | "number" | "readonly" | "select";
   width?: number;
   sortable?: boolean;
 }[] = [
   { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110, sortable: true },
+  { key: "process_date", label: "F. Proceso", editable: true, kind: "date", width: 110, sortable: true },
+  { key: "valuation_date", label: "F. Valorización", editable: false, kind: "readonly", width: 120, sortable: true },
+  { key: "observation_desc", label: "Observación", editable: true, kind: "select", width: 160, sortable: true },
+  { key: "situation_desc", label: "Situación", editable: true, kind: "select", width: 160, sortable: true },
+  { key: "reg_date", label: "Fecha de Registro", editable: false, kind: "readonly", width: 130, sortable: true },
   { key: "tmh", label: "TMH", editable: true, kind: "number", width: 88 },
   { key: "h2o", label: "H2O", editable: true, kind: "number", width: 88 },
   { key: "tms", label: "TMS", editable: true, kind: "number", width: 88 },
@@ -169,7 +210,7 @@ const COLUMNS: {
   { key: "au_usd", label: "Au USD", editable: false, kind: "readonly", width: 88 },
   { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 88 },
   { key: "usd_tms", label: "USD/TMS", editable: false, kind: "readonly", width: 88 },
-  { key: "pay_type", label: "Tipo Pago", editable: true, kind: "text", width: 110 },
+  { key: "pay_type", label: "Tipo Pago", editable: true, kind: "select", width: 160 },
   { key: "dif_rc", label: "Dif (R-C)", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "monto_calc", label: "Monto Calc.", editable: false, kind: "readonly", width: 110 },
   { key: "lot_usd", label: "Factura (USD)", editable: false, kind: "readonly", width: 110 },
@@ -242,6 +283,11 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
 
     if (c.key === "pay_type") {
       out[c.key] = isBlank(r[c.key]) ? "Transferencia" : toText(r[c.key]);
+      continue;
+    }
+
+    if (c.key === "observation_desc" || c.key === "situation_desc") {
+      out[c.key] = toText(r[c.key]);
       continue;
     }
 
@@ -380,6 +426,11 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
 
     if (f === "pay_type") {
       payload[f] = raw || "Transferencia";
+      continue;
+    }
+
+    if (f === "observation_desc" || f === "situation_desc") {
+      if (raw) payload[f] = raw;
       continue;
     }
 
@@ -529,19 +580,7 @@ function matchesLot(row: TraceabilityRow, lotFilter: string) {
   const filter = String(lotFilter || "").trim().toLowerCase();
   if (!filter) return true;
 
-  const values = [
-    row.lot,
-    row.doc_number,
-    row.miner_name,
-    row.plate,
-    row.ruc,
-    row.concession_name,
-    row.concession_code,
-    row.district,
-    row.province,
-    row.department,
-    row.sender_guide_number,
-  ];
+  const values = Object.values(row);
 
   return values.some((value) =>
     String(value || "").trim().toLowerCase().includes(filter)
@@ -592,6 +631,7 @@ type RowItemProps = {
   rowBg: string;
   editedRowBg: string;
   invalidRowBg: string;
+  columnWidths: Partial<Record<keyof TraceabilityRow, number>>;
 };
 
 function RowItem({
@@ -613,6 +653,7 @@ function RowItem({
   rowBg,
   editedRowBg,
   invalidRowBg,
+  columnWidths,
 }: RowItemProps) {
   const key = String(row.lot || "").trim();
   const currentRowBg = pendingValuation
@@ -623,9 +664,19 @@ function RowItem({
     ? editedRowBg
     : rowBg;
 
+  const [openDropdown, setOpenDropdown] = useState<keyof TraceabilityRow | null>(null);
+
   return (
-    <tr className="capex-tr">
+    <tr
+      className="capex-tr"
+      style={{
+        position: "relative",
+        zIndex: openDropdown ? 99999 : "auto",
+      }}
+    >
       {COLUMNS.map((c) => {
+        const colWidth = columnWidths[c.key] ?? c.width ?? 110;
+
         if (!c.editable) {
           const isNumber =
             c.kind === "number" ||
@@ -684,9 +735,9 @@ function RowItem({
                 background: currentRowBg,
                 textAlign: isNumber ? "right" : "left",
                 fontWeight: 400,
-                width: c.width || 110,
-                minWidth: c.width || 110,
-                maxWidth: c.width || 110,
+                width: colWidth,
+                minWidth: colWidth,
+                maxWidth: colWidth,
                 padding: isNumber ? "6px 4px" : "6px 8px",
                 color: invalidUsdMatch && (c.key === "usd_tms" || c.key === "lot_usd" || c.key === "tms")
                   ? "rgb(255,170,170)"
@@ -710,44 +761,154 @@ function RowItem({
               borderRight: gridV,
               background: currentRowBg,
               padding: c.kind === "number" ? "4px" : "6px 8px",
-              width: c.width || 110,
-              minWidth: c.width || 110,
-              maxWidth: c.width || 110,
-              overflow: "hidden",
+              width: colWidth,
+              minWidth: colWidth,
+              maxWidth: colWidth,
+              overflow: c.kind === "select" ? "visible" : "hidden",
+              position: c.kind === "select" ? "relative" : "static",
+              zIndex: c.kind === "select" && openDropdown === c.key ? 9999 : "auto",
               boxSizing: "border-box",
             }}
           >
-            {c.key === "pay_type" ? (
-              <select
-                ref={(el) => registerInput(key, c.key, el)}
-                defaultValue={toText(draft[c.key]) || "Transferencia"}
-                disabled={loading || saving}
-                onFocus={() => onCellFocus(key)}
-                onChange={(e) => onCellBlur(key, c.key, e.target.value)}
-                onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
-                style={{
-                  ...inputBase,
-                  width: "100%",
-                  minWidth: 0,
-                  maxWidth: "100%",
-                  padding: "6px 8px",
-                  ...(pendingValuation
-                    ? null
-                    : invalidUsdMatch
-                    ? {
-                        border: "1px solid rgba(255, 92, 92, 0.75)",
-                        background: "rgba(120, 30, 30, 0.22)",
-                      }
-                    : validUsdMatch
-                    ? {
-                        border: "1px solid rgba(92, 211, 158, 0.55)",
-                        background: "rgba(38, 120, 88, 0.18)",
-                      }
-                    : null),
-                }}
-              >
-                <option value="Transferencia">Transferencia</option>
-              </select>
+            {c.key === "pay_type" || c.key === "observation_desc" || c.key === "situation_desc" ? (
+              (() => {
+                const options =
+                  c.key === "pay_type"
+                    ? [{ value: "Transferencia", label: "Transferencia" }]
+                    : c.key === "observation_desc"
+                    ? [
+                        { value: "", label: "Selecciona..." },
+                        ...OBSERVATION_OPTIONS.map((x) => ({ value: x, label: x })),
+                      ]
+                    : [
+                        { value: "", label: "Selecciona..." },
+                        ...SITUATION_OPTIONS.map((x) => ({ value: x, label: x })),
+                      ];
+
+                const currentValue = toText(draft[c.key]) || (c.key === "pay_type" ? "Transferencia" : "");
+                const currentLabel =
+                  options.find((o) => o.value === currentValue)?.label ??
+                  options.find((o) => o.value === "")?.label ??
+                  "";
+
+                return (
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 6,
+                      overflow: "visible",
+                      position: "relative",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      disabled={loading || saving}
+                      onFocus={() => onCellFocus(key)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (loading || saving) return;
+                        setOpenDropdown((s) => (s === c.key ? null : c.key));
+                      }}
+                      style={{
+                        width: "100%",
+                        minWidth: 0,
+                        textAlign: "left",
+                        background: "rgba(0,0,0,.10)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        outline: "none",
+                        fontWeight: 900,
+                        cursor: loading || saving ? "not-allowed" : "pointer",
+                        opacity: loading || saving ? 0.7 : 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                      }}
+                    >
+                      <span
+                        style={{
+                          opacity: currentValue ? 1 : 0.6,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {currentLabel}
+                      </span>
+                      <span style={{ opacity: 0.8 }}>▾</span>
+                    </button>
+
+                    {openDropdown === c.key ? (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 8px)",
+                          left: 0,
+                          zIndex: 99999,
+                          borderRadius: 12,
+                          border: "1px solid rgba(255,255,255,.10)",
+                          background: "rgba(5, 25, 45, .98)",
+                          boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+                          overflowY: "auto",
+                          overflowX: "hidden",
+                          maxHeight: 280,
+                          width:
+                            c.key === "observation_desc"
+                              ? 280
+                              : c.key === "situation_desc"
+                              ? 260
+                              : 180,
+                          minWidth: "100%",
+                          whiteSpace: "normal",
+                        }}
+                      >
+                        {options.map((o) => {
+                          const active = o.value === currentValue;
+                          const isEmpty = o.value === "";
+
+                          return (
+                            <button
+                              key={o.value || "__empty__"}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onCellBlur(key, c.key, o.value);
+                                setOpenDropdown(null);
+                              }}
+                              style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "10px 12px",
+                                background: active ? "rgba(102,199,255,.18)" : "transparent",
+                                color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                                border: "none",
+                                cursor: "pointer",
+                                fontWeight: 900,
+                                whiteSpace: "normal",
+                                lineHeight: "16px",
+                                wordBreak: "normal",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = active
+                                  ? "rgba(102,199,255,.18)"
+                                  : "rgba(255,255,255,.06)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                              }}
+                            >
+                              {o.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })()
             ) : (
               <input
                 ref={(el) => registerInput(key, c.key, el)}
@@ -1047,6 +1208,30 @@ useEffect(() => {
   const activeFacturaCalculada = activeDraft ? calcFacturaCalculada(activeDraft) : null;
   const activeFacturaReal = activeDraft ? toNumOrNull(activeDraft.lot_usd) : null;
 
+  const dynamicColumnWidths = useMemo<Partial<Record<keyof TraceabilityRow, number>>>(() => {
+    editedTick;
+
+    const getTextWidth = (field: "observation_desc" | "situation_desc") => {
+      const values = rows.map((row) => {
+        const rowKey = String(row.lot || "").trim();
+        const draft = draftsRef.current[rowKey] ?? toDraftRow(row);
+        return toText(draft[field]) || "Selecciona...";
+      });
+
+      const maxLength = Math.max(
+        "Selecciona...".length,
+        ...values.map((x) => x.length)
+      );
+
+      return Math.max(160, Math.min(300, maxLength * 9 + 64));
+    };
+
+    return {
+      observation_desc: getTextWidth("observation_desc"),
+      situation_desc: getTextWidth("situation_desc"),
+    };
+  }, [rows, editedTick]);
+
   const registerInput = useCallback((
     key: string,
     field: keyof TraceabilityRow,
@@ -1233,8 +1418,11 @@ useEffect(() => {
     const exportRows = preparedRows.map((row) => {
       return {
         "F ingreso": row.entry_date ?? "",
-        "F valorizacion": row.valuation_date ?? "",
         "F proceso": row.process_date ?? "",
+        "F valorizacion": row.valuation_date ?? "",
+        "Observación": row.observation_desc ?? "",
+        "Situación": row.situation_desc ?? "",
+        "Fecha de Registro": row.reg_date ?? "",
         "Lote": row.lot ?? "",
         "Sacos": row.sack_qty ?? "",
         "Minero": row.miner_name ?? "",
@@ -1286,9 +1474,9 @@ useEffect(() => {
     for (let i = 0; i < exportRows.length; i++) {
       const excelRow = i + 2;
 
-      ws[`AN${excelRow}`] = {
+      ws[`AQ${excelRow}`] = {
         t: "n",
-        f: `ROUND(ROUND((((V${excelRow}*AA${excelRow}*0.01)*(AC${excelRow}-AD${excelRow})-AE${excelRow}-AF${excelRow}-AG${excelRow})*1.1023),2)*ROUND(U${excelRow},3)+IF(AJ${excelRow}="",0,AJ${excelRow}),2)`
+        f: `ROUND(ROUND((((Y${excelRow}*AD${excelRow}*0.01)*(AF${excelRow}-AG${excelRow})-AH${excelRow}-AI${excelRow}-AJ${excelRow})*1.1023),2)*ROUND(X${excelRow},3)+IF(AM${excelRow}="",0,AM${excelRow}),2)`
       };
     }
     ws["!cols"] = [
@@ -1623,7 +1811,7 @@ useEffect(() => {
               type="text"
               value={lotFilter}
               onChange={(e) => setLotFilter(e.target.value)}
-              placeholder="Buscar lote, factura, minero, placa, RUC, concesión..."
+              placeholder="Buscar lote, factura, minero, placa, RUC, concesión, observación, situación..."
               style={{ ...inputBase, minWidth: 170 }}
             />
           </div>
@@ -1636,7 +1824,7 @@ useEffect(() => {
             Exportar Excel
           </Button>
 
-          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={loading || saving || hasInvalidEditedRows}>
+          <Button type="button" size="sm" variant="primary" onClick={onSaveAll} disabled={loading || saving || editedCount === 0 || hasInvalidEditedRows}>
             {saving ? "Guardando…" : "Guardar"}
           </Button>
         </div>
@@ -1688,9 +1876,9 @@ useEffect(() => {
                 <col
                   key={String(c.key)}
                   style={{
-                    width: c.width || 110,
-                    minWidth: c.width || 110,
-                    maxWidth: c.width || 110,
+                    width: dynamicColumnWidths[c.key] ?? c.width ?? 110,
+                    minWidth: dynamicColumnWidths[c.key] ?? c.width ?? 110,
+                    maxWidth: dynamicColumnWidths[c.key] ?? c.width ?? 110,
                   }}
                 />
               ))}
@@ -1713,9 +1901,9 @@ useEffect(() => {
                         textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
                         padding: c.kind === "number" ? "8px 4px" : "8px 8px",
                         fontSize: 12,
-                        width: c.width || 110,
-                        minWidth: c.width || 110,
-                        maxWidth: c.width || 110,
+                        width: dynamicColumnWidths[c.key] ?? c.width ?? 110,
+                        minWidth: dynamicColumnWidths[c.key] ?? c.width ?? 110,
+                        maxWidth: dynamicColumnWidths[c.key] ?? c.width ?? 110,
                         cursor: sortable ? "pointer" : "default",
                         userSelect: "none",
                         overflow: "hidden",
@@ -1757,6 +1945,7 @@ useEffect(() => {
                     rowBg={rowBg}
                     editedRowBg={editedRowBg}
                     invalidRowBg={invalidRowBg}
+                    columnWidths={dynamicColumnWidths}
                   />
                 );
               })}
@@ -1834,6 +2023,12 @@ useEffect(() => {
           </Button>
         </div>
       </div>
+
+      <style jsx global>{`
+        .req-status-dd-option:hover {
+          background: rgba(102, 199, 255, 0.12) !important;
+        }
+      `}</style>
     </div>
   );
 }
