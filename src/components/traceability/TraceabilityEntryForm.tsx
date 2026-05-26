@@ -210,7 +210,7 @@ const COLUMNS: {
   { key: "au_usd", label: "Au USD", editable: false, kind: "readonly", width: 88 },
   { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 88 },
   { key: "usd_tms", label: "USD/TMS", editable: false, kind: "readonly", width: 88 },
-  { key: "pay_type", label: "Tipo Pago", editable: true, kind: "select", width: 110 },
+  { key: "pay_type", label: "Tipo Pago", editable: true, kind: "select", width: 160 },
   { key: "dif_rc", label: "Dif (R-C)", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "monto_calc", label: "Monto Calc.", editable: false, kind: "readonly", width: 110 },
   { key: "lot_usd", label: "Factura (USD)", editable: false, kind: "readonly", width: 110 },
@@ -760,9 +760,9 @@ function RowItem({
               width: c.width || 110,
               minWidth: c.width || 110,
               maxWidth: c.width || 110,
-              overflow: "hidden",
-              position: "static",
-              zIndex: "auto",
+              overflow: c.kind === "select" ? "visible" : "hidden",
+              position: c.kind === "select" ? "relative" : "static",
+              zIndex: c.kind === "select" && openDropdown === c.key ? 9999 : "auto",
               boxSizing: "border-box",
             }}
           >
@@ -788,7 +788,14 @@ function RowItem({
                   "";
 
                 return (
-                  <div style={{ display: "grid", gap: 6, overflow: "visible" }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 6,
+                      overflow: "visible",
+                      position: "relative",
+                    }}
+                  >
                     <button
                       type="button"
                       disabled={loading || saving}
@@ -826,7 +833,10 @@ function RowItem({
                     {openDropdown === c.key ? (
                       <div
                         style={{
-                          marginTop: 8,
+                          position: "absolute",
+                          top: "calc(100% + 8px)",
+                          left: 0,
+                          zIndex: 99999,
                           borderRadius: 12,
                           border: "1px solid rgba(255,255,255,.10)",
                           background: "rgba(5, 25, 45, .98)",
@@ -834,6 +844,13 @@ function RowItem({
                           overflowY: "auto",
                           overflowX: "hidden",
                           maxHeight: 280,
+                          width:
+                            c.key === "observation_desc"
+                              ? 280
+                              : c.key === "situation_desc"
+                              ? 260
+                              : 180,
+                          minWidth: "100%",
                           whiteSpace: "normal",
                         }}
                       >
