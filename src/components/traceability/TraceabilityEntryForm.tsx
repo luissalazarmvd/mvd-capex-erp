@@ -769,8 +769,15 @@ function RowItem({
                   width: "100%",
                   minWidth: 0,
                   maxWidth: "100%",
-                  padding: "6px 8px",
+                  padding: "10px 12px",
+                  background: "rgba(0,0,0,.10)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  borderRadius: 10,
+                  outline: "none",
+                  fontWeight: 900,
                   cursor: loading || saving ? "not-allowed" : "pointer",
+                  opacity: loading || saving ? 0.7 : 1,
                   ...(pendingValuation
                     ? null
                     : invalidUsdMatch
@@ -787,12 +794,14 @@ function RowItem({
                 }}
               >
                 {c.key === "pay_type" ? (
-                  <option value="Transferencia">Transferencia</option>
+                  <option value="Transferencia" style={{ background: "rgba(5, 25, 45, .98)", color: "rgba(255,255,255,.92)", fontWeight: 900 }}>
+                    Transferencia
+                  </option>
                 ) : c.key === "observation_desc" ? (
                   <>
                     <option value=""></option>
                     {OBSERVATION_OPTIONS.map((x) => (
-                      <option key={x} value={x}>
+                      <option key={x} value={x} style={{ background: "rgba(5, 25, 45, .98)", color: "rgba(255,255,255,.92)", fontWeight: 900 }}>
                         {x}
                       </option>
                     ))}
@@ -801,7 +810,7 @@ function RowItem({
                   <>
                     <option value=""></option>
                     {SITUATION_OPTIONS.map((x) => (
-                      <option key={x} value={x}>
+                      <option key={x} value={x} style={{ background: "rgba(5, 25, 45, .98)", color: "rgba(255,255,255,.92)", fontWeight: 900 }}>
                         {x}
                       </option>
                     ))}
