@@ -756,7 +756,7 @@ function RowItem({
               maxWidth: c.width || 110,
               overflow: c.kind === "select" ? "visible" : "hidden",
               position: c.kind === "select" ? "relative" : "static",
-              zIndex: c.kind === "select" && openDropdown === c.key ? 50 : "auto",
+              zIndex: c.kind === "select" && openDropdown === c.key ? 9999 : "auto",
               boxSizing: "border-box",
             }}
           >
@@ -816,7 +816,7 @@ function RowItem({
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {currentValue}
+                        {currentValue || ""}
                       </span>
                       <span style={{ opacity: 0.8 }}>▾</span>
                     </button>
@@ -827,12 +827,20 @@ function RowItem({
                           position: "absolute",
                           top: 44,
                           left: 4,
-                          right: 4,
-                          zIndex: 200,
+                          zIndex: 99999,
+                          width:
+                            c.key === "observation_desc"
+                              ? 280
+                              : c.key === "situation_desc"
+                              ? 260
+                              : 180,
+                          minWidth: "100%",
+                          maxHeight: 320,
+                          overflowY: "auto",
+                          overflowX: "hidden",
                           background: "#06192a",
                           border: "1px solid rgba(191,231,255,0.22)",
                           borderRadius: 12,
-                          overflow: "hidden",
                           boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
                         }}
                       >
@@ -848,16 +856,20 @@ function RowItem({
                             }}
                             style={{
                               width: "100%",
-                              height: 38,
+                              minHeight: 38,
                               padding: "0 12px",
                               border: 0,
                               background: currentValue === "" ? "rgba(102,199,255,0.18)" : "transparent",
-                              color: "var(--text)",
+                              color: "#eaf6ff",
                               textAlign: "left",
                               fontWeight: 900,
+                              fontSize: 12,
                               cursor: "pointer",
+                              whiteSpace: "nowrap",
                             }}
-                          />
+                          >
+                            Sin selección
+                          </button>
                         ) : null}
 
                         {options.map((x) => {
@@ -876,14 +888,16 @@ function RowItem({
                               }}
                               style={{
                                 width: "100%",
-                                height: 38,
+                                minHeight: 38,
                                 padding: "0 12px",
                                 border: 0,
                                 background: active ? "rgba(102,199,255,0.18)" : "transparent",
-                                color: "var(--text)",
+                                color: "#eaf6ff",
                                 textAlign: "left",
                                 fontWeight: 900,
+                                fontSize: 12,
                                 cursor: "pointer",
+                                whiteSpace: "nowrap",
                               }}
                             >
                               {x}
