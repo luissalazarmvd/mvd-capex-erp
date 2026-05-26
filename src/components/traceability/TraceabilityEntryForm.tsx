@@ -631,6 +631,7 @@ type RowItemProps = {
   rowBg: string;
   editedRowBg: string;
   invalidRowBg: string;
+  columnWidths: Partial<Record<keyof TraceabilityRow, number>>;
 };
 
 function RowItem({
@@ -652,6 +653,7 @@ function RowItem({
   rowBg,
   editedRowBg,
   invalidRowBg,
+  columnWidths,
 }: RowItemProps) {
   const key = String(row.lot || "").trim();
   const currentRowBg = pendingValuation
@@ -673,6 +675,8 @@ function RowItem({
       }}
     >
       {COLUMNS.map((c) => {
+        const colWidth = columnWidths[c.key] ?? c.width ?? 110;
+
         if (!c.editable) {
           const isNumber =
             c.kind === "number" ||
@@ -731,9 +735,9 @@ function RowItem({
                 background: currentRowBg,
                 textAlign: isNumber ? "right" : "left",
                 fontWeight: 400,
-                width: c.width || 110,
-                minWidth: c.width || 110,
-                maxWidth: c.width || 110,
+                width: colWidth,
+                minWidth: colWidth,
+                maxWidth: colWidth,
                 padding: isNumber ? "6px 4px" : "6px 8px",
                 color: invalidUsdMatch && (c.key === "usd_tms" || c.key === "lot_usd" || c.key === "tms")
                   ? "rgb(255,170,170)"
@@ -757,9 +761,9 @@ function RowItem({
               borderRight: gridV,
               background: currentRowBg,
               padding: c.kind === "number" ? "4px" : "6px 8px",
-              width: c.width || 110,
-              minWidth: c.width || 110,
-              maxWidth: c.width || 110,
+              width: colWidth,
+              minWidth: colWidth,
+              maxWidth: colWidth,
               overflow: c.kind === "select" ? "visible" : "hidden",
               position: c.kind === "select" ? "relative" : "static",
               zIndex: c.kind === "select" && openDropdown === c.key ? 9999 : "auto",
@@ -807,11 +811,8 @@ function RowItem({
                         setOpenDropdown((s) => (s === c.key ? null : c.key));
                       }}
                       style={{
-                        width:
-                          c.key === "observation_desc" || c.key === "situation_desc"
-                            ? Math.max(144, Math.min(290, currentLabel.length * 9 + 52))
-                            : "100%",
-                        minWidth: "100%",
+                        width: "100%",
+                        minWidth: 0,
                         textAlign: "left",
                         background: "rgba(0,0,0,.10)",
                         border: "1px solid var(--border)",
@@ -1206,6 +1207,30 @@ useEffect(() => {
   const activeDraft = activeLot ? draftsRef.current[activeLot] : undefined;
   const activeFacturaCalculada = activeDraft ? calcFacturaCalculada(activeDraft) : null;
   const activeFacturaReal = activeDraft ? toNumOrNull(activeDraft.lot_usd) : null;
+
+  const dynamicColumnWidths = useMemo<Partial<Record<keyof TraceabilityRow, number>>>(() => {
+    editedTick;
+
+    const getTextWidth = (field: "observation_desc" | "situation_desc") => {
+      const values = rows.map((row) => {
+        const rowKey = String(row.lot || "").trim();
+        const draft = draftsRef.current[rowKey] ?? toDraftRow(row);
+        return toText(draft[field]) || "Selecciona...";
+      });
+
+      const maxLength = Math.max(
+        "Selecciona...".length,
+        ...values.map((x) => x.length)
+      );
+
+      return Math.max(160, Math.min(300, maxLength * 9 + 64));
+    };
+
+    return {
+      observation_desc: getTextWidth("observation_desc"),
+      situation_desc: getTextWidth("situation_desc"),
+    };
+  }, [rows, editedTick]);
 
   const registerInput = useCallback((
     key: string,
@@ -1851,9 +1876,9 @@ useEffect(() => {
                 <col
                   key={String(c.key)}
                   style={{
-                    width: c.width || 110,
-                    minWidth: c.width || 110,
-                    maxWidth: c.width || 110,
+                    width: dynamicColumnWidths[c.key] ?? c.width ?? 110,
+                    minWidth: dynamicColumnWidths[c.key] ?? c.width ?? 110,
+                    maxWidth: dynamicColumnWidths[c.key] ?? c.width ?? 110,
                   }}
                 />
               ))}
@@ -1876,9 +1901,9 @@ useEffect(() => {
                         textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
                         padding: c.kind === "number" ? "8px 4px" : "8px 8px",
                         fontSize: 12,
-                        width: c.width || 110,
-                        minWidth: c.width || 110,
-                        maxWidth: c.width || 110,
+                        width: dynamicColumnWidths[c.key] ?? c.width ?? 110,
+                        minWidth: dynamicColumnWidths[c.key] ?? c.width ?? 110,
+                        maxWidth: dynamicColumnWidths[c.key] ?? c.width ?? 110,
                         cursor: sortable ? "pointer" : "default",
                         userSelect: "none",
                         overflow: "hidden",
@@ -1920,6 +1945,7 @@ useEffect(() => {
                     rowBg={rowBg}
                     editedRowBg={editedRowBg}
                     invalidRowBg={invalidRowBg}
+                    columnWidths={dynamicColumnWidths}
                   />
                 );
               })}
