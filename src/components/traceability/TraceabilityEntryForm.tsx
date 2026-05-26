@@ -665,7 +665,13 @@ function RowItem({
   const [openDropdown, setOpenDropdown] = useState<keyof TraceabilityRow | null>(null);
 
   return (
-    <tr className="capex-tr">
+    <tr
+      className="capex-tr"
+      style={{
+        position: "relative",
+        zIndex: openDropdown ? 99999 : "auto",
+      }}
+    >
       {COLUMNS.map((c) => {
         if (!c.editable) {
           const isNumber =
@@ -844,34 +850,6 @@ function RowItem({
                           boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
                         }}
                       >
-                        {c.key !== "pay_type" ? (
-                          <button
-                            type="button"
-                            className="req-status-dd-option"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onCellBlur(key, c.key, "");
-                              setOpenDropdown(null);
-                            }}
-                            style={{
-                              width: "100%",
-                              minHeight: 38,
-                              padding: "0 12px",
-                              border: 0,
-                              background: currentValue === "" ? "rgba(102,199,255,0.18)" : "transparent",
-                              color: "#eaf6ff",
-                              textAlign: "left",
-                              fontWeight: 900,
-                              fontSize: 12,
-                              cursor: "pointer",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Sin selección
-                          </button>
-                        ) : null}
-
                         {options.map((x) => {
                           const active = currentValue === x;
 
