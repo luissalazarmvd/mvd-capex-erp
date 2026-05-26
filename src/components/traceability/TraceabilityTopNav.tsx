@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { href: "/traceability/upload", label: "Datos Valorización" },
   { href: "/traceability/entries", label: "Validar Datos" },
-  { href: "/traceability/summary", label: "Resumen" },
+  { href: "/traceability/summary", label: "Mineral No Disponible" },
 ];
 
 export default function TraceabilityTopNav() {
