@@ -662,8 +662,16 @@ function RowItem({
     ? editedRowBg
     : rowBg;
 
+  const [openDropdown, setOpenDropdown] = useState<keyof TraceabilityRow | null>(null);
+
   return (
-    <tr className="capex-tr">
+    <tr
+      className="capex-tr"
+      style={{
+        position: "relative",
+        zIndex: openDropdown ? 99999 : "auto",
+      }}
+    >
       {COLUMNS.map((c) => {
         if (!c.editable) {
           const isNumber =
@@ -752,71 +760,151 @@ function RowItem({
               width: c.width || 110,
               minWidth: c.width || 110,
               maxWidth: c.width || 110,
-              overflow: "hidden",
+              overflow: c.kind === "select" ? "visible" : "hidden",
+              position: c.kind === "select" ? "relative" : "static",
+              zIndex: c.kind === "select" && openDropdown === c.key ? 9999 : "auto",
               boxSizing: "border-box",
             }}
           >
             {c.key === "pay_type" || c.key === "observation_desc" || c.key === "situation_desc" ? (
-              <select
-                ref={(el) => registerInput(key, c.key, el)}
-                defaultValue={toText(draft[c.key]) || (c.key === "pay_type" ? "Transferencia" : "")}
-                disabled={loading || saving}
-                onFocus={() => onCellFocus(key)}
-                onChange={(e) => onCellBlur(key, c.key, e.target.value)}
-                onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
-                style={{
-                  ...inputBase,
-                  width: "100%",
-                  minWidth: 0,
-                  maxWidth: "100%",
-                  padding: "10px 12px",
-                  background: "rgba(0,0,0,.10)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                  borderRadius: 10,
-                  outline: "none",
-                  fontWeight: 900,
-                  cursor: loading || saving ? "not-allowed" : "pointer",
-                  opacity: loading || saving ? 0.7 : 1,
-                  ...(pendingValuation
-                    ? null
-                    : invalidUsdMatch
-                    ? {
-                        border: "1px solid rgba(255, 92, 92, 0.75)",
-                        background: "rgba(120, 30, 30, 0.22)",
-                      }
-                    : validUsdMatch
-                    ? {
-                        border: "1px solid rgba(92, 211, 158, 0.55)",
-                        background: "rgba(38, 120, 88, 0.18)",
-                      }
-                    : null),
-                }}
-              >
-                {c.key === "pay_type" ? (
-                  <option value="Transferencia" style={{ background: "rgba(5, 25, 45, .98)", color: "rgba(255,255,255,.92)", fontWeight: 900 }}>
-                    Transferencia
-                  </option>
-                ) : c.key === "observation_desc" ? (
-                  <>
-                    <option value=""></option>
-                    {OBSERVATION_OPTIONS.map((x) => (
-                      <option key={x} value={x} style={{ background: "rgba(5, 25, 45, .98)", color: "rgba(255,255,255,.92)", fontWeight: 900 }}>
-                        {x}
-                      </option>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <option value=""></option>
-                    {SITUATION_OPTIONS.map((x) => (
-                      <option key={x} value={x} style={{ background: "rgba(5, 25, 45, .98)", color: "rgba(255,255,255,.92)", fontWeight: 900 }}>
-                        {x}
-                      </option>
-                    ))}
-                  </>
-                )}
-              </select>
+              (() => {
+                const options =
+                  c.key === "pay_type"
+                    ? [{ value: "Transferencia", label: "Transferencia" }]
+                    : c.key === "observation_desc"
+                    ? [
+                        { value: "", label: "Selecciona..." },
+                        ...OBSERVATION_OPTIONS.map((x) => ({ value: x, label: x })),
+                      ]
+                    : [
+                        { value: "", label: "Selecciona..." },
+                        ...SITUATION_OPTIONS.map((x) => ({ value: x, label: x })),
+                      ];
+
+                const currentValue = toText(draft[c.key]) || (c.key === "pay_type" ? "Transferencia" : "");
+                const currentLabel =
+                  options.find((o) => o.value === currentValue)?.label ??
+                  options.find((o) => o.value === "")?.label ??
+                  "";
+
+                return (
+                  <div style={{ display: "grid", gap: 6, overflow: "visible" }}>
+                    <button
+                      type="button"
+                      disabled={loading || saving}
+                      onFocus={() => onCellFocus(key)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (loading || saving) return;
+                        setOpenDropdown((s) => (s === c.key ? null : c.key));
+                      }}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        background: "rgba(0,0,0,.10)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        outline: "none",
+                        fontWeight: 900,
+                        cursor: loading || saving ? "not-allowed" : "pointer",
+                        opacity: loading || saving ? 0.7 : 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        ...(pendingValuation
+                          ? null
+                          : invalidUsdMatch
+                          ? {
+                              border: "1px solid rgba(255, 92, 92, 0.75)",
+                              background: "rgba(120, 30, 30, 0.22)",
+                            }
+                          : validUsdMatch
+                          ? {
+                              border: "1px solid rgba(92, 211, 158, 0.55)",
+                              background: "rgba(38, 120, 88, 0.18)",
+                            }
+                          : null),
+                      }}
+                    >
+                      <span
+                        style={{
+                          opacity: currentValue ? 1 : 0.6,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {currentLabel}
+                      </span>
+                      <span style={{ opacity: 0.8 }}>▾</span>
+                    </button>
+
+                    {openDropdown === c.key ? (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          borderRadius: 12,
+                          border: "1px solid rgba(255,255,255,.10)",
+                          background: "rgba(5, 25, 45, .98)",
+                          boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+                          overflow: "auto",
+                          maxHeight: 280,
+                          width:
+                            c.key === "observation_desc"
+                              ? 280
+                              : c.key === "situation_desc"
+                              ? 260
+                              : 180,
+                          minWidth: "100%",
+                        }}
+                      >
+                        {options.map((o) => {
+                          const active = o.value === currentValue;
+                          const isEmpty = o.value === "";
+
+                          return (
+                            <button
+                              key={o.value || "__empty__"}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onCellBlur(key, c.key, o.value);
+                                setOpenDropdown(null);
+                              }}
+                              style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "10px 12px",
+                                background: active ? "rgba(102,199,255,.18)" : "transparent",
+                                color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                                border: "none",
+                                cursor: "pointer",
+                                fontWeight: 900,
+                                whiteSpace: "nowrap",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = active
+                                  ? "rgba(102,199,255,.18)"
+                                  : "rgba(255,255,255,.06)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                              }}
+                            >
+                              {o.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })()
             ) : (
               <input
                 ref={(el) => registerInput(key, c.key, el)}
