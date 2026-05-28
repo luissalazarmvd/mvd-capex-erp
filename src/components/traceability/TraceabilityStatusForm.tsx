@@ -51,7 +51,7 @@ type SortKey = keyof TraceabilityRow;
 type SortDir = "asc" | "desc";
 type StatusFilter = "all" | "pending" | "mapped";
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50;
 
 const OBSERVATION_OPTIONS = [
   "Mineral por Retirar",
@@ -149,9 +149,23 @@ function formatNumber(value: unknown, decimals = 2) {
   });
 }
 
+function formatDateYyyyMmDd(value: unknown) {
+  const v = String(value ?? "").trim();
+  if (!v) return "";
+
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return v.slice(0, 10);
+
+  return d.toISOString().slice(0, 10);
+}
+
 function formatDisplayValue(key: keyof TraceabilityRow, value: unknown) {
   if (isBlank(value)) return "";
 
+  if (key === "entry_date") return formatDateYyyyMmDd(value);
   if (PERCENT_FIELDS.includes(key)) return `${formatNumber(value, 2)}%`;
   if (MONEY_FIELDS.includes(key)) return `$${formatNumber(value, 2)}`;
   if (DECIMAL_3_FIELDS.includes(key)) return formatNumber(value, 3);
@@ -292,7 +306,7 @@ function compareByKey(
 }
 
 function inDateRange(entryDate: string | null, from: string, to: string) {
-  const d = String(entryDate || "").trim();
+  const d = formatDateYyyyMmDd(entryDate);
   if (!d) return !from && !to;
   if (from && d < from) return false;
   if (to && d > to) return false;
@@ -641,7 +655,7 @@ export default function TraceabilityStatusForm() {
 
   const entryDateBounds = useMemo(() => {
     const dates = rows
-      .map((row) => String(row.entry_date || "").trim())
+      .map((row) => formatDateYyyyMmDd(row.entry_date))
       .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
       .sort();
 
@@ -892,7 +906,16 @@ export default function TraceabilityStatusForm() {
         setMsg(`ERROR: no se pudo guardar ninguna fila. ${failedMessages.join(" | ")}`);
       }
 
-      await loadData();
+      for (const lot of okLots) {
+        const key = String(lot || "").trim();
+        const current = draftsRef.current[key];
+
+        if (current) {
+          originalsRef.current[key] = { ...current };
+        }
+      }
+
+      setEditedTick((v) => v + 1);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo guardar")}`);
     } finally {
@@ -907,25 +930,25 @@ export default function TraceabilityStatusForm() {
 
       return {
         Lote: row.lot ?? "",
-        "F. Ingreso": row.entry_date ?? "",
+        "F. Ingreso": formatDateYyyyMmDd(row.entry_date),
         Zona: row.zone_name ?? "",
         Sede: row.site_name ?? "",
         Proveedor: row.miner_name ?? "",
         Observación: draft.observation_desc ?? "",
         Situación: draft.situation_desc ?? "",
-        TMH: formatDisplayValue("tmh", row.tmh),
-        "%Humedad": formatDisplayValue("h2o", row.h2o),
-        TMS: formatDisplayValue("tms", row.tms),
-        "Au (Oz/TC)": formatDisplayValue("au_grade_oztc", row.au_grade_oztc),
-        "Ag (Oz/TC)": formatDisplayValue("ag_grade_oztc", row.ag_grade_oztc),
-        "Cu %": formatDisplayValue("cu_grade_oztc", row.cu_grade_oztc),
-        "Au Rec": formatDisplayValue("au_rec", row.au_rec),
-        PIO: formatDisplayValue("pio", row.pio),
-        "PIO Desc.": formatDisplayValue("pio_disc", row.pio_disc),
-        NaCN: formatDisplayValue("consumption_disc", row.consumption_disc),
-        Maquila: formatDisplayValue("maquila_disc", row.maquila_disc),
-        "USD/TMS": formatDisplayValue("usd_tms", row.usd_tms),
-        "USD/Lote": formatDisplayValue("usd_lot", row.usd_lot),
+        TMH: row.tmh ?? "",
+        "%Humedad": row.h2o ?? "",
+        TMS: row.tms ?? "",
+        "Au (Oz/TC)": row.au_grade_oztc ?? "",
+        "Ag (Oz/TC)": row.ag_grade_oztc ?? "",
+        "Cu %": row.cu_grade_oztc ?? "",
+        "Au Rec": row.au_rec ?? "",
+        PIO: row.pio ?? "",
+        "PIO Desc.": row.pio_disc ?? "",
+        NaCN: row.consumption_disc ?? "",
+        Maquila: row.maquila_disc ?? "",
+        "USD/TMS": row.usd_tms ?? "",
+        "USD/Lote": row.usd_lot ?? "",
       };
     });
 
