@@ -10,50 +10,25 @@ import { Table } from "../ui/Table";
 type TraceabilityRow = {
   lot: string | null;
   entry_date: string | null;
-  process_date: string | null;
-  valuation_date: string | null;
+  zone_name: string | null;
+  site_name: string | null;
+  miner_name: string | null;
   observation_desc: string | null;
   situation_desc: string | null;
-  reg_date: string | null;
-  sack_qty: number | null;
-  miner_name: string | null;
-  plate: string | null;
-  ruc: string | null;
-  concession_name: string | null;
-  concession_code: string | null;
-  district: string | null;
-  province: string | null;
-  department: string | null;
-  sender_guide_number: string | null;
-  transport_name: string | null;
-  transport_guide_number: string | null;
-  zone_1: string | null;
-  zone_2: string | null;
   tmh: number | null;
   h2o: number | null;
   tms: number | null;
   au_grade_oztc: number | null;
   ag_grade_oztc: number | null;
-  cu_grade_pct: number | null;
-  au_oz: number | null;
-  ag_oz: number | null;
+  cu_grade_oztc: number | null;
   au_rec: number | null;
-  ag_rec: number | null;
   pio: number | null;
   pio_disc: number | null;
-  maquila: number | null;
-  nacn: number | null;
-  escalador: number | null;
+  consumption_disc: number | null;
+  maquila_disc: number | null;
   usd_tms: number | null;
-  au_usd: number | null;
-  ag_usd: number | null;
-  pay_type: string | null;
-  monto_calc?: number | null;
-  dif_rc?: number | null;
-  lot_usd: number | null;
-  doc_date: string | null;
-  doc_number: string | null;
-  updated_at?: string | null;
+  usd_lot: number | null;
+  report_date: string | null;
 };
 
 type GetResp = {
@@ -67,90 +42,14 @@ type SaveResp = {
   error?: string;
 };
 
-type DraftRow = Record<keyof TraceabilityRow, string>;
+type DraftRow = Partial<Record<keyof TraceabilityRow, string>>;
 
-const EDITABLE_FIELDS = [
-  "process_date",
-  "observation_desc",
-  "situation_desc",
-  "transport_name",
-  "transport_guide_number",
-  "zone_1",
-  "zone_2",
-  "tmh",
-  "h2o",
-  "tms",
-  "au_grade_oztc",
-  "ag_grade_oztc",
-  "cu_grade_pct",
-  "au_oz",
-  "ag_oz",
-  "au_rec",
-  "ag_rec",
-  "pio",
-  "pio_disc",
-  "maquila",
-  "nacn",
-  "escalador",
-  "ag_usd",
-  "pay_type",
-] as const;
-
+const EDITABLE_FIELDS = ["observation_desc", "situation_desc"] as const;
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
-const NUMERIC_FIELDS: EditableField[] = [
-  "tmh",
-  "h2o",
-  "tms",
-  "au_grade_oztc",
-  "ag_grade_oztc",
-  "cu_grade_pct",
-  "au_oz",
-  "ag_oz",
-  "au_rec",
-  "ag_rec",
-  "pio",
-  "pio_disc",
-  "maquila",
-  "nacn",
-  "escalador",
-  "ag_usd",
-];
-
-const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct"];
-
-type SortKey =
-  | "lot"
-  | "entry_date"
-  | "process_date"
-  | "valuation_date"
-  | "observation_desc"
-  | "situation_desc"
-  | "reg_date"
-  | "miner_name"
-  | "ruc"
-  | "doc_date"
-  | "doc_number"
-  | "dif_rc";
-
+type SortKey = keyof TraceabilityRow;
 type SortDir = "asc" | "desc";
-
-type ValuationFilter = "all" | "invalid" | "valid" | "pending";
-
-const SORTABLE_KEYS: SortKey[] = [
-  "lot",
-  "entry_date",
-  "process_date",
-  "valuation_date",
-  "observation_desc",
-  "situation_desc",
-  "reg_date",
-  "miner_name",
-  "ruc",
-  "doc_date",
-  "doc_number",
-  "dif_rc",
-];
+type StatusFilter = "all" | "pending" | "mapped";
 
 const PAGE_SIZE = 100;
 
@@ -187,47 +86,42 @@ const COLUMNS: {
 }[] = [
   { key: "lot", label: "Lote", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110, sortable: true },
-  { key: "process_date", label: "F. Proceso", editable: true, kind: "date", width: 110, sortable: true },
-  { key: "valuation_date", label: "F. Valorización", editable: false, kind: "readonly", width: 120, sortable: true },
-  { key: "observation_desc", label: "Observación", editable: true, kind: "select", width: 160, sortable: true },
-  { key: "situation_desc", label: "Situación", editable: true, kind: "select", width: 160, sortable: true },
-  { key: "reg_date", label: "Fecha de Registro", editable: false, kind: "readonly", width: 130, sortable: true },
-  { key: "tmh", label: "TMH", editable: true, kind: "number", width: 88 },
-  { key: "h2o", label: "H2O", editable: true, kind: "number", width: 88 },
-  { key: "tms", label: "TMS", editable: true, kind: "number", width: 88 },
-  { key: "au_grade_oztc", label: "Au (Oz/TC)", editable: true, kind: "number", width: 88 },
-  { key: "ag_grade_oztc", label: "Ag (Oz/TC)", editable: true, kind: "number", width: 88 },
-  { key: "cu_grade_pct", label: "Cu %", editable: true, kind: "number", width: 88 },
-  { key: "au_oz", label: "Au Oz", editable: true, kind: "number", width: 88 },
-  { key: "ag_oz", label: "Ag Oz", editable: true, kind: "number", width: 88 },
-  { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 88 },
-  { key: "ag_rec", label: "Ag Rec", editable: true, kind: "number", width: 88 },
-  { key: "pio", label: "PIO", editable: true, kind: "number", width: 88 },
-  { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 88 },
-  { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 88 },
-  { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 88 },
-  { key: "escalador", label: "Escalador", editable: true, kind: "number", width: 88 },
-  { key: "au_usd", label: "Au USD", editable: false, kind: "readonly", width: 88 },
-  { key: "ag_usd", label: "Ag USD", editable: true, kind: "number", width: 88 },
-  { key: "usd_tms", label: "USD/TMS", editable: false, kind: "readonly", width: 88 },
-  { key: "pay_type", label: "Tipo Pago", editable: true, kind: "select", width: 160 },
-  { key: "dif_rc", label: "Dif (R-C)", editable: false, kind: "readonly", width: 110, sortable: true },
-  { key: "monto_calc", label: "Monto Calc.", editable: false, kind: "readonly", width: 110 },
-  { key: "lot_usd", label: "Factura (USD)", editable: false, kind: "readonly", width: 110 },
-  { key: "doc_date", label: "F. Factura", editable: false, kind: "readonly", width: 105, sortable: true },
-  { key: "doc_number", label: "Factura", editable: false, kind: "readonly", width: 110, sortable: true },
-  { key: "sack_qty", label: "Sacos", editable: false, kind: "readonly", width: 78 },
-  { key: "miner_name", label: "Minero", editable: false, kind: "readonly", width: 96, sortable: true },
-  { key: "plate", label: "Placa", editable: false, kind: "readonly", width: 92 },
-  { key: "ruc", label: "RUC", editable: false, kind: "readonly", width: 118, sortable: true },
-  { key: "concession_name", label: "Concesión", editable: false, kind: "readonly", width: 145 },
-  { key: "concession_code", label: "Cod. Concesión", editable: false, kind: "readonly", width: 120 },
-  { key: "district", label: "Distrito", editable: false, kind: "readonly", width: 100 },
-  { key: "province", label: "Provincia", editable: false, kind: "readonly", width: 100 },
-  { key: "department", label: "Departamento", editable: false, kind: "readonly", width: 120 },
-  { key: "sender_guide_number", label: "Guía Remitente", editable: false, kind: "readonly", width: 125 },
-  { key: "transport_guide_number", label: "Guía Transportista", editable: false, kind: "readonly", width: 125 },
-  { key: "transport_name", label: "Transportista", editable: false, kind: "readonly", width: 125 },
+  { key: "zone_name", label: "Zona", editable: false, kind: "readonly", width: 120, sortable: true },
+  { key: "site_name", label: "Sede", editable: false, kind: "readonly", width: 120, sortable: true },
+  { key: "miner_name", label: "Proveedor", editable: false, kind: "readonly", width: 190, sortable: true },
+  { key: "observation_desc", label: "Observación", editable: true, kind: "select", width: 180, sortable: true },
+  { key: "situation_desc", label: "Situación", editable: true, kind: "select", width: 180, sortable: true },
+  { key: "tmh", label: "TMH", editable: false, kind: "number", width: 95, sortable: true },
+  { key: "h2o", label: "%Humedad", editable: false, kind: "number", width: 105, sortable: true },
+  { key: "tms", label: "TMS", editable: false, kind: "number", width: 95, sortable: true },
+  { key: "au_grade_oztc", label: "Au (Oz/TC)", editable: false, kind: "number", width: 110, sortable: true },
+  { key: "ag_grade_oztc", label: "Ag (Oz/TC)", editable: false, kind: "number", width: 110, sortable: true },
+  { key: "cu_grade_oztc", label: "Cu %", editable: false, kind: "number", width: 95, sortable: true },
+  { key: "au_rec", label: "Au Rec", editable: false, kind: "number", width: 95, sortable: true },
+  { key: "pio", label: "PIO", editable: false, kind: "number", width: 105, sortable: true },
+  { key: "pio_disc", label: "PIO Desc.", editable: false, kind: "number", width: 105, sortable: true },
+  { key: "consumption_disc", label: "NaCN", editable: false, kind: "number", width: 105, sortable: true },
+  { key: "maquila_disc", label: "Maquila", editable: false, kind: "number", width: 105, sortable: true },
+  { key: "usd_tms", label: "USD/TMS", editable: false, kind: "number", width: 110, sortable: true },
+  { key: "usd_lot", label: "USD/Lote", editable: false, kind: "number", width: 120, sortable: true },
+];
+
+const SORTABLE_KEYS = COLUMNS.filter((c) => c.sortable).map((c) => c.key);
+
+const PERCENT_FIELDS: (keyof TraceabilityRow)[] = ["h2o", "cu_grade_oztc", "au_rec"];
+const MONEY_FIELDS: (keyof TraceabilityRow)[] = [
+  "pio",
+  "pio_disc",
+  "consumption_disc",
+  "maquila_disc",
+  "usd_tms",
+  "usd_lot",
+];
+const DECIMAL_3_FIELDS: (keyof TraceabilityRow)[] = [
+  "tmh",
+  "tms",
+  "au_grade_oztc",
+  "ag_grade_oztc",
 ];
 
 function isBlank(v: unknown) {
@@ -239,90 +133,51 @@ function toText(v: unknown) {
   return String(v);
 }
 
-function toDraftRow(r: TraceabilityRow): DraftRow {
-  const out = {} as DraftRow;
-
-  const tmh = r.tmh === null || r.tmh === undefined ? null : Number(r.tmh);
-  const h2o = r.h2o === null || r.h2o === undefined ? null : Number(r.h2o);
-  const hasTms = !(r.tms === null || r.tms === undefined || String(r.tms).trim() === "");
-
-  const decimals3Keys: (keyof TraceabilityRow)[] = [
-    "tmh",
-    "tms",
-    "au_grade_oztc",
-    "ag_grade_oztc",
-    "cu_grade_pct",
-  ];
-
-  for (const c of COLUMNS) {
-    if (c.key === "ag_oz" || c.key === "escalador") {
-      out[c.key] = isBlank(r[c.key]) ? "0.00" : toText(r[c.key]);
-      continue;
-    }
-
-    if (c.key === "tms") {
-      if (!hasTms && tmh !== null && h2o !== null) {
-        out[c.key] = (tmh * ((100 - h2o) / 100)).toFixed(3);
-      } else if (!isBlank(r[c.key])) {
-        out[c.key] = Number(r[c.key]).toFixed(3);
-      } else {
-        out[c.key] = toText(r[c.key]);
-      }
-      continue;
-    }
-
-    if (decimals3Keys.includes(c.key) && !isBlank(r[c.key])) {
-      out[c.key] = Number(r[c.key]).toFixed(3);
-      continue;
-    }
-
-    if (c.key === "monto_calc" || c.key === "dif_rc") {
-      out[c.key] = "";
-      continue;
-    }
-
-    if (c.key === "pay_type") {
-      out[c.key] = isBlank(r[c.key]) ? "Transferencia" : toText(r[c.key]);
-      continue;
-    }
-
-    if (c.key === "observation_desc" || c.key === "situation_desc") {
-      out[c.key] = toText(r[c.key]);
-      continue;
-    }
-
-    out[c.key] = toText(r[c.key]);
-  }
-
-  return out;
-}
-
-function parseNum(v: string) {
+function parseNum(v: unknown) {
   const t = String(v ?? "").trim().replace(",", ".");
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
 }
 
-function round2(n: number) {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+function formatNumber(value: unknown, decimals = 2) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "";
+  return n.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
-function formatDateTime2_3(d: Date) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  const ms = String(d.getMilliseconds()).padStart(3, "0");
+function formatDisplayValue(key: keyof TraceabilityRow, value: unknown) {
+  if (isBlank(value)) return "";
 
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}.${ms}`;
+  if (PERCENT_FIELDS.includes(key)) return `${formatNumber(value, 2)}%`;
+  if (MONEY_FIELDS.includes(key)) return `$${formatNumber(value, 2)}`;
+  if (DECIMAL_3_FIELDS.includes(key)) return formatNumber(value, 3);
+  if (typeof value === "number") return formatNumber(value, 2);
+
+  return String(value ?? "");
 }
 
-function toNumOrNull(v: unknown) {
-  const n = parseNum(String(v ?? ""));
-  return n === null ? null : n;
+function toDraftRow(r: TraceabilityRow): DraftRow {
+  const out: DraftRow = {};
+
+  for (const c of COLUMNS) {
+    out[c.key] = toText(r[c.key]);
+  }
+
+  out.report_date = toText(r.report_date);
+  return out;
+}
+
+function rowHasBothStatus(draft: DraftRow | undefined) {
+  if (!draft) return false;
+  return !isBlank(draft.observation_desc) && !isBlank(draft.situation_desc);
+}
+
+function rowIsPending(draft: DraftRow | undefined) {
+  return !rowHasBothStatus(draft);
 }
 
 function formatDateDdMmYyyy(value: string | null | undefined) {
@@ -342,108 +197,31 @@ function formatDateDdMmYyyy(value: string | null | undefined) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-function calcAuUsd(draft: DraftRow) {
-  const auGrade = toNumOrNull(draft.au_grade_oztc);
-  const auRec = toNumOrNull(draft.au_rec);
-  const pio = toNumOrNull(draft.pio);
-  const pioDisc = toNumOrNull(draft.pio_disc);
-  const maquila = toNumOrNull(draft.maquila);
-  const nacn = toNumOrNull(draft.nacn);
-  const escalador = toNumOrNull(draft.escalador);
+function formatDateTime2_3Peru() {
+  const now = new Date();
 
-  if (
-    auGrade === null ||
-    auRec === null ||
-    pio === null ||
-    pioDisc === null ||
-    maquila === null ||
-    nacn === null ||
-    escalador === null
-  ) {
-    return null;
-  }
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
 
-  return ((auGrade * auRec*.01) * (pio - pioDisc) - maquila - nacn - escalador) * 1.1023;
-}
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || "00";
 
-function calcUsdTms(draft: DraftRow) {
-  const auUsd = calcAuUsd(draft);
-  return auUsd === null ? null : auUsd;
-}
+  const yyyy = get("year");
+  const mm = get("month");
+  const dd = get("day");
+  const hh = get("hour");
+  const mi = get("minute");
+  const ss = get("second");
+  const ms = String(now.getMilliseconds()).padStart(3, "0");
 
-function calcFacturaCalculada(draft: DraftRow) {
-  const usdTms = calcUsdTms(draft);
-  const tms = toNumOrNull(draft.tms);
-  const agUsd = toNumOrNull(draft.ag_usd);
-
-  if (usdTms === null || tms === null) return null;
-
-  return round2(round2(usdTms) * Number(tms.toFixed(3)) + (agUsd ?? 0));
-}
-
-function isUsdValidationOk(draft: DraftRow) {
-  const montoCalc = calcFacturaCalculada(draft);
-  const lotUsd = toNumOrNull(draft.lot_usd);
-
-  if (montoCalc === null || lotUsd === null) return true;
-
-  const difRc = round2(lotUsd - montoCalc);
-
-  return Math.abs(difRc) <= 0.01;
-}
-
-function hasValuationData(draft: DraftRow) {
-  const usdTms = toNumOrNull(draft.usd_tms);
-  const lotUsd = toNumOrNull(draft.lot_usd);
-  return usdTms !== null && lotUsd !== null;
-}
-
-function validateNumericRange(field: EditableField, value: number | null) {
-  if (value === null) return null;
-  if (RANGE_0_100_FIELDS.includes(field) && (value < 0 || value > 100)) {
-    if (field === "h2o") return "H2O debe estar entre 0 y 100.";
-    if (field === "cu_grade_pct") return "Cu % debe estar entre 0 y 100.";
-  }
-  return null;
-}
-
-function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
-  const payload: Record<string, any> = {};
-  payload.lot = String(row.lot ?? "").trim() || null;
-  payload.source_name = "CM";
-  payload.updated_at = batchUpdatedAt || null;
-
-  for (const f of EDITABLE_FIELDS) {
-    const raw = String(row[f] ?? "").trim();
-
-    if (NUMERIC_FIELDS.includes(f)) {
-      const num = raw === "" ? null : parseNum(raw);
-      const err = validateNumericRange(f, num);
-      if (err) throw new Error(err);
-      payload[f] = num;
-      continue;
-    }
-
-    if (f === "pay_type") {
-      payload[f] = raw || "Transferencia";
-      continue;
-    }
-
-    if (f === "observation_desc" || f === "situation_desc") {
-      if (raw) payload[f] = raw;
-      continue;
-    }
-
-    payload[f] = raw || null;
-  }
-
-  const auUsd = calcAuUsd(row);
-  payload.au_usd = auUsd === null ? null : round2(auUsd);
-
-  const usdTms = calcUsdTms(row);
-  payload.usd_tms = usdTms === null ? null : round2(usdTms);
-
-  return payload;
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}.${ms}`;
 }
 
 function compareLot(a: string, b: string) {
@@ -454,22 +232,9 @@ function compareLot(a: string, b: string) {
 }
 
 function getSortValue(row: TraceabilityRow, key: SortKey, draft?: DraftRow) {
-  if (key === "dif_rc") {
-    if (!draft) return "";
-
-    const montoCalc = calcFacturaCalculada(draft);
-    const facturaReal = toNumOrNull(draft.lot_usd);
-    const difRc =
-      facturaReal === null || montoCalc === null
-        ? null
-        : round2(facturaReal - montoCalc);
-
-    return difRc === null ? "" : String(difRc);
-  }
-
-  const rowValue = row[key];
-  if (rowValue === null || rowValue === undefined) return "";
-  return String(rowValue).trim();
+  const value = draft?.[key] ?? row[key];
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
 }
 
 function compareByKey(
@@ -483,89 +248,47 @@ function compareByKey(
   const av = getSortValue(a, key, draftA);
   const bv = getSortValue(b, key, draftB);
 
-  let result = 0;
-
   if (key === "lot") {
-    result = compareLot(av, bv);
+    const result = compareLot(av, bv);
     return dir === "asc" ? result : -result;
   }
 
-  if (key === "dif_rc") {
-    const aBlank = av === "";
-    const bBlank = bv === "";
+  const numericKeys: SortKey[] = [
+    "tmh",
+    "h2o",
+    "tms",
+    "au_grade_oztc",
+    "ag_grade_oztc",
+    "cu_grade_oztc",
+    "au_rec",
+    "pio",
+    "pio_disc",
+    "consumption_disc",
+    "maquila_disc",
+    "usd_tms",
+    "usd_lot",
+  ];
+
+  if (numericKeys.includes(key)) {
+    const an = parseNum(av);
+    const bn = parseNum(bv);
+
+    const aBlank = an === null;
+    const bBlank = bn === null;
 
     if (aBlank && bBlank) return 0;
     if (aBlank) return 1;
     if (bBlank) return -1;
 
-    const an = Number(av);
-    const bn = Number(bv);
-
     return dir === "asc" ? an - bn : bn - an;
   }
 
-  result = av.localeCompare(bv, undefined, {
+  const result = av.localeCompare(bv, undefined, {
     numeric: true,
     sensitivity: "base",
   });
 
   return dir === "asc" ? result : -result;
-}
-
-function isRowComplete(draft: DraftRow) {
-  for (const f of EDITABLE_FIELDS) {
-    if (isBlank(draft[f])) return false;
-  }
-  return isUsdValidationOk(draft);
-}
-
-function getLotPriority(lot: string | null) {
-  const v = String(lot || "").trim().toUpperCase();
-  if (v.startsWith("2")) return 0;
-  if (v.startsWith("TRJ")) return 1;
-  return 2;
-}
-
-function compareDateDesc(a: string | null, b: string | null) {
-  const av = String(a || "").trim();
-  const bv = String(b || "").trim();
-  return bv.localeCompare(av, undefined, { numeric: true, sensitivity: "base" });
-}
-
-function compareRows(
-  a: TraceabilityRow,
-  b: TraceabilityRow,
-  draftA: DraftRow | undefined,
-  draftB: DraftRow | undefined,
-  sortKey: SortKey,
-  sortDir: SortDir
-) {
-  const primary = compareByKey(a, b, sortKey, sortDir, draftA, draftB);
-  if (primary !== 0) return primary;
-
-  const lotPriorityA = getLotPriority(a.lot);
-  const lotPriorityB = getLotPriority(b.lot);
-  if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
-
-  const usdTmsA = !isBlank(a.usd_tms) ? Number(a.usd_tms) : draftA ? calcUsdTms(draftA) : null;
-  const usdTmsB = !isBlank(b.usd_tms) ? Number(b.usd_tms) : draftB ? calcUsdTms(draftB) : null;
-
-  const hasUsdTmsA = usdTmsA !== null;
-  const hasUsdTmsB = usdTmsB !== null;
-  if (hasUsdTmsA !== hasUsdTmsB) return hasUsdTmsA ? -1 : 1;
-
-  const invalidA = draftA ? !isUsdValidationOk(draftA) : false;
-  const invalidB = draftB ? !isUsdValidationOk(draftB) : false;
-  if (invalidA !== invalidB) return invalidA ? -1 : 1;
-
-  const completeA = draftA ? isRowComplete(draftA) : false;
-  const completeB = draftB ? isRowComplete(draftB) : false;
-  if (completeA !== completeB) return completeA ? 1 : -1;
-
-  const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
-  if (entryDateCmp !== 0) return entryDateCmp;
-
-  return compareLot(String(a.lot || ""), String(b.lot || ""));
 }
 
 function inDateRange(entryDate: string | null, from: string, to: string) {
@@ -576,36 +299,38 @@ function inDateRange(entryDate: string | null, from: string, to: string) {
   return true;
 }
 
-function matchesLot(row: TraceabilityRow, lotFilter: string) {
-  const filter = String(lotFilter || "").trim().toLowerCase();
+function matchesGlobal(row: TraceabilityRow, filterValue: string) {
+  const filter = String(filterValue || "").trim().toLowerCase();
   if (!filter) return true;
 
-  const values = Object.values(row);
+  const values = [
+    row.zone_name,
+    row.site_name,
+    row.miner_name,
+    row.observation_desc,
+    row.situation_desc,
+  ];
 
   return values.some((value) =>
     String(value || "").trim().toLowerCase().includes(filter)
   );
 }
 
-function matchesValuationFilter(
-  filter: ValuationFilter,
-  pendingValuation: boolean,
-  invalidUsdMatch: boolean,
-  validUsdMatch: boolean
-) {
-  if (filter === "all") return true;
-  if (filter === "pending") return pendingValuation;
-  if (filter === "invalid") return invalidUsdMatch;
-  if (filter === "valid") return validUsdMatch;
-  return true;
-}
-
 function isRowEdited(current: DraftRow | undefined, original: DraftRow | undefined) {
   if (!current || !original) return false;
-  for (const c of COLUMNS) {
-    if (String(current[c.key] ?? "") !== String(original[c.key] ?? "")) return true;
-  }
-  return false;
+
+  return EDITABLE_FIELDS.some(
+    (field) => String(current[field] ?? "") !== String(original[field] ?? "")
+  );
+}
+
+function buildPayload(row: DraftRow, batchUpdatedAt: string) {
+  return {
+    lot: String(row.lot ?? "").trim() || null,
+    observation_desc: String(row.observation_desc ?? "").trim() || null,
+    situation_desc: String(row.situation_desc ?? "").trim() || null,
+    updated_at: batchUpdatedAt,
+  };
 }
 
 type RowItemProps = {
@@ -614,9 +339,7 @@ type RowItemProps = {
   loading: boolean;
   saving: boolean;
   edited: boolean;
-  invalidUsdMatch: boolean;
-  validUsdMatch: boolean;
-  pendingValuation: boolean;
+  pending: boolean;
   registerInput: (
     key: string,
     field: keyof TraceabilityRow,
@@ -625,12 +348,11 @@ type RowItemProps = {
   onCellBlur: (key: string, field: keyof TraceabilityRow, value: string) => void;
   onCellFocus: (key: string) => void;
   cellBase: React.CSSProperties;
-  inputBase: React.CSSProperties;
   gridH: string;
   gridV: string;
   rowBg: string;
   editedRowBg: string;
-  invalidRowBg: string;
+  pendingRowBg: string;
   columnWidths: Partial<Record<keyof TraceabilityRow, number>>;
 };
 
@@ -640,31 +362,21 @@ function RowItem({
   loading,
   saving,
   edited,
-  invalidUsdMatch,
-  validUsdMatch,
-  pendingValuation,
+  pending,
   registerInput,
   onCellBlur,
   onCellFocus,
   cellBase,
-  inputBase,
   gridH,
   gridV,
   rowBg,
   editedRowBg,
-  invalidRowBg,
+  pendingRowBg,
   columnWidths,
 }: RowItemProps) {
   const key = String(row.lot || "").trim();
-  const currentRowBg = pendingValuation
-    ? rowBg
-    : invalidUsdMatch
-    ? invalidRowBg
-    : validUsdMatch
-    ? editedRowBg
-    : rowBg;
-
   const [openDropdown, setOpenDropdown] = useState<keyof TraceabilityRow | null>(null);
+  const currentRowBg = pending ? pendingRowBg : edited ? editedRowBg : rowBg;
 
   return (
     <tr
@@ -678,50 +390,9 @@ function RowItem({
         const colWidth = columnWidths[c.key] ?? c.width ?? 110;
 
         if (!c.editable) {
-          const isNumber =
-            c.kind === "number" ||
-            c.key === "sack_qty" ||
-            c.key === "lot_usd" ||
-            c.key === "usd_tms" ||
-            c.key === "au_usd" ||
-            c.key === "monto_calc" ||
-            c.key === "dif_rc";
-
-          const montoCalc = calcFacturaCalculada(draft);
-          const facturaReal = toNumOrNull(draft.lot_usd);
-          const difRc =
-            facturaReal === null || montoCalc === null
-              ? null
-              : round2(facturaReal - montoCalc);
-
-          const raw =
-            c.key === "au_usd"
-              ? (!isBlank(row.au_usd) ? row.au_usd : calcAuUsd(draft))
-              : c.key === "usd_tms"
-              ? (!isBlank(row.usd_tms) ? row.usd_tms : calcUsdTms(draft))
-              : c.key === "monto_calc"
-              ? montoCalc
-              : c.key === "dif_rc"
-              ? difRc
-              : row[c.key];
-
-          const decimals3Keys: (keyof TraceabilityRow)[] = [
-            "tmh",
-            "tms",
-            "au_grade_oztc",
-            "ag_grade_oztc",
-            "cu_grade_pct",
-          ];
-
-          const decimals = decimals3Keys.includes(c.key) ? 3 : 2;
-
-          const show =
-            isNumber && !isBlank(raw)
-              ? Number(raw).toLocaleString("en-US", {
-                  minimumFractionDigits: decimals,
-                  maximumFractionDigits: decimals,
-                })
-              : String(raw ?? "");
+          const isNumber = c.kind === "number";
+          const raw = row[c.key];
+          const show = formatDisplayValue(c.key, raw);
 
           return (
             <td
@@ -739,9 +410,7 @@ function RowItem({
                 minWidth: colWidth,
                 maxWidth: colWidth,
                 padding: isNumber ? "6px 4px" : "6px 8px",
-                color: invalidUsdMatch && (c.key === "usd_tms" || c.key === "lot_usd" || c.key === "tms")
-                  ? "rgb(255,170,170)"
-                  : "rgb(185,185,185)",
+                color: pending ? "rgb(255,190,190)" : "rgb(185,185,185)",
               }}
               title={show || "—"}
             >
@@ -760,189 +429,152 @@ function RowItem({
               borderBottom: gridH,
               borderRight: gridV,
               background: currentRowBg,
-              padding: c.kind === "number" ? "4px" : "6px 8px",
+              padding: "6px 8px",
               width: colWidth,
               minWidth: colWidth,
               maxWidth: colWidth,
-              overflow: c.kind === "select" ? "visible" : "hidden",
-              position: c.kind === "select" ? "relative" : "static",
-              zIndex: c.kind === "select" && openDropdown === c.key ? 9999 : "auto",
+              overflow: "visible",
+              position: "relative",
+              zIndex: openDropdown === c.key ? 9999 : "auto",
               boxSizing: "border-box",
             }}
           >
-            {c.key === "pay_type" || c.key === "observation_desc" || c.key === "situation_desc" ? (
-              (() => {
-                const options =
-                  c.key === "pay_type"
-                    ? [{ value: "Transferencia", label: "Transferencia" }]
-                    : c.key === "observation_desc"
-                    ? [
-                        { value: "", label: "Selecciona..." },
-                        ...OBSERVATION_OPTIONS.map((x) => ({ value: x, label: x })),
-                      ]
-                    : [
-                        { value: "", label: "Selecciona..." },
-                        ...SITUATION_OPTIONS.map((x) => ({ value: x, label: x })),
-                      ];
+            {(() => {
+              const options =
+                c.key === "observation_desc"
+                  ? [
+                      { value: "", label: "Selecciona..." },
+                      ...OBSERVATION_OPTIONS.map((x) => ({ value: x, label: x })),
+                    ]
+                  : [
+                      { value: "", label: "Selecciona..." },
+                      ...SITUATION_OPTIONS.map((x) => ({ value: x, label: x })),
+                    ];
 
-                const currentValue = toText(draft[c.key]) || (c.key === "pay_type" ? "Transferencia" : "");
-                const currentLabel =
-                  options.find((o) => o.value === currentValue)?.label ??
-                  options.find((o) => o.value === "")?.label ??
-                  "";
+              const currentValue = toText(draft[c.key]);
+              const currentLabel =
+                options.find((o) => o.value === currentValue)?.label ??
+                options.find((o) => o.value === "")?.label ??
+                "";
 
-                return (
-                  <div
+              return (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 6,
+                    overflow: "visible",
+                    position: "relative",
+                  }}
+                >
+                  <button
+                    type="button"
+                    disabled={loading || saving}
+                    onFocus={() => onCellFocus(key)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (loading || saving) return;
+                      setOpenDropdown((s) => (s === c.key ? null : c.key));
+                    }}
                     style={{
-                      display: "grid",
-                      gap: 6,
-                      overflow: "visible",
-                      position: "relative",
+                      width: "100%",
+                      minWidth: 0,
+                      textAlign: "left",
+                      background: "rgba(0,0,0,.10)",
+                      border: pending ? "1px solid rgba(255, 92, 92, 0.75)" : "1px solid var(--border)",
+                      color: "var(--text)",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      outline: "none",
+                      fontWeight: 900,
+                      cursor: loading || saving ? "not-allowed" : "pointer",
+                      opacity: loading || saving ? 0.7 : 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
                     }}
                   >
-                    <button
-                      type="button"
-                      disabled={loading || saving}
-                      onFocus={() => onCellFocus(key)}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (loading || saving) return;
-                        setOpenDropdown((s) => (s === c.key ? null : c.key));
-                      }}
+                    <span
                       style={{
-                        width: "100%",
-                        minWidth: 0,
-                        textAlign: "left",
-                        background: "rgba(0,0,0,.10)",
-                        border: "1px solid var(--border)",
-                        color: "var(--text)",
-                        borderRadius: 10,
-                        padding: "10px 12px",
-                        outline: "none",
-                        fontWeight: 900,
-                        cursor: loading || saving ? "not-allowed" : "pointer",
-                        opacity: loading || saving ? 0.7 : 1,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
+                        opacity: currentValue ? 1 : 0.6,
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      <span
-                        style={{
-                          opacity: currentValue ? 1 : 0.6,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {currentLabel}
-                      </span>
-                      <span style={{ opacity: 0.8 }}>▾</span>
-                    </button>
+                      {currentLabel}
+                    </span>
+                    <span style={{ opacity: 0.8 }}>▾</span>
+                  </button>
 
-                    {openDropdown === c.key ? (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "calc(100% + 8px)",
-                          left: 0,
-                          zIndex: 99999,
-                          borderRadius: 12,
-                          border: "1px solid rgba(255,255,255,.10)",
-                          background: "rgba(5, 25, 45, .98)",
-                          boxShadow: "0 10px 30px rgba(0,0,0,.45)",
-                          overflowY: "auto",
-                          overflowX: "hidden",
-                          maxHeight: 280,
-                          width:
-                            c.key === "observation_desc"
-                              ? 280
-                              : c.key === "situation_desc"
-                              ? 260
-                              : 180,
-                          minWidth: "100%",
-                          whiteSpace: "normal",
-                        }}
-                      >
-                        {options.map((o) => {
-                          const active = o.value === currentValue;
-                          const isEmpty = o.value === "";
+                  {openDropdown === c.key ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 8px)",
+                        left: 0,
+                        zIndex: 99999,
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,255,255,.10)",
+                        background: "rgba(5, 25, 45, .98)",
+                        boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+                        overflowY: "auto",
+                        overflowX: "hidden",
+                        maxHeight: 280,
+                        width: c.key === "observation_desc" ? 280 : 260,
+                        minWidth: "100%",
+                        whiteSpace: "normal",
+                      }}
+                    >
+                      {options.map((o) => {
+                        const active = o.value === currentValue;
+                        const isEmpty = o.value === "";
 
-                          return (
-                            <button
-                              key={o.value || "__empty__"}
-                              type="button"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onCellBlur(key, c.key, o.value);
-                                setOpenDropdown(null);
-                              }}
-                              style={{
-                                width: "100%",
-                                textAlign: "left",
-                                padding: "10px 12px",
-                                background: active ? "rgba(102,199,255,.18)" : "transparent",
-                                color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
-                                border: "none",
-                                cursor: "pointer",
-                                fontWeight: 900,
-                                whiteSpace: "normal",
-                                lineHeight: "16px",
-                                wordBreak: "normal",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = active
-                                  ? "rgba(102,199,255,.18)"
-                                  : "rgba(255,255,255,.06)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = active ? "rgba(102,199,255,.18)" : "transparent";
-                              }}
-                            >
-                              {o.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })()
-            ) : (
-              <input
-                ref={(el) => registerInput(key, c.key, el)}
-                type={c.kind === "date" ? "date" : "text"}
-                defaultValue={toText(draft[c.key])}
-                disabled={loading || saving}
-                onFocus={() => onCellFocus(key)}
-                onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
-                inputMode={c.kind === "number" ? "decimal" : "text"}
-                spellCheck={false}
-                autoComplete="off"
-                style={{
-                  ...inputBase,
-                  width: "100%",
-                  minWidth: 0,
-                  maxWidth: "100%",
-                  padding: c.kind === "number" ? "4px 6px" : "6px 8px",
-                  ...(c.kind === "number" ? { textAlign: "right" as const } : {}),
-                  ...(pendingValuation
-                    ? null
-                    : invalidUsdMatch
-                    ? {
-                        border: "1px solid rgba(255, 92, 92, 0.75)",
-                        background: "rgba(120, 30, 30, 0.22)",
-                      }
-                    : validUsdMatch
-                    ? {
-                        border: "1px solid rgba(92, 211, 158, 0.55)",
-                        background: "rgba(38, 120, 88, 0.18)",
-                      }
-                    : null),
-                }}
-              />
-            )}
+                        return (
+                          <button
+                            key={o.value || "__empty__"}
+                            type="button"
+                            ref={(el) => {
+                              if (active) registerInput(key, c.key, el as any);
+                            }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onCellBlur(key, c.key, o.value);
+                              setOpenDropdown(null);
+                            }}
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "10px 12px",
+                              background: active ? "rgba(102,199,255,.18)" : "transparent",
+                              color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                              border: "none",
+                              cursor: "pointer",
+                              fontWeight: 900,
+                              whiteSpace: "normal",
+                              lineHeight: "16px",
+                              wordBreak: "normal",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = active
+                                ? "rgba(102,199,255,.18)"
+                                : "rgba(255,255,255,.06)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = active
+                                ? "rgba(102,199,255,.18)"
+                                : "transparent";
+                            }}
+                          >
+                            {o.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()}
           </td>
         );
       })}
@@ -950,21 +582,20 @@ function RowItem({
   );
 }
 
-export default function TraceabilityEntryForm() {
+export default function TraceabilityStatusForm() {
   const [rows, setRows] = useState<TraceabilityRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [lotFilter, setLotFilter] = useState("");
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("entry_date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [hasManualSort, setHasManualSort] = useState(false);
-  const [valuationFilter, setValuationFilter] = useState<ValuationFilter>("all");
   const [editedTick, setEditedTick] = useState(0);
   const [page, setPage] = useState(1);
-  const [activeLot, setActiveLot] = useState<string | null>(null);
+  const [, setActiveLot] = useState<string | null>(null);
 
   const draftsRef = useRef<Record<string, DraftRow>>({});
   const originalsRef = useRef<Record<string, DraftRow>>({});
@@ -975,8 +606,9 @@ export default function TraceabilityEntryForm() {
   const loadData = useCallback(async () => {
     setLoading(true);
     setMsg(null);
+
     try {
-      const r = (await apiGet("/api/traceability")) as GetResp;
+      const r = (await apiGet("/api/traceability/status")) as GetResp;
       const data = Array.isArray(r?.rows) ? r.rows : [];
 
       const nextDrafts: Record<string, DraftRow> = {};
@@ -1008,150 +640,115 @@ export default function TraceabilityEntryForm() {
   }, [loadData]);
 
   const entryDateBounds = useMemo(() => {
-  const dates = rows
-    .map((row) => String(row.entry_date || "").trim())
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort();
+    const dates = rows
+      .map((row) => String(row.entry_date || "").trim())
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      .sort();
 
-  if (!dates.length) {
-    return { min: "", max: "" };
-  }
+    if (!dates.length) return { min: "", max: "" };
 
-  return {
-    min: dates[0],
-    max: dates[dates.length - 1],
-  };
-}, [rows]);
+    return {
+      min: dates[0],
+      max: dates[dates.length - 1],
+    };
+  }, [rows]);
 
-useEffect(() => {
-  if (!rows.length) return;
+  useEffect(() => {
+    if (!rows.length) return;
 
-  setDateFrom((prev) => prev || entryDateBounds.min);
-  setDateTo((prev) => prev || entryDateBounds.max);
-}, [rows, entryDateBounds.min, entryDateBounds.max]);
+    setDateFrom((prev) => prev || entryDateBounds.min);
+    setDateTo((prev) => prev || entryDateBounds.max);
+  }, [rows, entryDateBounds.min, entryDateBounds.max]);
 
   useEffect(() => {
     setPage(1);
-  }, [dateFrom, dateTo, lotFilter, valuationFilter, sortKey, sortDir]);
+  }, [dateFrom, dateTo, globalFilter, statusFilter, sortKey, sortDir]);
 
   const editedCount = useMemo(() => {
     editedTick;
     let count = 0;
+
     for (const key of Object.keys(draftsRef.current)) {
       if (isRowEdited(draftsRef.current[key], originalsRef.current[key])) count++;
     }
+
     return count;
   }, [editedTick]);
 
   const editedMap = useMemo(() => {
     editedTick;
     const map: Record<string, boolean> = {};
+
     for (const key of Object.keys(draftsRef.current)) {
       map[key] = isRowEdited(draftsRef.current[key], originalsRef.current[key]);
     }
+
     return map;
   }, [editedTick]);
 
-  const pendingValuationMap = useMemo(() => {
-    const map: Record<string, boolean> = {};
+  const statusMap = useMemo(() => {
+    editedTick;
+    const map: Record<string, { pending: boolean; mapped: boolean }> = {};
 
     for (const row of rows) {
       const key = String(row.lot || "").trim();
       const draft = draftsRef.current[key] ?? toDraftRow(row);
-      map[key] = !hasValuationData(draft);
+      const mapped = rowHasBothStatus(draft);
+      map[key] = { pending: !mapped, mapped };
     }
 
     return map;
   }, [rows, editedTick]);
 
-  const invalidUsdMap = useMemo(() => {
-    const map: Record<string, boolean> = {};
+  const rowsForStatusCounters = useMemo(() => {
+    return rows.filter((row) => {
+      if (!inDateRange(row.entry_date, dateFrom, dateTo)) return false;
+      if (!matchesGlobal(row, globalFilter)) return false;
+      return true;
+    });
+  }, [rows, dateFrom, dateTo, globalFilter]);
 
-    for (const row of rows) {
+  const pendingCount = useMemo(() => {
+    return rowsForStatusCounters.reduce((acc, row) => {
       const key = String(row.lot || "").trim();
-      const draft = draftsRef.current[key] ?? toDraftRow(row);
-      map[key] = hasValuationData(draft) && !isUsdValidationOk(draft);
-    }
+      return acc + (statusMap[key]?.pending ? 1 : 0);
+    }, 0);
+  }, [rowsForStatusCounters, statusMap]);
 
-    return map;
-  }, [rows, editedTick]);
-
-  const validUsdMap = useMemo(() => {
-    const map: Record<string, boolean> = {};
-
-    for (const row of rows) {
+  const mappedCount = useMemo(() => {
+    return rowsForStatusCounters.reduce((acc, row) => {
       const key = String(row.lot || "").trim();
-      const draft = draftsRef.current[key] ?? toDraftRow(row);
-      map[key] = hasValuationData(draft) && isUsdValidationOk(draft);
-    }
+      return acc + (statusMap[key]?.mapped ? 1 : 0);
+    }, 0);
+  }, [rowsForStatusCounters, statusMap]);
 
-    return map;
-  }, [rows, editedTick]);
+  const preparedRows = useMemo(() => {
+    const filtered = rows.filter((row) => {
+      if (!inDateRange(row.entry_date, dateFrom, dateTo)) return false;
+      if (!matchesGlobal(row, globalFilter)) return false;
 
-    const preparedRows = useMemo(() => {
-      const filtered = rows.filter((row) => {
-        if (!inDateRange(row.entry_date, dateFrom, dateTo)) return false;
-        if (!matchesLot(row, lotFilter)) return false;
+      const key = String(row.lot || "").trim();
+      const status = statusMap[key];
 
-        const key = String(row.lot || "").trim();
-        const pendingValuation = !!pendingValuationMap[key];
-        const invalidUsdMatch = !!invalidUsdMap[key];
-        const validUsdMatch = !!validUsdMap[key];
+      if (statusFilter === "pending") return !!status?.pending;
+      if (statusFilter === "mapped") return !!status?.mapped;
 
-        return matchesValuationFilter(
-          valuationFilter,
-          pendingValuation,
-          invalidUsdMatch,
-          validUsdMatch
-        );
-      });
+      return true;
+    });
 
-      return [...filtered].sort((a, b) => {
-        const draftA = originalsRef.current[String(a.lot || "").trim()];
-        const draftB = originalsRef.current[String(b.lot || "").trim()];
+    return [...filtered].sort((a, b) => {
+      const keyA = String(a.lot || "").trim();
+      const keyB = String(b.lot || "").trim();
 
-        if (hasManualSort) {
-          return compareRows(a, b, draftA, draftB, sortKey, sortDir);
-        }
+      const draftA = draftsRef.current[keyA];
+      const draftB = draftsRef.current[keyB];
 
-        const lotPriorityA = getLotPriority(a.lot);
-        const lotPriorityB = getLotPriority(b.lot);
-        if (lotPriorityA !== lotPriorityB) return lotPriorityA - lotPriorityB;
+      const primary = compareByKey(a, b, sortKey, sortDir, draftA, draftB);
+      if (primary !== 0) return primary;
 
-        const usdTmsA = !isBlank(a.usd_tms) ? Number(a.usd_tms) : draftA ? calcUsdTms(draftA) : null;
-        const usdTmsB = !isBlank(b.usd_tms) ? Number(b.usd_tms) : draftB ? calcUsdTms(draftB) : null;
-
-        const hasUsdTmsA = usdTmsA !== null;
-        const hasUsdTmsB = usdTmsB !== null;
-        if (hasUsdTmsA !== hasUsdTmsB) return hasUsdTmsA ? -1 : 1;
-
-        const invalidA = draftA ? !isUsdValidationOk(draftA) : false;
-        const invalidB = draftB ? !isUsdValidationOk(draftB) : false;
-        if (invalidA !== invalidB) return invalidA ? -1 : 1;
-
-        const completeA = draftA ? isRowComplete(draftA) : false;
-        const completeB = draftB ? isRowComplete(draftB) : false;
-        if (completeA !== completeB) return completeA ? 1 : -1;
-
-        const entryDateCmp = compareDateDesc(a.entry_date, b.entry_date);
-        if (entryDateCmp !== 0) return entryDateCmp;
-
-        return compareLot(String(a.lot || ""), String(b.lot || ""));
-      });
-    }, [
-      rows,
-      dateFrom,
-      dateTo,
-      lotFilter,
-      valuationFilter,
-      sortKey,
-      sortDir,
-      hasManualSort,
-      editedTick,
-      pendingValuationMap,
-      invalidUsdMap,
-      validUsdMap,
-    ]);
+      return compareLot(String(a.lot || ""), String(b.lot || ""));
+    });
+  }, [rows, dateFrom, dateTo, globalFilter, statusFilter, sortKey, sortDir, editedTick, statusMap]);
 
   const totalRows = preparedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
@@ -1164,49 +761,29 @@ useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
-  const invalidCount = useMemo(() => {
-    let count = 0;
-    for (const row of rows) {
-      const key = String(row.lot || "").trim();
-      if (invalidUsdMap[key]) count++;
-    }
-    return count;
-  }, [rows, invalidUsdMap]);
+  const totalUsdLot = useMemo(() => {
+    return preparedRows.reduce((acc, row) => acc + (Number(row.usd_lot) || 0), 0);
+  }, [preparedRows]);
 
-  const validCount = useMemo(() => {
-    let count = 0;
-    for (const row of rows) {
-      const key = String(row.lot || "").trim();
-      if (validUsdMap[key]) count++;
-    }
-    return count;
-  }, [rows, validUsdMap]);
-
-  const pendingValuationCount = useMemo(() => {
-    let count = 0;
-    for (const row of rows) {
-      const key = String(row.lot || "").trim();
-      if (pendingValuationMap[key]) count++;
-    }
-    return count;
-  }, [rows, pendingValuationMap]);
-
-  const latestUpdatedAtLabel = useMemo(() => {
-    const maxUpdatedAt = rows.reduce<string | null>((acc, row) => {
-      const current = String(row.updated_at || "").trim();
+  const latestReportDateLabel = useMemo(() => {
+    const maxReportDate = rows.reduce<string | null>((acc, row) => {
+      const current = String(row.report_date || "").trim();
       if (!current) return acc;
       if (!acc) return current;
       return current > acc ? current : acc;
     }, null);
 
-    return maxUpdatedAt ? formatDateDdMmYyyy(maxUpdatedAt) : "—";
+    return maxReportDate ? formatDateDdMmYyyy(maxReportDate) : "—";
   }, [rows]);
 
-  const hasInvalidEditedRows = Object.keys(draftsRef.current).some((key) => editedMap[key] && invalidUsdMap[key]);
+  const hasInvalidEditedRows = useMemo(() => {
+    editedTick;
 
-  const activeDraft = activeLot ? draftsRef.current[activeLot] : undefined;
-  const activeFacturaCalculada = activeDraft ? calcFacturaCalculada(activeDraft) : null;
-  const activeFacturaReal = activeDraft ? toNumOrNull(activeDraft.lot_usd) : null;
+    return Object.keys(draftsRef.current).some((key) => {
+      if (!isRowEdited(draftsRef.current[key], originalsRef.current[key])) return false;
+      return rowIsPending(draftsRef.current[key]);
+    });
+  }, [editedTick]);
 
   const dynamicColumnWidths = useMemo<Partial<Record<keyof TraceabilityRow, number>>>(() => {
     editedTick;
@@ -1218,12 +795,9 @@ useEffect(() => {
         return toText(draft[field]) || "Selecciona...";
       });
 
-      const maxLength = Math.max(
-        "Selecciona...".length,
-        ...values.map((x) => x.length)
-      );
+      const maxLength = Math.max("Selecciona...".length, ...values.map((x) => x.length));
 
-      return Math.max(160, Math.min(300, maxLength * 9 + 64));
+      return Math.max(170, Math.min(320, maxLength * 9 + 64));
     };
 
     return {
@@ -1232,115 +806,27 @@ useEffect(() => {
     };
   }, [rows, editedTick]);
 
-  const registerInput = useCallback((
-    key: string,
-    field: keyof TraceabilityRow,
-    el: HTMLInputElement | HTMLSelectElement | null
-  ) => {
-    if (!inputsRef.current[key]) inputsRef.current[key] = {};
-    inputsRef.current[key][field] = el;
-  }, []);
+  const registerInput = useCallback(
+    (
+      key: string,
+      field: keyof TraceabilityRow,
+      el: HTMLInputElement | HTMLSelectElement | null
+    ) => {
+      if (!inputsRef.current[key]) inputsRef.current[key] = {};
+      inputsRef.current[key][field] = el;
+    },
+    []
+  );
 
   const onCellFocus = useCallback((key: string) => {
     setActiveLot(key);
-  }, []);  
+  }, []);
 
   const onCellBlur = useCallback((key: string, field: keyof TraceabilityRow, value: string) => {
     const current = draftsRef.current[key];
     if (!current) return;
 
-    const previousValue = String(current[field] ?? "");
-    const trimmed = value;
-
-    if (!NUMERIC_FIELDS.includes(field as EditableField)) {
-      current[field] = trimmed;
-
-      const tmsBlank = String(current.tms ?? "").trim() === "";
-      const tmh = parseNum(String(current.tmh ?? ""));
-      const h2o = parseNum(String(current.h2o ?? ""));
-
-      if (tmsBlank && tmh !== null && h2o !== null) {
-        const calcTms = tmh * ((100 - h2o) / 100);
-        const formattedTms = calcTms.toFixed(3);
-        current.tms = formattedTms;
-
-        const tmsInput = inputsRef.current[key]?.tms;
-        if (tmsInput && tmsInput.value !== formattedTms) tmsInput.value = formattedTms;
-      }
-
-      setEditedTick((v) => v + 1);
-      return;
-    }
-
-    if (String(trimmed).trim() === "") {
-      current[field] = "";
-
-      if (field === "tms" || field === "tmh" || field === "h2o") {
-        const tmsBlank = String(current.tms ?? "").trim() === "";
-        const tmh = parseNum(String(current.tmh ?? ""));
-        const h2o = parseNum(String(current.h2o ?? ""));
-
-        if (tmsBlank && tmh !== null && h2o !== null) {
-          const calcTms = tmh * ((100 - h2o) / 100);
-          const formattedTms = calcTms.toFixed(3);
-          current.tms = formattedTms;
-
-          const tmsInput = inputsRef.current[key]?.tms;
-          if (tmsInput && tmsInput.value !== formattedTms) tmsInput.value = formattedTms;
-        }
-      }
-
-      setEditedTick((v) => v + 1);
-      return;
-    }
-
-    const n = parseNum(trimmed);
-    if (n === null) {
-      const input = inputsRef.current[key]?.[field];
-      if (input) input.value = previousValue;
-      setMsg("ERROR: valor numérico inválido.");
-      return;
-    }
-
-    const err = validateNumericRange(field as EditableField, n);
-    if (err) {
-      const input = inputsRef.current[key]?.[field];
-      if (input) input.value = previousValue;
-      setMsg(`ERROR: ${err}`);
-      return;
-    }
-
-    const decimals3Fields: EditableField[] = [
-      "tmh",
-      "tms",
-      "au_grade_oztc",
-      "ag_grade_oztc",
-      "cu_grade_pct",
-    ];
-
-    const formatted = decimals3Fields.includes(field as EditableField) ? n.toFixed(3) : n.toFixed(2);
-    current[field] = formatted;
-
-    const input = inputsRef.current[key]?.[field];
-    if (input && input.value !== formatted) input.value = formatted;
-
-    const affectsAutoTms = field === "tmh" || field === "h2o";
-    const tmsBlank = String(current.tms ?? "").trim() === "";
-
-    if (affectsAutoTms && tmsBlank) {
-      const tmh = parseNum(String(current.tmh ?? ""));
-      const h2o = parseNum(String(current.h2o ?? ""));
-
-      if (tmh !== null && h2o !== null) {
-        const calcTms = tmh * ((100 - h2o) / 100);
-        const formattedTms = calcTms.toFixed(3);
-        current.tms = formattedTms;
-
-        const tmsInput = inputsRef.current[key]?.tms;
-        if (tmsInput && tmsInput.value !== formattedTms) tmsInput.value = formattedTms;
-      }
-    }
-
+    current[field] = value;
     setEditedTick((v) => v + 1);
   }, []);
 
@@ -1354,9 +840,9 @@ useEffect(() => {
       return;
     }
 
-    const invalidEditedLots = editedKeys.filter((key) => !isUsdValidationOk(draftsRef.current[key]));
+    const invalidEditedLots = editedKeys.filter((key) => rowIsPending(draftsRef.current[key]));
     if (invalidEditedLots.length > 0) {
-      setMsg("ERROR: hay filas con validación inválida. USD/TMS x TMS debe ser igual a Factura (USD).");
+      setMsg("ERROR: cada fila editada debe tener Observación y Situación seleccionadas.");
       return;
     }
 
@@ -1364,7 +850,7 @@ useEffect(() => {
     setMsg(null);
 
     try {
-      const batchUpdatedAt = formatDateTime2_3(new Date());
+      const batchUpdatedAt = formatDateTime2_3Peru();
 
       const jobs = editedKeys.map(async (key) => {
         const row = draftsRef.current[key];
@@ -1373,7 +859,7 @@ useEffect(() => {
         if (!lot) throw new Error("Hay una fila editada sin lote.");
 
         const payload = buildPayload(row, batchUpdatedAt);
-        const rr = (await apiPost("/api/traceability/web/insert", payload)) as SaveResp;
+        const rr = (await apiPost("/api/traceability/status/web/insert", payload)) as SaveResp;
 
         if (!rr?.ok) {
           throw new Error(rr?.error || `No se pudo guardar el lote ${lot}`);
@@ -1416,51 +902,30 @@ useEffect(() => {
 
   function onExportExcel() {
     const exportRows = preparedRows.map((row) => {
+      const key = String(row.lot || "").trim();
+      const draft = draftsRef.current[key] ?? toDraftRow(row);
+
       return {
-        "F ingreso": row.entry_date ?? "",
-        "F proceso": row.process_date ?? "",
-        "F valorizacion": row.valuation_date ?? "",
-        "Observación": row.observation_desc ?? "",
-        "Situación": row.situation_desc ?? "",
-        "Fecha de Registro": row.reg_date ?? "",
-        "Lote": row.lot ?? "",
-        "Sacos": row.sack_qty ?? "",
-        "Minero": row.miner_name ?? "",
-        "Placa": row.plate ?? "",
-        "RUC": row.ruc ?? "",
-        "Concesion": row.concession_name ?? "",
-        "Codigo concesion": row.concession_code ?? "",
-        "Distrito": row.district ?? "",
-        "Provincia": row.province ?? "",
-        "Departamento": row.department ?? "",
-        "Guia remision": row.sender_guide_number ?? "",
-        "Transportista": row.transport_name ?? "",
-        "Guia transportista": row.transport_guide_number ?? "",
-        "Zona 1": row.zone_1 ?? "",
-        "Zona 2": row.zone_2 ?? "",
-        "TMH": row.tmh ?? "",
-        "H2O": row.h2o ?? "",
-        "TMS": row.tms ?? "",
-        "Ley Au": row.au_grade_oztc ?? "",
-        "Ley Ag": row.ag_grade_oztc ?? "",
-        "Ley Cu": row.cu_grade_pct ?? "",
-        "Au Oz": row.au_oz ?? "",
-        "Ag Oz": row.ag_oz ?? "",
-        "Rec Au": row.au_rec ?? "",
-        "Rec Ag": row.ag_rec ?? "",
-        "PIO": row.pio ?? "",
-        "PIO Disc": row.pio_disc ?? "",
-        "Maquila": row.maquila ?? "",
-        "NaCN": row.nacn ?? "",
-        "Escalador": row.escalador ?? "",
-        "USD/TMS": row.usd_tms ?? "",
-        "Au USD": row.au_usd ?? "",
-        "Ag USD": row.ag_usd ?? "",
-        "Fecha factura": row.doc_date ?? "",
-        "# factura": row.doc_number ?? "",
-        "Forma de pago": row.pay_type ?? "",
-        "Monto Calc.": "",
-        "Factura USD": row.lot_usd ?? "",
+        Lote: row.lot ?? "",
+        "F. Ingreso": row.entry_date ?? "",
+        Zona: row.zone_name ?? "",
+        Sede: row.site_name ?? "",
+        Proveedor: row.miner_name ?? "",
+        Observación: draft.observation_desc ?? "",
+        Situación: draft.situation_desc ?? "",
+        TMH: formatDisplayValue("tmh", row.tmh),
+        "%Humedad": formatDisplayValue("h2o", row.h2o),
+        TMS: formatDisplayValue("tms", row.tms),
+        "Au (Oz/TC)": formatDisplayValue("au_grade_oztc", row.au_grade_oztc),
+        "Ag (Oz/TC)": formatDisplayValue("ag_grade_oztc", row.ag_grade_oztc),
+        "Cu %": formatDisplayValue("cu_grade_oztc", row.cu_grade_oztc),
+        "Au Rec": formatDisplayValue("au_rec", row.au_rec),
+        PIO: formatDisplayValue("pio", row.pio),
+        "PIO Desc.": formatDisplayValue("pio_disc", row.pio_disc),
+        NaCN: formatDisplayValue("consumption_disc", row.consumption_disc),
+        Maquila: formatDisplayValue("maquila_disc", row.maquila_disc),
+        "USD/TMS": formatDisplayValue("usd_tms", row.usd_tms),
+        "USD/Lote": formatDisplayValue("usd_lot", row.usd_lot),
       };
     });
 
@@ -1471,88 +936,48 @@ useEffect(() => {
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
 
-    for (let i = 0; i < exportRows.length; i++) {
-      const excelRow = i + 2;
-
-      ws[`AQ${excelRow}`] = {
-        t: "n",
-        f: `ROUND(ROUND((((Y${excelRow}*AD${excelRow}*0.01)*(AF${excelRow}-AG${excelRow})-AH${excelRow}-AI${excelRow}-AJ${excelRow})*1.1023),2)*ROUND(X${excelRow},3)+IF(AM${excelRow}="",0,AM${excelRow}),2)`
-      };
-    }
     ws["!cols"] = [
-      { wch: 12 },
-      { wch: 12 },
       { wch: 14 },
-      { wch: 10 },
-      { wch: 24 },
       { wch: 12 },
-      { wch: 14 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 28 },
+      { wch: 28 },
       { wch: 26 },
-      { wch: 18 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 18 },
-      { wch: 24 },
-      { wch: 18 },
-      { wch: 12 },
-      { wch: 16 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
       { wch: 12 },
       { wch: 12 },
       { wch: 12 },
       { wch: 14 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
       { wch: 16 },
     ];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Trazabilidad");
+    XLSX.utils.book_append_sheet(wb, ws, "Mineral No Disponible");
 
-    const filterLabel =
-      valuationFilter === "invalid"
-        ? "invalidas"
-        : valuationFilter === "valid"
-        ? "correctas"
-        : valuationFilter === "pending"
-        ? "pendientes"
-        : "todas";
-
+    const statusPart = statusFilter === "pending" ? "pendientes" : statusFilter === "mapped" ? "mapeados" : "todos";
     const fromPart = dateFrom || "inicio";
     const toPart = dateTo || "fin";
 
-    XLSX.writeFile(wb, `trazabilidad_${filterLabel}_${fromPart}_${toPart}.xlsx`);
+    XLSX.writeFile(wb, `mineral_no_disponible_${statusPart}_${fromPart}_${toPart}.xlsx`);
   }
 
   function onSortClick(key: keyof TraceabilityRow) {
-    if (!SORTABLE_KEYS.includes(key as SortKey)) return;
+    if (!SORTABLE_KEYS.includes(key)) return;
 
-    const nextKey = key as SortKey;
-
-    setHasManualSort(true);
-
-    if (sortKey === nextKey) {
+    if (sortKey === key) {
       setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
       return;
     }
 
-    setSortKey(nextKey);
+    setSortKey(key);
     setSortDir("desc");
   }
 
@@ -1565,17 +990,16 @@ useEffect(() => {
   const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
   const gridV = "1px solid rgba(191, 231, 255, 0.10)";
   const gridH = "1px solid rgba(191, 231, 255, 0.08)";
-  const headerShadow = "none";
   const rowBg = "rgba(0,0,0,.10)";
   const editedRowBg = "rgba(30, 110, 74, 0.28)";
-  const invalidRowBg = "rgba(120, 24, 24, 0.34)";
+  const pendingRowBg = "rgba(120, 24, 24, 0.34)";
 
   const stickyHead: React.CSSProperties = {
     position: "sticky",
     top: 0,
     zIndex: 20,
     background: headerBg,
-    boxShadow: headerShadow,
+    boxShadow: "none",
   };
 
   const cellBase: React.CSSProperties = {
@@ -1626,14 +1050,8 @@ useEffect(() => {
         }}
       >
         <div style={{ fontWeight: 900 }}>
-          Trazabilidad · Ingresar Datos
-          {valuationFilter !== "all" ? ` · Filtro: ${
-            valuationFilter === "invalid"
-              ? "Inválidas"
-              : valuationFilter === "valid"
-              ? "Correctas"
-              : "Pendientes"
-          }` : ""}
+          Trazabilidad · Mineral No Disponible
+          {statusFilter !== "all" ? ` · Filtro: ${statusFilter === "pending" ? "Pendientes" : "Mapeados"}` : ""}
         </div>
 
         <div
@@ -1652,43 +1070,43 @@ useEffect(() => {
 
         <button
           type="button"
-          onClick={() => setValuationFilter((prev) => (prev === "invalid" ? "all" : "invalid"))}
+          onClick={() => setStatusFilter((prev) => (prev === "pending" ? "all" : "pending"))}
           style={{
             padding: "6px 10px",
             borderRadius: 999,
             border:
-              valuationFilter === "invalid"
+              statusFilter === "pending"
                 ? "1px solid rgba(255, 92, 92, 0.95)"
-                : invalidCount > 0
+                : pendingCount > 0
                 ? "1px solid rgba(255, 92, 92, 0.65)"
                 : "1px solid rgba(255,255,255,0.12)",
             background:
-              valuationFilter === "invalid"
+              statusFilter === "pending"
                 ? "rgba(120, 24, 24, 0.45)"
-                : invalidCount > 0
+                : pendingCount > 0
                 ? "rgba(120, 24, 24, 0.28)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: invalidCount > 0 ? "rgb(255, 170, 170)" : "rgba(255,255,255,0.8)",
+            color: pendingCount > 0 ? "rgb(255, 170, 170)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
         >
-          Inválidas: {invalidCount}
+          Pendientes: {pendingCount}
         </button>
 
         <button
           type="button"
-          onClick={() => setValuationFilter((prev) => (prev === "valid" ? "all" : "valid"))}
+          onClick={() => setStatusFilter((prev) => (prev === "mapped" ? "all" : "mapped"))}
           style={{
             padding: "6px 10px",
             borderRadius: 999,
             border:
-              valuationFilter === "valid"
+              statusFilter === "mapped"
                 ? "1px solid rgba(92, 211, 158, 0.95)"
                 : "1px solid rgba(92, 211, 158, 0.45)",
             background:
-              valuationFilter === "valid"
+              statusFilter === "mapped"
                 ? "rgba(38, 120, 88, 0.40)"
                 : "rgba(38, 120, 88, 0.24)",
             fontSize: 12,
@@ -1697,43 +1115,20 @@ useEffect(() => {
             cursor: "pointer",
           }}
         >
-          Correctas: {validCount}
-        </button>       
-
-        <button
-          type="button"
-          onClick={() => setValuationFilter((prev) => (prev === "pending" ? "all" : "pending"))}
-          style={{
-            padding: "6px 10px",
-            borderRadius: 999,
-            border:
-              valuationFilter === "pending"
-                ? "1px solid rgba(255,255,255,0.30)"
-                : "1px solid rgba(255,255,255,0.12)",
-            background:
-              valuationFilter === "pending"
-                ? "rgba(255,255,255,0.14)"
-                : "rgba(255,255,255,0.06)",
-            fontSize: 12,
-            fontWeight: 900,
-            color: "rgba(255,255,255,0.8)",
-            cursor: "pointer",
-          }}
-        >
-          Pendientes: {pendingValuationCount}
+          Mapeados: {mappedCount}
         </button>
 
         <button
           type="button"
-          onClick={() => setValuationFilter("all")}
+          onClick={() => setStatusFilter("all")}
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: valuationFilter === "all" ? "1px solid rgba(102,199,255,.55)" : "1px solid rgba(255,255,255,0.12)",
-            background: valuationFilter === "all" ? "rgba(102,199,255,.16)" : "rgba(255,255,255,0.06)",
+            border: statusFilter === "all" ? "1px solid rgba(102,199,255,.55)" : "1px solid rgba(255,255,255,0.12)",
+            background: statusFilter === "all" ? "rgba(102,199,255,.16)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: valuationFilter === "all" ? "rgb(170, 225, 255)" : "rgba(255,255,255,0.8)",
+            color: statusFilter === "all" ? "rgb(170, 225, 255)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
         >
@@ -1751,19 +1146,7 @@ useEffect(() => {
             color: "rgba(255,255,255,0.9)",
           }}
         >
-          Calc. USD:{" "}
-          {activeFacturaCalculada === null
-            ? "—"
-            : activeFacturaCalculada.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-          {activeFacturaReal !== null
-            ? ` / Factura: ${activeFacturaReal.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}`
-            : ""}
+          Calc. USD: {formatDisplayValue("usd_lot", totalUsdLot)}
         </div>
 
         <div
@@ -1777,7 +1160,7 @@ useEffect(() => {
             color: "rgba(255,255,255,0.9)",
           }}
         >
-          Última Actualización: {latestUpdatedAtLabel}
+          Última Actualización: {latestReportDateLabel}
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -1809,10 +1192,10 @@ useEffect(() => {
             <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Buscador global</div>
             <input
               type="text"
-              value={lotFilter}
-              onChange={(e) => setLotFilter(e.target.value)}
-              placeholder="Buscar lote, factura, minero, placa, RUC, concesión, observación, situación..."
-              style={{ ...inputBase, minWidth: 170 }}
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              placeholder="Buscar zona, sede, proveedor, observación o situación..."
+              style={{ ...inputBase, minWidth: 280 }}
             />
           </div>
 
@@ -1865,11 +1248,7 @@ useEffect(() => {
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <div
-          style={{
-            minWidth: "max-content",
-          }}
-        >
+        <div style={{ minWidth: "max-content" }}>
           <Table stickyHeader disableScrollWrapper>
             <colgroup>
               {COLUMNS.map((c) => (
@@ -1898,7 +1277,7 @@ useEffect(() => {
                         ...stickyHead,
                         border: headerBorder,
                         borderBottom: headerBorder,
-                        textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
+                        textAlign: c.kind === "number" ? "right" : "left",
                         padding: c.kind === "number" ? "8px 4px" : "8px 8px",
                         fontSize: 12,
                         width: dynamicColumnWidths[c.key] ?? c.width ?? 110,
@@ -1924,27 +1303,26 @@ useEffect(() => {
             <tbody>
               {visibleRows.map((row) => {
                 const rowKey = String(row.lot || "").trim();
+                const draft = draftsRef.current[rowKey] ?? toDraftRow(row);
+
                 return (
-                <RowItem
-                  key={rowKey}
-                  row={row}
-                  draft={draftsRef.current[rowKey] ?? toDraftRow(row)}
-                  loading={loading}
-                  saving={saving}
-                  edited={!!editedMap[rowKey]}
-                  invalidUsdMatch={!!invalidUsdMap[rowKey]}
-                  validUsdMatch={!!validUsdMap[rowKey]}
-                  pendingValuation={!!pendingValuationMap[rowKey]}
-                  registerInput={registerInput}
+                  <RowItem
+                    key={rowKey}
+                    row={row}
+                    draft={draft}
+                    loading={loading}
+                    saving={saving}
+                    edited={!!editedMap[rowKey]}
+                    pending={!!statusMap[rowKey]?.pending}
+                    registerInput={registerInput}
                     onCellBlur={onCellBlur}
                     onCellFocus={onCellFocus}
                     cellBase={cellBase}
-                    inputBase={inputBase}
                     gridH={gridH}
                     gridV={gridV}
                     rowBg={rowBg}
                     editedRowBg={editedRowBg}
-                    invalidRowBg={invalidRowBg}
+                    pendingRowBg={pendingRowBg}
                     columnWidths={dynamicColumnWidths}
                   />
                 );
@@ -1961,7 +1339,7 @@ useEffect(() => {
               {loading ? (
                 <tr className="capex-tr">
                   <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
-                    Cargando trazabilidad…
+                    Cargando mineral no disponible…
                   </td>
                 </tr>
               ) : null}
@@ -2023,12 +1401,6 @@ useEffect(() => {
           </Button>
         </div>
       </div>
-
-      <style jsx global>{`
-        .req-status-dd-option:hover {
-          background: rgba(102, 199, 255, 0.12) !important;
-        }
-      `}</style>
     </div>
   );
 }

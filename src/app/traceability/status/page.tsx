@@ -1,13 +1,17 @@
-// src/app/traceability/summary/page.tsx
+import TraceabilityStatusForm from "../../../components/traceability/TraceabilityStatusForm";
+
 export default function TraceabilitySummaryPage() {
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="panel-inner" style={{ padding: "14px 16px" }}>
-        <div style={{ fontSize: 18, fontWeight: 900 }}>Mineral No Disponible</div>
-        <div className="muted" style={{ marginTop: 4 }}>
-          Futuro dashboard con indicadores clave de trazabilidad.
-        </div>
-      </div>
+    <div
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        height: "calc(100vh - 140px)",
+        minHeight: 0,
+        overflow: "hidden",
+      }}
+    >
+      <TraceabilityStatusForm />
     </div>
   );
 }
