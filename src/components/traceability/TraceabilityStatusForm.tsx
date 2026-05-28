@@ -34,9 +34,6 @@ type TraceabilityRow = {
 type GetResp = {
   ok: boolean;
   rows?: TraceabilityRow[];
-  page?: number;
-  limit?: number;
-  hasMore?: boolean;
   error?: string;
 };
 
@@ -625,7 +622,7 @@ export default function TraceabilityStatusForm() {
     setMsg(null);
 
     try {
-      const r = (await apiGet(`/api/traceability/status?page=${page}&limit=50`)) as GetResp;
+      const r = (await apiGet("/api/traceability/status")) as GetResp;
       const data = Array.isArray(r?.rows) ? r.rows : [];
 
       const nextDrafts: Record<string, DraftRow> = {};
