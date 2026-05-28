@@ -12,6 +12,7 @@ type TraceabilityRow = {
   entry_date: string | null;
   zone_name: string | null;
   site_name: string | null;
+  ruc: string | null;
   miner_name: string | null;
   observation_desc: string | null;
   situation_desc: string | null;
@@ -29,6 +30,15 @@ type TraceabilityRow = {
   usd_tms: number | null;
   usd_lot: number | null;
   report_date: string | null;
+  plate: string | null;
+  concession_code: string | null;
+  concession_name: string | null;
+  district: string | null;
+  province: string | null;
+  department: string | null;
+  sender_guide_number: string | null;
+  transport_guide_number: string | null;
+  transport_name: string | null;
 };
 
 type GetResp = {
@@ -88,6 +98,7 @@ const COLUMNS: {
   { key: "entry_date", label: "F. Ingreso", editable: false, kind: "readonly", width: 110, sortable: true },
   { key: "zone_name", label: "Zona", editable: false, kind: "readonly", width: 120, sortable: true },
   { key: "site_name", label: "Sede", editable: false, kind: "readonly", width: 120, sortable: true },
+  { key: "ruc", label: "RUC", editable: false, kind: "readonly", width: 120, sortable: true },
   { key: "miner_name", label: "Proveedor", editable: false, kind: "readonly", width: 190, sortable: true },
   { key: "observation_desc", label: "Observación", editable: true, kind: "select", width: 180, sortable: true },
   { key: "situation_desc", label: "Situación", editable: true, kind: "select", width: 180, sortable: true },
@@ -104,6 +115,16 @@ const COLUMNS: {
   { key: "maquila_disc", label: "Maquila", editable: false, kind: "number", width: 105, sortable: true },
   { key: "usd_tms", label: "USD/TMS", editable: false, kind: "number", width: 110, sortable: true },
   { key: "usd_lot", label: "USD/Lote", editable: false, kind: "number", width: 120, sortable: true },
+  { key: "report_date", label: "F. Reporte", editable: false, kind: "readonly", width: 115, sortable: true },
+  { key: "plate", label: "Placa", editable: false, kind: "readonly", width: 110, sortable: true },
+  { key: "concession_code", label: "Cod. Concesión", editable: false, kind: "readonly", width: 140, sortable: true },
+  { key: "concession_name", label: "Concesión", editable: false, kind: "readonly", width: 190, sortable: true },
+  { key: "district", label: "Distrito", editable: false, kind: "readonly", width: 130, sortable: true },
+  { key: "province", label: "Provincia", editable: false, kind: "readonly", width: 130, sortable: true },
+  { key: "department", label: "Departamento", editable: false, kind: "readonly", width: 140, sortable: true },
+  { key: "sender_guide_number", label: "Guía Remitente", editable: false, kind: "readonly", width: 150, sortable: true },
+  { key: "transport_guide_number", label: "Guía Transportista", editable: false, kind: "readonly", width: 170, sortable: true },
+  { key: "transport_name", label: "Transportista", editable: false, kind: "readonly", width: 190, sortable: true },
 ];
 
 const SORTABLE_KEYS = COLUMNS.filter((c) => c.sortable).map((c) => c.key);
@@ -165,7 +186,7 @@ function formatDateYyyyMmDd(value: unknown) {
 function formatDisplayValue(key: keyof TraceabilityRow, value: unknown) {
   if (isBlank(value)) return "";
 
-  if (key === "entry_date") return formatDateYyyyMmDd(value);
+  if (key === "entry_date" || key === "report_date") return formatDateYyyyMmDd(value);
   if (PERCENT_FIELDS.includes(key)) return `${formatNumber(value, 2)}%`;
   if (MONEY_FIELDS.includes(key)) return `$${formatNumber(value, 2)}`;
   if (DECIMAL_3_FIELDS.includes(key)) return formatNumber(value, 3);
@@ -320,9 +341,19 @@ function matchesGlobal(row: TraceabilityRow, filterValue: string) {
   const values = [
     row.zone_name,
     row.site_name,
+    row.ruc,
     row.miner_name,
     row.observation_desc,
     row.situation_desc,
+    row.plate,
+    row.concession_code,
+    row.concession_name,
+    row.district,
+    row.province,
+    row.department,
+    row.sender_guide_number,
+    row.transport_guide_number,
+    row.transport_name,
   ];
 
   return values.some((value) =>
@@ -933,6 +964,7 @@ export default function TraceabilityStatusForm() {
         "F. Ingreso": formatDateYyyyMmDd(row.entry_date),
         Zona: row.zone_name ?? "",
         Sede: row.site_name ?? "",
+        RUC: row.ruc ?? "",
         Proveedor: row.miner_name ?? "",
         Observación: draft.observation_desc ?? "",
         Situación: draft.situation_desc ?? "",
@@ -949,6 +981,16 @@ export default function TraceabilityStatusForm() {
         Maquila: row.maquila_disc ?? "",
         "USD/TMS": row.usd_tms ?? "",
         "USD/Lote": row.usd_lot ?? "",
+        "F. Reporte": formatDateYyyyMmDd(row.report_date),
+        Placa: row.plate ?? "",
+        "Cod. Concesión": row.concession_code ?? "",
+        Concesión: row.concession_name ?? "",
+        Distrito: row.district ?? "",
+        Provincia: row.province ?? "",
+        Departamento: row.department ?? "",
+        "Guía Remitente": row.sender_guide_number ?? "",
+        "Guía Transportista": row.transport_guide_number ?? "",
+        Transportista: row.transport_name ?? "",
       };
     });
 
@@ -964,6 +1006,7 @@ export default function TraceabilityStatusForm() {
       { wch: 12 },
       { wch: 16 },
       { wch: 16 },
+      { wch: 14 },
       { wch: 28 },
       { wch: 28 },
       { wch: 26 },
@@ -980,6 +1023,16 @@ export default function TraceabilityStatusForm() {
       { wch: 14 },
       { wch: 14 },
       { wch: 16 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 26 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 20 },
+      { wch: 26 },
     ];
 
     const wb = XLSX.utils.book_new();
