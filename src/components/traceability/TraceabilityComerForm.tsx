@@ -97,7 +97,7 @@ const EDITABLE_FIELDS = [
 
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
-const OPTIONAL_EMPTY_FIELDS = new Set<EditableField>(["ag_rec", "escalador", "ag_usd"]);
+const OPTIONAL_EMPTY_FIELDS = new Set<EditableField>(["ag_grade_oztc", "ag_rec", "escalador", "ag_usd"]);
 
 const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct", "au_rec", "ag_rec"];
 
