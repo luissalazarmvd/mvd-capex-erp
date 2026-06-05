@@ -279,6 +279,31 @@ function toNumOrNull(v: unknown) {
   return n === null ? null : n;
 }
 
+function formatLotForExport(value: string | null | undefined) {
+  const v = String(value || "").trim();
+  if (!v) return "";
+
+  const trjMatch = v.match(/^([A-Za-z]+)-\d{2}-(\d+)$/);
+  if (trjMatch) {
+    const prefix = trjMatch[1].toUpperCase();
+    const numberPart = trjMatch[2].replace(/^0+/, "") || "0";
+    return `${prefix}-${numberPart}`;
+  }
+
+  const normalMatch = v.match(/^\d{2}-(\d+)$/);
+  if (normalMatch) {
+    return normalMatch[1].replace(/^0+/, "") || "0";
+  }
+
+  return v;
+}
+
+function pctToDecimal4(value: unknown) {
+  const n = toNumOrNull(value);
+  if (n === null) return "";
+  return Number((n / 100).toFixed(4));
+}
+
 function formatDateDdMmYyyy(value: string | null | undefined) {
   const v = String(value || "").trim();
   if (!v) return "—";
@@ -1235,7 +1260,7 @@ useEffect(() => {
         "F ingreso": row.entry_date ?? "",
         "F valorizacion": row.valuation_date ?? "",
         "F proceso": row.process_date ?? "",
-        "Lote": row.lot ?? "",
+        "Lote": formatLotForExport(row.lot),
         "Sacos": row.sack_qty ?? "",
         "Minero": row.miner_name ?? "",
         "Placa": row.plate ?? "",
@@ -1258,8 +1283,8 @@ useEffect(() => {
         "Ley Cu": row.cu_grade_pct ?? "",
         "Au Oz": row.au_oz ?? "",
         "Ag Oz": row.ag_oz ?? "",
-        "Rec Au": row.au_rec ?? "",
-        "Rec Ag": row.ag_rec ?? "",
+        "Rec Au": pctToDecimal4(row.au_rec),
+        "Rec Ag": pctToDecimal4(row.ag_rec),
         "PIO": row.pio ?? "",
         "PIO Disc": row.pio_disc ?? "",
         "Maquila": row.maquila ?? "",
@@ -1286,9 +1311,12 @@ useEffect(() => {
     for (let i = 0; i < exportRows.length; i++) {
       const excelRow = i + 2;
 
+      if (ws[`AA${excelRow}`]) ws[`AA${excelRow}`].z = "0.0000";
+      if (ws[`AB${excelRow}`]) ws[`AB${excelRow}`].z = "0.0000";
+
       ws[`AN${excelRow}`] = {
         t: "n",
-        f: `ROUND(ROUND((((V${excelRow}*AA${excelRow}*0.01)*(AC${excelRow}-AD${excelRow})-AE${excelRow}-AF${excelRow}-AG${excelRow})*1.1023),2)*ROUND(U${excelRow},3)+IF(AJ${excelRow}="",0,AJ${excelRow}),2)`
+        f: `ROUND(ROUND((((V${excelRow}*AA${excelRow})*(AC${excelRow}-AD${excelRow})-AE${excelRow}-AF${excelRow}-AG${excelRow})*1.1023),2)*ROUND(U${excelRow},3)+IF(AJ${excelRow}="",0,AJ${excelRow}),2)`
       };
     }
     ws["!cols"] = [
