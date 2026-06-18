@@ -103,7 +103,11 @@ const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct", "au_rec", "a
 
 function formatEditableNumber(field: EditableField, n: number) {
   if (field === "au_rec" || field === "ag_rec") return n.toFixed(2);
-  return DECIMALS_3_FIELDS.includes(field) ? n.toFixed(3) : n.toFixed(2);
+  return DECIMALS_4_FIELDS.includes(field)
+    ? n.toFixed(4)
+    : DECIMALS_3_FIELDS.includes(field)
+    ? n.toFixed(3)
+    : n.toFixed(2);
 }
 
 function parseImportedField(field: EditableField, raw: unknown) {
@@ -121,15 +125,22 @@ function parseImportedField(field: EditableField, raw: unknown) {
     return { value: 0, invalid: true };
   }
 
-  return { value: num, invalid: false };
+  return {
+    value: DECIMALS_4_FIELDS.includes(field) ? round4(num) : num,
+    invalid: false,
+  };
 }
 
 const DECIMALS_3_FIELDS: EditableField[] = [
   "tmh",
   "tms",
+  "cu_grade_pct",
+];
+
+const DECIMALS_4_FIELDS: EditableField[] = [
   "au_grade_oztc",
   "ag_grade_oztc",
-  "cu_grade_pct",
+  "nacn",
 ];
 
 type SortKey = "lot";
@@ -187,6 +198,10 @@ function parseNum(v: string) {
 
 function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function round4(n: number) {
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
 }
 
 function formatDateTime2_3(d: Date) {
@@ -344,7 +359,7 @@ function calcAuOzValue(tms: unknown, auGrade: unknown, auRec: unknown) {
 
   if (tmsNum === null || auGradeNum === null || auRecNum === null) return null;
 
-  return tmsNum * auGradeNum * auRecNum * 1.1023;
+  return tmsNum * round4(auGradeNum) * auRecNum * 1.1023;
 }
 
 function calcAuOz(draft: DraftRow) {
@@ -358,7 +373,7 @@ function calcAgOzValue(tms: unknown, agGrade: unknown, agRec: unknown) {
 
   if (tmsNum === null || agGradeNum === null || agRecNum === null) return null;
 
-  return tmsNum * agGradeNum * agRecNum * 1.1023;
+  return tmsNum * round4(agGradeNum) * agRecNum * 1.1023;
 }
 
 function calcAgOz(draft: DraftRow) {
@@ -386,7 +401,7 @@ function calcAuUsd(draft: DraftRow) {
     return null;
   }
 
-  return ((auGrade * auRec) * (pio - pioDisc) - maquila - nacn - escalador) * 1.1023;
+  return ((round4(auGrade) * auRec) * (pio - pioDisc) - maquila - round4(nacn) - escalador) * 1.1023;
 }
 
 function calcUsdTms(draft: DraftRow) {
@@ -499,7 +514,7 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
     if (f === "au_rec" || f === "ag_rec") {
       payload[f] = num * 100;
     } else {
-      payload[f] = num;
+      payload[f] = DECIMALS_4_FIELDS.includes(f) ? round4(num) : num;
     }
   }
 

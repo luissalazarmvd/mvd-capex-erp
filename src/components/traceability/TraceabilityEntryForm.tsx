@@ -208,9 +208,13 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
   const decimals3Keys: (keyof TraceabilityRow)[] = [
     "tmh",
     "tms",
+    "cu_grade_pct",
+  ];
+
+  const decimals4Keys: (keyof TraceabilityRow)[] = [
     "au_grade_oztc",
     "ag_grade_oztc",
-    "cu_grade_pct",
+    "nacn",
   ];
 
   for (const c of COLUMNS) {
@@ -232,6 +236,11 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
 
     if (decimals3Keys.includes(c.key) && !isBlank(r[c.key])) {
       out[c.key] = Number(r[c.key]).toFixed(3);
+      continue;
+    }
+
+    if (decimals4Keys.includes(c.key) && !isBlank(r[c.key])) {
+      out[c.key] = Number(r[c.key]).toFixed(4);
       continue;
     }
 
@@ -260,6 +269,10 @@ function parseNum(v: string) {
 
 function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function round4(n: number) {
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
 }
 
 function formatDateTime2_3(d: Date) {
@@ -304,6 +317,12 @@ function pctToDecimal4(value: unknown) {
   return Number((n / 100).toFixed(4));
 }
 
+function decimal4OrBlank(value: unknown) {
+  const n = toNumOrNull(value);
+  if (n === null) return "";
+  return round4(n);
+}
+
 function formatDateDdMmYyyy(value: string | null | undefined) {
   const v = String(value || "").trim();
   if (!v) return "—";
@@ -342,7 +361,7 @@ function calcAuUsd(draft: DraftRow) {
     return null;
   }
 
-  return ((auGrade * auRec*.01) * (pio - pioDisc) - maquila - nacn - escalador) * 1.1023;
+  return ((round4(auGrade) * auRec*.01) * (pio - pioDisc) - maquila - round4(nacn) - escalador) * 1.1023;
 }
 
 function calcUsdTms(draft: DraftRow) {
@@ -392,6 +411,12 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
   payload.source_name = "CM";
   payload.updated_at = batchUpdatedAt || null;
 
+  const decimals4PayloadFields: EditableField[] = [
+    "au_grade_oztc",
+    "ag_grade_oztc",
+    "nacn",
+  ];
+
   for (const f of EDITABLE_FIELDS) {
     const raw = String(row[f] ?? "").trim();
 
@@ -399,7 +424,11 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
       const num = raw === "" ? null : parseNum(raw);
       const err = validateNumericRange(f, num);
       if (err) throw new Error(err);
-      payload[f] = num;
+      payload[f] = num === null
+        ? null
+        : decimals4PayloadFields.includes(f)
+        ? round4(num)
+        : num;
       continue;
     }
 
@@ -1153,12 +1182,20 @@ useEffect(() => {
     const decimals3Fields: EditableField[] = [
       "tmh",
       "tms",
-      "au_grade_oztc",
-      "ag_grade_oztc",
       "cu_grade_pct",
     ];
 
-    const formatted = decimals3Fields.includes(field as EditableField) ? n.toFixed(3) : n.toFixed(2);
+    const decimals4Fields: EditableField[] = [
+      "au_grade_oztc",
+      "ag_grade_oztc",
+      "nacn",
+    ];
+
+    const formatted = decimals4Fields.includes(field as EditableField)
+      ? n.toFixed(4)
+      : decimals3Fields.includes(field as EditableField)
+      ? n.toFixed(3)
+      : n.toFixed(2);
     current[field] = formatted;
 
     const input = inputsRef.current[key]?.[field];
@@ -1278,8 +1315,8 @@ useEffect(() => {
         "TMH": row.tmh ?? "",
         "H2O": row.h2o ?? "",
         "TMS": row.tms ?? "",
-        "Ley Au": row.au_grade_oztc ?? "",
-        "Ley Ag": row.ag_grade_oztc ?? "",
+        "Ley Au": decimal4OrBlank(row.au_grade_oztc),
+        "Ley Ag": decimal4OrBlank(row.ag_grade_oztc),
         "Ley Cu": row.cu_grade_pct ?? "",
         "Au Oz": row.au_oz ?? "",
         "Ag Oz": row.ag_oz ?? "",
@@ -1288,7 +1325,7 @@ useEffect(() => {
         "PIO": row.pio ?? "",
         "PIO Disc": row.pio_disc ?? "",
         "Maquila": row.maquila ?? "",
-        "NaCN": row.nacn ?? "",
+        "NaCN": decimal4OrBlank(row.nacn),
         "Escalador": row.escalador ?? "",
         "USD/TMS": row.usd_tms ?? "",
         "Au USD": row.au_usd ?? "",
@@ -1311,12 +1348,16 @@ useEffect(() => {
     for (let i = 0; i < exportRows.length; i++) {
       const excelRow = i + 2;
 
+      if (ws[`V${excelRow}`]) ws[`V${excelRow}`].z = "0.0000";
+      if (ws[`W${excelRow}`]) ws[`W${excelRow}`].z = "0.0000";
+      if (ws[`AF${excelRow}`]) ws[`AF${excelRow}`].z = "0.0000";
+
       if (ws[`AA${excelRow}`]) ws[`AA${excelRow}`].z = "0.0000";
       if (ws[`AB${excelRow}`]) ws[`AB${excelRow}`].z = "0.0000";
 
       ws[`AN${excelRow}`] = {
         t: "n",
-        f: `ROUND(ROUND((((V${excelRow}*AA${excelRow})*(AC${excelRow}-AD${excelRow})-AE${excelRow}-AF${excelRow}-AG${excelRow})*1.1023),2)*ROUND(U${excelRow},3)+IF(AJ${excelRow}="",0,AJ${excelRow}),2)`
+        f: `ROUND(ROUND((((ROUND(V${excelRow},4)*AA${excelRow})*(AC${excelRow}-AD${excelRow})-AE${excelRow}-ROUND(AF${excelRow},4)-AG${excelRow})*1.1023),2)*ROUND(U${excelRow},3)+IF(AJ${excelRow}="",0,AJ${excelRow}),2)`
       };
     }
     ws["!cols"] = [
