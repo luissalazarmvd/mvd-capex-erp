@@ -103,7 +103,8 @@ type EditableField = (typeof EDITABLE_FIELDS)[number];
 
 const OPTIONAL_EMPTY_FIELDS = new Set<EditableField>(["ag_grade_oztc", "ag_rec", "escalador", "ag_usd"]);
 
-const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct", "au_rec", "ag_rec"];
+const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct"];
+const RANGE_0_1_FIELDS: EditableField[] = ["au_rec", "ag_rec"];
 
 function formatEditableNumber(field: EditableField, n: number) {
   if (field === "au_rec" || field === "ag_rec") return n.toFixed(2);
@@ -457,8 +458,11 @@ function validateNumericRange(field: EditableField, value: number | null) {
   if (RANGE_0_100_FIELDS.includes(field) && (value < 0 || value > 100)) {
     if (field === "h2o") return "H2O debe estar entre 0 y 100.";
     if (field === "cu_grade_pct") return "Cu % debe estar entre 0 y 100.";
-    if (field === "au_rec") return "Au Rec debe estar entre 0 y 100.";
-    if (field === "ag_rec") return "Ag Rec debe estar entre 0 y 100.";
+  }
+
+  if (RANGE_0_1_FIELDS.includes(field) && (value < 0 || value > 1)) {
+    if (field === "au_rec") return "Au Rec debe estar entre 0 y 1. Ejemplo: 90% -> 0.90.";
+    if (field === "ag_rec") return "Ag Rec debe estar entre 0 y 1. Ejemplo: 95% -> 0.95.";
   }
   return null;
 }
@@ -1188,7 +1192,12 @@ export default function TraceabilityComerForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>Trazabilidad · Datos Comercial</div>
+        <div style={{ display: "grid", gap: 2 }}>
+          <div style={{ fontWeight: 900 }}>Trazabilidad · Datos Comercial</div>
+          <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.85 }}>
+            Rec Au/Ag: 0-1 decimal (ej. 90% → 0.90) · H2O y Cu %: 0-100 (ej. 4% → 4.00)
+          </div>
+        </div>
 
         <div
           style={{
