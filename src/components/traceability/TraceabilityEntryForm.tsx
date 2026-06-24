@@ -163,7 +163,7 @@ const COLUMNS: {
   { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 88 },
   { key: "ag_rec", label: "Ag Rec", editable: true, kind: "number", width: 88 },
   { key: "pio", label: "PIO", editable: true, kind: "number", width: 88 },
-  { key: "pip", label: "PIP", editable: false, kind: "number", width: 88 },
+  { key: "pip", label: "PIP", editable: false, kind: "readonly", width: 88 },
   { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 88 },
   { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 88 },
   { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 88 },
@@ -689,6 +689,7 @@ function RowItem({
             c.key === "lot_usd" ||
             c.key === "usd_tms" ||
             c.key === "au_usd" ||
+            c.key === "pip" ||
             c.key === "monto_calc" ||
             c.key === "dif_rc";
 
@@ -708,6 +709,8 @@ function RowItem({
               ? montoCalc
               : c.key === "dif_rc"
               ? difRc
+              : c.key === "pip"
+              ? (!isBlank(row.pip) ? row.pip : draft.pip)
               : row[c.key];
 
           const decimals3Keys: (keyof TraceabilityRow)[] = [
@@ -872,7 +875,10 @@ export default function TraceabilityEntryForm() {
     setMsg(null);
     try {
       const r = (await apiGet("/api/traceability")) as GetResp;
-      const data = Array.isArray(r?.rows) ? r.rows : [];
+      const data = (Array.isArray(r?.rows) ? r.rows : []).map((row: any) => ({
+        ...row,
+        pip: row.pip ?? row.PIP ?? row.Pip ?? null,
+      }));
 
       const nextDrafts: Record<string, DraftRow> = {};
       const nextOriginals: Record<string, DraftRow> = {};
