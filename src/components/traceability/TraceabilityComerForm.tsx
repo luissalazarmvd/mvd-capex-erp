@@ -22,6 +22,7 @@ type TraceabilityRow = {
   au_rec: number | null;
   ag_rec: number | null;
   pio: number | null;
+  pip: number | null;
   pio_disc: number | null;
   maquila: number | null;
   nacn: number | null;
@@ -51,6 +52,7 @@ type DraftRow = {
   au_rec: string;
   ag_rec: string;
   pio: string;
+  pip: string;
   pio_disc: string;
   maquila: string;
   nacn: string;
@@ -71,6 +73,7 @@ const EXPORT_COLUMNS = [
   { key: "au_rec", label: "Au Rec" },
   { key: "ag_rec", label: "Ag Rec" },
   { key: "pio", label: "PIO" },
+  { key: "pip", label: "PIP" },
   { key: "pio_disc", label: "PIO Desc." },
   { key: "maquila", label: "Maquila" },
   { key: "nacn", label: "NaCN" },
@@ -88,6 +91,7 @@ const EDITABLE_FIELDS = [
   "au_rec",
   "ag_rec",
   "pio",
+  "pip",
   "pio_disc",
   "maquila",
   "nacn",
@@ -170,6 +174,7 @@ const COLUMNS: {
   { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 88 },
   { key: "ag_rec", label: "Ag Rec", editable: true, kind: "number", width: 88 },
   { key: "pio", label: "PIO", editable: true, kind: "number", width: 88 },
+  { key: "pip", label: "PIP", editable: true, kind: "number", width: 88 },
   { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 96 },
   { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 88 },
   { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 88 },
@@ -438,6 +443,7 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
     au_rec: formatFieldValue("au_rec", r.au_rec),
     ag_rec: formatFieldValue("ag_rec", r.ag_rec),
     pio: formatFieldValue("pio", r.pio),
+    pip: formatFieldValue("pip", r.pip),
     pio_disc: formatFieldValue("pio_disc", r.pio_disc),
     maquila: formatFieldValue("maquila", r.maquila),
     nacn: formatFieldValue("nacn", r.nacn),
@@ -487,6 +493,7 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
     au_rec: null,
     ag_rec: null,
     pio: null,
+    pip: null,
     pio_disc: null,
     maquila: null,
     nacn: null,
@@ -564,6 +571,7 @@ function hydrateRowsFromDrafts(sourceDrafts: Record<string, DraftRow>) {
       au_rec: toNumOrNull(draft.au_rec),
       ag_rec: toNumOrNull(draft.ag_rec),
       pio: toNumOrNull(draft.pio),
+      pip: toNumOrNull(draft.pip),
       pio_disc: toNumOrNull(draft.pio_disc),
       maquila: toNumOrNull(draft.maquila),
       nacn: toNumOrNull(draft.nacn),
@@ -902,6 +910,7 @@ export default function TraceabilityComerForm() {
         const au_rec = parseImportedField("au_rec", raw["Au Rec"]);
         const ag_rec = parseImportedField("ag_rec", raw["Ag Rec"]);
         const pio = parseImportedField("pio", raw["PIO"]);
+        const pip = parseImportedField("pip", raw["PIP"]);
         const pio_disc = parseImportedField("pio_disc", raw["PIO Desc."]);
         const maquila = parseImportedField("maquila", raw["Maquila"]);
         const nacn = parseImportedField("nacn", raw["NaCN"]);
@@ -923,6 +932,7 @@ export default function TraceabilityComerForm() {
           au_rec: au_rec.value,
           ag_rec: ag_rec.value,
           pio: pio.value,
+          pip: pip.value,
           pio_disc: pio_disc.value,
           maquila: maquila.value,
           nacn: nacn.value,
@@ -943,6 +953,7 @@ export default function TraceabilityComerForm() {
           au_rec: au_rec.invalid,
           ag_rec: ag_rec.invalid,
           pio: pio.invalid,
+          pip: pip.invalid,
           pio_disc: pio_disc.invalid,
           maquila: maquila.invalid,
           nacn: nacn.invalid,

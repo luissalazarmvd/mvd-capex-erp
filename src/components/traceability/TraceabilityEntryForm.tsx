@@ -37,6 +37,7 @@ type TraceabilityRow = {
   au_rec: number | null;
   ag_rec: number | null;
   pio: number | null;
+  pip: number | null;
   pio_disc: number | null;
   maquila: number | null;
   nacn: number | null;
@@ -83,6 +84,7 @@ const EDITABLE_FIELDS = [
   "au_rec",
   "ag_rec",
   "pio",
+  "pip",
   "pio_disc",
   "maquila",
   "nacn",
@@ -105,6 +107,7 @@ const NUMERIC_FIELDS: EditableField[] = [
   "au_rec",
   "ag_rec",
   "pio",
+  "pip",
   "pio_disc",
   "maquila",
   "nacn",
@@ -162,6 +165,7 @@ const COLUMNS: {
   { key: "au_rec", label: "Au Rec", editable: true, kind: "number", width: 88 },
   { key: "ag_rec", label: "Ag Rec", editable: true, kind: "number", width: 88 },
   { key: "pio", label: "PIO", editable: true, kind: "number", width: 88 },
+  { key: "pip", label: "PIP", editable: true, kind: "number", width: 88 },
   { key: "pio_disc", label: "PIO Desc.", editable: true, kind: "number", width: 88 },
   { key: "maquila", label: "Maquila", editable: true, kind: "number", width: 88 },
   { key: "nacn", label: "NaCN", editable: true, kind: "number", width: 88 },
@@ -1323,6 +1327,7 @@ useEffect(() => {
         "Rec Au": pctToDecimal4(row.au_rec),
         "Rec Ag": pctToDecimal4(row.ag_rec),
         "PIO": row.pio ?? "",
+        "PIP": row.pip ?? "",
         "PIO Disc": row.pio_disc ?? "",
         "Maquila": row.maquila ?? "",
         "NaCN": decimal4OrBlank(row.nacn),
@@ -1350,14 +1355,14 @@ useEffect(() => {
 
       if (ws[`V${excelRow}`]) ws[`V${excelRow}`].z = "0.0000";
       if (ws[`W${excelRow}`]) ws[`W${excelRow}`].z = "0.0000";
-      if (ws[`AF${excelRow}`]) ws[`AF${excelRow}`].z = "0.0000";
+      if (ws[`AG${excelRow}`]) ws[`AG${excelRow}`].z = "0.0000";
 
       if (ws[`AA${excelRow}`]) ws[`AA${excelRow}`].z = "0.0000";
       if (ws[`AB${excelRow}`]) ws[`AB${excelRow}`].z = "0.0000";
 
-      ws[`AN${excelRow}`] = {
+      ws[`AO${excelRow}`] = {
         t: "n",
-        f: `ROUND(ROUND((((ROUND(V${excelRow},4)*AA${excelRow})*(AC${excelRow}-AD${excelRow})-AE${excelRow}-ROUND(AF${excelRow},4)-AG${excelRow})*1.1023),2)*ROUND(U${excelRow},3)+IF(AJ${excelRow}="",0,AJ${excelRow}),2)`
+        f: `ROUND(ROUND((((ROUND(V${excelRow},4)*AA${excelRow})*(AC${excelRow}-AE${excelRow})-AF${excelRow}-ROUND(AG${excelRow},4)-AH${excelRow})*1.1023),2)*ROUND(U${excelRow},3)+IF(AK${excelRow}="",0,AK${excelRow}),2)`
       };
     }
     ws["!cols"] = [
@@ -1396,7 +1401,9 @@ useEffect(() => {
       { wch: 12 },
       { wch: 12 },
       { wch: 12 },
+      { wch: 12 },
       { wch: 14 },
+      { wch: 16 },
       { wch: 16 },
       { wch: 16 },
       { wch: 16 },
