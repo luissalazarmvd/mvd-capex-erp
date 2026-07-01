@@ -389,7 +389,7 @@ function isUsdValidationOk(draft: DraftRow) {
 
   const difRc = round2(lotUsd - montoCalc);
 
-  return Math.abs(difRc) <= 0.01;
+  return Math.abs(difRc) <= 0.02;
 }
 
 function hasValuationData(draft: DraftRow) {
