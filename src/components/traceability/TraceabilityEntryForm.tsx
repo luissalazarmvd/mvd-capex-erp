@@ -362,7 +362,6 @@ function calcAuUsd(draft: DraftRow) {
   ) {
     return null;
   }
-  
   return ((round4(auGrade) * auRec*.01) * (pio - pioDisc) - maquila - round4(nacn) - escalador) * 1.1023;
 }
 
