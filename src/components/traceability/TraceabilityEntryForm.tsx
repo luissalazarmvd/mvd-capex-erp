@@ -427,8 +427,6 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
       if (err) throw new Error(err);
       payload[f] = num === null
         ? null
-        : f === "tms"
-        ? Number(num.toFixed(3))
         : decimals4PayloadFields.includes(f)
         ? round4(num)
         : num;
@@ -1206,10 +1204,10 @@ useEffect(() => {
         ? normalizedManualTms.split(".")[1]?.length ?? 0
         : 0;
 
-      if (tmsDecimals > 9) {
+      if (tmsDecimals > 6) {
         const input = inputsRef.current[key]?.[field];
         if (input) input.value = previousValue;
-        setMsg("ERROR: TMS permite máximo 9 decimales.");
+        setMsg("ERROR: TMS permite máximo 6 decimales.");
         return;
       }
     }
