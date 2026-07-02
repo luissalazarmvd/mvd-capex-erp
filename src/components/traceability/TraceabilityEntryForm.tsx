@@ -377,7 +377,7 @@ function calcFacturaCalculada(draft: DraftRow) {
 
   if (usdTms === null || tms === null) return null;
 
-  return round2(round2(usdTms) * Number(tms.toFixed(3)) + (agUsd ?? 0));
+  return round2(round2(usdTms) * tms + (agUsd ?? 0));
 }
 
 function isUsdValidationOk(draft: DraftRow) {
@@ -427,6 +427,8 @@ function buildPayload(row: DraftRow, batchUpdatedAt?: string) {
       if (err) throw new Error(err);
       payload[f] = num === null
         ? null
+        : f === "tms"
+        ? Number(num.toFixed(3))
         : decimals4PayloadFields.includes(f)
         ? round4(num)
         : num;
@@ -1188,7 +1190,6 @@ useEffect(() => {
 
     const decimals3Fields: EditableField[] = [
       "tmh",
-      "tms",
       "cu_grade_pct",
     ];
 
@@ -1198,7 +1199,24 @@ useEffect(() => {
       "nacn",
     ];
 
-    const formatted = decimals4Fields.includes(field as EditableField)
+    const normalizedManualTms = String(trimmed).trim().replace(",", ".");
+
+    if (field === "tms") {
+      const tmsDecimals = normalizedManualTms.includes(".")
+        ? normalizedManualTms.split(".")[1]?.length ?? 0
+        : 0;
+
+      if (tmsDecimals > 9) {
+        const input = inputsRef.current[key]?.[field];
+        if (input) input.value = previousValue;
+        setMsg("ERROR: TMS permite máximo 9 decimales.");
+        return;
+      }
+    }
+
+    const formatted = field === "tms"
+      ? normalizedManualTms
+      : decimals4Fields.includes(field as EditableField)
       ? n.toFixed(4)
       : decimals3Fields.includes(field as EditableField)
       ? n.toFixed(3)
