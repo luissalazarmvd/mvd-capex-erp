@@ -13,7 +13,8 @@ type Area =
   | "traceability"
   | "compliance"
   | "logistics"
-  | "sustainability";
+  | "sustainability"
+  | "fleet";
 
 export default function PortalClient() {
   const router = useRouter();
@@ -112,6 +113,8 @@ export default function PortalClient() {
           ? "/logistics/downloads"
           : area === "sustainability"
           ? "/sustainability/igafom"
+          : area === "fleet"
+          ? j?.defaultPath || "/fleet/offices"
           : "/ti"
       );
     } catch (e: any) {
@@ -221,6 +224,16 @@ export default function PortalClient() {
               type="button"
               size="lg"
               variant="primary"
+              onClick={() => start("fleet")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
+              Flota
+            </Button>
+
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
               onClick={() => start("sustainability")}
               disabled={checkingAccess || !hasInternalAccess}
             >
@@ -252,6 +265,8 @@ export default function PortalClient() {
                 ? "Clave Compliance"
                 : area === "logistics"
                 ? "Clave Logistics"
+                : area === "fleet"
+                ? "Clave Flota"
                 : area === "sustainability"
                 ? "Clave Sustainability"
                 : "Clave Tickets TI"}

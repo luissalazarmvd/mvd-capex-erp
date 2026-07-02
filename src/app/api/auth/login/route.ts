@@ -41,6 +41,7 @@ export async function POST(req: Request) {
         "compliance",
         "logistics",
         "sustainability",
+        "fleet",
       ].includes(area)
     ) {
       return NextResponse.json({ ok: false, error: "area inválida" }, { status: 400 });
@@ -62,26 +63,43 @@ export async function POST(req: Request) {
     const COMPLIANCE_PASSWORD = process.env.COMPLIANCE_PASSWORD || "";
     const LOGISTICS_PASSWORD = process.env.LOGISTICS_PASSWORD || "";
     const SUSTAINABILITY_PASSWORD = process.env.SUSTAINABILITY_PASSWORD || "";
+    const FLEET_PASSWORD_L1 = process.env.FLEET_PASSWORD_L1 || "";
+    const FLEET_PASSWORD_L2 = process.env.FLEET_PASSWORD_L2 || "";
 
-    const ok =
-      (area === "capex" && password === CAPEX_PASSWORD) ||
-      (area === "planta" && password === PLANTA_PASSWORD) ||
-      (area === "refinery" && password === REFINERY_PASSWORD) ||
-      (area === "traceability" && password === TRACEABILITY_PASSWORD) ||
-      (area === "compliance" && password === COMPLIANCE_PASSWORD) ||
-      (area === "logistics" && password === LOGISTICS_PASSWORD) ||
-      (area === "sustainability" && password === SUSTAINABILITY_PASSWORD);
+    let ok = false;
+    let scopes: string[] = [area];
+    let defaultPath: string | null = null;
+
+    if (area === "capex" && password === CAPEX_PASSWORD) ok = true;
+    if (area === "planta" && password === PLANTA_PASSWORD) ok = true;
+    if (area === "refinery" && password === REFINERY_PASSWORD) ok = true;
+    if (area === "traceability" && password === TRACEABILITY_PASSWORD) ok = true;
+    if (area === "compliance" && password === COMPLIANCE_PASSWORD) ok = true;
+    if (area === "logistics" && password === LOGISTICS_PASSWORD) ok = true;
+    if (area === "sustainability" && password === SUSTAINABILITY_PASSWORD) ok = true;
+
+    if (area === "fleet" && password === FLEET_PASSWORD_L1) {
+      ok = true;
+      scopes = ["fleet_offices"];
+      defaultPath = "/fleet/offices";
+    }
+
+    if (area === "fleet" && password === FLEET_PASSWORD_L2) {
+      ok = true;
+      scopes = ["fleet_offices", "fleet_mgmt"];
+      defaultPath = "/fleet/offices";
+    }
 
     if (!ok) {
       return NextResponse.json({ ok: false, error: "Clave incorrecta" }, { status: 401 });
     }
 
     const exp = Date.now() + 1000 * 60 * 60 * 12;
-    const payload = { exp, scopes: [area] };
+    const payload = { exp, scopes };
 
     const token = await buildToken(payload, secret);
 
-    const res = NextResponse.json({ ok: true, area });
+    const res = NextResponse.json({ ok: true, area, scopes, defaultPath });
 
     res.cookies.set({
       name: "mvd_auth",

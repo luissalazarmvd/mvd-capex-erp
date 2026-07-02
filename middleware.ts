@@ -119,9 +119,20 @@ export async function middleware(req: NextRequest) {
     ? "logistics"
     : pathname.startsWith("/sustainability")
     ? "sustainability"
+    : pathname.startsWith("/fleet/mgmt")
+    ? "fleet_mgmt"
+    : pathname.startsWith("/fleet/offices")
+    ? "fleet_offices"
+    : pathname.startsWith("/fleet")
+    ? "fleet"
     : "capex";
 
-  if (!auth.scopes.includes(need)) {
+  const allowed =
+    auth.scopes.includes(need) ||
+    (need === "fleet" &&
+      (auth.scopes.includes("fleet_offices") || auth.scopes.includes("fleet_mgmt")));
+
+  if (!allowed) {
     const url = req.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
