@@ -7,21 +7,46 @@ import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 
-type FleetOffRow = {
+type FleetMgmRow = {
   item_ord: number | string | null;
   req_num: string | null;
   req_date: string | null;
+  assign_date: string | null;
+  modified_date: string | null;
   mat_code: string | null;
   mat_desc: string | null;
+  mat_unit: string | null;
+  mat_group: string | null;
+  mat_family: string | null;
+  responsible: string | null;
+  qty_requested: number | string | null;
+  qty_ordered: number | string | null;
+  qty_delivered: number | string | null;
+  qty_approved: number | string | null;
+  req_status: string | null;
   cost_center_desc: string | null;
+  cost_center_code: string | null;
+  requester_desc: string | null;
+  requester_area: string | null;
+  office_desc: string | null;
+  po_num: string | null;
+  supplier_name: string | null;
+  po_date: string | null;
+  po_unit_price_us: number | string | null;
+  po_status: string | null;
+  po_est_delivery_date: string | null;
   odometer_km: number | string | null;
   req_type: string | null;
+  repair_shop_name: string | null;
+  entry_date: string | null;
+  exit_date: string | null;
+  app_budget_pen: number | string | null;
   req_serv_status: string | null;
 };
 
 type GetResp = {
   ok: boolean;
-  rows?: FleetOffRow[];
+  rows?: FleetMgmRow[];
   error?: string;
 };
 
@@ -31,18 +56,47 @@ type SaveResp = {
   error?: string;
 };
 
-type DraftRow = Partial<Record<keyof FleetOffRow, string>>;
+type DraftRow = Partial<Record<keyof FleetMgmRow, string>>;
 
-const EDITABLE_FIELDS = ["odometer_km", "req_type"] as const;
-type SortKey = keyof FleetOffRow;
+const EDITABLE_FIELDS = ["repair_shop_name", "entry_date", "exit_date", "app_budget_pen"] as const;
+type SortKey = keyof FleetMgmRow;
 type SortDir = "asc" | "desc";
+type StatusFilter = "all" | "Abierto" | "Cerrado";
 
 const PAGE_SIZE = 50;
 
 const REQ_TYPE_OPTIONS = ["Motor", "Llantas", "Transmisión", "Sist. Eléctrico", "Otros"];
 
+const REQ_HEADER_COLLAPSIBLE_KEYS: (keyof FleetMgmRow)[] = [
+  "req_date",
+  "assign_date",
+  "modified_date",
+  "mat_code",
+  "mat_desc",
+  "mat_unit",
+  "mat_group",
+  "mat_family",
+  "responsible",
+  "qty_requested",
+  "qty_ordered",
+  "qty_delivered",
+  "qty_approved",
+  "req_status",
+  "cost_center_desc",
+  "cost_center_code",
+  "requester_desc",
+  "requester_area",
+  "office_desc",
+  "po_num",
+  "supplier_name",
+  "po_date",
+  "po_unit_price_us",
+  "po_status",
+  "po_est_delivery_date",
+];
+
 const COLUMNS: {
-  key: keyof FleetOffRow;
+  key: keyof FleetMgmRow;
   label: string;
   editable: boolean;
   kind: "text" | "date" | "number" | "readonly" | "select";
@@ -52,11 +106,37 @@ const COLUMNS: {
   { key: "item_ord", label: "Item Ord", editable: false, kind: "number", width: 100, sortable: true },
   { key: "req_num", label: "RQ", editable: false, kind: "readonly", width: 120, sortable: true },
   { key: "req_date", label: "F. Req", editable: false, kind: "date", width: 110, sortable: true },
+  { key: "assign_date", label: "F. Asign.", editable: false, kind: "date", width: 110, sortable: true },
+  { key: "modified_date", label: "F. Modif.", editable: false, kind: "date", width: 110, sortable: true },
   { key: "mat_code", label: "Cod. Material", editable: false, kind: "readonly", width: 130, sortable: true },
   { key: "mat_desc", label: "Material", editable: false, kind: "readonly", width: 320, sortable: true },
+  { key: "mat_unit", label: "UM", editable: false, kind: "readonly", width: 80, sortable: true },
+  { key: "mat_group", label: "Grupo Mat.", editable: false, kind: "readonly", width: 130, sortable: true },
+  { key: "mat_family", label: "Familia Mat.", editable: false, kind: "readonly", width: 140, sortable: true },
+  { key: "responsible", label: "Responsable", editable: false, kind: "readonly", width: 150, sortable: true },
+  { key: "qty_requested", label: "Cant. Sol.", editable: false, kind: "number", width: 110, sortable: true },
+  { key: "qty_ordered", label: "Cant. OC", editable: false, kind: "number", width: 110, sortable: true },
+  { key: "qty_delivered", label: "Cant. Ent.", editable: false, kind: "number", width: 110, sortable: true },
+  { key: "qty_approved", label: "Cant. Aprob.", editable: false, kind: "number", width: 120, sortable: true },
+  { key: "req_status", label: "Estado RQ", editable: false, kind: "readonly", width: 130, sortable: true },
   { key: "cost_center_desc", label: "Centro de Costo", editable: false, kind: "readonly", width: 260, sortable: true },
-  { key: "odometer_km", label: "Odómetro Km", editable: true, kind: "number", width: 140, sortable: true },
-  { key: "req_type", label: "Tipo Req", editable: true, kind: "select", width: 180, sortable: true },
+  { key: "cost_center_code", label: "Cod. CC", editable: false, kind: "readonly", width: 100, sortable: true },
+  { key: "requester_desc", label: "Solicitante", editable: false, kind: "readonly", width: 180, sortable: true },
+  { key: "requester_area", label: "Área Sol.", editable: false, kind: "readonly", width: 150, sortable: true },
+  { key: "office_desc", label: "Oficina", editable: false, kind: "readonly", width: 150, sortable: true },
+  { key: "po_num", label: "OC", editable: false, kind: "readonly", width: 120, sortable: true },
+  { key: "supplier_name", label: "Proveedor", editable: false, kind: "readonly", width: 240, sortable: true },
+  { key: "po_date", label: "F. OC", editable: false, kind: "date", width: 110, sortable: true },
+  { key: "po_unit_price_us", label: "PU OC USD", editable: false, kind: "number", width: 120, sortable: true },
+  { key: "po_status", label: "Estado OC", editable: false, kind: "readonly", width: 130, sortable: true },
+  { key: "po_est_delivery_date", label: "F. Est. Entrega", editable: false, kind: "date", width: 130, sortable: true },
+  { key: "odometer_km", label: "Odómetro Km", editable: false, kind: "number", width: 140, sortable: true },
+  { key: "req_type", label: "Tipo Req", editable: false, kind: "readonly", width: 180, sortable: true },
+  { key: "repair_shop_name", label: "Taller", editable: true, kind: "text", width: 220, sortable: true },
+  { key: "entry_date", label: "F. Ingreso", editable: true, kind: "date", width: 130, sortable: true },
+  { key: "exit_date", label: "F. Salida", editable: true, kind: "date", width: 130, sortable: true },
+  { key: "app_budget_pen", label: "Presup. Aprob. PEN", editable: true, kind: "number", width: 170, sortable: true },
+  { key: "req_serv_status", label: "Estado Servicio", editable: false, kind: "readonly", width: 140, sortable: true },
 ];
 
 const SORTABLE_KEYS = COLUMNS.filter((c) => c.sortable).map((c) => c.key);
@@ -99,21 +179,43 @@ function formatDateYyyyMmDd(value: unknown) {
   return d.toISOString().slice(0, 10);
 }
 
-function formatDisplayValue(key: keyof FleetOffRow, value: unknown) {
+function formatDisplayValue(key: keyof FleetMgmRow, value: unknown) {
   if (isBlank(value)) return "";
 
-  if (key === "req_date") return formatDateYyyyMmDd(value);
+  if (
+    key === "req_date" ||
+    key === "assign_date" ||
+    key === "modified_date" ||
+    key === "po_date" ||
+    key === "po_est_delivery_date" ||
+    key === "entry_date" ||
+    key === "exit_date"
+  ) {
+    return formatDateYyyyMmDd(value);
+  }
+
   if (key === "item_ord") return formatNumber(value, 0);
-  if (key === "odometer_km") return formatNumber(value, 2);
+
+  if (
+    key === "qty_requested" ||
+    key === "qty_ordered" ||
+    key === "qty_delivered" ||
+    key === "qty_approved" ||
+    key === "po_unit_price_us" ||
+    key === "odometer_km" ||
+    key === "app_budget_pen"
+  ) {
+    return formatNumber(value, 2);
+  }
 
   return String(value ?? "");
 }
 
-function toDraftRow(r: FleetOffRow): DraftRow {
+function toDraftRow(r: FleetMgmRow): DraftRow {
   const out: DraftRow = {};
 
   for (const c of COLUMNS) {
-    out[c.key] = toText(r[c.key]);
+    out[c.key] = c.kind === "date" ? formatDateYyyyMmDd(r[c.key]) : toText(r[c.key]);
   }
 
   return out;
@@ -126,15 +228,15 @@ function compareText(a: string, b: string) {
   });
 }
 
-function getSortValue(row: FleetOffRow, key: SortKey, draft?: DraftRow) {
+function getSortValue(row: FleetMgmRow, key: SortKey, draft?: DraftRow) {
   const value = draft?.[key] ?? row[key];
   if (value === null || value === undefined) return "";
   return String(value).trim();
 }
 
 function compareByKey(
-  a: FleetOffRow,
-  b: FleetOffRow,
+  a: FleetMgmRow,
+  b: FleetMgmRow,
   key: SortKey,
   dir: SortDir,
   draftA?: DraftRow,
@@ -143,7 +245,7 @@ function compareByKey(
   const av = getSortValue(a, key, draftA);
   const bv = getSortValue(b, key, draftB);
 
-  const numericKeys: SortKey[] = ["item_ord", "odometer_km"];
+  const numericKeys: SortKey[] = ["item_ord", "odometer_km", "app_budget_pen"];
 
   if (numericKeys.includes(key)) {
     const an = parseNum(av);
@@ -171,7 +273,15 @@ function inDateRange(reqDate: string | null, from: string, to: string) {
   return true;
 }
 
-function matchesGlobal(row: FleetOffRow, draft: DraftRow | undefined, filterValue: string) {
+function inDraftDateRange(row: FleetMgmRow, draft: DraftRow | undefined, key: keyof FleetMgmRow, from: string, to: string) {
+  const d = formatDateYyyyMmDd(draft?.[key] ?? row[key]);
+  if (!d) return !from && !to;
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
+
+function matchesGlobal(row: FleetMgmRow, draft: DraftRow | undefined, filterValue: string) {
   const filter = String(filterValue || "").trim().toLowerCase();
   if (!filter) return true;
 
@@ -180,7 +290,14 @@ function matchesGlobal(row: FleetOffRow, draft: DraftRow | undefined, filterValu
     row.mat_code,
     row.mat_desc,
     row.cost_center_desc,
-    draft?.req_type ?? row.req_type,
+    row.requester_desc,
+    row.requester_area,
+    row.req_type,
+    draft?.repair_shop_name ?? row.repair_shop_name,
+    draft?.entry_date ?? row.entry_date,
+    draft?.exit_date ?? row.exit_date,
+    draft?.app_budget_pen ?? row.app_budget_pen,
+    row.req_serv_status,
   ];
 
   return values.some((value) =>
@@ -196,23 +313,59 @@ function isRowEdited(current: DraftRow | undefined, original: DraftRow | undefin
   );
 }
 
+function todayPeYyyyMmDd() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const y = parts.find((p) => p.type === "year")?.value || "";
+  const m = parts.find((p) => p.type === "month")?.value || "";
+  const d = parts.find((p) => p.type === "day")?.value || "";
+
+  return `${y}-${m}-${d}`;
+}
+
+function isFutureDatePe(value: unknown) {
+  const d = formatDateYyyyMmDd(value);
+  if (!d) return false;
+  return d > todayPeYyyyMmDd();
+}
+
 function rowHasInvalidNumber(current: DraftRow | undefined) {
   if (!current) return false;
-  const value = String(current.odometer_km ?? "").trim();
-  if (!value) return false;
-  return parseNum(value) === null;
+
+  const budget = String(current.app_budget_pen ?? "").trim();
+
+  if (budget && parseNum(budget) === null) return true;
+  if (isFutureDatePe(current.entry_date)) return true;
+  if (isFutureDatePe(current.exit_date)) return true;
+
+  return false;
 }
 
 function buildPayload(row: DraftRow) {
-  return {
+  const payload: Record<string, string | number | null> = {
     item_ord: parseNum(row.item_ord) ?? null,
-    odometer_km: parseNum(row.odometer_km),
-    req_type: String(row.req_type ?? "").trim() || null,
   };
+
+  const repairShopName = String(row.repair_shop_name ?? "").trim();
+  const entryDate = formatDateYyyyMmDd(row.entry_date);
+  const exitDate = formatDateYyyyMmDd(row.exit_date);
+  const appBudgetPen = parseNum(row.app_budget_pen);
+
+  if (repairShopName) payload.repair_shop_name = repairShopName;
+  if (entryDate) payload.entry_date = entryDate;
+  if (exitDate) payload.exit_date = exitDate;
+  if (appBudgetPen !== null) payload.app_budget_pen = appBudgetPen;
+
+  return payload;
 }
 
 type RowItemProps = {
-  row: FleetOffRow;
+  row: FleetMgmRow;
   draft: DraftRow;
   loading: boolean;
   saving: boolean;
@@ -220,10 +373,10 @@ type RowItemProps = {
   invalid: boolean;
   registerInput: (
     key: string,
-    field: keyof FleetOffRow,
+    field: keyof FleetMgmRow,
     el: HTMLInputElement | HTMLSelectElement | null
   ) => void;
-  onCellBlur: (key: string, field: keyof FleetOffRow, value: string) => void;
+  onCellBlur: (key: string, field: keyof FleetMgmRow, value: string) => void;
   onCellFocus: (key: string) => void;
   cellBase: React.CSSProperties;
   gridH: string;
@@ -231,7 +384,8 @@ type RowItemProps = {
   rowBg: string;
   editedRowBg: string;
   invalidRowBg: string;
-  columnWidths: Partial<Record<keyof FleetOffRow, number>>;
+  columnWidths: Partial<Record<keyof FleetMgmRow, number>>;
+  columns: typeof COLUMNS;
 };
 
 function RowItem({
@@ -251,9 +405,10 @@ function RowItem({
   editedRowBg,
   invalidRowBg,
   columnWidths,
+  columns,
 }: RowItemProps) {
   const key = String(row.item_ord ?? "").trim();
-  const [openDropdown, setOpenDropdown] = useState<keyof FleetOffRow | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<keyof FleetMgmRow | null>(null);
   const currentRowBg = invalid ? invalidRowBg : edited ? editedRowBg : rowBg;
 
   return (
@@ -264,7 +419,7 @@ function RowItem({
         zIndex: openDropdown ? 99999 : "auto",
       }}
     >
-      {COLUMNS.map((c) => {
+      {columns.map((c) => {
         const colWidth = columnWidths[c.key] ?? c.width ?? 110;
 
         if (!c.editable) {
@@ -297,7 +452,7 @@ function RowItem({
           );
         }
 
-        if (c.key === "odometer_km") {
+        if (c.kind === "number") {
           const currentValue = toText(draft[c.key]);
 
           return (
@@ -336,6 +491,99 @@ function RowItem({
                   outline: "none",
                   fontWeight: 900,
                   textAlign: "right",
+                  boxSizing: "border-box",
+                }}
+              />
+            </td>
+          );
+        }
+
+        if (c.kind === "date") {
+          const currentValue = formatDateYyyyMmDd(draft[c.key]);
+
+          return (
+            <td
+              key={String(c.key)}
+              className="capex-td"
+              style={{
+                ...cellBase,
+                borderTop: gridH,
+                borderBottom: gridH,
+                borderRight: gridV,
+                background: currentRowBg,
+                padding: "6px 8px",
+                width: colWidth,
+                minWidth: colWidth,
+                maxWidth: colWidth,
+                boxSizing: "border-box",
+              }}
+            >
+              <input
+                ref={(el) => registerInput(key, c.key, el)}
+                type="date"
+                value={currentValue}
+                max={todayPeYyyyMmDd()}
+                disabled={loading || saving}
+                onFocus={() => onCellFocus(key)}
+                onKeyDown={(e) => e.preventDefault()}
+                onPaste={(e) => e.preventDefault()}
+                onChange={(e) => onCellBlur(key, c.key, e.target.value)}
+                style={{
+                  width: "100%",
+                  minWidth: 0,
+                  background: "rgba(0,0,0,.10)",
+                  border: invalid ? "1px solid rgba(255, 92, 92, 0.75)" : "1px solid var(--border)",
+                  color: "var(--text)",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  outline: "none",
+                  fontWeight: 900,
+                  boxSizing: "border-box",
+                  colorScheme: "dark",
+                }}
+              />
+            </td>
+          );
+        }
+
+        if (c.kind === "text") {
+          const currentValue = toText(draft[c.key]);
+
+          return (
+            <td
+              key={String(c.key)}
+              className="capex-td"
+              style={{
+                ...cellBase,
+                borderTop: gridH,
+                borderBottom: gridH,
+                borderRight: gridV,
+                background: currentRowBg,
+                padding: "6px 8px",
+                width: colWidth,
+                minWidth: colWidth,
+                maxWidth: colWidth,
+                boxSizing: "border-box",
+              }}
+            >
+              <input
+                ref={(el) => registerInput(key, c.key, el)}
+                type="text"
+                value={currentValue}
+                disabled={loading || saving}
+                onFocus={() => onCellFocus(key)}
+                onChange={(e) => onCellBlur(key, c.key, e.target.value)}
+                style={{
+                  width: "100%",
+                  minWidth: 0,
+                  background: "rgba(0,0,0,.10)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  outline: "none",
+                  fontWeight: 900,
+                  textAlign: "left",
                   boxSizing: "border-box",
                 }}
               />
@@ -500,14 +748,20 @@ function RowItem({
   );
 }
 
-export default function FleetOffForm() {
-  const [rows, setRows] = useState<FleetOffRow[]>([]);
+export default function FleetMgmForm() {
+  const [rows, setRows] = useState<FleetMgmRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [entryDateFrom, setEntryDateFrom] = useState("");
+  const [entryDateTo, setEntryDateTo] = useState("");
+  const [exitDateFrom, setExitDateFrom] = useState("");
+  const [exitDateTo, setExitDateTo] = useState("");
   const [globalFilter, setGlobalFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [showReqDetails, setShowReqDetails] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>("item_ord");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [editedTick, setEditedTick] = useState(0);
@@ -517,7 +771,7 @@ export default function FleetOffForm() {
   const draftsRef = useRef<Record<string, DraftRow>>({});
   const originalsRef = useRef<Record<string, DraftRow>>({});
   const inputsRef = useRef<
-    Record<string, Partial<Record<keyof FleetOffRow, HTMLInputElement | HTMLSelectElement | null>>>
+    Record<string, Partial<Record<keyof FleetMgmRow, HTMLInputElement | HTMLSelectElement | null>>>
   >({});
 
   const loadData = useCallback(async () => {
@@ -581,7 +835,7 @@ export default function FleetOffForm() {
 
   useEffect(() => {
     setPage(1);
-  }, [dateFrom, dateTo, globalFilter, sortKey, sortDir]);
+  }, [dateFrom, dateTo, entryDateFrom, entryDateTo, exitDateFrom, exitDateTo, globalFilter, statusFilter, sortKey, sortDir]);
 
   const editedCount = useMemo(() => {
     editedTick;
@@ -620,12 +874,39 @@ export default function FleetOffForm() {
     return Object.values(invalidMap).filter(Boolean).length;
   }, [invalidMap]);
 
+  const statusCounts = useMemo(() => {
+    editedTick;
+
+    let abiertos = 0;
+    let cerrados = 0;
+
+    for (const row of rows) {
+      const key = String(row.item_ord ?? "").trim();
+      const draft = draftsRef.current[key];
+
+      if (!inDateRange(row.req_date, dateFrom, dateTo)) continue;
+      if (!inDraftDateRange(row, draft, "entry_date", entryDateFrom, entryDateTo)) continue;
+      if (!inDraftDateRange(row, draft, "exit_date", exitDateFrom, exitDateTo)) continue;
+      if (!matchesGlobal(row, draft, globalFilter)) continue;
+
+      const status = String(row.req_serv_status ?? "").trim();
+
+      if (status === "Abierto") abiertos++;
+      if (status === "Cerrado") cerrados++;
+    }
+
+    return { abiertos, cerrados };
+  }, [rows, dateFrom, dateTo, entryDateFrom, entryDateTo, exitDateFrom, exitDateTo, globalFilter, editedTick]);
+
   const preparedRows = useMemo(() => {
     const filtered = rows.filter((row) => {
       const key = String(row.item_ord ?? "").trim();
       const draft = draftsRef.current[key];
 
       if (!inDateRange(row.req_date, dateFrom, dateTo)) return false;
+      if (!inDraftDateRange(row, draft, "entry_date", entryDateFrom, entryDateTo)) return false;
+      if (!inDraftDateRange(row, draft, "exit_date", exitDateFrom, exitDateTo)) return false;
+      if (statusFilter !== "all" && String(row.req_serv_status ?? "").trim() !== statusFilter) return false;
       if (!matchesGlobal(row, draft, globalFilter)) return false;
 
       return true;
@@ -643,7 +924,7 @@ export default function FleetOffForm() {
 
       return compareByKey(a, b, "item_ord", "asc", draftA, draftB);
     });
-  }, [rows, dateFrom, dateTo, globalFilter, sortKey, sortDir, editedTick]);
+  }, [rows, dateFrom, dateTo, entryDateFrom, entryDateTo, exitDateFrom, exitDateTo, globalFilter, statusFilter, sortKey, sortDir, editedTick]);
 
   const totalRows = preparedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
@@ -665,26 +946,18 @@ export default function FleetOffForm() {
     });
   }, [editedTick]);
 
-  const dynamicColumnWidths = useMemo<Partial<Record<keyof FleetOffRow, number>>>(() => {
-    editedTick;
+  const visibleColumns = useMemo(() => {
+    return COLUMNS.filter((c) => showReqDetails || !REQ_HEADER_COLLAPSIBLE_KEYS.includes(c.key));
+  }, [showReqDetails]);
 
-    const values = rows.map((row) => {
-      const rowKey = String(row.item_ord ?? "").trim();
-      const draft = draftsRef.current[rowKey] ?? toDraftRow(row);
-      return toText(draft.req_type) || "Selecciona...";
-    });
-
-    const maxLength = Math.max("Selecciona...".length, ...values.map((x) => x.length));
-
-    return {
-      req_type: Math.max(170, Math.min(260, maxLength * 9 + 64)),
-    };
-  }, [rows, editedTick]);
+  const dynamicColumnWidths = useMemo<Partial<Record<keyof FleetMgmRow, number>>>(() => {
+    return {};
+  }, []);
 
   const registerInput = useCallback(
     (
       key: string,
-      field: keyof FleetOffRow,
+      field: keyof FleetMgmRow,
       el: HTMLInputElement | HTMLSelectElement | null
     ) => {
       if (!inputsRef.current[key]) inputsRef.current[key] = {};
@@ -697,7 +970,7 @@ export default function FleetOffForm() {
     setActiveItem(key);
   }, []);
 
-  const onCellBlur = useCallback((key: string, field: keyof FleetOffRow, value: string) => {
+  const onCellBlur = useCallback((key: string, field: keyof FleetMgmRow, value: string) => {
     const current = draftsRef.current[key];
     if (!current) return;
 
@@ -717,7 +990,7 @@ export default function FleetOffForm() {
 
     const invalidEditedKeys = editedKeys.filter((key) => rowHasInvalidNumber(draftsRef.current[key]));
     if (invalidEditedKeys.length > 0) {
-      setMsg("ERROR: el odómetro debe ser numérico.");
+      setMsg("ERROR: el presupuesto debe ser numérico y las fechas no pueden ser mayores a hoy.");
       return;
     }
 
@@ -725,15 +998,22 @@ export default function FleetOffForm() {
     setMsg(null);
 
     try {
-      const payloadRows = editedKeys.map((key) => {
-        const row = draftsRef.current[key];
+      const payloadRows = editedKeys
+        .map((key) => {
+          const row = draftsRef.current[key];
 
-        if (!String(row?.item_ord ?? "").trim()) {
-          throw new Error("Hay una fila editada sin item_ord.");
-        }
+          if (!String(row?.item_ord ?? "").trim()) {
+            throw new Error("Hay una fila editada sin item_ord.");
+          }
 
-        return buildPayload(row);
-      });
+          return buildPayload(row);
+        })
+        .filter((row) => Object.keys(row).some((k) => k !== "item_ord"));
+
+      if (payloadRows.length === 0) {
+        setMsg("No hay cambios con datos para guardar.");
+        return;
+      }
 
       const rr = (await apiPost("/api/logistics/flota/web", { rows: payloadRows })) as SaveResp;
 
@@ -741,16 +1021,11 @@ export default function FleetOffForm() {
         throw new Error(rr?.error || "No se pudo guardar la información de flota.");
       }
 
-      for (const key of editedKeys) {
-        const current = draftsRef.current[key];
+      const savedCount = Number(rr?.count ?? payloadRows.length);
 
-        if (current) {
-          originalsRef.current[key] = { ...current };
-        }
-      }
+      await loadData();
 
-      setEditedTick((v) => v + 1);
-      setMsg(`OK: se guardaron ${payloadRows.length} fila(s).`);
+      setMsg(`OK: se guardaron ${savedCount} fila(s).`);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo guardar")}`);
     } finally {
@@ -762,17 +1037,21 @@ export default function FleetOffForm() {
     const exportRows = preparedRows.map((row) => {
       const key = String(row.item_ord ?? "").trim();
       const draft = draftsRef.current[key] ?? toDraftRow(row);
+      const out: Record<string, string | number> = {};
 
-      return {
-        "Item Ord": row.item_ord ?? "",
-        RQ: row.req_num ?? "",
-        "F. Req": formatDateYyyyMmDd(row.req_date),
-        "Cod. Material": row.mat_code ?? "",
-        Material: row.mat_desc ?? "",
-        "Centro de Costo": row.cost_center_desc ?? "",
-        "Odómetro Km": parseNum(draft.odometer_km) ?? "",
-        "Tipo Req": draft.req_type ?? "",
-      };
+      for (const c of visibleColumns) {
+        const raw = c.editable ? draft[c.key] : row[c.key];
+
+        if (c.kind === "date") {
+          out[c.label] = formatDateYyyyMmDd(raw);
+        } else if (c.kind === "number") {
+          out[c.label] = parseNum(raw) ?? "";
+        } else {
+          out[c.label] = String(raw ?? "");
+        }
+      }
+
+      return out;
     });
 
     if (!exportRows.length) {
@@ -782,27 +1061,20 @@ export default function FleetOffForm() {
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
 
-    ws["!cols"] = [
-      { wch: 12 },
-      { wch: 16 },
-      { wch: 12 },
-      { wch: 16 },
-      { wch: 42 },
-      { wch: 34 },
-      { wch: 16 },
-      { wch: 20 },
-    ];
+    ws["!cols"] = visibleColumns.map((c) => ({
+      wch: Math.max(10, Math.round((c.width ?? 120) / 8)),
+    }));
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Flota Oficinas");
+    XLSX.utils.book_append_sheet(wb, ws, "Flota Gestión");
 
     const fromPart = dateFrom || "inicio";
     const toPart = dateTo || "fin";
 
-    XLSX.writeFile(wb, `flota_oficinas_req_${fromPart}_${toPart}.xlsx`);
+    XLSX.writeFile(wb, `flota_gestion_req_${fromPart}_${toPart}.xlsx`);
   }
 
-  function onSortClick(key: keyof FleetOffRow) {
+  function onSortClick(key: keyof FleetMgmRow) {
     if (!SORTABLE_KEYS.includes(key)) return;
 
     if (sortKey === key) {
@@ -814,7 +1086,7 @@ export default function FleetOffForm() {
     setSortDir(key === "item_ord" ? "asc" : "desc");
   }
 
-  function getSortIndicator(key: keyof FleetOffRow) {
+  function getSortIndicator(key: keyof FleetMgmRow) {
     if (sortKey !== key) return "";
     return sortDir === "asc" ? " ▲" : " ▼";
   }
@@ -882,7 +1154,17 @@ export default function FleetOffForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>Flota · Oficinas</div>
+        <div style={{ fontWeight: 900 }}>Flota · Gestión</div>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="default"
+          onClick={() => setShowReqDetails((v) => !v)}
+          disabled={loading || saving}
+        >
+          {showReqDetails ? "Contraer RQ" : "Desglosar RQ"}
+        </Button>
 
         <div
           style={{
@@ -914,6 +1196,42 @@ export default function FleetOffForm() {
           </div>
         ) : null}
 
+        <button
+          type="button"
+          onClick={() => setStatusFilter((v) => (v === "Abierto" ? "all" : "Abierto"))}
+          disabled={loading || saving}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: statusFilter === "Abierto" ? "1px solid rgba(102,199,255,.75)" : "1px solid rgba(191,231,255,.18)",
+            background: statusFilter === "Abierto" ? "rgba(102,199,255,.18)" : "rgba(255,255,255,0.06)",
+            color: "white",
+            fontSize: 12,
+            fontWeight: 900,
+            cursor: loading || saving ? "not-allowed" : "pointer",
+          }}
+        >
+          Abiertos: {statusCounts.abiertos}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter((v) => (v === "Cerrado" ? "all" : "Cerrado"))}
+          disabled={loading || saving}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: statusFilter === "Cerrado" ? "1px solid rgba(102,199,255,.75)" : "1px solid rgba(191,231,255,.18)",
+            background: statusFilter === "Cerrado" ? "rgba(102,199,255,.18)" : "rgba(255,255,255,0.06)",
+            color: "white",
+            fontSize: 12,
+            fontWeight: 900,
+            cursor: loading || saving ? "not-allowed" : "pointer",
+          }}
+        >
+          Cerrados: {statusCounts.cerrados}
+        </button>
+
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Req Date desde</div>
@@ -940,13 +1258,65 @@ export default function FleetOffForm() {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>F. Ingreso desde</div>
+            <input
+              type="date"
+              value={entryDateFrom}
+              max={todayPeYyyyMmDd()}
+              onKeyDown={(e) => e.preventDefault()}
+              onPaste={(e) => e.preventDefault()}
+              onChange={(e) => setEntryDateFrom(e.target.value)}
+              style={{ ...inputBase, minWidth: 150, colorScheme: "dark" }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>F. Ingreso hasta</div>
+            <input
+              type="date"
+              value={entryDateTo}
+              max={todayPeYyyyMmDd()}
+              onKeyDown={(e) => e.preventDefault()}
+              onPaste={(e) => e.preventDefault()}
+              onChange={(e) => setEntryDateTo(e.target.value)}
+              style={{ ...inputBase, minWidth: 150, colorScheme: "dark" }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>F. Salida desde</div>
+            <input
+              type="date"
+              value={exitDateFrom}
+              max={todayPeYyyyMmDd()}
+              onKeyDown={(e) => e.preventDefault()}
+              onPaste={(e) => e.preventDefault()}
+              onChange={(e) => setExitDateFrom(e.target.value)}
+              style={{ ...inputBase, minWidth: 150, colorScheme: "dark" }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>F. Salida hasta</div>
+            <input
+              type="date"
+              value={exitDateTo}
+              max={todayPeYyyyMmDd()}
+              onKeyDown={(e) => e.preventDefault()}
+              onPaste={(e) => e.preventDefault()}
+              onChange={(e) => setExitDateTo(e.target.value)}
+              style={{ ...inputBase, minWidth: 150, colorScheme: "dark" }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Buscador global</div>
             <input
               type="text"
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              placeholder="Buscar RQ, código, material, centro de costo o tipo..."
-              style={{ ...inputBase, minWidth: 340 }}
+              placeholder="Buscar RQ, código, material, centro, solicitante, área, taller o estado..."
+              style={{ ...inputBase, minWidth: 420 }}
             />
           </div>
 
@@ -1014,7 +1384,7 @@ export default function FleetOffForm() {
         <div style={{ minWidth: "max-content" }}>
           <Table stickyHeader disableScrollWrapper>
             <colgroup>
-              {COLUMNS.map((c) => (
+              {visibleColumns.map((c) => (
                 <col
                   key={String(c.key)}
                   style={{
@@ -1028,7 +1398,7 @@ export default function FleetOffForm() {
 
             <thead>
               <tr>
-                {COLUMNS.map((c) => {
+                {visibleColumns.map((c) => {
                   const sortable = !!c.sortable;
 
                   return (
@@ -1088,13 +1458,14 @@ export default function FleetOffForm() {
                     editedRowBg={editedRowBg}
                     invalidRowBg={invalidRowBg}
                     columnWidths={dynamicColumnWidths}
+                    columns={visibleColumns}
                   />
                 );
               })}
 
               {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={visibleColumns.length}>
                     No hay filas para el filtro seleccionado.
                   </td>
                 </tr>
@@ -1102,7 +1473,7 @@ export default function FleetOffForm() {
 
               {loading ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={visibleColumns.length}>
                     Cargando requerimientos de flota…
                   </td>
                 </tr>

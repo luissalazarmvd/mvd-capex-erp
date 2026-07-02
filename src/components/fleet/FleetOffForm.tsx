@@ -794,7 +794,7 @@ export default function FleetOffForm() {
     ];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Flota Oficinas");
+    XLSX.utils.book_append_sheet(wb, ws, "Flota Sedes");
 
     const fromPart = dateFrom || "inicio";
     const toPart = dateTo || "fin";
@@ -882,7 +882,7 @@ export default function FleetOffForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>Flota · Oficinas</div>
+        <div style={{ fontWeight: 900 }}>Flota · Sedes</div>
 
         <div
           style={{
