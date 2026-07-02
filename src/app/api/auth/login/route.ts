@@ -93,7 +93,6 @@ export async function POST(req: Request) {
     if (!ok) {
       return NextResponse.json({ ok: false, error: "Clave incorrecta" }, { status: 401 });
     }
-
     const exp = Date.now() + 1000 * 60 * 60 * 12;
     const payload = { exp, scopes };
 
