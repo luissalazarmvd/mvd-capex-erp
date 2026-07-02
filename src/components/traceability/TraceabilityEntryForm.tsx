@@ -823,7 +823,7 @@ function RowItem({
                 type={c.kind === "date" ? "date" : "text"}
                 defaultValue={c.key === "tms" ? formatTms3ForView(draft[c.key]) : toText(draft[c.key])}
                 disabled={loading || saving}
-                onFocus={() => onCellFocus(key)}
+                onFocus={() => onCellFocus(key, c.key)}
                 onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
                 inputMode={c.kind === "number" ? "decimal" : "text"}
                 spellCheck={false}
