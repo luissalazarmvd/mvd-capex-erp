@@ -209,7 +209,6 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
 
   const decimals3Keys: (keyof TraceabilityRow)[] = [
     "tmh",
-    "tms",
     "cu_grade_pct",
   ];
 
@@ -227,9 +226,9 @@ function toDraftRow(r: TraceabilityRow): DraftRow {
 
     if (c.key === "tms") {
       if (!hasTms && tmh !== null && h2o !== null) {
-        out[c.key] = (tmh * ((100 - h2o) / 100)).toFixed(3);
+        out[c.key] = formatTms6ForEdit(tmh * ((100 - h2o) / 100));
       } else if (!isBlank(r[c.key])) {
-        out[c.key] = Number(r[c.key]).toFixed(3);
+        out[c.key] = formatTms6ForEdit(r[c.key]);
       } else {
         out[c.key] = toText(r[c.key]);
       }
@@ -275,6 +274,18 @@ function round2(n: number) {
 
 function round4(n: number) {
   return Math.round((n + Number.EPSILON) * 10000) / 10000;
+}
+
+function formatTms6ForEdit(value: unknown) {
+  const n = parseNum(String(value ?? ""));
+  if (n === null) return "";
+  return Number(n.toFixed(6)).toString();
+}
+
+function formatTms3ForView(value: unknown) {
+  const n = parseNum(String(value ?? ""));
+  if (n === null) return "";
+  return n.toFixed(3);
 }
 
 function formatDateTime2_3(d: Date) {
@@ -639,7 +650,7 @@ type RowItemProps = {
     el: HTMLInputElement | HTMLSelectElement | null
   ) => void;
   onCellBlur: (key: string, field: keyof TraceabilityRow, value: string) => void;
-  onCellFocus: (key: string) => void;
+  onCellFocus: (key: string, field?: keyof TraceabilityRow) => void;
   cellBase: React.CSSProperties;
   inputBase: React.CSSProperties;
   gridH: string;
@@ -780,7 +791,7 @@ function RowItem({
                 ref={(el) => registerInput(key, c.key, el)}
                 defaultValue={toText(draft[c.key]) || "Transferencia"}
                 disabled={loading || saving}
-                onFocus={() => onCellFocus(key)}
+                onFocus={() => onCellFocus(key, c.key)}
                 onChange={(e) => onCellBlur(key, c.key, e.target.value)}
                 onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
                 style={{
@@ -810,7 +821,7 @@ function RowItem({
               <input
                 ref={(el) => registerInput(key, c.key, el)}
                 type={c.kind === "date" ? "date" : "text"}
-                defaultValue={toText(draft[c.key])}
+                defaultValue={c.key === "tms" ? formatTms3ForView(draft[c.key]) : toText(draft[c.key])}
                 disabled={loading || saving}
                 onFocus={() => onCellFocus(key)}
                 onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
@@ -1117,9 +1128,17 @@ useEffect(() => {
     inputsRef.current[key][field] = el;
   }, []);
 
-  const onCellFocus = useCallback((key: string) => {
+  const onCellFocus = useCallback((key: string, field?: keyof TraceabilityRow) => {
     setActiveLot(key);
-  }, []);  
+
+    if (field === "tms") {
+      const current = draftsRef.current[key];
+      const input = inputsRef.current[key]?.tms;
+      const fullTms = formatTms6ForEdit(current?.tms);
+
+      if (input && fullTms) input.value = fullTms;
+    }
+  }, []);
 
   const onCellBlur = useCallback((key: string, field: keyof TraceabilityRow, value: string) => {
     const current = draftsRef.current[key];
@@ -1137,11 +1156,12 @@ useEffect(() => {
 
       if (tmsBlank && tmh !== null && h2o !== null) {
         const calcTms = tmh * ((100 - h2o) / 100);
-        const formattedTms = calcTms.toFixed(3);
+        const formattedTms = formatTms6ForEdit(calcTms);
+        const viewTms = formatTms3ForView(calcTms);
         current.tms = formattedTms;
 
         const tmsInput = inputsRef.current[key]?.tms;
-        if (tmsInput && tmsInput.value !== formattedTms) tmsInput.value = formattedTms;
+        if (tmsInput && tmsInput.value !== viewTms) tmsInput.value = viewTms;
       }
 
       setEditedTick((v) => v + 1);
@@ -1213,7 +1233,7 @@ useEffect(() => {
     }
 
     const formatted = field === "tms"
-      ? normalizedManualTms
+      ? formatTms6ForEdit(normalizedManualTms)
       : decimals4Fields.includes(field as EditableField)
       ? n.toFixed(4)
       : decimals3Fields.includes(field as EditableField)
@@ -1221,8 +1241,10 @@ useEffect(() => {
       : n.toFixed(2);
     current[field] = formatted;
 
+    const inputFormatted = field === "tms" ? formatTms3ForView(formatted) : formatted;
+
     const input = inputsRef.current[key]?.[field];
-    if (input && input.value !== formatted) input.value = formatted;
+    if (input && input.value !== inputFormatted) input.value = inputFormatted;
 
     const affectsAutoTms = field === "tmh" || field === "h2o";
     const tmsBlank = String(current.tms ?? "").trim() === "";
@@ -1372,6 +1394,7 @@ useEffect(() => {
     for (let i = 0; i < exportRows.length; i++) {
       const excelRow = i + 2;
 
+      if (ws[`U${excelRow}`]) ws[`U${excelRow}`].z = "0.######";
       if (ws[`V${excelRow}`]) ws[`V${excelRow}`].z = "0.0000";
       if (ws[`W${excelRow}`]) ws[`W${excelRow}`].z = "0.0000";
       if (ws[`AG${excelRow}`]) ws[`AG${excelRow}`].z = "0.0000";
@@ -1381,7 +1404,7 @@ useEffect(() => {
 
       ws[`AO${excelRow}`] = {
         t: "n",
-        f: `ROUND(ROUND((((ROUND(V${excelRow},4)*AA${excelRow})*(AC${excelRow}-AE${excelRow})-AF${excelRow}-ROUND(AG${excelRow},4)-AH${excelRow})*1.1023),2)*ROUND(U${excelRow},3)+IF(AK${excelRow}="",0,AK${excelRow}),2)`
+        f: `ROUND(ROUND((((ROUND(V${excelRow},4)*AA${excelRow})*(AC${excelRow}-AE${excelRow})-AF${excelRow}-ROUND(AG${excelRow},4)-AH${excelRow})*1.1023),2)*U${excelRow}+IF(AK${excelRow}="",0,AK${excelRow}),2)`
       };
     }
     ws["!cols"] = [
