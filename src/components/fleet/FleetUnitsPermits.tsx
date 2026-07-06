@@ -97,6 +97,12 @@ function normalizeText(v: unknown) {
   return String(v ?? "").trim();
 }
 
+function normalizeAlertValue(v: unknown) {
+  return normalizeText(v)
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 function normalizeHeader(v: unknown) {
   return normalizeText(v)
     .toLowerCase()
@@ -106,13 +112,14 @@ function normalizeHeader(v: unknown) {
 }
 
 function normalizePlateInput(v: unknown) {
-  const raw = normalizeText(v).toUpperCase().replace(/\s+/g, "");
-  if (/^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(raw)) return raw.replace("-", "");
-  return raw;
+  return normalizeText(v)
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/-/g, "");
 }
 
 function isValidNormalizedPlate(v: unknown) {
-  return /^[A-Z0-9]{6}$/.test(normalizeText(v).toUpperCase());
+  return /^[A-Z0-9]{6}$/.test(normalizePlateInput(v));
 }
 
 function pad2(n: number) {
@@ -447,7 +454,8 @@ export default function FleetUnitsPermits() {
       if (!alertFilter) return true;
 
       const key = alertFilter.scope === "soat" ? "soat_alert" : "rtv_alert";
-      return normalizeText(row[key]) === alertFilter.status;
+
+      return normalizeAlertValue(row[key]) === normalizeAlertValue(alertFilter.status);
     });
   }, [alertBaseRows, alertFilter]);
 
@@ -671,11 +679,16 @@ export default function FleetUnitsPermits() {
     const fileName = importSummary?.file_name || "SOAT_RTV";
     const totalExcelRows = importSummary?.total_excel_rows || previewRows.length;
 
+    const nextValue =
+      field === "plate"
+        ? normalizePlateInput(value)
+        : parseExcelDateToIso(value) || normalizeText(value);
+
     const draftRows = previewRows.map((row) =>
       row.row_num === rowNum
         ? {
             ...row,
-            [field]: field === "plate" ? normalizePlateInput(value) : parseExcelDateToIso(value) || value,
+            [field]: nextValue,
           }
         : row
     );
@@ -1293,7 +1306,7 @@ export default function FleetUnitsPermits() {
                           <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, minWidth: 140 }}>
                             <input
                               value={row.plate}
-                              onChange={(e) => onEditPreviewCell(row.row_num, "plate", String(e.target.value || "").toUpperCase())}
+                              onChange={(e) => onEditPreviewCell(row.row_num, "plate", String(e.target.value || ""))}
                               style={previewInputStyle}
                             />
                           </td>
