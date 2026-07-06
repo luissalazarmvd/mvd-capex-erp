@@ -86,7 +86,7 @@ export async function POST(req: Request) {
 
     if (area === "fleet" && password === FLEET_PASSWORD_L2) {
       ok = true;
-      scopes = ["fleet_offices", "fleet_mgmt"];
+      scopes = ["fleet_offices", "fleet_mgmt", "fleet_units"];
       defaultPath = "/fleet/offices";
     }
 

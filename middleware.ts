@@ -123,6 +123,8 @@ export async function middleware(req: NextRequest) {
     ? "fleet_mgmt"
     : pathname.startsWith("/fleet/offices")
     ? "fleet_offices"
+    : pathname.startsWith("/fleet/units")
+    ? "fleet_units"
     : pathname.startsWith("/fleet")
     ? "fleet"
     : "capex";
@@ -130,7 +132,9 @@ export async function middleware(req: NextRequest) {
   const allowed =
     auth.scopes.includes(need) ||
     (need === "fleet" &&
-      (auth.scopes.includes("fleet_offices") || auth.scopes.includes("fleet_mgmt")));
+      (auth.scopes.includes("fleet_offices") ||
+        auth.scopes.includes("fleet_mgmt") ||
+        auth.scopes.includes("fleet_units")));
 
   if (!allowed) {
     const url = req.nextUrl.clone();
