@@ -1293,6 +1293,7 @@ export default function FleetUnitsPermits() {
                     </tr>
                   </thead>
 
+
                   <tbody>
                     {previewRows.map((row) => {
                       const bg = row.valid ? rowBg : "rgba(255,80,80,.10)";
