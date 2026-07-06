@@ -35,6 +35,11 @@ type SaveResp = {
 type SortKey = keyof PermitRow;
 type SortDir = "asc" | "desc";
 
+type AlertFilter = {
+  scope: "soat" | "rtv";
+  status: AlertStatus;
+} | null;
+
 type ImportPreviewRow = {
   row_num: number;
   plate: string;
@@ -98,6 +103,16 @@ function normalizeHeader(v: unknown) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[\s_./-]+/g, "");
+}
+
+function normalizePlateInput(v: unknown) {
+  const raw = normalizeText(v).toUpperCase().replace(/\s+/g, "");
+  if (/^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(raw)) return raw.replace("-", "");
+  return raw;
+}
+
+function isValidNormalizedPlate(v: unknown) {
+  return /^[A-Z0-9]{6}$/.test(normalizeText(v).toUpperCase());
 }
 
 function pad2(n: number) {
@@ -302,13 +317,13 @@ function revalidatePreviewRows(
   const plateCounts = new Map<string, number>();
 
   for (const row of draftRows) {
-    const plate = normalizeText(row.plate).toUpperCase();
+    const plate = normalizePlateInput(row.plate);
     if (!plate) continue;
     plateCounts.set(plate, (plateCounts.get(plate) || 0) + 1);
   }
 
   const rows = draftRows.map((draft): ImportPreviewRow => {
-    const plate = normalizeText(draft.plate).toUpperCase();
+    const plate = normalizePlateInput(draft.plate);
     const soat_exp_date = normalizeText(draft.soat_exp_date);
     const rtv_exp_date = normalizeText(draft.rtv_exp_date);
 
@@ -316,10 +331,8 @@ function revalidatePreviewRows(
 
     if (!plate) {
       errors = appendError(errors, "plate vacío");
-    }
-
-    if (plate.length > 20) {
-      errors = appendError(errors, "plate supera 20 caracteres");
+    } else if (!isValidNormalizedPlate(plate)) {
+      errors = appendError(errors, "plate debe tener 6 caracteres alfanuméricos");
     }
 
     const duplicateCount = plate ? plateCounts.get(plate) || 0 : 0;
@@ -377,6 +390,7 @@ export default function FleetUnitsPermits() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
+  const [alertFilter, setAlertFilter] = useState<AlertFilter>(null);
   const [soatFrom, setSoatFrom] = useState("");
   const [soatTo, setSoatTo] = useState("");
   const [rtvFrom, setRtvFrom] = useState("");
@@ -417,9 +431,9 @@ export default function FleetUnitsPermits() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, soatFrom, soatTo, rtvFrom, rtvTo, sortKey, sortDir]);
+  }, [search, alertFilter, soatFrom, soatTo, rtvFrom, rtvTo, sortKey, sortDir]);
 
-  const filteredRows = useMemo(() => {
+  const alertBaseRows = useMemo(() => {
     return rows.filter((row) => {
       if (!matchesSearch(row, search)) return false;
       if (!inDateRange(row.soat_exp_date, soatFrom, soatTo)) return false;
@@ -428,8 +442,17 @@ export default function FleetUnitsPermits() {
     });
   }, [rows, search, soatFrom, soatTo, rtvFrom, rtvTo]);
 
-  const soatCounts = useMemo(() => countAlerts(filteredRows, "soat_alert"), [filteredRows]);
-  const rtvCounts = useMemo(() => countAlerts(filteredRows, "rtv_alert"), [filteredRows]);
+  const filteredRows = useMemo(() => {
+    return alertBaseRows.filter((row) => {
+      if (!alertFilter) return true;
+
+      const key = alertFilter.scope === "soat" ? "soat_alert" : "rtv_alert";
+      return normalizeText(row[key]) === alertFilter.status;
+    });
+  }, [alertBaseRows, alertFilter]);
+
+  const soatCounts = useMemo(() => countAlerts(alertBaseRows, "soat_alert"), [alertBaseRows]);
+  const rtvCounts = useMemo(() => countAlerts(alertBaseRows, "rtv_alert"), [alertBaseRows]);
 
   const preparedRows = useMemo(() => {
     return [...filteredRows].sort((a, b) => {
@@ -605,7 +628,7 @@ export default function FleetUnitsPermits() {
 
         totalExcelRows++;
 
-        const plate = rawPlate.toUpperCase();
+        const plate = normalizePlateInput(rawPlate);
         const soat_exp_date = parseExcelDateToIso(rawSoat);
         const rtv_exp_date = parseExcelDateToIso(rawRtv);
 
@@ -652,7 +675,7 @@ export default function FleetUnitsPermits() {
       row.row_num === rowNum
         ? {
             ...row,
-            [field]: field === "plate" ? value.toUpperCase() : parseExcelDateToIso(value) || value,
+            [field]: field === "plate" ? normalizePlateInput(value) : parseExcelDateToIso(value) || value,
           }
         : row
     );
@@ -813,38 +836,70 @@ export default function FleetUnitsPermits() {
         <div style={{ display: "grid", gap: 8 }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, minWidth: 45 }}>SOAT</div>
-            {ALERT_ORDER.map((status) => (
-              <div
-                key={`soat_${status}`}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 900,
-                  ...getAlertStyle(status),
-                }}
-              >
-                {status}: {soatCounts[status]}
-              </div>
-            ))}
+            {ALERT_ORDER.map((status) => {
+              const active = alertFilter?.scope === "soat" && alertFilter.status === status;
+
+              return (
+                <button
+                  key={`soat_${status}`}
+                  type="button"
+                  onClick={() =>
+                    setAlertFilter((prev) =>
+                      prev?.scope === "soat" && prev.status === status
+                        ? null
+                        : { scope: "soat", status }
+                    )
+                  }
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 900,
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    outline: active ? "2px solid rgba(255,255,255,.55)" : "none",
+                    boxShadow: active ? "0 0 0 2px rgba(102,199,255,.18)" : "none",
+                    ...getAlertStyle(status),
+                  }}
+                >
+                  {status}: {soatCounts[status]}
+                </button>
+              );
+            })}
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, minWidth: 45 }}>RTV</div>
-            {ALERT_ORDER.map((status) => (
-              <div
-                key={`rtv_${status}`}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 900,
-                  ...getAlertStyle(status),
-                }}
-              >
-                {status}: {rtvCounts[status]}
-              </div>
-            ))}
+            {ALERT_ORDER.map((status) => {
+              const active = alertFilter?.scope === "rtv" && alertFilter.status === status;
+
+              return (
+                <button
+                  key={`rtv_${status}`}
+                  type="button"
+                  onClick={() =>
+                    setAlertFilter((prev) =>
+                      prev?.scope === "rtv" && prev.status === status
+                        ? null
+                        : { scope: "rtv", status }
+                    )
+                  }
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 900,
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    outline: active ? "2px solid rgba(255,255,255,.55)" : "none",
+                    boxShadow: active ? "0 0 0 2px rgba(102,199,255,.18)" : "none",
+                    ...getAlertStyle(status),
+                  }}
+                >
+                  {status}: {rtvCounts[status]}
+                </button>
+              );
+            })}
           </div>
         </div>
 
