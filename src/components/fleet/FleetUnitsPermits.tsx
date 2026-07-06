@@ -8,6 +8,7 @@ import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Table } from "../ui/Table";
 
+
 type AlertStatus = "Activo" | "Por Renovar <15d" | "Por Renovar <30d" | "Vencido" | "Sin Fecha";
 
 type PermitRow = {
