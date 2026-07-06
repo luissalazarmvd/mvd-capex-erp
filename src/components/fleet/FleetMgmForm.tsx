@@ -10,6 +10,7 @@ import { Table } from "../ui/Table";
 type FleetMgmRow = {
   item_ord: number | string | null;
   req_num: string | null;
+  plate: string | null;
   req_date: string | null;
   assign_date: string | null;
   modified_date: string | null;
@@ -33,14 +34,17 @@ type FleetMgmRow = {
   supplier_name: string | null;
   po_date: string | null;
   po_unit_price_us: number | string | null;
+  po_amount_usd: number | string | null;
   po_status: string | null;
   po_est_delivery_date: string | null;
   odometer_km: number | string | null;
   req_type: string | null;
+  office_serv_desc: string | null;
   repair_shop_name: string | null;
   entry_date: string | null;
   exit_date: string | null;
   app_budget_pen: number | string | null;
+  mgm_serv_comm: string | null;
   req_serv_status: string | null;
 };
 
@@ -58,7 +62,7 @@ type SaveResp = {
 
 type DraftRow = Partial<Record<keyof FleetMgmRow, string>>;
 
-const EDITABLE_FIELDS = ["repair_shop_name", "entry_date", "exit_date", "app_budget_pen"] as const;
+const EDITABLE_FIELDS = ["repair_shop_name", "entry_date", "exit_date", "app_budget_pen", "mgm_serv_comm"] as const;
 type SortKey = keyof FleetMgmRow;
 type SortDir = "asc" | "desc";
 type StatusFilter = "all" | "Abierto" | "Cerrado";
@@ -91,6 +95,7 @@ const REQ_HEADER_COLLAPSIBLE_KEYS: (keyof FleetMgmRow)[] = [
   "supplier_name",
   "po_date",
   "po_unit_price_us",
+  "po_amount_usd",
   "po_status",
   "po_est_delivery_date",
 ];
@@ -105,6 +110,7 @@ const COLUMNS: {
 }[] = [
   { key: "item_ord", label: "Item Ord", editable: false, kind: "number", width: 100, sortable: true },
   { key: "req_num", label: "RQ", editable: false, kind: "readonly", width: 120, sortable: true },
+  { key: "plate", label: "Placa", editable: false, kind: "readonly", width: 100, sortable: true },
   { key: "req_date", label: "F. Req", editable: false, kind: "date", width: 110, sortable: true },
   { key: "assign_date", label: "F. Asign.", editable: false, kind: "date", width: 110, sortable: true },
   { key: "modified_date", label: "F. Modif.", editable: false, kind: "date", width: 110, sortable: true },
@@ -128,14 +134,17 @@ const COLUMNS: {
   { key: "supplier_name", label: "Proveedor", editable: false, kind: "readonly", width: 240, sortable: true },
   { key: "po_date", label: "F. OC", editable: false, kind: "date", width: 110, sortable: true },
   { key: "po_unit_price_us", label: "PU OC USD", editable: false, kind: "number", width: 120, sortable: true },
+  { key: "po_amount_usd", label: "Monto USD OC", editable: false, kind: "number", width: 130, sortable: true },
   { key: "po_status", label: "Estado OC", editable: false, kind: "readonly", width: 130, sortable: true },
   { key: "po_est_delivery_date", label: "F. Est. Entrega", editable: false, kind: "date", width: 130, sortable: true },
   { key: "odometer_km", label: "Odómetro Km", editable: false, kind: "number", width: 140, sortable: true },
   { key: "req_type", label: "Tipo Req", editable: false, kind: "readonly", width: 180, sortable: true },
+  { key: "office_serv_desc", label: "Descripción", editable: false, kind: "readonly", width: 320, sortable: true },
   { key: "repair_shop_name", label: "Taller", editable: true, kind: "text", width: 220, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: true, kind: "date", width: 130, sortable: true },
   { key: "exit_date", label: "F. Salida", editable: true, kind: "date", width: 130, sortable: true },
   { key: "app_budget_pen", label: "Presup. Aprob. PEN", editable: true, kind: "number", width: 170, sortable: true },
+  { key: "mgm_serv_comm", label: "Comentario", editable: true, kind: "text", width: 340, sortable: true },
   { key: "req_serv_status", label: "Estado Servicio", editable: false, kind: "readonly", width: 140, sortable: true },
 ];
 
@@ -202,6 +211,7 @@ function formatDisplayValue(key: keyof FleetMgmRow, value: unknown) {
     key === "qty_delivered" ||
     key === "qty_approved" ||
     key === "po_unit_price_us" ||
+    key === "po_amount_usd" ||
     key === "odometer_km" ||
     key === "app_budget_pen"
   ) {
@@ -245,7 +255,7 @@ function compareByKey(
   const av = getSortValue(a, key, draftA);
   const bv = getSortValue(b, key, draftB);
 
-  const numericKeys: SortKey[] = ["item_ord", "odometer_km", "app_budget_pen"];
+  const numericKeys: SortKey[] = ["item_ord", "qty_requested", "qty_ordered", "qty_delivered", "qty_approved", "po_unit_price_us", "po_amount_usd", "odometer_km", "app_budget_pen"];
 
   if (numericKeys.includes(key)) {
     const an = parseNum(av);
@@ -355,11 +365,13 @@ function buildPayload(row: DraftRow) {
   const entryDate = formatDateYyyyMmDd(row.entry_date);
   const exitDate = formatDateYyyyMmDd(row.exit_date);
   const appBudgetPen = parseNum(row.app_budget_pen);
+  const mgmServComm = String(row.mgm_serv_comm ?? "").trim().slice(0, 255);
 
   if (repairShopName) payload.repair_shop_name = repairShopName;
   if (entryDate) payload.entry_date = entryDate;
   if (exitDate) payload.exit_date = exitDate;
   if (appBudgetPen !== null) payload.app_budget_pen = appBudgetPen;
+  if (mgmServComm) payload.mgm_serv_comm = mgmServComm;
 
   return payload;
 }
@@ -542,6 +554,74 @@ function RowItem({
                   colorScheme: "dark",
                 }}
               />
+            </td>
+          );
+        }
+
+        if (c.key === "mgm_serv_comm") {
+          const currentValue = toText(draft[c.key]).slice(0, 255);
+          const charCount = currentValue.length;
+
+          return (
+            <td
+              key={String(c.key)}
+              className="capex-td"
+              style={{
+                ...cellBase,
+                borderTop: gridH,
+                borderBottom: gridH,
+                borderRight: gridV,
+                background: currentRowBg,
+                padding: "6px 8px",
+                width: colWidth,
+                minWidth: colWidth,
+                maxWidth: colWidth,
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                }}
+              >
+                <input
+                  ref={(el) => registerInput(key, c.key, el)}
+                  type="text"
+                  value={currentValue}
+                  maxLength={255}
+                  disabled={loading || saving}
+                  onFocus={() => onCellFocus(key)}
+                  onChange={(e) => onCellBlur(key, c.key, e.target.value.slice(0, 255))}
+                  style={{
+                    width: "100%",
+                    minWidth: 0,
+                    background: "rgba(0,0,0,.10)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text)",
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    outline: "none",
+                    fontWeight: 900,
+                    textAlign: "left",
+                    boxSizing: "border-box",
+                  }}
+                />
+
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 900,
+                    color: charCount >= 255 ? "rgb(255, 170, 170)" : "rgba(255,255,255,.65)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {charCount}/255
+                </span>
+              </div>
             </td>
           );
         }
@@ -974,7 +1054,7 @@ export default function FleetMgmForm() {
     const current = draftsRef.current[key];
     if (!current) return;
 
-    current[field] = value;
+    current[field] = field === "mgm_serv_comm" ? value.slice(0, 255) : value;
     setEditedTick((v) => v + 1);
   }, []);
 

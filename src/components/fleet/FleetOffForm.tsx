@@ -16,6 +16,7 @@ type FleetOffRow = {
   cost_center_desc: string | null;
   odometer_km: number | string | null;
   req_type: string | null;
+  office_serv_desc: string | null;
   req_serv_status: string | null;
 };
 
@@ -33,7 +34,7 @@ type SaveResp = {
 
 type DraftRow = Partial<Record<keyof FleetOffRow, string>>;
 
-const EDITABLE_FIELDS = ["odometer_km", "req_type"] as const;
+const EDITABLE_FIELDS = ["odometer_km", "req_type", "office_serv_desc"] as const;
 type SortKey = keyof FleetOffRow;
 type SortDir = "asc" | "desc";
 
@@ -57,6 +58,7 @@ const COLUMNS: {
   { key: "cost_center_desc", label: "Centro de Costo", editable: false, kind: "readonly", width: 260, sortable: true },
   { key: "odometer_km", label: "Odómetro Km", editable: true, kind: "number", width: 140, sortable: true },
   { key: "req_type", label: "Tipo Req", editable: true, kind: "select", width: 180, sortable: true },
+  { key: "office_serv_desc", label: "Descripcion", editable: true, kind: "text", width: 340, sortable: true },
 ];
 
 const SORTABLE_KEYS = COLUMNS.filter((c) => c.sortable).map((c) => c.key);
@@ -208,6 +210,7 @@ function buildPayload(row: DraftRow) {
     item_ord: parseNum(row.item_ord) ?? null,
     odometer_km: parseNum(row.odometer_km),
     req_type: String(row.req_type ?? "").trim() || null,
+    office_serv_desc: String(row.office_serv_desc ?? "").trim() || null,
   };
 }
 
@@ -339,6 +342,73 @@ function RowItem({
                   boxSizing: "border-box",
                 }}
               />
+            </td>
+          );
+        }
+
+        if (c.key === "office_serv_desc") {
+          const currentValue = toText(draft[c.key]).slice(0, 255);
+          const charCount = currentValue.length;
+
+          return (
+            <td
+              key={String(c.key)}
+              className="capex-td"
+              style={{
+                ...cellBase,
+                borderTop: gridH,
+                borderBottom: gridH,
+                borderRight: gridV,
+                background: currentRowBg,
+                padding: "6px 8px",
+                width: colWidth,
+                minWidth: colWidth,
+                maxWidth: colWidth,
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                }}
+              >
+                <input
+                  ref={(el) => registerInput(key, c.key, el)}
+                  type="text"
+                  value={currentValue}
+                  maxLength={255}
+                  disabled={loading || saving}
+                  onFocus={() => onCellFocus(key)}
+                  onChange={(e) => onCellBlur(key, c.key, e.target.value.slice(0, 255))}
+                  style={{
+                    width: "100%",
+                    minWidth: 0,
+                    background: "rgba(0,0,0,.10)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text)",
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    outline: "none",
+                    fontWeight: 900,
+                    boxSizing: "border-box",
+                  }}
+                />
+
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 900,
+                    color: charCount >= 255 ? "rgb(255, 170, 170)" : "rgba(255,255,255,.65)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {charCount}/255
+                </span>
+              </div>
             </td>
           );
         }
@@ -772,6 +842,7 @@ export default function FleetOffForm() {
         "Centro de Costo": row.cost_center_desc ?? "",
         "Odómetro Km": parseNum(draft.odometer_km) ?? "",
         "Tipo Req": draft.req_type ?? "",
+        Descripcion: draft.office_serv_desc ?? "",
       };
     });
 
@@ -791,6 +862,7 @@ export default function FleetOffForm() {
       { wch: 34 },
       { wch: 16 },
       { wch: 20 },
+      { wch: 45 },
     ];
 
     const wb = XLSX.utils.book_new();
