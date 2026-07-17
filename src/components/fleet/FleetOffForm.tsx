@@ -14,6 +14,8 @@ type FleetOffRow = {
   mat_code: string | null;
   mat_desc: string | null;
   cost_center_desc: string | null;
+  requester_area: string | null;
+  office_desc: string | null;
   odometer_km: number | string | null;
   req_type: string | null;
   office_serv_desc: string | null;
@@ -56,6 +58,8 @@ const COLUMNS: {
   { key: "mat_code", label: "Cod. Material", editable: false, kind: "readonly", width: 130, sortable: true },
   { key: "mat_desc", label: "Material", editable: false, kind: "readonly", width: 320, sortable: true },
   { key: "cost_center_desc", label: "Centro de Costo", editable: false, kind: "readonly", width: 260, sortable: true },
+  { key: "requester_area", label: "Área Sol.", editable: false, kind: "readonly", width: 150, sortable: true },
+  { key: "office_desc", label: "Oficina", editable: false, kind: "readonly", width: 150, sortable: true },
   { key: "odometer_km", label: "Odómetro Km", editable: true, kind: "number", width: 140, sortable: true },
   { key: "req_type", label: "Tipo Req", editable: true, kind: "select", width: 180, sortable: true },
   { key: "office_serv_desc", label: "Descripcion", editable: true, kind: "text", width: 340, sortable: true },
@@ -182,6 +186,8 @@ function matchesGlobal(row: FleetOffRow, draft: DraftRow | undefined, filterValu
     row.mat_code,
     row.mat_desc,
     row.cost_center_desc,
+    row.requester_area,
+    row.office_desc,
     draft?.req_type ?? row.req_type,
   ];
 
@@ -203,6 +209,22 @@ function rowHasInvalidNumber(current: DraftRow | undefined) {
   const value = String(current.odometer_km ?? "").trim();
   if (!value) return false;
   return parseNum(value) === null;
+}
+
+function rowHasInvalidEditableFields(current: DraftRow | undefined) {
+  if (!current) return true;
+
+  const odometer = String(current.odometer_km ?? "").trim();
+  const reqType = String(current.req_type ?? "").trim();
+  const description = String(current.office_serv_desc ?? "").trim();
+
+  return (
+    !odometer ||
+    parseNum(odometer) === null ||
+    !reqType ||
+    !REQ_TYPE_OPTIONS.includes(reqType) ||
+    !description
+  );
 }
 
 function buildPayload(row: DraftRow) {
@@ -731,7 +753,7 @@ export default function FleetOffForm() {
 
     return Object.keys(draftsRef.current).some((key) => {
       if (!isRowEdited(draftsRef.current[key], originalsRef.current[key])) return false;
-      return rowHasInvalidNumber(draftsRef.current[key]);
+      return rowHasInvalidEditableFields(draftsRef.current[key]);
     });
   }, [editedTick]);
 
@@ -785,9 +807,11 @@ export default function FleetOffForm() {
       return;
     }
 
-    const invalidEditedKeys = editedKeys.filter((key) => rowHasInvalidNumber(draftsRef.current[key]));
+    const invalidEditedKeys = editedKeys.filter((key) =>
+      rowHasInvalidEditableFields(draftsRef.current[key])
+    );
     if (invalidEditedKeys.length > 0) {
-      setMsg("ERROR: el odómetro debe ser numérico.");
+      setMsg("ERROR: completa correctamente el odómetro, tipo y descripción en todas las filas editadas.");
       return;
     }
 
@@ -840,6 +864,8 @@ export default function FleetOffForm() {
         "Cod. Material": row.mat_code ?? "",
         Material: row.mat_desc ?? "",
         "Centro de Costo": row.cost_center_desc ?? "",
+        "Área Sol.": row.requester_area ?? "",
+        Oficina: row.office_desc ?? "",
         "Odómetro Km": parseNum(draft.odometer_km) ?? "",
         "Tipo Req": draft.req_type ?? "",
         Descripcion: draft.office_serv_desc ?? "",
@@ -860,6 +886,8 @@ export default function FleetOffForm() {
       { wch: 16 },
       { wch: 42 },
       { wch: 34 },
+      { wch: 20 },
+      { wch: 20 },
       { wch: 16 },
       { wch: 20 },
       { wch: 45 },
@@ -1017,8 +1045,8 @@ export default function FleetOffForm() {
               type="text"
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              placeholder="Buscar RQ, código, material, centro de costo o tipo..."
-              style={{ ...inputBase, minWidth: 340 }}
+              placeholder="Buscar RQ, código, material, centro de costo, área, oficina o tipo..."
+              style={{ ...inputBase, minWidth: 400 }}
             />
           </div>
 
