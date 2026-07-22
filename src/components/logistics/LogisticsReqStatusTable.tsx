@@ -3,12 +3,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { apiGet } from "../../lib/apiClient";
+import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 
 type ReqStatusRow = {
-  item_ord: number | null;
+  req_item_key: string | null;
+
   req_num: string | null;
   req_date: string | null;
   assign_date: string | null;
@@ -28,6 +29,7 @@ type ReqStatusRow = {
 
   req_status: string | null;
 
+  cost_center_code: string | null;
   cost_center_desc: string | null;
   requester_desc: string | null;
   requester_area: string | null;
@@ -46,7 +48,8 @@ type ReqStatusRow = {
   warehouse_dest: number | null;
   warehouse_name: string | null;
 
-  updated_at: string | null;
+  web_comment: string | null;
+  web_status: string | null;
 };
 
 type GetReqStatusResp = {
@@ -56,8 +59,22 @@ type GetReqStatusResp = {
   error?: string;
 };
 
+type SaveReqStatusResp = {
+  ok: boolean;
+  count?: number;
+  error?: string;
+};
+
+type WebDraft = {
+  web_comment: string;
+  web_status: "Activo" | "Anulado";
+};
+
+const WEB_STATUS_OPTIONS = ["Activo", "Anulado"] as const;
+
 const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }[] = [
-  { key: "item_ord", label: "Item", type: "num" },
+  { key: "req_item_key", label: "Key RQ" },
+
   { key: "req_num", label: "RQ" },
   { key: "req_date", label: "F. Req", type: "date" },
   { key: "assign_date", label: "F. Asig.", type: "date" },
@@ -77,6 +94,7 @@ const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }
 
   { key: "req_status", label: "Estado RQ" },
 
+  { key: "cost_center_code", label: "Cod. Centro Costo" },
   { key: "cost_center_desc", label: "Centro Costo" },
   { key: "requester_desc", label: "Solicitante" },
   { key: "requester_area", label: "Área Solicitante" },
@@ -94,15 +112,20 @@ const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }
   { key: "ceva", label: "CEVA", type: "num" },
   { key: "warehouse_dest", label: "Alm. Destino", type: "num" },
   { key: "warehouse_name", label: "Almacén" },
+
+  { key: "web_comment", label: "Comentario" },
+  { key: "web_status", label: "Estado" },
 ];
 
 function getStatusColWidth(key: keyof ReqStatusRow) {
+  if (key === "req_item_key") return 360;
+  if (key === "web_comment") return 380;
   if (key === "mat_desc" || key === "supplier_name") return 260;
   if (key === "warehouse_name" || key === "cost_center_desc") return 240;
   if (key === "requester_desc" || key === "requester_area") return 220;
   if (key === "po_est_delivery_date") return 150;
   if (key === "qty_requested" || key === "qty_ordered" || key === "qty_delivered" || key === "qty_approved") return 150;
-  if (key === "partial_recep_qty") return 150;
+  if (key === "partial_recep_qty" || key === "cost_center_code" || key === "web_status") return 150;
   if (key === "req_num" || key === "mat_code" || key === "po_num") return 120;
   return 130;
 }
@@ -140,10 +163,42 @@ function normalizeText(value: string | null | undefined) {
   return (value ?? "").trim();
 }
 
+function normalizeWebStatus(value: string | null | undefined): "Activo" | "Anulado" {
+  return normalizeText(value).toLowerCase() === "anulado" ? "Anulado" : "Activo";
+}
+
+function isDraftChanged(current: WebDraft | undefined, original: WebDraft | undefined) {
+  if (!current || !original) return false;
+
+  return (
+    current.web_comment.trim() !== original.web_comment.trim() ||
+    current.web_status !== original.web_status
+  );
+}
+
+function isDraftReady(current: WebDraft | undefined, original: WebDraft | undefined) {
+  if (!current || !original) return false;
+
+  const comment = current.web_comment.trim();
+
+  return (
+    original.web_status !== "Anulado" &&
+    current.web_status === "Anulado" &&
+    comment.length > 0 &&
+    comment.length <= 255 &&
+    comment !== original.web_comment.trim()
+  );
+}
+
 export default function LogisticsMreqStatusTable() {
   const [rows, setRows] = useState<ReqStatusRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, WebDraft>>({});
+  const [originals, setOriginals] = useState<Record<string, WebDraft>>({});
+  const [openStatusKey, setOpenStatusKey] = useState<string | null>(null);
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -159,18 +214,44 @@ export default function LogisticsMreqStatusTable() {
       try {
         setLoading(true);
         setError("");
+        setMessage("");
 
         const data = (await apiGet("/api/logistics/req-status")) as GetReqStatusResp;
 
         if (!data?.ok) {
-        throw new Error(data?.error || "Error al consultar requerimientos");
+          throw new Error(data?.error || "Error al consultar requerimientos");
         }
 
-        const nextRows: ReqStatusRow[] = Array.isArray(data.rows) ? data.rows : [];
+        const nextRows: ReqStatusRow[] = Array.isArray(data.rows)
+          ? data.rows.map((row) => ({
+              ...row,
+              web_comment: normalizeText(row.web_comment).slice(0, 255),
+              web_status: normalizeWebStatus(row.web_status),
+            }))
+          : [];
+
+        const nextDrafts: Record<string, WebDraft> = {};
+        const nextOriginals: Record<string, WebDraft> = {};
+
+        for (const row of nextRows) {
+          const key = normalizeText(row.req_item_key);
+          if (!key || nextDrafts[key]) continue;
+
+          const draft: WebDraft = {
+            web_comment: normalizeText(row.web_comment).slice(0, 255),
+            web_status: normalizeWebStatus(row.web_status),
+          };
+
+          nextDrafts[key] = { ...draft };
+          nextOriginals[key] = { ...draft };
+        }
 
         if (!alive) return;
 
         setRows(nextRows);
+        setDrafts(nextDrafts);
+        setOriginals(nextOriginals);
+        setOpenStatusKey(null);
 
         const dates = nextRows
           .map((r) => toDateInput(r.req_date))
@@ -218,7 +299,21 @@ export default function LogisticsMreqStatusTable() {
 
         return true;
       })
-      .sort((a, b) => Number(a.item_ord ?? 0) - Number(b.item_ord ?? 0));
+      .sort((a, b) => {
+        const keyCompare = normalizeText(a.req_item_key).localeCompare(
+          normalizeText(b.req_item_key),
+          undefined,
+          { numeric: true, sensitivity: "base" }
+        );
+
+        if (keyCompare !== 0) return keyCompare;
+
+        return normalizeText(a.po_num).localeCompare(
+          normalizeText(b.po_num),
+          undefined,
+          { numeric: true, sensitivity: "base" }
+        );
+      });
   }, [rows, fromDate, toDate, responsible]);
 
   useEffect(() => {
@@ -236,46 +331,171 @@ export default function LogisticsMreqStatusTable() {
   const pageStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const pageEnd = Math.min(currentPage * pageSize, filteredRows.length);
 
+  const editSummary = useMemo(() => {
+    const changedKeys = Object.keys(drafts).filter((key) =>
+      isDraftChanged(drafts[key], originals[key])
+    );
+
+    const invalidKeys = changedKeys.filter(
+      (key) => !isDraftReady(drafts[key], originals[key])
+    );
+
+    return {
+      changedKeys,
+      editedCount: changedKeys.length,
+      invalidCount: invalidKeys.length,
+      canSave: changedKeys.length > 0 && invalidKeys.length === 0,
+    };
+  }, [drafts, originals]);
+
+  function updateDraft(
+    key: string,
+    field: keyof WebDraft,
+    value: string
+  ) {
+    if (!key || originals[key]?.web_status === "Anulado") return;
+
+    setDrafts((current) => {
+      const draft = current[key] ?? {
+        web_comment: "",
+        web_status: "Activo" as const,
+      };
+
+      return {
+        ...current,
+        [key]: {
+          ...draft,
+          [field]:
+            field === "web_comment"
+              ? value.slice(0, 255)
+              : normalizeWebStatus(value),
+        },
+      };
+    });
+  }
+
+  async function saveChanges() {
+    if (editSummary.editedCount === 0) {
+      setMessage("No hay filas editadas para guardar.");
+      return;
+    }
+
+    if (!editSummary.canSave) {
+      setMessage(
+        "Para guardar, cada fila editada debe tener un comentario nuevo y cambiar su estado de Activo a Anulado."
+      );
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+
+    try {
+      const payloadRows = editSummary.changedKeys.map((key) => ({
+        req_item_key: key,
+        web_comment: drafts[key].web_comment.trim(),
+        web_status: drafts[key].web_status,
+      }));
+
+      const response = (await apiPost(
+        "/api/logistics/req-status/web",
+        { rows: payloadRows }
+      )) as SaveReqStatusResp;
+
+      if (!response?.ok) {
+        throw new Error(
+          response?.error || "No se pudo guardar el estado de los requerimientos."
+        );
+      }
+
+      const savedKeys = new Set(editSummary.changedKeys);
+
+      setOriginals((current) => {
+        const next = { ...current };
+
+        for (const key of savedKeys) {
+          next[key] = { ...drafts[key] };
+        }
+
+        return next;
+      });
+
+      setRows((current) =>
+        current.map((row) => {
+          const key = normalizeText(row.req_item_key);
+          if (!savedKeys.has(key)) return row;
+
+          return {
+            ...row,
+            web_comment: drafts[key].web_comment.trim(),
+            web_status: drafts[key].web_status,
+          };
+        })
+      );
+
+      setOpenStatusKey(null);
+      setMessage(`OK: se guardaron ${payloadRows.length} requerimiento(s).`);
+    } catch (err) {
+      setMessage(
+        `ERROR: ${
+          err instanceof Error ? err.message : "No se pudo guardar la información."
+        }`
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function exportExcel() {
-    const data = filteredRows.map((r) => ({
-      item_ord: r.item_ord,
-      req_num: r.req_num,
-      req_date: toDateInput(r.req_date),
-      assign_date: toDateInput(r.assign_date),
-      modified_date: toDateInput(r.modified_date),
+    const data = filteredRows.map((r) => {
+      const key = normalizeText(r.req_item_key);
+      const draft = drafts[key];
 
-      mat_code: r.mat_code,
-      mat_desc: r.mat_desc,
-      mat_unit: r.mat_unit,
-      mat_group: r.mat_group,
-      mat_family: r.mat_family,
-      responsible: r.responsible,
+      return {
+        req_item_key: r.req_item_key,
 
-      qty_requested: r.qty_requested,
-      qty_ordered: r.qty_ordered,
-      qty_delivered: r.qty_delivered,
-      qty_approved: r.qty_approved,
+        req_num: r.req_num,
+        req_date: toDateInput(r.req_date),
+        assign_date: toDateInput(r.assign_date),
+        modified_date: toDateInput(r.modified_date),
 
-      req_status: r.req_status,
+        mat_code: r.mat_code,
+        mat_desc: r.mat_desc,
+        mat_unit: r.mat_unit,
+        mat_group: r.mat_group,
+        mat_family: r.mat_family,
+        responsible: r.responsible,
 
-      cost_center_desc: r.cost_center_desc,
-      requester_desc: r.requester_desc,
-      requester_area: r.requester_area,
-      office_desc: r.office_desc,
+        qty_requested: r.qty_requested,
+        qty_ordered: r.qty_ordered,
+        qty_delivered: r.qty_delivered,
+        qty_approved: r.qty_approved,
 
-      po_num: r.po_num,
-      supplier_name: r.supplier_name,
-      po_date: toDateInput(r.po_date),
-      po_unit_price_us: r.po_unit_price_us,
-      po_status: r.po_status,
-      po_est_delivery_date: toDateInput(r.po_est_delivery_date),
+        req_status: r.req_status,
 
-      delivery_date: toDateInput(r.delivery_date),
-      partial_recep_qty: r.partial_recep_qty,
-      ceva: r.ceva,
-      warehouse_dest: r.warehouse_dest,
-      warehouse_name: r.warehouse_name,
-    }));
+        cost_center_code: r.cost_center_code,
+        cost_center_desc: r.cost_center_desc,
+        requester_desc: r.requester_desc,
+        requester_area: r.requester_area,
+        office_desc: r.office_desc,
+
+        po_num: r.po_num,
+        supplier_name: r.supplier_name,
+        po_date: toDateInput(r.po_date),
+        po_unit_price_us: r.po_unit_price_us,
+        po_status: r.po_status,
+        po_est_delivery_date: toDateInput(r.po_est_delivery_date),
+
+        delivery_date: toDateInput(r.delivery_date),
+        partial_recep_qty: r.partial_recep_qty,
+        ceva: r.ceva,
+        warehouse_dest: r.warehouse_dest,
+        warehouse_name: r.warehouse_name,
+
+        web_comment: draft?.web_comment ?? normalizeText(r.web_comment),
+        web_status: draft?.web_status ?? normalizeWebStatus(r.web_status),
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -310,6 +530,49 @@ export default function LogisticsMreqStatusTable() {
         <div style={{ fontWeight: 900 }}>
           Logística · Status de RQ
         </div>
+
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(92, 211, 158, 0.45)",
+            background:
+              editSummary.editedCount > 0
+                ? "rgba(38, 120, 88, 0.24)"
+                : "rgba(255,255,255,0.06)",
+            fontSize: 12,
+            fontWeight: 900,
+          }}
+        >
+          Editadas: {editSummary.editedCount}
+        </div>
+
+        {editSummary.invalidCount > 0 ? (
+          <div
+            style={{
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(255, 92, 92, 0.65)",
+              background: "rgba(120, 24, 24, 0.28)",
+              fontSize: 12,
+              fontWeight: 900,
+              color: "rgb(255, 170, 170)",
+            }}
+          >
+            Inválidas: {editSummary.invalidCount}
+          </div>
+        ) : null}
+
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          onClick={saveChanges}
+          disabled={loading || saving || !editSummary.canSave}
+          style={{ marginLeft: "auto", whiteSpace: "nowrap" }}
+        >
+          {saving ? "Guardando…" : "Guardar"}
+        </Button>
       </div>
       <div
         className="panel-inner"
@@ -462,6 +725,21 @@ export default function LogisticsMreqStatusTable() {
         </div>
       ) : null}
 
+      {message ? (
+        <div
+          className="panel-inner"
+          style={{
+            padding: 12,
+            color: message.startsWith("OK")
+              ? "rgb(160, 255, 214)"
+              : "rgba(255,170,170,0.95)",
+            fontWeight: 900,
+          }}
+        >
+          {message}
+        </div>
+      ) : null}
+
       <div
         className="panel-inner"
         style={{
@@ -556,33 +834,242 @@ export default function LogisticsMreqStatusTable() {
               </td>
             </tr>
           ) : (
-            pagedRows.map((row, idx) => (
-              <tr
-                key={`${row.req_num || "rq"}-${row.mat_code || "mat"}-${row.po_num || "po"}-${pageStart + idx}`}
-                className="capex-tr"
-              >
-                {columns.map((c) => {
-                  const value = row[c.key];
+            pagedRows.map((row, idx) => {
+              const reqItemKey = normalizeText(row.req_item_key);
+              const rowUiKey = `${reqItemKey || "rq"}-${normalizeText(row.po_num) || "po"}-${pageStart + idx}`;
+              const draft = drafts[reqItemKey] ?? {
+                web_comment: normalizeText(row.web_comment).slice(0, 255),
+                web_status: normalizeWebStatus(row.web_status),
+              };
+              const original = originals[reqItemKey] ?? draft;
+              const locked = original.web_status === "Anulado";
+              const changed = isDraftChanged(draft, original);
+              const ready = isDraftReady(draft, original);
+              const rowBackground = locked
+                ? "rgba(255,255,255,0.035)"
+                : changed
+                  ? ready
+                    ? "rgba(30, 110, 74, 0.28)"
+                    : "rgba(120, 24, 24, 0.34)"
+                  : "transparent";
 
-                  return (
-                    <td
-                      key={String(c.key)}
-                      className={`capex-td ${c.key === "req_num" ? "capex-td-strong" : ""}`}
-                      style={{
-                        whiteSpace: "nowrap",
-                        textAlign: c.type === "num" ? "right" : "left",
-                      }}
-                    >
-                      {c.type === "date"
-                        ? formatDate(value as string | null)
-                        : c.type === "num"
-                          ? formatNumber(value as number | string | null)
-                          : value ?? ""}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))
+              return (
+                <tr
+                  key={rowUiKey}
+                  className="capex-tr"
+                  style={{
+                    position: "relative",
+                    zIndex: openStatusKey === rowUiKey ? 99999 : "auto",
+                  }}
+                >
+                  {columns.map((c) => {
+                    const value = row[c.key];
+
+                    if (c.key === "web_comment") {
+                      const currentValue = draft.web_comment.slice(0, 255);
+                      const charCount = currentValue.length;
+
+                      return (
+                        <td
+                          key={String(c.key)}
+                          className="capex-td"
+                          style={{
+                            background: rowBackground,
+                            padding: "6px 8px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {locked ? (
+                            currentValue || "—"
+                          ) : (
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr auto",
+                                alignItems: "center",
+                                gap: 8,
+                              }}
+                            >
+                              <input
+                                type="text"
+                                value={currentValue}
+                                maxLength={255}
+                                disabled={loading || saving || !reqItemKey}
+                                onChange={(e) =>
+                                  updateDraft(
+                                    reqItemKey,
+                                    "web_comment",
+                                    e.target.value.slice(0, 255)
+                                  )
+                                }
+                                style={{
+                                  width: "100%",
+                                  minWidth: 0,
+                                  background: "rgba(0,0,0,.10)",
+                                  border:
+                                    changed && !currentValue.trim()
+                                      ? "1px solid rgba(255, 92, 92, 0.75)"
+                                      : "1px solid var(--border)",
+                                  color: "var(--text)",
+                                  borderRadius: 10,
+                                  padding: "10px 12px",
+                                  outline: "none",
+                                  fontWeight: 900,
+                                  boxSizing: "border-box",
+                                }}
+                              />
+
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 900,
+                                  color:
+                                    charCount >= 255
+                                      ? "rgb(255, 170, 170)"
+                                      : "rgba(255,255,255,.65)",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {charCount}/255
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                      );
+                    }
+
+                    if (c.key === "web_status") {
+                      return (
+                        <td
+                          key={String(c.key)}
+                          className="capex-td"
+                          style={{
+                            background: rowBackground,
+                            padding: "6px 8px",
+                            overflow: "visible",
+                            position: "relative",
+                            zIndex: openStatusKey === rowUiKey ? 9999 : "auto",
+                          }}
+                        >
+                          {locked ? (
+                            <span style={{ fontWeight: 900 }}>Anulado</span>
+                          ) : (
+                            <div style={{ position: "relative" }}>
+                              <button
+                                type="button"
+                                disabled={loading || saving || !reqItemKey}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setOpenStatusKey((current) =>
+                                    current === rowUiKey ? null : rowUiKey
+                                  );
+                                }}
+                                style={{
+                                  width: "100%",
+                                  minWidth: 0,
+                                  textAlign: "left",
+                                  background: "rgba(0,0,0,.10)",
+                                  border: "1px solid var(--border)",
+                                  color: "var(--text)",
+                                  borderRadius: 10,
+                                  padding: "10px 12px",
+                                  outline: "none",
+                                  fontWeight: 900,
+                                  cursor:
+                                    loading || saving || !reqItemKey
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                                }}
+                              >
+                                <span>{draft.web_status}</span>
+                                <span style={{ opacity: 0.8 }}>▾</span>
+                              </button>
+
+                              {openStatusKey === rowUiKey ? (
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    top: "calc(100% + 8px)",
+                                    left: 0,
+                                    zIndex: 99999,
+                                    borderRadius: 12,
+                                    border: "1px solid rgba(255,255,255,.10)",
+                                    background: "rgba(5, 25, 45, .98)",
+                                    boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+                                    overflow: "hidden",
+                                    width: "100%",
+                                    minWidth: 150,
+                                  }}
+                                >
+                                  {WEB_STATUS_OPTIONS.map((option) => {
+                                    const active = option === draft.web_status;
+
+                                    return (
+                                      <button
+                                        key={option}
+                                        type="button"
+                                        className="req-status-dd-option"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          updateDraft(
+                                            reqItemKey,
+                                            "web_status",
+                                            option
+                                          );
+                                          setOpenStatusKey(null);
+                                        }}
+                                        style={{
+                                          width: "100%",
+                                          textAlign: "left",
+                                          padding: "10px 12px",
+                                          background: active
+                                            ? "rgba(102,199,255,.18)"
+                                            : "transparent",
+                                          color: "rgba(255,255,255,.92)",
+                                          border: "none",
+                                          cursor: "pointer",
+                                          fontWeight: 900,
+                                        }}
+                                      >
+                                        {option}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    }
+
+                    return (
+                      <td
+                        key={String(c.key)}
+                        className={`capex-td ${c.key === "req_num" ? "capex-td-strong" : ""}`}
+                        style={{
+                          background: rowBackground,
+                          whiteSpace: "nowrap",
+                          textAlign: c.type === "num" ? "right" : "left",
+                        }}
+                      >
+                        {c.type === "date"
+                          ? formatDate(value as string | null)
+                          : c.type === "num"
+                            ? formatNumber(value as number | string | null)
+                            : value ?? ""}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })
           )}
         </tbody>
           </Table>
