@@ -78,7 +78,7 @@ const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }
   { key: "req_num", label: "RQ" },
   { key: "req_date", label: "F. Req", type: "date" },
   { key: "assign_date", label: "F. Asig.", type: "date" },
-  { key: "modified_date", label: "F. Mod.", type: "date" },
+  { key: "modified_date", label: "F. Apr.", type: "date" },
 
   { key: "mat_code", label: "Código" },
   { key: "mat_desc", label: "Material" },
@@ -119,7 +119,7 @@ const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }
 
 function getStatusColWidth(key: keyof ReqStatusRow) {
   if (key === "req_item_key") return 360;
-  if (key === "web_comment") return 380;
+  if (key === "web_comment") return 180;
   if (key === "mat_desc" || key === "supplier_name") return 260;
   if (key === "warehouse_name" || key === "cost_center_desc") return 240;
   if (key === "requester_desc" || key === "requester_area") return 220;
@@ -199,6 +199,7 @@ export default function LogisticsMreqStatusTable() {
   const [drafts, setDrafts] = useState<Record<string, WebDraft>>({});
   const [originals, setOriginals] = useState<Record<string, WebDraft>>({});
   const [openStatusKey, setOpenStatusKey] = useState<string | null>(null);
+  const [focusedCommentKey, setFocusedCommentKey] = useState<string | null>(null);
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -859,7 +860,11 @@ export default function LogisticsMreqStatusTable() {
                   className="capex-tr"
                   style={{
                     position: "relative",
-                    zIndex: openStatusKey === rowUiKey ? 99999 : "auto",
+                    zIndex:
+                      openStatusKey === rowUiKey ||
+                      focusedCommentKey === rowUiKey
+                        ? 99999
+                        : "auto",
                   }}
                 >
                   {columns.map((c) => {
@@ -868,6 +873,18 @@ export default function LogisticsMreqStatusTable() {
                     if (c.key === "web_comment") {
                       const currentValue = draft.web_comment.slice(0, 255);
                       const charCount = currentValue.length;
+                      const defaultCommentWidth =
+                        getStatusColWidth("web_comment") - 16;
+                      const commentEditorWidth =
+                        focusedCommentKey === rowUiKey
+                          ? Math.max(
+                              defaultCommentWidth,
+                              Math.min(
+                                1800,
+                                currentValue.length * 8 + 90
+                              )
+                            )
+                          : defaultCommentWidth;
 
                       return (
                         <td
@@ -877,6 +894,12 @@ export default function LogisticsMreqStatusTable() {
                             background: rowBackground,
                             padding: "6px 8px",
                             whiteSpace: "nowrap",
+                            overflow: "visible",
+                            position: "relative",
+                            zIndex:
+                              focusedCommentKey === rowUiKey
+                                ? 99999
+                                : "auto",
                           }}
                         >
                           {locked ? (
@@ -888,6 +911,14 @@ export default function LogisticsMreqStatusTable() {
                                 gridTemplateColumns: "1fr auto",
                                 alignItems: "center",
                                 gap: 8,
+                                width: commentEditorWidth,
+                                maxWidth: "none",
+                                position: "relative",
+                                zIndex:
+                                  focusedCommentKey === rowUiKey
+                                    ? 99999
+                                    : "auto",
+                                transition: "width 120ms ease",
                               }}
                             >
                               <input
@@ -895,6 +926,12 @@ export default function LogisticsMreqStatusTable() {
                                 value={currentValue}
                                 maxLength={255}
                                 disabled={loading || saving || !reqItemKey}
+                                onFocus={() =>
+                                  setFocusedCommentKey(rowUiKey)
+                                }
+                                onBlur={() =>
+                                  setFocusedCommentKey(null)
+                                }
                                 onChange={(e) =>
                                   updateDraft(
                                     reqItemKey,
