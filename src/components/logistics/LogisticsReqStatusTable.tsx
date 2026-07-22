@@ -9,6 +9,7 @@ import { Table } from "../ui/Table";
 
 type ReqStatusRow = {
   req_item_key: string | null;
+  po_item_key: string | null;
 
   req_num: string | null;
   req_date: string | null;
@@ -31,6 +32,10 @@ type ReqStatusRow = {
 
   cost_center_code: string | null;
   cost_center_desc: string | null;
+  glosa_req_1: string | null;
+  glosa_req_2: string | null;
+  glosa_po_1: string | null;
+  glosa_po_2: string | null;
   requester_desc: string | null;
   requester_area: string | null;
   office_desc: string | null;
@@ -50,6 +55,7 @@ type ReqStatusRow = {
 
   web_comment: string | null;
   web_status: string | null;
+  priority_desc: string | null;
 };
 
 type GetReqStatusResp = {
@@ -74,6 +80,7 @@ const WEB_STATUS_OPTIONS = ["Activo", "Anulado"] as const;
 
 const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }[] = [
   { key: "req_item_key", label: "Key RQ" },
+  { key: "po_item_key", label: "Key OC" },
 
   { key: "req_num", label: "RQ" },
   { key: "req_date", label: "F. Req", type: "date" },
@@ -96,6 +103,10 @@ const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }
 
   { key: "cost_center_code", label: "Cod. Centro Costo" },
   { key: "cost_center_desc", label: "Centro Costo" },
+  { key: "glosa_req_1", label: "Glosa RQ 1" },
+  { key: "glosa_req_2", label: "Glosa RQ 2" },
+  { key: "glosa_po_1", label: "Glosa OC 1" },
+  { key: "glosa_po_2", label: "Glosa OC 2" },
   { key: "requester_desc", label: "Solicitante" },
   { key: "requester_area", label: "Área Solicitante" },
   { key: "office_desc", label: "Oficina" },
@@ -115,11 +126,18 @@ const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }
 
   { key: "web_comment", label: "Comentario" },
   { key: "web_status", label: "Estado" },
+  { key: "priority_desc", label: "Prioridad" },
 ];
 
 function getStatusColWidth(key: keyof ReqStatusRow) {
-  if (key === "req_item_key") return 360;
+  if (key === "req_item_key" || key === "po_item_key") return 360;
   if (key === "web_comment") return 180;
+  if (
+    key === "glosa_req_1" ||
+    key === "glosa_req_2" ||
+    key === "glosa_po_1" ||
+    key === "glosa_po_2"
+  ) return 320;
   if (key === "mat_desc" || key === "supplier_name") return 260;
   if (key === "warehouse_name" || key === "cost_center_desc") return 240;
   if (key === "requester_desc" || key === "requester_area") return 220;
@@ -161,6 +179,27 @@ function formatNumber(value: number | string | null | undefined) {
 
 function normalizeText(value: string | null | undefined) {
   return (value ?? "").trim();
+}
+
+function matchesGlobal(
+  row: ReqStatusRow,
+  draft: WebDraft | undefined,
+  filterValue: string
+) {
+  const filter = String(filterValue ?? "").trim().toLowerCase();
+
+  if (!filter) return true;
+
+  return columns.some((column) => {
+    const value =
+      column.key === "web_comment"
+        ? draft?.web_comment ?? row.web_comment
+        : column.key === "web_status"
+          ? draft?.web_status ?? row.web_status
+          : row[column.key];
+
+    return String(value ?? "").trim().toLowerCase().includes(filter);
+  });
 }
 
 function normalizeWebStatus(value: string | null | undefined): "Activo" | "Anulado" {
@@ -205,6 +244,7 @@ export default function LogisticsMreqStatusTable() {
   const [toDate, setToDate] = useState("");
   const [responsible, setResponsible] = useState("");
   const [responsibleOpen, setResponsibleOpen] = useState(false);
+  const [globalFilter, setGlobalFilter] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 200;
 
@@ -293,10 +333,13 @@ export default function LogisticsMreqStatusTable() {
       .filter((r) => {
         const reqDate = toDateInput(r.req_date);
         const rowResponsible = normalizeText(r.responsible);
+        const reqItemKey = normalizeText(r.req_item_key);
+        const draft = drafts[reqItemKey];
 
         if (fromDate && reqDate && reqDate < fromDate) return false;
         if (toDate && reqDate && reqDate > toDate) return false;
         if (responsible && rowResponsible !== responsible) return false;
+        if (!matchesGlobal(r, draft, globalFilter)) return false;
 
         return true;
       })
@@ -315,11 +358,11 @@ export default function LogisticsMreqStatusTable() {
           { numeric: true, sensitivity: "base" }
         );
       });
-  }, [rows, fromDate, toDate, responsible]);
+  }, [rows, drafts, fromDate, toDate, responsible, globalFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [fromDate, toDate, responsible]);
+  }, [fromDate, toDate, responsible, globalFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -454,6 +497,7 @@ export default function LogisticsMreqStatusTable() {
 
       return {
         req_item_key: r.req_item_key,
+        po_item_key: r.po_item_key,
 
         req_num: r.req_num,
         req_date: toDateInput(r.req_date),
@@ -476,6 +520,10 @@ export default function LogisticsMreqStatusTable() {
 
         cost_center_code: r.cost_center_code,
         cost_center_desc: r.cost_center_desc,
+        glosa_req_1: r.glosa_req_1,
+        glosa_req_2: r.glosa_req_2,
+        glosa_po_1: r.glosa_po_1,
+        glosa_po_2: r.glosa_po_2,
         requester_desc: r.requester_desc,
         requester_area: r.requester_area,
         office_desc: r.office_desc,
@@ -495,6 +543,7 @@ export default function LogisticsMreqStatusTable() {
 
         web_comment: draft?.web_comment ?? normalizeText(r.web_comment),
         web_status: draft?.web_status ?? normalizeWebStatus(r.web_status),
+        priority_desc: r.priority_desc,
       };
     });
 
@@ -580,7 +629,7 @@ export default function LogisticsMreqStatusTable() {
         style={{
           padding: 12,
           display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(160px, 1fr)) auto",
+          gridTemplateColumns: "repeat(5, minmax(160px, 1fr)) auto",
           gap: 10,
           alignItems: "end",
         }}
@@ -687,6 +736,27 @@ export default function LogisticsMreqStatusTable() {
             </div>
           ) : null}
         </div>
+
+        <label
+          style={{
+            display: "grid",
+            gap: 6,
+            fontSize: 12,
+            fontWeight: 900,
+          }}
+        >
+          Buscador global
+          <input
+            type="text"
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            placeholder="Buscar RQ, centro de costo, OC, código, material, glosa..."
+            style={{
+              ...inputStyle,
+              minWidth: 320,
+            }}
+          />
+        </label>
 
         <div
           style={{
