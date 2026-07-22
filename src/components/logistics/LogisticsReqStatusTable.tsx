@@ -9,7 +9,6 @@ import { Table } from "../ui/Table";
 
 type ReqStatusRow = {
   req_item_key: string | null;
-  po_item_key: string | null;
 
   req_num: string | null;
   req_date: string | null;
@@ -80,7 +79,6 @@ const WEB_STATUS_OPTIONS = ["Activo", "Anulado"] as const;
 
 const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }[] = [
   { key: "req_item_key", label: "Key RQ" },
-  { key: "po_item_key", label: "Key OC" },
 
   { key: "req_num", label: "RQ" },
   { key: "req_date", label: "F. Req", type: "date" },
@@ -130,16 +128,17 @@ const columns: { key: keyof ReqStatusRow; label: string; type?: "date" | "num" }
 ];
 
 function getStatusColWidth(key: keyof ReqStatusRow) {
-  if (key === "req_item_key" || key === "po_item_key") return 360;
+  if (key === "req_item_key") return 360;
   if (key === "web_comment") return 180;
   if (
     key === "glosa_req_1" ||
     key === "glosa_req_2" ||
     key === "glosa_po_1" ||
     key === "glosa_po_2"
-  ) return 320;
+  ) return 160;
   if (key === "mat_desc" || key === "supplier_name") return 260;
-  if (key === "warehouse_name" || key === "cost_center_desc") return 240;
+  if (key === "cost_center_desc") return 170;
+  if (key === "warehouse_name") return 240;
   if (key === "requester_desc" || key === "requester_area") return 220;
   if (key === "po_est_delivery_date") return 150;
   if (key === "qty_requested" || key === "qty_ordered" || key === "qty_delivered" || key === "qty_approved") return 150;
@@ -239,6 +238,7 @@ export default function LogisticsMreqStatusTable() {
   const [originals, setOriginals] = useState<Record<string, WebDraft>>({});
   const [openStatusKey, setOpenStatusKey] = useState<string | null>(null);
   const [focusedCommentKey, setFocusedCommentKey] = useState<string | null>(null);
+  const [selectedReadonlyCellKey, setSelectedReadonlyCellKey] = useState<string | null>(null);
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -497,7 +497,6 @@ export default function LogisticsMreqStatusTable() {
 
       return {
         req_item_key: r.req_item_key,
-        po_item_key: r.po_item_key,
 
         req_num: r.req_num,
         req_date: toDateInput(r.req_date),
@@ -932,7 +931,8 @@ export default function LogisticsMreqStatusTable() {
                     position: "relative",
                     zIndex:
                       openStatusKey === rowUiKey ||
-                      focusedCommentKey === rowUiKey
+                      focusedCommentKey === rowUiKey ||
+                      selectedReadonlyCellKey?.startsWith(`${rowUiKey}-`)
                         ? 99999
                         : "auto",
                   }}
@@ -1156,21 +1156,99 @@ export default function LogisticsMreqStatusTable() {
                       );
                     }
 
+                    const displayValue =
+                      c.type === "date"
+                        ? formatDate(value as string | null)
+                        : c.type === "num"
+                          ? formatNumber(value as number | string | null)
+                          : String(value ?? "");
+
+                    const isExpandableReadonly =
+                      c.key === "cost_center_desc" ||
+                      c.key === "glosa_req_1" ||
+                      c.key === "glosa_req_2" ||
+                      c.key === "glosa_po_1" ||
+                      c.key === "glosa_po_2";
+
+                    const readonlyCellKey = `${rowUiKey}-${String(c.key)}`;
+                    const readonlySelected =
+                      selectedReadonlyCellKey === readonlyCellKey;
+
+                    const defaultReadonlyWidth =
+                      getStatusColWidth(c.key) - 16;
+
+                    const expandedReadonlyWidth =
+                      readonlySelected
+                        ? Math.max(
+                            defaultReadonlyWidth,
+                            Math.min(
+                              1800,
+                              displayValue.length * 8 + 48
+                            )
+                          )
+                        : defaultReadonlyWidth;
+
                     return (
                       <td
                         key={String(c.key)}
                         className={`capex-td ${c.key === "req_num" ? "capex-td-strong" : ""}`}
+                        tabIndex={isExpandableReadonly ? 0 : undefined}
+                        onClick={
+                          isExpandableReadonly
+                            ? (e) => {
+                                e.currentTarget.focus();
+                                setSelectedReadonlyCellKey(readonlyCellKey);
+                              }
+                            : undefined
+                        }
+                        onBlur={
+                          isExpandableReadonly
+                            ? () => setSelectedReadonlyCellKey(null)
+                            : undefined
+                        }
                         style={{
                           background: rowBackground,
                           whiteSpace: "nowrap",
                           textAlign: c.type === "num" ? "right" : "left",
+                          overflow: isExpandableReadonly ? "visible" : "hidden",
+                          position: isExpandableReadonly ? "relative" : undefined,
+                          zIndex: readonlySelected ? 99999 : "auto",
+                          cursor: isExpandableReadonly ? "pointer" : "default",
+                          outline: "none",
                         }}
                       >
-                        {c.type === "date"
-                          ? formatDate(value as string | null)
-                          : c.type === "num"
-                            ? formatNumber(value as number | string | null)
-                            : value ?? ""}
+                        {isExpandableReadonly ? (
+                          <div
+                            title={displayValue || "—"}
+                            style={{
+                              width: expandedReadonlyWidth,
+                              minWidth: expandedReadonlyWidth,
+                              maxWidth: "none",
+                              overflow: "hidden",
+                              textOverflow: readonlySelected
+                                ? "clip"
+                                : "ellipsis",
+                              whiteSpace: "nowrap",
+                              background: readonlySelected
+                                ? "rgb(6, 36, 58)"
+                                : "transparent",
+                              border: readonlySelected
+                                ? "1px solid rgba(191,231,255,0.32)"
+                                : "1px solid transparent",
+                              borderRadius: readonlySelected ? 8 : 0,
+                              boxShadow: readonlySelected
+                                ? "0 10px 30px rgba(0,0,0,0.45)"
+                                : "none",
+                              padding: readonlySelected ? "8px 10px" : 0,
+                              boxSizing: "border-box",
+                              transition: "width 120ms ease",
+                            }}
+                          >
+                            {displayValue || "—"}
+                          </div>
+                        ) : (
+                          displayValue
+                        )}
                       </td>
                     );
                   })}
