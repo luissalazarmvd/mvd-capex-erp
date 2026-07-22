@@ -8,7 +8,7 @@ import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 
 type FleetOffRow = {
-  item_ord: number | string | null;
+  req_item_key: string | null;
   req_num: string | null;
   req_date: string | null;
   mat_code: string | null;
@@ -52,7 +52,7 @@ const COLUMNS: {
   width?: number;
   sortable?: boolean;
 }[] = [
-  { key: "item_ord", label: "Item Ord", editable: false, kind: "number", width: 100, sortable: true },
+  { key: "req_item_key", label: "Key RQ", editable: false, kind: "readonly", width: 360, sortable: true },
   { key: "req_num", label: "RQ", editable: false, kind: "readonly", width: 120, sortable: true },
   { key: "req_date", label: "F. Req", editable: false, kind: "date", width: 110, sortable: true },
   { key: "mat_code", label: "Cod. Material", editable: false, kind: "readonly", width: 130, sortable: true },
@@ -109,7 +109,6 @@ function formatDisplayValue(key: keyof FleetOffRow, value: unknown) {
   if (isBlank(value)) return "";
 
   if (key === "req_date") return formatDateYyyyMmDd(value);
-  if (key === "item_ord") return formatNumber(value, 0);
   if (key === "odometer_km") return formatNumber(value, 2);
 
   return String(value ?? "");
@@ -149,7 +148,7 @@ function compareByKey(
   const av = getSortValue(a, key, draftA);
   const bv = getSortValue(b, key, draftB);
 
-  const numericKeys: SortKey[] = ["item_ord", "odometer_km"];
+  const numericKeys: SortKey[] = ["odometer_km"];
 
   if (numericKeys.includes(key)) {
     const an = parseNum(av);
@@ -229,7 +228,7 @@ function rowHasInvalidEditableFields(current: DraftRow | undefined) {
 
 function buildPayload(row: DraftRow) {
   return {
-    item_ord: parseNum(row.item_ord) ?? null,
+    req_item_key: String(row.req_item_key ?? "").trim() || null,
     odometer_km: parseNum(row.odometer_km),
     req_type: String(row.req_type ?? "").trim() || null,
     office_serv_desc: String(row.office_serv_desc ?? "").trim() || null,
@@ -277,7 +276,7 @@ function RowItem({
   invalidRowBg,
   columnWidths,
 }: RowItemProps) {
-  const key = String(row.item_ord ?? "").trim();
+  const key = String(row.req_item_key ?? "").trim();
   const [openDropdown, setOpenDropdown] = useState<keyof FleetOffRow | null>(null);
   const currentRowBg = invalid ? invalidRowBg : edited ? editedRowBg : rowBg;
 
@@ -600,7 +599,7 @@ export default function FleetOffForm() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [globalFilter, setGlobalFilter] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("item_ord");
+  const [sortKey, setSortKey] = useState<SortKey>("req_item_key");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [editedTick, setEditedTick] = useState(0);
   const [page, setPage] = useState(1);
@@ -624,7 +623,7 @@ export default function FleetOffForm() {
       const nextOriginals: Record<string, DraftRow> = {};
 
       for (const row of data) {
-        const key = String(row.item_ord ?? "").trim();
+        const key = String(row.req_item_key ?? "").trim();
         if (!key) continue;
 
         const draft = toDraftRow(row);
@@ -714,7 +713,7 @@ export default function FleetOffForm() {
 
   const preparedRows = useMemo(() => {
     const filtered = rows.filter((row) => {
-      const key = String(row.item_ord ?? "").trim();
+      const key = String(row.req_item_key ?? "").trim();
       const draft = draftsRef.current[key];
 
       if (!inDateRange(row.req_date, dateFrom, dateTo)) return false;
@@ -724,8 +723,8 @@ export default function FleetOffForm() {
     });
 
     return [...filtered].sort((a, b) => {
-      const keyA = String(a.item_ord ?? "").trim();
-      const keyB = String(b.item_ord ?? "").trim();
+      const keyA = String(a.req_item_key ?? "").trim();
+      const keyB = String(b.req_item_key ?? "").trim();
 
       const draftA = draftsRef.current[keyA];
       const draftB = draftsRef.current[keyB];
@@ -733,7 +732,7 @@ export default function FleetOffForm() {
       const primary = compareByKey(a, b, sortKey, sortDir, draftA, draftB);
       if (primary !== 0) return primary;
 
-      return compareByKey(a, b, "item_ord", "asc", draftA, draftB);
+      return compareByKey(a, b, "req_item_key", "asc", draftA, draftB);
     });
   }, [rows, dateFrom, dateTo, globalFilter, sortKey, sortDir, editedTick]);
 
@@ -761,7 +760,7 @@ export default function FleetOffForm() {
     editedTick;
 
     const values = rows.map((row) => {
-      const rowKey = String(row.item_ord ?? "").trim();
+      const rowKey = String(row.req_item_key ?? "").trim();
       const draft = draftsRef.current[rowKey] ?? toDraftRow(row);
       return toText(draft.req_type) || "Selecciona...";
     });
@@ -822,8 +821,8 @@ export default function FleetOffForm() {
       const payloadRows = editedKeys.map((key) => {
         const row = draftsRef.current[key];
 
-        if (!String(row?.item_ord ?? "").trim()) {
-          throw new Error("Hay una fila editada sin item_ord.");
+        if (!String(row?.req_item_key ?? "").trim()) {
+          throw new Error("Hay una fila editada sin req_item_key.");
         }
 
         return buildPayload(row);
@@ -854,11 +853,11 @@ export default function FleetOffForm() {
 
   function onExportExcel() {
     const exportRows = preparedRows.map((row) => {
-      const key = String(row.item_ord ?? "").trim();
+      const key = String(row.req_item_key ?? "").trim();
       const draft = draftsRef.current[key] ?? toDraftRow(row);
 
       return {
-        "Item Ord": row.item_ord ?? "",
+        "Key RQ": row.req_item_key ?? "",
         RQ: row.req_num ?? "",
         "F. Req": formatDateYyyyMmDd(row.req_date),
         "Cod. Material": row.mat_code ?? "",
@@ -880,7 +879,7 @@ export default function FleetOffForm() {
     const ws = XLSX.utils.json_to_sheet(exportRows);
 
     ws["!cols"] = [
-      { wch: 12 },
+      { wch: 40 },
       { wch: 16 },
       { wch: 12 },
       { wch: 16 },
@@ -911,7 +910,7 @@ export default function FleetOffForm() {
     }
 
     setSortKey(key);
-    setSortDir(key === "item_ord" ? "asc" : "desc");
+    setSortDir(key === "req_item_key" ? "asc" : "desc");
   }
 
   function getSortIndicator(key: keyof FleetOffRow) {
@@ -1165,7 +1164,7 @@ export default function FleetOffForm() {
 
             <tbody>
               {visibleRows.map((row, index) => {
-                const rowKey = String(row.item_ord ?? "").trim();
+                const rowKey = String(row.req_item_key ?? "").trim();
                 const safeKey = rowKey || `row-${index}`;
                 const draft = draftsRef.current[rowKey] ?? toDraftRow(row);
 
