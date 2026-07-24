@@ -691,8 +691,9 @@ type DropdownProps = {
   options: SelectOption[];
   disabled: boolean;
   invalid: boolean;
+  open: boolean;
   onChange: (value: string) => void;
-  onOpenChange: (open: boolean) => void;
+  onToggle: (open: boolean) => void;
 };
 
 function Dropdown({
@@ -700,11 +701,10 @@ function Dropdown({
   options,
   disabled,
   invalid,
+  open,
   onChange,
-  onOpenChange,
+  onToggle,
 }: DropdownProps) {
-  const [open, setOpen] = useState(false);
-
   const selected =
     options.find((option) => option.value === value) ??
     (value
@@ -714,17 +714,14 @@ function Dropdown({
         }
       : options[0]);
 
-  function changeOpen(next: boolean) {
-    setOpen(next);
-    onOpenChange(next);
-  }
-
   return (
     <div
       style={{
+        display: "grid",
+        gap: 6,
+        overflow: "visible",
         position: "relative",
         width: "100%",
-        overflow: "visible",
       }}
     >
       <button
@@ -736,7 +733,7 @@ function Dropdown({
 
           if (disabled) return;
 
-          changeOpen(!open);
+          onToggle(!open);
         }}
         style={{
           width: "100%",
@@ -787,14 +784,15 @@ function Dropdown({
             zIndex: 99999,
             borderRadius: 12,
             border: "1px solid rgba(255,255,255,.10)",
-            background: "rgba(5, 25, 45, .99)",
+            background: "rgba(5, 25, 45, .98)",
             boxShadow: "0 10px 30px rgba(0,0,0,.45)",
             overflowY: "auto",
             overflowX: "hidden",
-            maxHeight: 290,
-            width: "max-content",
+            maxHeight: 280,
+            width: 230,
             minWidth: "100%",
             maxWidth: 360,
+            whiteSpace: "normal",
           }}
         >
           {options.map((option) => {
@@ -809,7 +807,7 @@ function Dropdown({
                   event.preventDefault();
                   event.stopPropagation();
                   onChange(option.value);
-                  changeOpen(false);
+                  onToggle(false);
                 }}
                 style={{
                   width: "100%",
@@ -886,7 +884,8 @@ function RowItem({
   invalidRowBg,
 }: RowItemProps) {
   const rowKey = getRowKey(row);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] =
+    useState<EditableField | null>(null);
 
   const currentRowBg = invalid
     ? invalidRowBg
@@ -905,7 +904,7 @@ function RowItem({
       className="capex-tr"
       style={{
         position: "relative",
-        zIndex: dropdownOpen ? 9999 : "auto",
+        zIndex: openDropdown ? 99999 : "auto",
       }}
     >
       {columns.map((column) => {
@@ -967,11 +966,12 @@ function RowItem({
         }
 
         if (column.kind === "select" && isEditableField(column.key)) {
-          const options = SELECT_OPTIONS[column.key] ?? [];
+          const field = column.key;
+          const options = SELECT_OPTIONS[field] ?? [];
 
           return (
             <td
-              key={String(column.key)}
+              key={String(field)}
               className="capex-td"
               style={{
                 ...cellBase,
@@ -985,17 +985,21 @@ function RowItem({
                 maxWidth: column.width,
                 overflow: "visible",
                 position: "relative",
-                zIndex: dropdownOpen ? 9998 : "auto",
+                zIndex:
+                  openDropdown === field ? 9999 : "auto",
               }}
             >
               <Dropdown
-                value={String(draft[column.key] ?? "")}
+                value={String(draft[field] ?? "")}
                 options={options}
                 disabled={loading || saving}
                 invalid={!!fieldError}
-                onOpenChange={setDropdownOpen}
+                open={openDropdown === field}
+                onToggle={(open) =>
+                  setOpenDropdown(open ? field : null)
+                }
                 onChange={(value) =>
-                  onCellChange(rowKey, column.key, value)
+                  onCellChange(rowKey, field, value)
                 }
               />
             </td>
