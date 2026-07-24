@@ -70,7 +70,7 @@ export default function SustainabilityLayout({
               }}
             >
               <Link
-                href="/sustainability"
+                href="/sustainability/igafom"
                 prefetch={false}
                 className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
               >

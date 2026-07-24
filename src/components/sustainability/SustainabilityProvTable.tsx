@@ -143,6 +143,7 @@ const MONTH_FIELDS: (keyof SustainabilityProvRow)[] = [
 ];
 
 const FORMAL_OPTIONS: SelectOption[] = [
+  { value: "", label: "Selecciona..." },
   { value: "Excluído", label: "Excluído" },
   { value: "Formalizado", label: "Formalizado" },
   { value: "Suspendido", label: "Suspendido" },
@@ -150,16 +151,19 @@ const FORMAL_OPTIONS: SelectOption[] = [
 ];
 
 const YES_NO_OPTIONS: SelectOption[] = [
+  { value: "", label: "Selecciona..." },
   { value: "Sí", label: "Sí" },
   { value: "No", label: "No" },
 ];
 
 const IGAFOM_OPTIONS: SelectOption[] = [
+  { value: "", label: "Selecciona..." },
   { value: "Presentado", label: "Presentado" },
   { value: "En Evaluación", label: "En Evaluación" },
 ];
 
 const RECPO_CONDITION_OPTIONS: SelectOption[] = [
+  { value: "", label: "Selecciona..." },
   { value: "Compra y Venta de Oro", label: "Compra y Venta de Oro" },
   {
     value: "Compra, Venta y Refinación de Oro",
@@ -169,6 +173,7 @@ const RECPO_CONDITION_OPTIONS: SelectOption[] = [
 ];
 
 const SUNAT_STATUS_OPTIONS: SelectOption[] = [
+  { value: "", label: "Selecciona..." },
   { value: "Activo/Habido", label: "Activo/Habido" },
 ];
 
@@ -536,7 +541,17 @@ function validateField(
       ? ""
       : originalText;
 
-  if (originalComparable && !currentComparable) {
+  const protectedTextbox =
+    field === "recpo_register" ||
+    field === "manager_name" ||
+    field === "manager_phone" ||
+    field === "manager_mail";
+
+  if (
+    protectedTextbox &&
+    originalComparable &&
+    !currentComparable
+  ) {
     return "No se puede borrar un valor existente.";
   }
 
@@ -1021,15 +1036,7 @@ function RowItem({
 
         if (column.kind === "select" && isEditableField(column.key)) {
           const field = column.key;
-          const baseOptions = SELECT_OPTIONS[field] ?? [];
-          const originalValue = String(row[field] ?? "").trim();
-
-          const options = originalValue
-            ? baseOptions
-            : [
-                { value: "", label: "Selecciona..." },
-                ...baseOptions,
-              ];
+          const options = SELECT_OPTIONS[field] ?? [];
 
           return (
             <td
