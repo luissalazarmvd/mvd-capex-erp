@@ -1021,7 +1021,15 @@ function RowItem({
 
         if (column.kind === "select" && isEditableField(column.key)) {
           const field = column.key;
-          const options = SELECT_OPTIONS[field] ?? [];
+          const baseOptions = SELECT_OPTIONS[field] ?? [];
+          const originalValue = String(row[field] ?? "").trim();
+
+          const options = originalValue
+            ? baseOptions
+            : [
+                { value: "", label: "Selecciona..." },
+                ...baseOptions,
+              ];
 
           return (
             <td
