@@ -1,7 +1,13 @@
 // src/components/sustainability/SustainabilityProvTable.tsx
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
@@ -137,7 +143,6 @@ const MONTH_FIELDS: (keyof SustainabilityProvRow)[] = [
 ];
 
 const FORMAL_OPTIONS: SelectOption[] = [
-  { value: "", label: "Selecciona..." },
   { value: "Excluído", label: "Excluído" },
   { value: "Formalizado", label: "Formalizado" },
   { value: "Suspendido", label: "Suspendido" },
@@ -145,19 +150,16 @@ const FORMAL_OPTIONS: SelectOption[] = [
 ];
 
 const YES_NO_OPTIONS: SelectOption[] = [
-  { value: "", label: "Selecciona..." },
   { value: "Sí", label: "Sí" },
   { value: "No", label: "No" },
 ];
 
 const IGAFOM_OPTIONS: SelectOption[] = [
-  { value: "", label: "Selecciona..." },
   { value: "Presentado", label: "Presentado" },
   { value: "En Evaluación", label: "En Evaluación" },
 ];
 
 const RECPO_CONDITION_OPTIONS: SelectOption[] = [
-  { value: "", label: "Selecciona..." },
   { value: "Compra y Venta de Oro", label: "Compra y Venta de Oro" },
   {
     value: "Compra, Venta y Refinación de Oro",
@@ -167,7 +169,6 @@ const RECPO_CONDITION_OPTIONS: SelectOption[] = [
 ];
 
 const SUNAT_STATUS_OPTIONS: SelectOption[] = [
-  { value: "", label: "Sin Selección" },
   { value: "Activo/Habido", label: "Activo/Habido" },
 ];
 
@@ -535,21 +536,13 @@ function validateField(
       ? ""
       : originalText;
 
-  const protectedTextbox =
-    field === "recpo_register" ||
-    field === "manager_name" ||
-    field === "manager_phone" ||
-    field === "manager_mail";
-
-  if (
-    protectedTextbox &&
-    originalComparable &&
-    !currentComparable
-  ) {
+  if (originalComparable && !currentComparable) {
     return "No se puede borrar un valor existente.";
   }
 
   if (SELECT_OPTIONS[field]) {
+    if (!text) return null;
+
     const validValues = SELECT_OPTIONS[field]!.map((option) => option.value);
 
     if (!validValues.includes(text)) {
@@ -740,6 +733,8 @@ function Dropdown({
   onChange,
   onToggle,
 }: DropdownProps) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const selected =
     options.find((option) => option.value === value) ??
     (value
@@ -747,10 +742,30 @@ function Dropdown({
           value,
           label: value,
         }
-      : options[0]);
+      : null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        onToggle(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleMouseDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+    };
+  }, [open, onToggle]);
 
   return (
     <div
+      ref={dropdownRef}
       style={{
         display: "grid",
         gap: 6,
