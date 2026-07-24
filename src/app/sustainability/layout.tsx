@@ -1,8 +1,11 @@
-// src/app/sustainability/layout.tsx
 import Image from "next/image";
 import Link from "next/link";
 
-export default function SustainabilityLayout({ children }: { children: React.ReactNode }) {
+export default function SustainabilityLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <header
@@ -11,12 +14,16 @@ export default function SustainabilityLayout({ children }: { children: React.Rea
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <div className="container-fluid" style={{ paddingTop: 14, paddingBottom: 14 }}>
+        <div
+          className="container-fluid"
+          style={{ paddingTop: 14, paddingBottom: 14 }}
+        >
           <div
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
+              flexWrap: "wrap",
               gap: 14,
             }}
           >
@@ -45,25 +52,55 @@ export default function SustainabilityLayout({ children }: { children: React.Rea
               </Link>
 
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – SOSTENIBILIDAD</div>
+                <div style={{ fontSize: 20, fontWeight: 800 }}>
+                  MVD – SOSTENIBILIDAD
+                </div>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  IGAFOM
+                  IGAFOM Y PROVEEDORES
                 </div>
               </div>
             </div>
 
-            <Link
-              href="/"
-              prefetch={false}
-              className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
+            <nav
+              style={{
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 10,
+              }}
             >
-              Inicio
-            </Link>
+              <Link
+                href="/sustainability"
+                prefetch={false}
+                className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
+              >
+                IGAFOM
+              </Link>
+
+              <Link
+                href="/sustainability/providers"
+                prefetch={false}
+                className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
+              >
+                Proveedores
+              </Link>
+
+              <Link
+                href="/"
+                prefetch={false}
+                className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
+              >
+                Inicio
+              </Link>
+            </nav>
           </div>
         </div>
       </header>
 
-      <main className="container-fluid" style={{ paddingTop: 16, paddingBottom: 30 }}>
+      <main
+        className="container-fluid"
+        style={{ paddingTop: 16, paddingBottom: 30 }}
+      >
         <section
           className="panel"
           style={{
