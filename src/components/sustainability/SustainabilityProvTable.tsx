@@ -334,7 +334,7 @@ const COLUMNS: ColumnDefinition[] = [
   },
   {
     key: "formal_flag",
-    label: "Estado Formalización",
+    label: "Estado de Formalización",
     editable: true,
     kind: "select",
     width: 190,
@@ -355,84 +355,84 @@ const COLUMNS: ColumnDefinition[] = [
   },
   {
     key: "benef_flag",
-    label: "Beneficio",
+    label: "Actividad de Beneficio",
     editable: true,
     kind: "select",
     width: 130,
   },
   {
     key: "igafom_status",
-    label: "Estado IGAFOM",
+    label: "IGAFOM (Estado)",
     editable: true,
     kind: "select",
     width: 170,
   },
   {
     key: "explot_flag",
-    label: "Explotación",
+    label: "Contrato de Explotación",
     editable: true,
     kind: "select",
     width: 130,
   },
   {
     key: "recpo_flag",
-    label: "RECPO",
+    label: "RECPO (Sí/No)",
     editable: true,
     kind: "select",
     width: 120,
   },
   {
     key: "recpo_condition",
-    label: "Condición RECPO",
+    label: "RECPO (Condición)",
     editable: true,
     kind: "select",
     width: 290,
   },
   {
     key: "recpo_register",
-    label: "Registro RECPO",
+    label: "RECPO N° Registro",
     editable: true,
     kind: "recpo",
     width: 210,
   },
   {
     key: "explosive_auth_flag",
-    label: "Aut. Explosivos",
+    label: "Autorización de Uso de Explosivos",
     editable: true,
     kind: "select",
     width: 150,
   },
   {
     key: "cira_flag",
-    label: "CIRA",
+    label: "CIRA/DIRA",
     editable: true,
     kind: "select",
     width: 120,
   },
   {
     key: "terrain_flag",
-    label: "Terreno",
+    label: "Terreno Superficial Autorizado",
     editable: true,
     kind: "select",
     width: 120,
   },
   {
     key: "manager_name",
-    label: "Responsable",
+    label: "Representante",
     editable: true,
     kind: "text",
     width: 300,
   },
   {
     key: "manager_phone",
-    label: "Teléfono Responsable",
+    label: "Teléfono",
     editable: true,
     kind: "text",
     width: 210,
   },
   {
     key: "manager_mail",
-    label: "Correo Responsable",
+    label: "Correo",
     editable: true,
     kind: "text",
     width: 320,
@@ -519,8 +519,35 @@ function getRecpoDigits(value: unknown) {
   return normalized.replace(/^RECPO-/, "");
 }
 
-function validateField(field: EditableField, value: unknown) {
+function validateField(
+  field: EditableField,
+  value: unknown,
+  originalValue?: unknown
+) {
   const text = String(value ?? "").trim();
+  const originalText = String(originalValue ?? "").trim();
+
+  const currentComparable =
+    field === "recpo_register" && text === "RECPO-" ? "" : text;
+
+  const originalComparable =
+    field === "recpo_register" && originalText === "RECPO-"
+      ? ""
+      : originalText;
+
+  const protectedTextbox =
+    field === "recpo_register" ||
+    field === "manager_name" ||
+    field === "manager_phone" ||
+    field === "manager_mail";
+
+  if (
+    protectedTextbox &&
+    originalComparable &&
+    !currentComparable
+  ) {
+    return "No se puede borrar un valor existente.";
+  }
 
   if (SELECT_OPTIONS[field]) {
     const validValues = SELECT_OPTIONS[field]!.map((option) => option.value);
@@ -531,10 +558,10 @@ function validateField(field: EditableField, value: unknown) {
   }
 
   if (field === "recpo_register") {
-    if (!text || text === "RECPO-") return null;
+    if (!currentComparable) return null;
 
     if (!/^RECPO-\d{6}$/.test(text)) {
-      return "Debe contener RECPO- y 6 dígitos.";
+      return "Debe contener RECPO- y exactamente 6 dígitos.";
     }
   }
 
@@ -563,9 +590,17 @@ function validateField(field: EditableField, value: unknown) {
   return null;
 }
 
-function getRowValidationError(draft: DraftRow) {
+function getRowValidationError(
+  draft: DraftRow,
+  original?: DraftRow
+) {
   for (const field of EDITABLE_FIELDS) {
-    const error = validateField(field, draft[field]);
+    const error = validateField(
+      field,
+      draft[field],
+      original?.[field]
+    );
+
     if (error) return `${field}: ${error}`;
   }
 
@@ -931,7 +966,11 @@ function RowItem({
 
         const fieldError =
           column.editable && isEditableField(column.key)
-            ? validateField(column.key, draft[column.key])
+            ? validateField(
+                column.key,
+                draft[column.key],
+                row[column.key]
+              )
             : null;
 
         if (!column.editable) {
@@ -1451,7 +1490,10 @@ export default function SustainabilityProvTable() {
     const map: Record<string, boolean> = {};
 
     for (const key of Object.keys(drafts)) {
-      map[key] = !!getRowValidationError(drafts[key]);
+      map[key] = !!getRowValidationError(
+        drafts[key],
+        originals[key]
+      );
     }
 
     return map;
@@ -1554,7 +1596,10 @@ export default function SustainabilityProvTable() {
     if (invalidKeys.length) {
       const firstKey = invalidKeys[0];
       const firstDraft = drafts[firstKey];
-      const validationError = getRowValidationError(firstDraft);
+      const validationError = getRowValidationError(
+        firstDraft,
+        originals[firstKey]
+      );
 
       setMsg(
         `ERROR: hay ${invalidKeys.length} fila(s) con datos inválidos. ${
