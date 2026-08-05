@@ -69,7 +69,22 @@ type StatusFilter = "all" | "Abierto" | "Cerrado";
 
 const PAGE_SIZE = 50;
 
-const REQ_TYPE_OPTIONS = ["Motor", "Llantas", "Transmisión", "Sist. Eléctrico", "Otros"];
+const REPAIR_SHOP_OPTIONS = [
+  "Premium Clínica Automotriz",
+  "Guido Laura Tintaya",
+  "Concesionarios Autorizados",
+  "Mecatronic Pedregalac",
+  "Los Vicos Car",
+  "Autoespar",
+  "Automotriz Mendoza Motors",
+  "Marta Salas Lupa",
+  "Grupo JJS Automotive",
+  "Nor Autos Piura",
+  "Autonort Trujillo",
+  "Autonort Cajamarca",
+  "Automotores Santa Clara",
+  "Nova Autos",
+];
 
 const REQ_HEADER_COLLAPSIBLE_KEYS: (keyof FleetMgmRow)[] = [
   "req_date",
@@ -140,7 +155,7 @@ const COLUMNS: {
   { key: "odometer_km", label: "Odómetro Km", editable: false, kind: "number", width: 140, sortable: true },
   { key: "req_type", label: "Tipo Req", editable: false, kind: "readonly", width: 180, sortable: true },
   { key: "office_serv_desc", label: "Descripción", editable: false, kind: "readonly", width: 320, sortable: true },
-  { key: "repair_shop_name", label: "Taller", editable: true, kind: "text", width: 220, sortable: true },
+  { key: "repair_shop_name", label: "Taller", editable: true, kind: "select", width: 220, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: true, kind: "date", width: 130, sortable: true },
   { key: "exit_date", label: "F. Salida", editable: true, kind: "date", width: 130, sortable: true },
   { key: "app_budget_pen", label: "Presup. Aprob. PEN", editable: true, kind: "number", width: 170, sortable: true },
@@ -693,7 +708,7 @@ function RowItem({
             {(() => {
               const options = [
                 { value: "", label: "Selecciona..." },
-                ...REQ_TYPE_OPTIONS.map((x) => ({ value: x, label: x })),
+                ...REPAIR_SHOP_OPTIONS.map((x) => ({ value: x, label: x })),
               ];
 
               const currentValue = toText(draft[c.key]);
