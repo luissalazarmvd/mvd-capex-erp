@@ -1045,8 +1045,20 @@ export default function FleetMgmForm() {
   }, [showReqDetails]);
 
   const dynamicColumnWidths = useMemo<Partial<Record<keyof FleetMgmRow, number>>>(() => {
-    return {};
-  }, []);
+    editedTick;
+
+    const values = rows.map((row) => {
+      const rowKey = String(row.req_item_key ?? "").trim();
+      const draft = draftsRef.current[rowKey] ?? toDraftRow(row);
+      return toText(draft.repair_shop_name) || "Selecciona...";
+    });
+
+    const maxLength = Math.max("Selecciona...".length, ...values.map((x) => x.length));
+
+    return {
+      repair_shop_name: Math.max(170, Math.min(260, maxLength * 9 + 64)),
+    };
+  }, [rows, editedTick]);
 
   const registerInput = useCallback(
     (
