@@ -60,7 +60,7 @@ export function Table({
 
         /* cells */
         .capex-td {
-          border-bottom: 1px solid rgba(255, 216, 130, 0.14);
+          border-bottom: 1px solid rgba(216, 238, 255, 0.14);
           padding: 8px 10px;
           vertical-align: middle;
         }
@@ -78,7 +78,7 @@ export function Table({
         /* subtle separators between months */
         .capex-td-sep,
         .capex-th-sep {
-          border-left: 1px solid rgba(255, 216, 130, 0.18);
+          border-left: 1px solid rgba(216, 238, 255, 0.18);
         }
       `}</style>
     </>

@@ -36,7 +36,7 @@ function PortalFallback() {
       >
         <img src="/logo_mvd.png" alt="Veta Dorada" style={{ height: 58, marginBottom: 18 }} />
         <h2 style={{ margin: "0 0 10px 0", fontWeight: 800 }}>Acceso MVD</h2>
-        <div style={{ color: "#FFD882", fontWeight: 700 }}>Cargando…</div>
+        <div style={{ color: "#D8EEFF", fontWeight: 700 }}>Cargando…</div>
       </div>
     </main>
   );

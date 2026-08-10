@@ -441,10 +441,10 @@ export default function MapImpExp({
     }
   }
 
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
-  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
-  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
+  const gridV = "1px solid rgba(216, 238, 255, 0.10)";
+  const gridH = "1px solid rgba(216, 238, 255, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
 
   const cellBase: React.CSSProperties = {
@@ -584,8 +584,8 @@ export default function MapImpExp({
                   style={{
                     padding: "6px 10px",
                     borderRadius: 999,
-                    border: "1px solid rgba(198,146,20,.45)",
-                    background: "rgba(198,146,20,.10)",
+                    border: "1px solid rgba(27,147,227,.45)",
+                    background: "rgba(27,147,227,.10)",
                     fontSize: 12,
                     fontWeight: 900,
                   }}
@@ -657,7 +657,7 @@ export default function MapImpExp({
                 minWidth: 0,
                 minHeight: 0,
                 overflow: "auto",
-                border: "1px solid rgba(255,216,130,.12)",
+                border: "1px solid rgba(216,238,255,.12)",
                 borderRadius: 12,
               }}
             >
@@ -707,7 +707,7 @@ export default function MapImpExp({
                       : row.status === "ACTUALIZAR"
                       ? "rgba(255,183,27,.12)"
                       : row.status === "NUEVA"
-                      ? "rgba(198,146,20,.10)"
+                      ? "rgba(27,147,227,.10)"
                       : rowBg;
 
                     return (

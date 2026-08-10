@@ -145,7 +145,7 @@ function SearchableSelect({
             width: "100%",
             padding: "10px 38px 10px 12px",
             borderRadius: 8,
-            border: "1px solid rgba(255,216,130,.18)",
+            border: "1px solid rgba(216,238,255,.18)",
             background: "rgba(255,255,255,0.06)",
             color: "white",
             outline: "none",
@@ -189,8 +189,8 @@ function SearchableSelect({
               maxHeight: 260,
               overflow: "auto",
               borderRadius: 10,
-              border: "1px solid rgba(255,216,130,.18)",
-              background: "rgb(39, 39, 39)",
+              border: "1px solid rgba(216,238,255,.18)",
+              background: "rgb(6, 77, 121)",
               boxShadow: "0 10px 30px rgba(0,0,0,.35)",
               zIndex: 50,
             }}
@@ -233,7 +233,7 @@ function SearchableSelect({
                     border: "none",
                     background:
                       selectedValue === opt.value
-                        ? "rgba(198,146,20,.14)"
+                        ? "rgba(27,147,227,.14)"
                         : "transparent",
                     color: "rgb(185,185,185)",
                     cursor: "pointer",
@@ -364,10 +364,10 @@ export default function SustainabilityIGAFOMTable() {
   }, [rows, providerText, selectedProvider, concessionText, selectedConcession]);
 
   const totalPdf = filteredRows.filter((row) => normalizeText(row.url)).length;
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
-  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
-  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
+  const gridV = "1px solid rgba(216, 238, 255, 0.10)";
+  const gridH = "1px solid rgba(216, 238, 255, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
 
   const stickyHead: React.CSSProperties = {

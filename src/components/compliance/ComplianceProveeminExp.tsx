@@ -908,10 +908,10 @@ export default function ComplianceProveeminExp({
     }
   }
 
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
-  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
-  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
+  const gridV = "1px solid rgba(216, 238, 255, 0.10)";
+  const gridH = "1px solid rgba(216, 238, 255, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
 
   const cellBase: React.CSSProperties = {
@@ -1057,7 +1057,7 @@ export default function ComplianceProveeminExp({
                 minWidth: 0,
                 minHeight: 0,
                 overflow: "auto",
-                border: "1px solid rgba(255,216,130,.12)",
+                border: "1px solid rgba(216,238,255,.12)",
                 borderRadius: 12,
               }}
             >

@@ -366,8 +366,8 @@ export default function OptTable({
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyHead: React.CSSProperties = {

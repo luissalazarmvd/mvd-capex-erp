@@ -477,10 +477,10 @@ export default function RefineryCampaignPage() {
           style={{
             padding: 12,
             border: (campaignSequenceError || msg || "").startsWith("OK")
-              ? "1px solid rgba(198,146,20,.45)"
+              ? "1px solid rgba(27,147,227,.45)"
               : "1px solid rgba(216,93,39,.45)",
             background: (campaignSequenceError || msg || "").startsWith("OK")
-              ? "rgba(198,146,20,.10)"
+              ? "rgba(27,147,227,.10)"
               : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
@@ -555,7 +555,7 @@ export default function RefineryCampaignPage() {
                       fontWeight: 900,
                       fontSize: 13,
                       lineHeight: 1.2,
-                      color: "rgba(198,146,20,.95)",
+                      color: "rgba(27,147,227,.95)",
                     }}
                   >
                     {visualTms !== null ? `TMS=${visualTms.toFixed(3)}` : "TMS=-"}

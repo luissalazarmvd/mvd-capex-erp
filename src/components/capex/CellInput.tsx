@@ -148,7 +148,7 @@ export function CellInput({ mode, value, hint, placeholder, disabled = false, on
         style={{
           width: "100%",
           background: disabled ? "rgba(0,0,0,.08)" : "rgba(0,0,0,.14)",
-          border: `1px solid ${isDirty ? "rgba(198,146,20,.85)" : "rgba(255,216,130,.22)"}`,
+          border: `1px solid ${isDirty ? "rgba(27,147,227,.85)" : "rgba(216,238,255,.22)"}`,
           color: "var(--text)",
           borderRadius: 10,
           padding: "8px 10px",
@@ -157,7 +157,7 @@ export function CellInput({ mode, value, hint, placeholder, disabled = false, on
           letterSpacing: 0.2,
         }}
         onFocus={(e) => {
-          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(198,146,20,.18)";
+          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(27,147,227,.18)";
         }}
         onBlur={(e) => {
           e.currentTarget.style.boxShadow = "none";

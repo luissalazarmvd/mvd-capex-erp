@@ -280,8 +280,8 @@ export default function ConsSubStock({
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyHead: React.CSSProperties = {
@@ -308,7 +308,7 @@ export default function ConsSubStock({
     position: "sticky",
     left: 0,
     zIndex: 7,
-    background: "rgb(39, 39, 39)",
+    background: "rgb(6, 77, 121)",
     boxShadow: " 10px 0 18px rgba(0,0,0,.22)",
   };
 
@@ -316,7 +316,7 @@ export default function ConsSubStock({
     position: "sticky",
     right: 0,
     zIndex: 6,
-    background: "rgb(39, 39, 39)",
+    background: "rgb(6, 77, 121)",
     boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
   };
 

@@ -208,7 +208,7 @@ function Select({
               right: 0,
               borderRadius: 12,
               border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(39, 39, 39, .98)",
+              background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
               maxHeight: 6 * 44,
@@ -231,7 +231,7 @@ function Select({
                     width: "100%",
                     textAlign: "left",
                     padding: "10px 12px",
-                    background: active ? "rgba(198,146,20,.18)" : "transparent",
+                    background: active ? "rgba(27,147,227,.18)" : "transparent",
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
@@ -239,11 +239,11 @@ function Select({
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(198,146,20,.18)"
+                      ? "rgba(27,147,227,.18)"
                       : "rgba(255,255,255,.06)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as any).style.background = active ? "rgba(198,146,20,.18)" : "transparent";
+                    (e.currentTarget as any).style.background = active ? "rgba(27,147,227,.18)" : "transparent";
                   }}
                 >
                   {o.label}
@@ -802,8 +802,8 @@ export default function RefineryConsumptionPage() {
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyHead: React.CSSProperties = {
@@ -830,7 +830,7 @@ export default function RefineryConsumptionPage() {
     position: "sticky",
     right: 0,
     zIndex: 6,
-    background: "rgb(39, 39, 39)",
+    background: "rgb(6, 77, 121)",
     boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
   };
 
@@ -838,7 +838,7 @@ export default function RefineryConsumptionPage() {
     position: "sticky",
     left: 0,
     zIndex: 7,
-    background: "rgb(39, 39, 39)",
+    background: "rgb(6, 77, 121)",
     boxShadow: " 10px 0 18px rgba(0,0,0,.22)",
   };
 
@@ -916,8 +916,8 @@ export default function RefineryConsumptionPage() {
             className="panel-inner"
             style={{
               padding: 12,
-              border: msg.startsWith("OK") ? "1px solid rgba(198,146,20,.45)" : "1px solid rgba(216,93,39,.45)",
-              background: msg.startsWith("OK") ? "rgba(198,146,20,.10)" : "rgba(216,93,39,.10)",
+              border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
+              background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
               fontWeight: 800,
             }}
           >
@@ -1107,7 +1107,7 @@ export default function RefineryConsumptionPage() {
                             background: !isMapped
                               ? "rgba(255,255,255,.03)"
                               : isDirty
-                              ? "rgba(198,146,20,.08)"
+                              ? "rgba(27,147,227,.08)"
                               : "rgba(0,0,0,.10)",
                             borderBottom: "1px solid rgba(255,255,255,.06)",
                             fontWeight: 800,
@@ -1124,7 +1124,7 @@ export default function RefineryConsumptionPage() {
                               onChange={(e) => onChangeCell(rn, sp, e.target.value)}
                               style={{
                                 ...inputStyle,
-                                border: isDirty ? "1px solid rgba(198,146,20,.55)" : inputStyle.border,
+                                border: isDirty ? "1px solid rgba(27,147,227,.55)" : inputStyle.border,
                                 opacity: saving ? 0.7 : 1,
                                 cursor: saving ? "not-allowed" : "text",
                               }}

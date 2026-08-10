@@ -465,7 +465,7 @@ export function WbsMatrix({
                     left: 0,
                     zIndex: 3,
                     background: "var(--panel2)",
-                    borderBottom: "1px solid rgba(255,216,130,.12)",
+                    borderBottom: "1px solid rgba(216,238,255,.12)",
                     padding: "8px 10px",
                     textAlign: "left",
                     fontWeight: 900,
@@ -482,7 +482,7 @@ export function WbsMatrix({
                       key={`${p.period_id}-${c}`}
                       style={{
                         background: "rgba(0,0,0,.18)",
-                        borderBottom: "1px solid rgba(255,216,130,.12)",
+                        borderBottom: "1px solid rgba(216,238,255,.12)",
                         padding: "8px 10px",
                         textAlign: "center",
                         fontWeight: 900,
@@ -499,7 +499,7 @@ export function WbsMatrix({
                   <th
                     style={{
                       background: "rgba(0,0,0,.18)",
-                      borderBottom: "1px solid rgba(255,216,130,.12)",
+                      borderBottom: "1px solid rgba(216,238,255,.12)",
                       padding: "8px 10px",
                       textAlign: "center",
                       fontWeight: 900,
@@ -516,7 +516,7 @@ export function WbsMatrix({
                     <th
                       style={{
                         background: "rgba(0,0,0,.18)",
-                        borderBottom: "1px solid rgba(255,216,130,.12)",
+                        borderBottom: "1px solid rgba(216,238,255,.12)",
                         padding: "8px 10px",
                         textAlign: "center",
                         fontWeight: 900,
@@ -529,7 +529,7 @@ export function WbsMatrix({
                     <th
                       style={{
                         background: "rgba(0,0,0,.18)",
-                        borderBottom: "1px solid rgba(255,216,130,.12)",
+                        borderBottom: "1px solid rgba(216,238,255,.12)",
                         padding: "8px 10px",
                         textAlign: "center",
                         fontWeight: 900,
@@ -570,7 +570,7 @@ export function WbsMatrix({
                         left: 0,
                         zIndex: 2,
                         background: "var(--panel2)",
-                        borderBottom: "1px solid rgba(255,216,130,.10)",
+                        borderBottom: "1px solid rgba(216,238,255,.10)",
                         padding: "10px 10px",
                         width: LEFT_W,
                         minWidth: LEFT_W,
@@ -600,7 +600,7 @@ export function WbsMatrix({
                           <td
                             key={k}
                             style={{
-                              borderBottom: "1px solid rgba(255,216,130,.10)",
+                              borderBottom: "1px solid rgba(216,238,255,.10)",
                               padding: 6,
                               width: CELL_W,
                               minWidth: CELL_W,
@@ -615,7 +615,7 @@ export function WbsMatrix({
                     {showRowTotal ? (
                       <td
                         style={{
-                          borderBottom: "1px solid rgba(255,216,130,.10)",
+                          borderBottom: "1px solid rgba(216,238,255,.10)",
                           padding: "6px 10px",
                           width: TOTAL_W,
                           minWidth: TOTAL_W,
@@ -633,7 +633,7 @@ export function WbsMatrix({
                       <>
                         <td
                           style={{
-                            borderBottom: "1px solid rgba(255,216,130,.10)",
+                            borderBottom: "1px solid rgba(216,238,255,.10)",
                             padding: "6px 10px",
                             width: EVLAST_W,
                             minWidth: EVLAST_W,
@@ -648,7 +648,7 @@ export function WbsMatrix({
                         {progressDouble ? (
                           <td
                             style={{
-                              borderBottom: "1px solid rgba(255,216,130,.10)",
+                              borderBottom: "1px solid rgba(216,238,255,.10)",
                               padding: "6px 10px",
                               width: ACTOTAL_W,
                               minWidth: ACTOTAL_W,

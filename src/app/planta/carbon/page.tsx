@@ -265,7 +265,7 @@ function Select({
               right: 0,
               borderRadius: 12,
               border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(39, 39, 39, .98)",
+              background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
             }}
@@ -285,7 +285,7 @@ function Select({
                     width: "100%",
                     textAlign: "left",
                     padding: "10px 12px",
-                    background: active ? "rgba(198,146,20,.18)" : "transparent",
+                    background: active ? "rgba(27,147,227,.18)" : "transparent",
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
@@ -293,11 +293,11 @@ function Select({
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(198,146,20,.18)"
+                      ? "rgba(27,147,227,.18)"
                       : "rgba(255,255,255,.06)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as any).style.background = active ? "rgba(198,146,20,.18)" : "transparent";
+                    (e.currentTarget as any).style.background = active ? "rgba(27,147,227,.18)" : "transparent";
                   }}
                 >
                   {o.label}
@@ -864,7 +864,7 @@ export default function CarbonPage() {
     textAlign: "center",
   };
 
-  const groupBorder = "1px solid rgba(255, 216, 130, 0.22)";
+  const groupBorder = "1px solid rgba(216, 238, 255, 0.22)";
   const groupBg = "rgba(0,0,0,.08)";
 
   const auHeadTL: React.CSSProperties = { borderTopLeftRadius: 12 };
@@ -880,8 +880,8 @@ export default function CarbonPage() {
   const GAP_W = 14;
   const HEADER_ROW1_H = 44;
 
-  const solidHeaderBg = "rgb(39, 39, 39)";
-  const solidHeaderBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const solidHeaderBg = "rgb(6, 77, 121)";
+  const solidHeaderBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const solidHeaderShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyRow1: React.CSSProperties = {
@@ -900,7 +900,7 @@ export default function CarbonPage() {
     boxShadow: solidHeaderShadow,
   };
 
-  const stickyDayBg = "rgb(39, 39, 39)";
+  const stickyDayBg = "rgb(6, 77, 121)";
 
   const monthOptions = useMemo(() => MONTHS.map((m) => ({ value: String(m.value), label: m.label })), []);
 
@@ -1214,8 +1214,8 @@ export default function CarbonPage() {
           className="panel-inner"
           style={{
             padding: 10,
-            border: msg.startsWith("OK") ? "1px solid rgba(198,146,20,.45)" : "1px solid rgba(216,93,39,.45)",
-            background: msg.startsWith("OK") ? "rgba(198,146,20,.10)" : "rgba(216,93,39,.10)",
+            border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
+            background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -1360,7 +1360,7 @@ export default function CarbonPage() {
                   <tr
                     key={r.tank_day}
                     className="capex-tr"
-                    style={{ background: isDirty ? "rgba(198,146,20,.05)" : "transparent" }}
+                    style={{ background: isDirty ? "rgba(27,147,227,.05)" : "transparent" }}
                   >
                     <td
                       className="capex-td capex-td-strong"
@@ -1368,7 +1368,7 @@ export default function CarbonPage() {
                         position: "sticky",
                         left: 0,
                         zIndex: 2,
-                        background: isDirty ? "rgba(198,146,20,.05)" : "rgba(0,0,0,.18)",
+                        background: isDirty ? "rgba(27,147,227,.05)" : "rgba(0,0,0,.18)",
                         minWidth: 150,
                         padding: "6px 10px",
                       }}
@@ -1497,8 +1497,8 @@ export default function CarbonPage() {
           className="panel-inner"
           style={{
             padding: 10,
-            border: qtyMsg.startsWith("OK") ? "1px solid rgba(198,146,20,.45)" : "1px solid rgba(216,93,39,.45)",
-            background: qtyMsg.startsWith("OK") ? "rgba(198,146,20,.10)" : "rgba(216,93,39,.10)",
+            border: qtyMsg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
+            background: qtyMsg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -1557,7 +1557,7 @@ export default function CarbonPage() {
             const okCy2 = !meaningful || !l2.active || (okIntNonNegOrEmpty(r.cycles_2) && String(r.cycles_2 || "").trim() !== "");
 
             return (
-              <tr key={r.tank} className="capex-tr" style={{ background: isD ? "rgba(198,146,20,.05)" : "transparent" }}>
+              <tr key={r.tank} className="capex-tr" style={{ background: isD ? "rgba(27,147,227,.05)" : "transparent" }}>
                 <td className="capex-td capex-td-strong" style={{ fontWeight: 900 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <div>{r.tank}</div>

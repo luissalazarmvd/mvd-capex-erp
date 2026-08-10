@@ -775,7 +775,7 @@ function RowItem({
                         zIndex: 99999,
                         borderRadius: 12,
                         border: "1px solid rgba(255,255,255,.10)",
-                        background: "rgba(39, 39, 39, .98)",
+                        background: "rgba(6, 77, 121, .98)",
                         boxShadow: "0 10px 30px rgba(0,0,0,.45)",
                         overflowY: "auto",
                         overflowX: "hidden",
@@ -806,7 +806,7 @@ function RowItem({
                               width: "100%",
                               textAlign: "left",
                               padding: "10px 12px",
-                              background: active ? "rgba(198,146,20,.18)" : "transparent",
+                              background: active ? "rgba(27,147,227,.18)" : "transparent",
                               color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                               border: "none",
                               cursor: "pointer",
@@ -817,12 +817,12 @@ function RowItem({
                             }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.background = active
-                                ? "rgba(198,146,20,.18)"
+                                ? "rgba(27,147,227,.18)"
                                 : "rgba(255,255,255,.06)";
                             }}
                             onMouseLeave={(e) => {
                               e.currentTarget.style.background = active
-                                ? "rgba(198,146,20,.18)"
+                                ? "rgba(27,147,227,.18)"
                                 : "transparent";
                             }}
                           >
@@ -1197,10 +1197,10 @@ export default function FleetMgmForm() {
     return sortDir === "asc" ? " ▲" : " ▼";
   }
 
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
-  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
-  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
+  const gridV = "1px solid rgba(216, 238, 255, 0.10)";
+  const gridH = "1px solid rgba(216, 238, 255, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
   const editedRowBg = "rgba(94, 128, 25, 0.28)";
   const invalidRowBg = "rgba(216, 93, 39, 0.34)";
@@ -1224,7 +1224,7 @@ export default function FleetMgmForm() {
   };
 
   const inputBase: React.CSSProperties = {
-    border: "1px solid rgba(255,216,130,.18)",
+    border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
     fontWeight: 900,
@@ -1309,8 +1309,8 @@ export default function FleetMgmForm() {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: statusFilter === "Abierto" ? "1px solid rgba(198,146,20,.75)" : "1px solid rgba(255,216,130,.18)",
-            background: statusFilter === "Abierto" ? "rgba(198,146,20,.18)" : "rgba(255,255,255,0.06)",
+            border: statusFilter === "Abierto" ? "1px solid rgba(27,147,227,.75)" : "1px solid rgba(216,238,255,.18)",
+            background: statusFilter === "Abierto" ? "rgba(27,147,227,.18)" : "rgba(255,255,255,0.06)",
             color: "white",
             fontSize: 12,
             fontWeight: 900,
@@ -1327,8 +1327,8 @@ export default function FleetMgmForm() {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: statusFilter === "Cerrado" ? "1px solid rgba(198,146,20,.75)" : "1px solid rgba(255,216,130,.18)",
-            background: statusFilter === "Cerrado" ? "rgba(198,146,20,.18)" : "rgba(255,255,255,0.06)",
+            border: statusFilter === "Cerrado" ? "1px solid rgba(27,147,227,.75)" : "1px solid rgba(216,238,255,.18)",
+            background: statusFilter === "Cerrado" ? "rgba(27,147,227,.18)" : "rgba(255,255,255,0.06)",
             color: "white",
             fontSize: 12,
             fontWeight: 900,
@@ -1460,11 +1460,11 @@ export default function FleetMgmForm() {
             flexShrink: 0,
             border:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "1px solid rgba(198,146,20,.45)"
+                ? "1px solid rgba(27,147,227,.45)"
                 : "1px solid rgba(216,93,39,.45)",
             background:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "rgba(198,146,20,.10)"
+                ? "rgba(27,147,227,.10)"
                 : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
@@ -1625,7 +1625,7 @@ export default function FleetMgmForm() {
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,216,130,.18)",
+              border: "1px solid rgba(216,238,255,.18)",
             }}
           >
             Página {safePage} / {totalPages}

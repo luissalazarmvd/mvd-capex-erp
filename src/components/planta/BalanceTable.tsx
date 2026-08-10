@@ -1383,8 +1383,8 @@ export default function BalanceTable() {
     doc.save(`${title}.pdf`);
   }
 
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyHead: React.CSSProperties = {
@@ -1399,7 +1399,7 @@ export default function BalanceTable() {
     position: "sticky",
     bottom: 0,
     zIndex: 6,
-    background: "rgba(39, 39, 39, .98)",
+    background: "rgba(6, 77, 121, .98)",
     boxShadow: "0 -10px 25px rgba(0,0,0,.35)",
   };
 
@@ -1635,10 +1635,10 @@ export default function BalanceTable() {
                 for (const c of cols) dayTotals[String(c.key)] = aggValue(g.rows as any, c.key, c.agg);
 
                 const dayBg = "rgba(0,0,0,.22)";
-                const dayStickyBg = "rgba(39, 39, 39, .96)";
-                const rowStickyBg = "rgba(39, 39, 39, .92)";
+                const dayStickyBg = "rgba(6, 77, 121, .96)";
+                const rowStickyBg = "rgba(6, 77, 121, .92)";
                 const rowBg = "rgba(0,0,0,.10)";
-                const dayBorder = "1px solid rgba(255, 216, 130, 0.18)";
+                const dayBorder = "1px solid rgba(216, 238, 255, 0.18)";
                 const rowBorder = "1px solid rgba(255,255,255,.06)";
 
                 return (
@@ -1762,7 +1762,7 @@ export default function BalanceTable() {
                     ...stickyLeftFechaFoot,
                     ...cellBase,
                     fontWeight: 900,
-                    borderTop: "1px solid rgba(255, 216, 130, 0.20)",
+                    borderTop: "1px solid rgba(216, 238, 255, 0.20)",
                   }}
                 >
                   Total
@@ -1774,7 +1774,7 @@ export default function BalanceTable() {
                     ...cellBase,
                     fontWeight: 900,
                     opacity: 0.9,
-                    borderTop: "1px solid rgba(255, 216, 130, 0.20)",
+                    borderTop: "1px solid rgba(216, 238, 255, 0.20)",
                   }}
                 >
                   —
@@ -1791,7 +1791,7 @@ export default function BalanceTable() {
                         ...stickyFoot,
                         ...numCell,
                         fontWeight: 900,
-                        borderTop: "1px solid rgba(255, 216, 130, 0.20)",
+                        borderTop: "1px solid rgba(216, 238, 255, 0.20)",
                       }}
                     >
                       {text}

@@ -1491,10 +1491,10 @@ useEffect(() => {
     return sortDir === "asc" ? " ▲" : " ▼";
   }
 
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
-  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
-  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
+  const gridV = "1px solid rgba(216, 238, 255, 0.10)";
+  const gridH = "1px solid rgba(216, 238, 255, 0.08)";
   const headerShadow = "none";
   const rowBg = "rgba(0,0,0,.10)";
   const editedRowBg = "rgba(94, 128, 25, 0.28)";
@@ -1519,7 +1519,7 @@ useEffect(() => {
   };
 
   const inputBase: React.CSSProperties = {
-    border: "1px solid rgba(255,216,130,.18)",
+    border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
     fontWeight: 900,
@@ -1659,11 +1659,11 @@ useEffect(() => {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: valuationFilter === "all" ? "1px solid rgba(198,146,20,.55)" : "1px solid rgba(255,255,255,0.12)",
-            background: valuationFilter === "all" ? "rgba(198,146,20,.16)" : "rgba(255,255,255,0.06)",
+            border: valuationFilter === "all" ? "1px solid rgba(27,147,227,.55)" : "1px solid rgba(255,255,255,0.12)",
+            background: valuationFilter === "all" ? "rgba(27,147,227,.16)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: valuationFilter === "all" ? "rgb(255, 216, 130)" : "rgba(255,255,255,0.8)",
+            color: valuationFilter === "all" ? "rgb(216, 238, 255)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
         >
@@ -1774,11 +1774,11 @@ useEffect(() => {
             flexShrink: 0,
             border:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "1px solid rgba(198,146,20,.45)"
+                ? "1px solid rgba(27,147,227,.45)"
                 : "1px solid rgba(216,93,39,.45)",
             background:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "rgba(198,146,20,.10)"
+                ? "rgba(27,147,227,.10)"
                 : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
@@ -1941,7 +1941,7 @@ useEffect(() => {
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,216,130,.18)",
+              border: "1px solid rgba(216,238,255,.18)",
             }}
           >
             Página {safePage} / {totalPages}

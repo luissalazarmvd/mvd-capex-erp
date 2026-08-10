@@ -12,15 +12,15 @@
   --brand-danger: #d85d27;
   --brand-info: #00a5ce;
 
-  --bg: #272727;
+  --bg: #0b6a9f;
   --header: linear-gradient(135deg, #0067ac 0%, #1b93e3 100%);
-  --panel: #3f3f3a;
-  --panel2: #272727;
-  --accent: #ffd882;
-  --accent2: #c69214;
+  --panel: #075c91;
+  --panel2: #064d79;
+  --accent: #d8eeff;
+  --accent2: #1b93e3;
   --text: #ffffff;
-  --muted: rgba(255,216,130,.78);
-  --border: rgba(255,216,130,.26);
+  --muted: rgba(216,238,255,.82);
+  --border: rgba(216,238,255,.26);
   --shadow: 0 10px 30px rgba(0,0,0,.24);
 }
 
@@ -82,8 +82,8 @@ textarea {
 }
 
 .input:focus {
-  border-color: rgba(198,146,20,.85);
-  box-shadow: 0 0 0 3px rgba(198,146,20,.18);
+  border-color: rgba(27,147,227,.90);
+  box-shadow: 0 0 0 3px rgba(27,147,227,.22);
 }
 
 .select {
@@ -98,8 +98,8 @@ textarea {
 
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: rgba(0,0,0,.12); border-radius: 999px; }
-*::-webkit-scrollbar-thumb { background: rgba(198,146,20,.45); border-radius: 999px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(255,216,130,.65); }
+*::-webkit-scrollbar-thumb { background: rgba(27,147,227,.55); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(216,238,255,.70); }
 
 .container-fluid{
   max-width: none !important;
@@ -119,7 +119,7 @@ textarea {
 }
 
 .nav-pill:hover{
-  color: var(--brand-gold-light) !important;
+  color: #d8eeff !important;
   opacity: 1;
 }
 

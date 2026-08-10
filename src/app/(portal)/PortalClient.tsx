@@ -150,7 +150,7 @@ export default function PortalClient() {
 
         <h2 style={{ margin: "0 0 18px 0", fontWeight: 800 }}>Acceso MVD</h2>
 
-        <div style={{ margin: "0 0 18px 0", color: "#FFD882", fontWeight: 700 }}>
+        <div style={{ margin: "0 0 18px 0", color: "#D8EEFF", fontWeight: 700 }}>
           {checkingAccess
             ? "Validando acceso corporativo..."
             : hasInternalAccess
@@ -309,7 +309,7 @@ export default function PortalClient() {
               style={{
                 background: "transparent",
                 border: "none",
-                color: "#FFD882",
+                color: "#D8EEFF",
                 fontWeight: 800,
                 cursor: "pointer",
                 textDecoration: "underline",

@@ -432,7 +432,7 @@ function Select({
               right: 0,
               borderRadius: 12,
               border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(39, 39, 39, .98)",
+              background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
             }}
@@ -452,7 +452,7 @@ function Select({
                     width: "100%",
                     textAlign: "left",
                     padding: "10px 12px",
-                    background: active ? "rgba(198,146,20,.18)" : "transparent",
+                    background: active ? "rgba(27,147,227,.18)" : "transparent",
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
@@ -460,12 +460,12 @@ function Select({
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(198,146,20,.18)"
+                      ? "rgba(27,147,227,.18)"
                       : "rgba(255,255,255,.06)";
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(198,146,20,.18)"
+                      ? "rgba(27,147,227,.18)"
                       : "transparent";
                   }}
                 >
@@ -783,10 +783,10 @@ export default function ProdImpExp({
     }
   }
 
-  const headerBg = "rgb(39, 39, 39)";
-  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
-  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
-  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
+  const headerBg = "rgb(6, 77, 121)";
+  const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
+  const gridV = "1px solid rgba(216, 238, 255, 0.10)";
+  const gridH = "1px solid rgba(216, 238, 255, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
 
   const cellBase: React.CSSProperties = {
@@ -802,7 +802,7 @@ export default function ProdImpExp({
   const previewInputStyle: React.CSSProperties = {
     width: "100%",
     background: "rgba(0,0,0,.12)",
-    border: "1px solid rgba(255,216,130,.16)",
+    border: "1px solid rgba(216,238,255,.16)",
     color: "var(--text)",
     borderRadius: 8,
     padding: "6px 8px",
@@ -943,7 +943,7 @@ export default function ProdImpExp({
                 <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                   Filas únicas: {importSummary.unique_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(198,146,20,.45)", background: "rgba(198,146,20,.10)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 900 }}>
                   Válidas: {importSummary.valid_rows}
                 </div>
                 <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
@@ -964,7 +964,7 @@ export default function ProdImpExp({
               </div>
             ) : null}
 
-            <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(255,216,130,.12)", borderRadius: 12 }}>
+            <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(216,238,255,.12)", borderRadius: 12 }}>
               <Table stickyHeader disableScrollWrapper>
                 <colgroup>
                   <col style={{ width: 70 }} />

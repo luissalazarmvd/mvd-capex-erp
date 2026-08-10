@@ -73,7 +73,7 @@ export default function ComplianceDownloadsPage() {
             padding: "10px 12px",
             borderRadius: 12,
             border: String(msg).startsWith("OK:")
-              ? "1px solid rgba(255, 216, 130, 0.22)"
+              ? "1px solid rgba(216, 238, 255, 0.22)"
               : "1px solid rgba(216, 93, 39, 0.28)",
             background: String(msg).startsWith("OK:")
               ? "rgba(255, 255, 255, 0.04)"

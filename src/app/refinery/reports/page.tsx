@@ -265,7 +265,7 @@ function Select({
               right: 0,
               borderRadius: 12,
               border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(39, 39, 39, .98)",
+              background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
               maxHeight: 6 * 44,
@@ -288,7 +288,7 @@ function Select({
                     width: "100%",
                     textAlign: "left",
                     padding: "10px 12px",
-                    background: active ? "rgba(198,146,20,.18)" : "transparent",
+                    background: active ? "rgba(27,147,227,.18)" : "transparent",
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
@@ -296,11 +296,11 @@ function Select({
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(198,146,20,.18)"
+                      ? "rgba(27,147,227,.18)"
                       : "rgba(255,255,255,.06)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as any).style.background = active ? "rgba(198,146,20,.18)" : "transparent";
+                    (e.currentTarget as any).style.background = active ? "rgba(27,147,227,.18)" : "transparent";
                   }}
                 >
                   {o.label}
