@@ -69,6 +69,12 @@ textarea {
   border-radius: 12px;
 }
 
+.logistics-theme {
+  --bg: #272727;
+  --panel: #3f3f3a;
+  --panel2: #272727;
+}
+
 .muted { color: var(--muted); }
 
 .input {

@@ -4,7 +4,7 @@ import Link from "next/link";
 
 export default function LogisticsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div className="logistics-theme" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <header
         style={{
           background: "var(--header)",

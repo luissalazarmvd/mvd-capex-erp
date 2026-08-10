@@ -561,7 +561,7 @@ export default function LogisticsMRATable() {
     }
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "var(--panel2)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -806,7 +806,7 @@ export default function LogisticsMRATable() {
                             borderTop: gridH,
                             borderBottom: gridH,
                             borderRight: gridV,
-                            background: c.sticky ? "rgb(7, 92, 145)" : rowBg,
+                            background: c.sticky ? "var(--panel)" : rowBg,
                             width: c.width,
                             minWidth: c.width,
                             maxWidth: c.width,

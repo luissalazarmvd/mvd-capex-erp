@@ -702,7 +702,7 @@ export default function LogisticsMreqStatusTable() {
                 left: 0,
                 right: 0,
                 zIndex: 20,
-                background: "#064D79",
+                background: "var(--panel2)",
                 border: "1px solid rgba(216,238,255,0.22)",
                 borderRadius: 12,
                 overflow: "hidden",
@@ -893,7 +893,7 @@ export default function LogisticsMreqStatusTable() {
                 key={String(c.key)}
                 className="capex-th"
                 style={{
-                  background: "rgb(6, 77, 121)",
+                  background: "var(--panel2)",
                   width: getStatusColWidth(c.key),
                   minWidth: getStatusColWidth(c.key),
                   maxWidth: getStatusColWidth(c.key),
@@ -986,7 +986,7 @@ export default function LogisticsMreqStatusTable() {
                           className="capex-td"
                         style={{
                           background: isStickyStatusColumn(c.key)
-                            ? "rgb(7, 92, 145)"
+                            ? "var(--panel)"
                             : rowBackground,
                           padding: "6px 8px",
                           whiteSpace: "nowrap",
@@ -1088,7 +1088,7 @@ export default function LogisticsMreqStatusTable() {
                           className="capex-td"
                         style={{
                             background: isStickyStatusColumn(c.key)
-                              ? "rgb(7, 92, 145)"
+                              ? "var(--panel)"
                               : rowBackground,
                             padding: "6px 8px",
                             overflow: "visible",
@@ -1258,7 +1258,7 @@ export default function LogisticsMreqStatusTable() {
                         }
                         style={{
                           background: isStickyStatusColumn(c.key)
-                            ? "rgb(7, 92, 145)"
+                            ? "var(--panel)"
                             : rowBackground,
                           width: getStatusColWidth(c.key),
                           minWidth: getStatusColWidth(c.key),
@@ -1299,7 +1299,7 @@ export default function LogisticsMreqStatusTable() {
                                 : "ellipsis",
                               whiteSpace: "nowrap",
                               background: readonlySelected
-                                ? "rgb(6, 77, 121)"
+                                ? "var(--panel2)"
                                 : "transparent",
                               border: readonlySelected
                                 ? "1px solid rgba(216,238,255,0.32)"
