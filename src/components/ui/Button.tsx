@@ -27,9 +27,9 @@ const variantStyles: Record<Variant, React.CSSProperties> = {
     color: "var(--text)",
   },
   primary: {
-    background: "var(--brand-gold)",
-    border: "1px solid var(--brand-gold-light)",
-    color: "var(--brand-black)",
+    background: "var(--brand-blue)",
+    border: "1px solid var(--brand-blue-light)",
+    color: "#ffffff",
   },
   danger: {
     background: "rgba(216,93,39,.22)",
@@ -59,8 +59,8 @@ export function Button({ variant = "default", size = "md", style, disabled, ...p
       }}
       onMouseEnter={(e) => {
         if (disabled) return;
-        e.currentTarget.style.borderColor = "var(--brand-gold-light)";
-        e.currentTarget.style.background = variant === "primary" ? "var(--brand-gold-light)" : "rgba(0,0,0,.18)";
+        e.currentTarget.style.borderColor = "var(--brand-blue-light)";
+        e.currentTarget.style.background = variant === "primary" ? "var(--brand-blue-light)" : "rgba(0,0,0,.18)";
       }}
       onMouseLeave={(e) => {
         if (disabled) return;
