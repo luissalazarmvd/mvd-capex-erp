@@ -1,4 +1,4 @@
-// src/components/logistics/LogisticsMreqStatusTable.tsx
+// src/components/logistics/LogisticsReqStatusTable.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -145,6 +145,14 @@ function getStatusColWidth(key: keyof ReqStatusRow) {
   if (key === "partial_recep_qty" || key === "cost_center_code" || key === "web_status") return 150;
   if (key === "req_num" || key === "mat_code" || key === "po_num") return 120;
   return 130;
+}
+
+function isStickyStatusColumn(key: keyof ReqStatusRow) {
+  return key === "req_item_key" || key === "req_num";
+}
+
+function getStatusStickyLeft(key: keyof ReqStatusRow) {
+  return key === "req_item_key" ? 0 : getStatusColWidth("req_item_key");
 }
 
 const STATUS_TABLE_WIDTH = columns.reduce(
@@ -882,6 +890,15 @@ export default function LogisticsMreqStatusTable() {
                 className="capex-th"
                 style={{
                   background: "rgb(6, 36, 58)",
+                  position: "sticky",
+                  top: 0,
+                  left: isStickyStatusColumn(c.key)
+                    ? getStatusStickyLeft(c.key)
+                    : undefined,
+                  zIndex: isStickyStatusColumn(c.key) ? 40 : 20,
+                  boxShadow: isStickyStatusColumn(c.key)
+                    ? "2px 0 0 rgba(191, 231, 255, 0.12)"
+                    : undefined,
                 }}
               >
                 {c.label}
@@ -960,16 +977,28 @@ export default function LogisticsMreqStatusTable() {
                         <td
                           key={String(c.key)}
                           className="capex-td"
-                          style={{
-                            background: rowBackground,
-                            padding: "6px 8px",
-                            whiteSpace: "nowrap",
-                            overflow: "visible",
-                            position: "relative",
-                            zIndex:
-                              focusedCommentKey === rowUiKey
+                        style={{
+                          background: isStickyStatusColumn(c.key)
+                            ? "rgb(10, 30, 46)"
+                            : rowBackground,
+                          padding: "6px 8px",
+                          whiteSpace: "nowrap",
+                          overflow: "visible",
+                          position: isStickyStatusColumn(c.key)
+                            ? "sticky"
+                            : "relative",
+                          left: isStickyStatusColumn(c.key)
+                            ? getStatusStickyLeft(c.key)
+                            : undefined,
+                          zIndex:
+                              isStickyStatusColumn(c.key)
+                                ? 15
+                                : focusedCommentKey === rowUiKey
                                 ? 99999
                                 : "auto",
+                          boxShadow: isStickyStatusColumn(c.key)
+                            ? "2px 0 0 rgba(191, 231, 255, 0.10)"
+                            : undefined,
                           }}
                         >
                           {locked ? (
@@ -1050,12 +1079,26 @@ export default function LogisticsMreqStatusTable() {
                         <td
                           key={String(c.key)}
                           className="capex-td"
-                          style={{
-                            background: rowBackground,
+                        style={{
+                            background: isStickyStatusColumn(c.key)
+                              ? "rgb(10, 30, 46)"
+                              : rowBackground,
                             padding: "6px 8px",
                             overflow: "visible",
-                            position: "relative",
-                            zIndex: openStatusKey === rowUiKey ? 9999 : "auto",
+                            position: isStickyStatusColumn(c.key)
+                              ? "sticky"
+                              : "relative",
+                            left: isStickyStatusColumn(c.key)
+                              ? getStatusStickyLeft(c.key)
+                              : undefined,
+                            zIndex: isStickyStatusColumn(c.key)
+                              ? 15
+                              : openStatusKey === rowUiKey
+                                ? 9999
+                                : "auto",
+                            boxShadow: isStickyStatusColumn(c.key)
+                              ? "2px 0 0 rgba(191, 231, 255, 0.10)"
+                              : undefined,
                           }}
                         >
                           {locked ? (
@@ -1207,12 +1250,28 @@ export default function LogisticsMreqStatusTable() {
                             : undefined
                         }
                         style={{
-                          background: rowBackground,
+                          background: isStickyStatusColumn(c.key)
+                            ? "rgb(10, 30, 46)"
+                            : rowBackground,
                           whiteSpace: "nowrap",
                           textAlign: c.type === "num" ? "right" : "left",
                           overflow: isExpandableReadonly ? "visible" : "hidden",
-                          position: isExpandableReadonly ? "relative" : undefined,
-                          zIndex: readonlySelected ? 99999 : "auto",
+                          position: isStickyStatusColumn(c.key)
+                            ? "sticky"
+                            : isExpandableReadonly
+                              ? "relative"
+                              : undefined,
+                          left: isStickyStatusColumn(c.key)
+                            ? getStatusStickyLeft(c.key)
+                            : undefined,
+                          zIndex: isStickyStatusColumn(c.key)
+                            ? 15
+                            : readonlySelected
+                              ? 99999
+                              : "auto",
+                          boxShadow: isStickyStatusColumn(c.key)
+                            ? "2px 0 0 rgba(191, 231, 255, 0.10)"
+                            : undefined,
                           cursor: isExpandableReadonly ? "pointer" : "default",
                           outline: "none",
                         }}
