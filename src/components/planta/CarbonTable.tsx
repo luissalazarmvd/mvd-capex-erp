@@ -161,7 +161,7 @@ function setCellBorder(cell: ExcelJS.Cell) {
 }
 
 function setFill(cell: ExcelJS.Cell, cssColor: string) {
-  let hex = "#0A2E48";
+  let hex = "#3F3F3A";
   const s = String(cssColor || "").trim();
 
   if (s.startsWith("#")) {
@@ -187,10 +187,10 @@ export default function CarbonTable(props: {
 }) {
   const { tankMode, setTankMode, tankLoading, onRefresh, tankMsg, tankRowsAu, tankRowsAg } = props;
   const tableWrapRef = React.useRef<HTMLDivElement | null>(null);
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "2px solid rgba(191, 231, 255, 0.16)";
-  const gridH = "2px solid rgba(191, 231, 255, 0.10)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "2px solid rgba(255, 216, 130, 0.16)";
+  const gridH = "2px solid rgba(255, 216, 130, 0.10)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyHead: React.CSSProperties = {
@@ -210,8 +210,8 @@ export default function CarbonTable(props: {
 
   const numCell: React.CSSProperties = { ...cellBase, textAlign: "right" };
 
-  const upGreen = "#00965E";
-  const downRed = "#b23934";
+  const upGreen = "#5E8019";
+  const downRed = "#D85D27";
 
   const rawRows = tankMode === "AU" ? tankRowsAu : tankRowsAg;
 
@@ -342,7 +342,7 @@ export default function CarbonTable(props: {
     ws.getRow(1).font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
     ws.getRow(1).alignment = { vertical: "middle", horizontal: "left" };
     ws.getRow(1).height = 22;
-    setFill(ws.getCell(1, 1), "#06243A");
+    setFill(ws.getCell(1, 1), "#272727");
 
     ws.addRow([]);
 
@@ -353,7 +353,7 @@ export default function CarbonTable(props: {
       const cell = headerRow.getCell(c);
       cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
       cell.alignment = { vertical: "middle", horizontal: c <= 3 ? "left" : "right" };
-      setFill(cell, "#06243A");
+      setFill(cell, "#272727");
       setCellBorder(cell);
     }
 
@@ -403,7 +403,7 @@ export default function CarbonTable(props: {
           cell.alignment = { vertical: "middle", horizontal: c <= 3 || c === 14 ? "left" : "right" };
           cell.font = { bold: c === 1 || c === 2 || c === 3 || c === 14, color: { argb: "FFFFFFFF" } };
 
-          setFill(cell, "#0A2E48");
+          setFill(cell, "#3F3F3A");
           setCellBorder(cell);
 
           if (c === 4) cell.numFmt = "#,##0.00";
@@ -490,14 +490,14 @@ export default function CarbonTable(props: {
     holder.style.position = "fixed";
     holder.style.left = "-100000px";
     holder.style.top = "0";
-    holder.style.background = "#06243A";
+    holder.style.background = "#272727";
     holder.appendChild(clone);
     document.body.appendChild(holder);
 
     const canvas = await html2canvas(clone, {
       scale: 2,
       useCORS: true,
-      backgroundColor: "#06243A",
+      backgroundColor: "#272727",
       windowWidth: clone.scrollWidth,
       windowHeight: clone.scrollHeight,
     });
@@ -577,8 +577,8 @@ export default function CarbonTable(props: {
           className="panel-inner"
           style={{
             padding: 10,
-            border: "1px solid rgba(255,80,80,.45)",
-            background: "rgba(255,80,80,.10)",
+            border: "1px solid rgba(216,93,39,.45)",
+            background: "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >

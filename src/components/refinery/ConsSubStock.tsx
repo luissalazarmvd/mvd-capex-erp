@@ -280,8 +280,8 @@ export default function ConsSubStock({
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyHead: React.CSSProperties = {
@@ -308,7 +308,7 @@ export default function ConsSubStock({
     position: "sticky",
     left: 0,
     zIndex: 7,
-    background: "rgb(5, 40, 63)",
+    background: "rgb(39, 39, 39)",
     boxShadow: " 10px 0 18px rgba(0,0,0,.22)",
   };
 
@@ -316,7 +316,7 @@ export default function ConsSubStock({
     position: "sticky",
     right: 0,
     zIndex: 6,
-    background: "rgb(5, 40, 63)",
+    background: "rgb(39, 39, 39)",
     boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
   };
 
@@ -354,8 +354,8 @@ export default function ConsSubStock({
           className="panel-inner"
           style={{
             padding: 10,
-            border: "1px solid rgba(255,80,80,.45)",
-            background: "rgba(255,80,80,.10)",
+            border: "1px solid rgba(216,93,39,.45)",
+            background: "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -466,10 +466,10 @@ export default function ConsSubStock({
                               ? (stickyLeftCell.background as any)
                               : "rgba(0,0,0,.10)",
                             borderBottom: isZeroHighlight
-                              ? "1px solid rgba(255,80,80,.35)"
+                              ? "1px solid rgba(216,93,39,.35)"
                               : "1px solid rgba(255,255,255,.06)",
                             fontWeight: isTotal || c.key === "stock" ? 900 : 800,
-                            color: isZeroHighlight ? "#ffb3b3" : undefined,
+                            color: isZeroHighlight ? "#EBB086" : undefined,
                           }}
                           title={String(txt)}
                         >

@@ -49,7 +49,7 @@ export function Table({
           position: ${stickyHeader ? "sticky" : "static"};
           top: 0;
           z-index: 2;
-          background: rgba(0, 0, 0, 0.18);
+          background: var(--brand-black);
           color: var(--text);
           text-align: left;
           font-weight: 900;
@@ -60,7 +60,7 @@ export function Table({
 
         /* cells */
         .capex-td {
-          border-bottom: 1px solid rgba(191, 231, 255, 0.14);
+          border-bottom: 1px solid rgba(255, 216, 130, 0.14);
           padding: 8px 10px;
           vertical-align: middle;
         }
@@ -78,7 +78,7 @@ export function Table({
         /* subtle separators between months */
         .capex-td-sep,
         .capex-th-sep {
-          border-left: 1px solid rgba(191, 231, 255, 0.18);
+          border-left: 1px solid rgba(255, 216, 130, 0.18);
         }
       `}</style>
     </>

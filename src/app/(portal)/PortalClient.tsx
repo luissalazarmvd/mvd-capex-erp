@@ -132,14 +132,14 @@ export default function PortalClient() {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        fontFamily: "Arial, sans-serif",
+        fontFamily: "var(--font-exo), Arial, sans-serif",
         color: "white",
         padding: 16,
       }}
     >
       <div
         style={{
-          background: "#004F86",
+          background: "#0067AC",
           padding: 32,
           borderRadius: 8,
           width: 380,
@@ -150,7 +150,7 @@ export default function PortalClient() {
 
         <h2 style={{ margin: "0 0 18px 0", fontWeight: 800 }}>Acceso MVD</h2>
 
-        <div style={{ margin: "0 0 18px 0", color: "#D8EEFF", fontWeight: 700 }}>
+        <div style={{ margin: "0 0 18px 0", color: "#FFD882", fontWeight: 700 }}>
           {checkingAccess
             ? "Validando acceso corporativo..."
             : hasInternalAccess
@@ -309,7 +309,7 @@ export default function PortalClient() {
               style={{
                 background: "transparent",
                 border: "none",
-                color: "#D8EEFF",
+                color: "#FFD882",
                 fontWeight: 800,
                 cursor: "pointer",
                 textDecoration: "underline",
@@ -318,7 +318,7 @@ export default function PortalClient() {
               Volver
             </button>
 
-            {err ? <div style={{ color: "#FFD6D6", fontWeight: 800 }}>{err}</div> : null}
+            {err ? <div style={{ color: "#EBB086", fontWeight: 800 }}>{err}</div> : null}
           </div>
         )}
       </div>

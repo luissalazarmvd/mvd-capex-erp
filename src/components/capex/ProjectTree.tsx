@@ -117,7 +117,7 @@ export function ProjectTree({
                     borderRadius: 12,
                     border: "1px solid var(--border)",
                     background: isP
-                      ? "rgba(102,199,255,.18)"
+                      ? "rgba(198,146,20,.18)"
                       : "rgba(0,0,0,.10)",
                     color: "var(--text)",
                     cursor: "pointer",
@@ -172,9 +172,9 @@ export function ProjectTree({
                           padding: "8px 10px",
                           marginTop: 6,
                           borderRadius: 12,
-                          border: "1px solid rgba(191,231,255,.18)",
+                          border: "1px solid rgba(255,216,130,.18)",
                           background: isW
-                            ? "rgba(191,231,255,.12)"
+                            ? "rgba(255,216,130,.12)"
                             : "rgba(0,0,0,.08)",
                           color: "var(--text)",
                           cursor: "pointer",

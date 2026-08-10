@@ -271,19 +271,19 @@ export default function TiPage() {
 
         <button
           onClick={logout}
-          style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #333", cursor: "pointer" }}
+          style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border)", cursor: "pointer" }}
         >
           Salir
         </button>
       </div>
 
       {pbiUrl ? (
-        <div style={{ width: "100%", height: "72vh", borderRadius: 16, overflow: "hidden", border: "1px solid #2a2a2a" }}>
+        <div style={{ width: "100%", height: "72vh", borderRadius: 16, overflow: "hidden", border: "1px solid var(--border)" }}>
           <iframe title="Power BI" src={pbiUrl} width="100%" height="100%" style={{ border: "none" }} allowFullScreen />
         </div>
       ) : null}
 
-      <div style={{ marginTop: 14, padding: 16, borderRadius: 16, border: "1px solid #2a2a2a" }}>
+      <div style={{ marginTop: 14, padding: 16, borderRadius: 16, border: "1px solid var(--border)" }}>
         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Copiloto TI (gpt 5 mini)</div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "start" }}>
@@ -296,14 +296,14 @@ export default function TiPage() {
                 width: "100%",
                 padding: 12,
                 borderRadius: 10,
-                border: "1px solid #333",
+                border: "1px solid var(--border)",
                 background: "transparent",
                 color: "inherit",
               }}
             />
 
-            <div style={{ marginTop: 10, border: "1px solid #333", borderRadius: 10, overflow: "hidden" }}>
-              <div style={{ padding: "8px 10px", fontSize: 12, opacity: 0.8, borderBottom: "1px solid #333" }}>
+            <div style={{ marginTop: 10, border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ padding: "8px 10px", fontSize: 12, opacity: 0.8, borderBottom: "1px solid var(--border)" }}>
                 {loadingTickets ? "Buscando..." : "Resultados (elige uno)"}
               </div>
 
@@ -322,7 +322,7 @@ export default function TiPage() {
                           textAlign: "left",
                           padding: 10,
                           border: "none",
-                          borderTop: "1px solid #2a2a2a",
+                          borderTop: "1px solid var(--border)",
                           background: active ? "rgba(255,255,255,0.06)" : "transparent",
                           color: "inherit",
                           cursor: "pointer",
@@ -342,7 +342,7 @@ export default function TiPage() {
             </div>
 
             {selected ? (
-              <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: "1px dashed #333", fontSize: 12, opacity: 0.85 }}>
+              <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: "1px dashed var(--border)", fontSize: 12, opacity: 0.85 }}>
                 Seleccionado: <b>{selected.id_ticket}</b> — {selected.ticket_title ?? ""}
               </div>
             ) : null}
@@ -355,7 +355,7 @@ export default function TiPage() {
               style={{
                 padding: "12px 14px",
                 borderRadius: 10,
-                border: "1px solid #333",
+                border: "1px solid var(--border)",
                 cursor: "pointer",
                 opacity: loadingInsight ? 0.7 : 1,
               }}
@@ -369,10 +369,10 @@ export default function TiPage() {
           </div>
         </div>
 
-        {insightError ? <div style={{ marginTop: 12, color: "#ff6b6b" }}>{insightError}</div> : null}
+        {insightError ? <div style={{ marginTop: 12, color: "#D85D27" }}>{insightError}</div> : null}
 
         {insight ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #333" }}>
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid var(--border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
               <div style={{ fontWeight: 700 }}>Insight</div>
               <div style={{ fontSize: 12, opacity: 0.75 }}>Confianza: {(insight.confianza * 100).toFixed(0)}%</div>
@@ -434,16 +434,16 @@ export default function TiPage() {
         ) : null}
       </div>
 
-      <div style={{ marginTop: 16, padding: 16, borderRadius: 16, border: "1px solid #2a2a2a" }}>
+      <div style={{ marginTop: 16, padding: 16, borderRadius: 16, border: "1px solid var(--border)" }}>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Valora el Copiloto TI</div>
 
         {feedbackSent ? (
           <div>
-            <div style={{ color: "#6bff95", fontSize: 13, marginBottom: 8 }}>Gracias por tu feedback 🙌</div>
+            <div style={{ color: "#AECA7D", fontSize: 13, marginBottom: 8 }}>Gracias por tu feedback 🙌</div>
 
             <button
               onClick={resetFeedbackForm}
-              style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #333", cursor: "pointer" }}
+              style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid var(--border)", cursor: "pointer" }}
             >
               Ingresar nueva valoración
             </button>
@@ -458,7 +458,7 @@ export default function TiPage() {
                   style={{
                     padding: "6px 10px",
                     borderRadius: 8,
-                    border: "1px solid #333",
+                    border: "1px solid var(--border)",
                     background: rating === n ? "#fff" : "transparent",
                     color: rating === n ? "#000" : "inherit",
                     cursor: "pointer",
@@ -478,7 +478,7 @@ export default function TiPage() {
                 width: "100%",
                 padding: 10,
                 borderRadius: 10,
-                border: "1px solid #333",
+                border: "1px solid var(--border)",
                 background: "transparent",
                 color: "inherit",
               }}
@@ -491,7 +491,7 @@ export default function TiPage() {
                 marginTop: 10,
                 padding: "10px 14px",
                 borderRadius: 10,
-                border: "1px solid #333",
+                border: "1px solid var(--border)",
                 cursor: "pointer",
                 opacity: !rating || sendingFeedback ? 0.6 : 1,
               }}

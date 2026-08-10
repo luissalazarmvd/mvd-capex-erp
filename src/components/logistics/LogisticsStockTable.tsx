@@ -442,10 +442,10 @@ export default function LogisticsStockTable() {
     XLSX.writeFile(wb, `logistics_stock_vis_${getFileStamp()}.xlsx`);
   }
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
-  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
+  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
   const stickyHead: React.CSSProperties = {
     position: "sticky",
@@ -523,10 +523,10 @@ export default function LogisticsStockTable() {
             padding: "6px 10px",
             borderRadius: 999,
             border: importedCodes.length > 0
-              ? "1px solid rgba(102,199,255,.45)"
+              ? "1px solid rgba(198,146,20,.45)"
               : "1px solid rgba(255,255,255,0.12)",
             background: importedCodes.length > 0
-              ? "rgba(102,199,255,.10)"
+              ? "rgba(198,146,20,.10)"
               : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
@@ -558,15 +558,15 @@ export default function LogisticsStockTable() {
             padding: "6px 10px",
             borderRadius: 999,
             border: mraOnly
-              ? "1px solid rgba(102,199,255,.55)"
+              ? "1px solid rgba(198,146,20,.55)"
               : "1px solid rgba(255,255,255,0.12)",
             background: mraOnly
-              ? "rgba(102,199,255,.16)"
+              ? "rgba(198,146,20,.16)"
               : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
             color: mraOnly
-              ? "rgb(170, 225, 255)"
+              ? "rgb(255, 216, 130)"
               : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
@@ -583,7 +583,7 @@ export default function LogisticsStockTable() {
               width: "100%",
               height: 34,
               borderRadius: 10,
-              border: "1px solid rgba(191,231,255,.18)",
+              border: "1px solid rgba(255,216,130,.18)",
               background: "rgba(255,255,255,0.06)",
               color: "white",
               padding: "0 10px",
@@ -660,11 +660,11 @@ export default function LogisticsStockTable() {
             padding: 10,
             flexShrink: 0,
             border: msg.startsWith("OK")
-              ? "1px solid rgba(102,199,255,.45)"
-              : "1px solid rgba(255,80,80,.45)",
+              ? "1px solid rgba(198,146,20,.45)"
+              : "1px solid rgba(216,93,39,.45)",
             background: msg.startsWith("OK")
-              ? "rgba(102,199,255,.10)"
-              : "rgba(255,80,80,.10)",
+              ? "rgba(198,146,20,.10)"
+              : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -731,7 +731,7 @@ export default function LogisticsStockTable() {
                       left: c.sticky ? c.left : undefined,
                       zIndex: c.sticky ? 40 : stickyHead.zIndex,
                       background: c.sticky ? headerBg : stickyHead.background,
-                      boxShadow: c.sticky ? "2px 0 0 rgba(191, 231, 255, 0.12)" : undefined,
+                      boxShadow: c.sticky ? "2px 0 0 rgba(255, 216, 130, 0.12)" : undefined,
                     }}
                     title={c.label}
                   >
@@ -755,7 +755,7 @@ export default function LogisticsStockTable() {
                           borderTop: gridH,
                           borderBottom: gridH,
                           borderRight: gridV,
-                          background: c.sticky ? "rgb(10, 30, 46)" : rowBg,
+                          background: c.sticky ? "rgb(63, 63, 58)" : rowBg,
                           width: c.width,
                           minWidth: c.width,
                           maxWidth: c.width,
@@ -763,7 +763,7 @@ export default function LogisticsStockTable() {
                           position: c.sticky ? "sticky" : "static",
                           left: c.sticky ? c.left : undefined,
                           zIndex: c.sticky ? 15 : undefined,
-                          boxShadow: c.sticky ? "2px 0 0 rgba(191, 231, 255, 0.10)" : undefined,
+                          boxShadow: c.sticky ? "2px 0 0 rgba(255, 216, 130, 0.10)" : undefined,
                         }}
                         title={formatCellValue(c.key, row[c.key])}
                       >
@@ -869,7 +869,7 @@ export default function LogisticsStockTable() {
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(191,231,255,.18)",
+              border: "1px solid rgba(255,216,130,.18)",
             }}
           >
             Página {safePage} / {totalPages}

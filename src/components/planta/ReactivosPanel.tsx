@@ -225,8 +225,8 @@ export default function ReactivosPanel({ shiftId }: { shiftId: string }) {
           className="panel-inner"
           style={{
             padding: 12,
-            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            border: msg.startsWith("OK") ? "1px solid rgba(198,146,20,.45)" : "1px solid rgba(216,93,39,.45)",
+            background: msg.startsWith("OK") ? "rgba(198,146,20,.10)" : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -244,7 +244,7 @@ export default function ReactivosPanel({ shiftId }: { shiftId: string }) {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNacn(e.target.value)}
               disabled={!sid || saving || loadingExisting}
               hint="Cantidad (kg)"
-              style={nacnInvalid ? { border: "1px solid rgba(255,80,80,.55)", background: "rgba(255,80,80,.10)" } : undefined}
+              style={nacnInvalid ? { border: "1px solid rgba(216,93,39,.55)", background: "rgba(216,93,39,.10)" } : undefined}
             />
           </div>
 
@@ -256,7 +256,7 @@ export default function ReactivosPanel({ shiftId }: { shiftId: string }) {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSodaCaustica(e.target.value)}
               disabled={!sid || saving || loadingExisting}
               hint="Cantidad (kg)"
-              style={sodaInvalid ? { border: "1px solid rgba(255,80,80,.55)", background: "rgba(255,80,80,.10)" } : undefined}
+              style={sodaInvalid ? { border: "1px solid rgba(216,93,39,.55)", background: "rgba(216,93,39,.10)" } : undefined}
             />
           </div>
         </div>
@@ -268,7 +268,7 @@ export default function ReactivosPanel({ shiftId }: { shiftId: string }) {
         ) : null}
 
         {sid && !loadingExisting && (nacnInvalid || sodaInvalid) ? (
-          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12, color: "rgba(255,120,120,.95)" }}>
+          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12, color: "rgba(229,149,103,.95)" }}>
             Corrige valores inválidos.
           </div>
         ) : null}

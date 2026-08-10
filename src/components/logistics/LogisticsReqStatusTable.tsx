@@ -592,10 +592,10 @@ export default function LogisticsMreqStatusTable() {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(92, 211, 158, 0.45)",
+            border: "1px solid rgba(147, 178, 92, 0.45)",
             background:
               editSummary.editedCount > 0
-                ? "rgba(38, 120, 88, 0.24)"
+                ? "rgba(94, 128, 25, 0.24)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
@@ -609,11 +609,11 @@ export default function LogisticsMreqStatusTable() {
             style={{
               padding: "6px 10px",
               borderRadius: 999,
-              border: "1px solid rgba(255, 92, 92, 0.65)",
-              background: "rgba(120, 24, 24, 0.28)",
+              border: "1px solid rgba(216, 93, 39, 0.65)",
+              background: "rgba(216, 93, 39, 0.28)",
               fontSize: 12,
               fontWeight: 900,
-              color: "rgb(255, 170, 170)",
+              color: "rgb(235, 176, 134)",
             }}
           >
             Inválidas: {editSummary.invalidCount}
@@ -702,8 +702,8 @@ export default function LogisticsMreqStatusTable() {
                 left: 0,
                 right: 0,
                 zIndex: 20,
-                background: "#06192a",
-                border: "1px solid rgba(191,231,255,0.22)",
+                background: "#272727",
+                border: "1px solid rgba(255,216,130,0.22)",
                 borderRadius: 12,
                 overflow: "hidden",
                 boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
@@ -729,7 +729,7 @@ export default function LogisticsMreqStatusTable() {
                       height: 38,
                       padding: "0 12px",
                       border: 0,
-                      background: active ? "rgba(102,199,255,0.18)" : "transparent",
+                      background: active ? "rgba(198,146,20,0.18)" : "transparent",
                       color: "var(--text)",
                       textAlign: "left",
                       fontWeight: 900,
@@ -795,7 +795,7 @@ export default function LogisticsMreqStatusTable() {
           className="panel-inner"
           style={{
             padding: 12,
-            color: "rgba(255,120,120,0.95)",
+            color: "rgba(229,149,103,0.95)",
             fontWeight: 900,
           }}
         >
@@ -809,8 +809,8 @@ export default function LogisticsMreqStatusTable() {
           style={{
             padding: 12,
             color: message.startsWith("OK")
-              ? "rgb(160, 255, 214)"
-              : "rgba(255,170,170,0.95)",
+              ? "rgb(174, 202, 125)"
+              : "rgba(235,176,134,0.95)",
             fontWeight: 900,
           }}
         >
@@ -893,7 +893,7 @@ export default function LogisticsMreqStatusTable() {
                 key={String(c.key)}
                 className="capex-th"
                 style={{
-                  background: "rgb(6, 36, 58)",
+                  background: "rgb(39, 39, 39)",
                   width: getStatusColWidth(c.key),
                   minWidth: getStatusColWidth(c.key),
                   maxWidth: getStatusColWidth(c.key),
@@ -904,7 +904,7 @@ export default function LogisticsMreqStatusTable() {
                     : undefined,
                   zIndex: isStickyStatusColumn(c.key) ? 40 : 20,
                   boxShadow: isStickyStatusColumn(c.key)
-                    ? "2px 0 0 rgba(191, 231, 255, 0.12)"
+                    ? "2px 0 0 rgba(255, 216, 130, 0.12)"
                     : undefined,
                 }}
               >
@@ -943,8 +943,8 @@ export default function LogisticsMreqStatusTable() {
                 ? "rgba(255,255,255,0.035)"
                 : changed
                   ? ready
-                    ? "rgba(30, 110, 74, 0.28)"
-                    : "rgba(120, 24, 24, 0.34)"
+                    ? "rgba(94, 128, 25, 0.28)"
+                    : "rgba(216, 93, 39, 0.34)"
                   : "transparent";
 
               return (
@@ -986,7 +986,7 @@ export default function LogisticsMreqStatusTable() {
                           className="capex-td"
                         style={{
                           background: isStickyStatusColumn(c.key)
-                            ? "rgb(10, 30, 46)"
+                            ? "rgb(63, 63, 58)"
                             : rowBackground,
                           padding: "6px 8px",
                           whiteSpace: "nowrap",
@@ -1004,7 +1004,7 @@ export default function LogisticsMreqStatusTable() {
                                 ? 99999
                                 : "auto",
                           boxShadow: isStickyStatusColumn(c.key)
-                            ? "2px 0 0 rgba(191, 231, 255, 0.10)"
+                            ? "2px 0 0 rgba(255, 216, 130, 0.10)"
                             : undefined,
                           }}
                         >
@@ -1051,7 +1051,7 @@ export default function LogisticsMreqStatusTable() {
                                   background: "rgba(0,0,0,.10)",
                                   border:
                                     changed && !currentValue.trim()
-                                      ? "1px solid rgba(255, 92, 92, 0.75)"
+                                      ? "1px solid rgba(216, 93, 39, 0.75)"
                                       : "1px solid var(--border)",
                                   color: "var(--text)",
                                   borderRadius: 10,
@@ -1068,7 +1068,7 @@ export default function LogisticsMreqStatusTable() {
                                   fontWeight: 900,
                                   color:
                                     charCount >= 255
-                                      ? "rgb(255, 170, 170)"
+                                      ? "rgb(235, 176, 134)"
                                       : "rgba(255,255,255,.65)",
                                   whiteSpace: "nowrap",
                                 }}
@@ -1088,7 +1088,7 @@ export default function LogisticsMreqStatusTable() {
                           className="capex-td"
                         style={{
                             background: isStickyStatusColumn(c.key)
-                              ? "rgb(10, 30, 46)"
+                              ? "rgb(63, 63, 58)"
                               : rowBackground,
                             padding: "6px 8px",
                             overflow: "visible",
@@ -1104,7 +1104,7 @@ export default function LogisticsMreqStatusTable() {
                                 ? 9999
                                 : "auto",
                             boxShadow: isStickyStatusColumn(c.key)
-                              ? "2px 0 0 rgba(191, 231, 255, 0.10)"
+                              ? "2px 0 0 rgba(255, 216, 130, 0.10)"
                               : undefined,
                           }}
                         >
@@ -1156,7 +1156,7 @@ export default function LogisticsMreqStatusTable() {
                                     zIndex: 99999,
                                     borderRadius: 12,
                                     border: "1px solid rgba(255,255,255,.10)",
-                                    background: "rgba(5, 25, 45, .98)",
+                                    background: "rgba(39, 39, 39, .98)",
                                     boxShadow: "0 10px 30px rgba(0,0,0,.45)",
                                     overflow: "hidden",
                                     width: "100%",
@@ -1186,7 +1186,7 @@ export default function LogisticsMreqStatusTable() {
                                           textAlign: "left",
                                           padding: "10px 12px",
                                           background: active
-                                            ? "rgba(102,199,255,.18)"
+                                            ? "rgba(198,146,20,.18)"
                                             : "transparent",
                                           color: "rgba(255,255,255,.92)",
                                           border: "none",
@@ -1258,7 +1258,7 @@ export default function LogisticsMreqStatusTable() {
                         }
                         style={{
                           background: isStickyStatusColumn(c.key)
-                            ? "rgb(10, 30, 46)"
+                            ? "rgb(63, 63, 58)"
                             : rowBackground,
                           width: getStatusColWidth(c.key),
                           minWidth: getStatusColWidth(c.key),
@@ -1280,7 +1280,7 @@ export default function LogisticsMreqStatusTable() {
                               ? 99999
                               : "auto",
                           boxShadow: isStickyStatusColumn(c.key)
-                            ? "2px 0 0 rgba(191, 231, 255, 0.10)"
+                            ? "2px 0 0 rgba(255, 216, 130, 0.10)"
                             : undefined,
                           cursor: isExpandableReadonly ? "pointer" : "default",
                           outline: "none",
@@ -1299,10 +1299,10 @@ export default function LogisticsMreqStatusTable() {
                                 : "ellipsis",
                               whiteSpace: "nowrap",
                               background: readonlySelected
-                                ? "rgb(6, 36, 58)"
+                                ? "rgb(39, 39, 39)"
                                 : "transparent",
                               border: readonlySelected
-                                ? "1px solid rgba(191,231,255,0.32)"
+                                ? "1px solid rgba(255,216,130,0.32)"
                                 : "1px solid transparent",
                               borderRadius: readonlySelected ? 8 : 0,
                               boxShadow: readonlySelected
@@ -1332,7 +1332,7 @@ export default function LogisticsMreqStatusTable() {
 
       <style jsx global>{`
         .req-status-dd-option:hover {
-          background: rgba(102, 199, 255, 0.12) !important;
+          background: rgba(198, 146, 20, 0.12) !important;
         }
       `}</style>
     </div>

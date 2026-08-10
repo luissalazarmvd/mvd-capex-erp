@@ -441,10 +441,10 @@ export default function MapImpExp({
     }
   }
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
-  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
+  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
 
   const cellBase: React.CSSProperties = {
@@ -584,8 +584,8 @@ export default function MapImpExp({
                   style={{
                     padding: "6px 10px",
                     borderRadius: 999,
-                    border: "1px solid rgba(102,199,255,.45)",
-                    background: "rgba(102,199,255,.10)",
+                    border: "1px solid rgba(198,146,20,.45)",
+                    background: "rgba(198,146,20,.10)",
                     fontSize: 12,
                     fontWeight: 900,
                   }}
@@ -599,11 +599,11 @@ export default function MapImpExp({
                     borderRadius: 999,
                     border:
                       importSummary.invalid_rows > 0
-                        ? "1px solid rgba(255,80,80,.45)"
+                        ? "1px solid rgba(216,93,39,.45)"
                         : "1px solid rgba(255,255,255,0.12)",
                     background:
                       importSummary.invalid_rows > 0
-                        ? "rgba(255,80,80,.10)"
+                        ? "rgba(216,93,39,.10)"
                         : "rgba(255,255,255,0.06)",
                     fontSize: 12,
                     fontWeight: 900,
@@ -618,11 +618,11 @@ export default function MapImpExp({
                     borderRadius: 999,
                     border:
                       importSummary.repeated_wbs > 0
-                        ? "1px solid rgba(255,170,60,.45)"
+                        ? "1px solid rgba(255,183,27,.45)"
                         : "1px solid rgba(255,255,255,0.12)",
                     background:
                       importSummary.repeated_wbs > 0
-                        ? "rgba(255,170,60,.10)"
+                        ? "rgba(255,183,27,.10)"
                         : "rgba(255,255,255,0.06)",
                     fontSize: 12,
                     fontWeight: 900,
@@ -637,11 +637,11 @@ export default function MapImpExp({
                     borderRadius: 999,
                     border:
                       importSummary.repeated_extra_rows > 0
-                        ? "1px solid rgba(255,170,60,.45)"
+                        ? "1px solid rgba(255,183,27,.45)"
                         : "1px solid rgba(255,255,255,0.12)",
                     background:
                       importSummary.repeated_extra_rows > 0
-                        ? "rgba(255,170,60,.10)"
+                        ? "rgba(255,183,27,.10)"
                         : "rgba(255,255,255,0.06)",
                     fontSize: 12,
                     fontWeight: 900,
@@ -657,7 +657,7 @@ export default function MapImpExp({
                 minWidth: 0,
                 minHeight: 0,
                 overflow: "auto",
-                border: "1px solid rgba(191,231,255,.12)",
+                border: "1px solid rgba(255,216,130,.12)",
                 borderRadius: 12,
               }}
             >
@@ -701,13 +701,13 @@ export default function MapImpExp({
                 <tbody>
                   {previewRows.map((row) => {
                     const bg = !row.valid
-                      ? "rgba(255,80,80,.10)"
+                      ? "rgba(216,93,39,.10)"
                       : row.status === "IGUAL"
                       ? "rgba(160,160,160,.10)"
                       : row.status === "ACTUALIZAR"
-                      ? "rgba(255,170,60,.12)"
+                      ? "rgba(255,183,27,.12)"
                       : row.status === "NUEVA"
-                      ? "rgba(102,199,255,.10)"
+                      ? "rgba(198,146,20,.10)"
                       : rowBg;
 
                     return (

@@ -366,8 +366,8 @@ export default function OptTable({
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyHead: React.CSSProperties = {
@@ -382,7 +382,7 @@ export default function OptTable({
     position: "sticky",
     bottom: 0,
     zIndex: 7,
-    background: "rgb(8, 52, 84)",
+    background: "rgb(0, 103, 172)",
     boxShadow: "0 -8px 18px rgba(0,0,0,.18)",
   };
 
@@ -498,8 +498,8 @@ export default function OptTable({
 
   function desvColor(v: number | null) {
     if (v === null) return "inherit";
-    if (v < 0) return "#00c26f";
-    if (v > 0) return "#ff6b57";
+    if (v < 0) return "#79993A";
+    if (v > 0) return "#E59567";
     return "inherit";
   }
 
@@ -510,8 +510,8 @@ export default function OptTable({
           className="panel-inner"
           style={{
             padding: 10,
-            border: msg.startsWith("ERROR") ? "1px solid rgba(255,80,80,.45)" : "1px solid rgba(255,255,255,.10)",
-            background: msg.startsWith("ERROR") ? "rgba(255,80,80,.10)" : "rgba(255,255,255,.04)",
+            border: msg.startsWith("ERROR") ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,.10)",
+            background: msg.startsWith("ERROR") ? "rgba(216,93,39,.10)" : "rgba(255,255,255,.04)",
             fontWeight: 800,
           }}
         >

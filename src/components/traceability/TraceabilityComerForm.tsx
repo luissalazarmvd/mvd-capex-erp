@@ -657,14 +657,14 @@ const RowItem = React.memo(function RowItem({
                 borderTop: gridH,
                 borderBottom: gridH,
                 borderRight: gridV,
-                background: invalidDateCell ? "rgba(255,80,80,.18)" : currentRowBg,
+                background: invalidDateCell ? "rgba(216,93,39,.18)" : currentRowBg,
                 textAlign: isNumber ? "right" : "left",
                 fontWeight: c.key === "lot" ? 800 : 400,
                 width: c.width || 110,
                 minWidth: c.width || 110,
                 maxWidth: c.width || 110,
                 padding: isNumber ? "6px 4px" : "6px 8px",
-                color: invalidDateCell ? "rgb(255,160,160)" : "rgb(185,185,185)",
+                color: invalidDateCell ? "rgb(229,149,103)" : "rgb(185,185,185)",
               }}
               title={show || "—"}
             >
@@ -717,14 +717,14 @@ const RowItem = React.memo(function RowItem({
                     )
                   )
                     ? {
-                        border: "1px solid rgba(255,80,80,.75)",
-                        background: "rgba(255,80,80,.18)",
-                        color: "rgb(255,190,190)",
+                        border: "1px solid rgba(216,93,39,.75)",
+                        background: "rgba(216,93,39,.18)",
+                        color: "rgb(229,149,103)",
                       }
                     : edited
                     ? {
-                        border: "1px solid rgba(92, 211, 158, 0.55)",
-                        background: "rgba(38, 120, 88, 0.18)",
+                        border: "1px solid rgba(147, 178, 92, 0.55)",
+                        background: "rgba(94, 128, 25, 0.18)",
                       }
                     : null),
               }}
@@ -1122,12 +1122,12 @@ export default function TraceabilityComerForm() {
     }
   }
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
-  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
+  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
-  const editedRowBg = "rgba(30, 110, 74, 0.28)";
+  const editedRowBg = "rgba(94, 128, 25, 0.28)";
 
   const stickyHead: React.CSSProperties = {
     position: "sticky",
@@ -1148,7 +1148,7 @@ export default function TraceabilityComerForm() {
   };
 
   const inputBase: React.CSSProperties = {
-    border: "1px solid rgba(191,231,255,.18)",
+    border: "1px solid rgba(255,216,130,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
     fontWeight: 900,
@@ -1203,11 +1203,11 @@ export default function TraceabilityComerForm() {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(92, 211, 158, 0.45)",
-            background: editedCount > 0 ? "rgba(38, 120, 88, 0.24)" : "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(147, 178, 92, 0.45)",
+            background: editedCount > 0 ? "rgba(94, 128, 25, 0.24)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: editedCount > 0 ? "rgb(160, 255, 214)" : "rgba(255,255,255,0.8)",
+            color: editedCount > 0 ? "rgb(174, 202, 125)" : "rgba(255,255,255,0.8)",
           }}
         >
           Filas listas: {editedCount}
@@ -1260,12 +1260,12 @@ export default function TraceabilityComerForm() {
             flexShrink: 0,
             border:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "1px solid rgba(102,199,255,.45)"
-                : "1px solid rgba(255,80,80,.45)",
+                ? "1px solid rgba(198,146,20,.45)"
+                : "1px solid rgba(216,93,39,.45)",
             background:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "rgba(102,199,255,.10)"
-                : "rgba(255,80,80,.10)",
+                ? "rgba(198,146,20,.10)"
+                : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -1403,7 +1403,7 @@ export default function TraceabilityComerForm() {
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(191,231,255,.18)",
+              border: "1px solid rgba(255,216,130,.18)",
             }}
           >
             Página {safePage} / {totalPages}

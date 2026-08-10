@@ -140,8 +140,8 @@ export default function StockTable({
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyHead: React.CSSProperties = {
@@ -178,8 +178,8 @@ export default function StockTable({
           className="panel-inner"
           style={{
             padding: 10,
-            border: msg.startsWith("ERROR") ? "1px solid rgba(255,80,80,.45)" : "1px solid rgba(255,255,255,.10)",
-            background: msg.startsWith("ERROR") ? "rgba(255,80,80,.10)" : "rgba(255,255,255,.04)",
+            border: msg.startsWith("ERROR") ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,.10)",
+            background: msg.startsWith("ERROR") ? "rgba(216,93,39,.10)" : "rgba(255,255,255,.04)",
             fontWeight: 800,
           }}
         >

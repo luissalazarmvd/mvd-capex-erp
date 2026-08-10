@@ -908,10 +908,10 @@ export default function ComplianceProveeminExp({
     }
   }
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
-  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
+  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
 
   const cellBase: React.CSSProperties = {
@@ -1057,7 +1057,7 @@ export default function ComplianceProveeminExp({
                 minWidth: 0,
                 minHeight: 0,
                 overflow: "auto",
-                border: "1px solid rgba(191,231,255,.12)",
+                border: "1px solid rgba(255,216,130,.12)",
                 borderRadius: 12,
               }}
             >
@@ -1095,9 +1095,9 @@ export default function ComplianceProveeminExp({
                 <tbody>
                   {previewRows.map((row) => {
                     const bg = !row.valid
-                      ? "rgba(255,80,80,.10)"
+                      ? "rgba(216,93,39,.10)"
                       : row.is_duplicate
-                        ? "rgba(255,170,60,.12)"
+                        ? "rgba(255,183,27,.12)"
                         : rowBg;
 
                     return (
@@ -1124,8 +1124,8 @@ export default function ComplianceProveeminExp({
                                 style={{
                                   ...previewInputStyle,
                                   minWidth: col.width || 120,
-                                  border: error ? "1px solid #ff6b6b" : "1px solid rgba(255,255,255,.10)",
-                                  background: error ? "rgba(255, 77, 77, 0.12)" : "rgba(0,0,0,.10)",
+                                  border: error ? "1px solid #D85D27" : "1px solid rgba(255,255,255,.10)",
+                                  background: error ? "rgba(216, 93, 39, 0.12)" : "rgba(0,0,0,.10)",
                                   display: "flex",
                                   alignItems: "center",
                                   overflow: "hidden",
@@ -1139,7 +1139,7 @@ export default function ComplianceProveeminExp({
                               </div>
 
                               {error ? (
-                                <div style={{ marginTop: 4, fontSize: 11, color: "#ff8b8b" }}>
+                                <div style={{ marginTop: 4, fontSize: 11, color: "#EBB086" }}>
                                   {error}
                                 </div>
                               ) : null}
@@ -1147,7 +1147,7 @@ export default function ComplianceProveeminExp({
                           );
                         })}
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, whiteSpace: "normal", color: row.errors ? "#ffb3b3" : "inherit" }} title={row.errors || "—"}>
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, whiteSpace: "normal", color: row.errors ? "#EBB086" : "inherit" }} title={row.errors || "—"}>
                           {row.errors || "—"}
                         </td>
                       </tr>

@@ -805,10 +805,10 @@ function Dropdown({
           minWidth: 0,
           textAlign: "left",
           background: invalid
-            ? "rgba(120, 30, 30, 0.22)"
+            ? "rgba(216, 93, 39, 0.22)"
             : "rgba(0,0,0,.10)",
           border: invalid
-            ? "1px solid rgba(255, 92, 92, 0.75)"
+            ? "1px solid rgba(216, 93, 39, 0.75)"
             : "1px solid var(--border)",
           color: "var(--text)",
           borderRadius: 10,
@@ -849,7 +849,7 @@ function Dropdown({
             zIndex: 99999,
             borderRadius: 12,
             border: "1px solid rgba(255,255,255,.10)",
-            background: "rgba(5, 25, 45, .98)",
+            background: "rgba(39, 39, 39, .98)",
             boxShadow: "0 10px 30px rgba(0,0,0,.45)",
             overflowY: "auto",
             overflowX: "hidden",
@@ -879,7 +879,7 @@ function Dropdown({
                   textAlign: "left",
                   padding: "10px 12px",
                   background: active
-                    ? "rgba(102,199,255,.18)"
+                    ? "rgba(198,146,20,.18)"
                     : "transparent",
                   color: empty
                     ? "rgba(255,255,255,.55)"
@@ -892,12 +892,12 @@ function Dropdown({
                 }}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background = active
-                    ? "rgba(102,199,255,.18)"
+                    ? "rgba(198,146,20,.18)"
                     : "rgba(255,255,255,.06)";
                 }}
                 onMouseLeave={(event) => {
                   event.currentTarget.style.background = active
-                    ? "rgba(102,199,255,.18)"
+                    ? "rgba(198,146,20,.18)"
                     : "transparent";
                 }}
               >
@@ -959,10 +959,10 @@ function RowItem({
     : rowBg;
 
   const stickyRowBg = invalid
-    ? "rgb(67, 27, 31)"
+    ? "rgb(86, 37, 16)"
     : edited
-    ? "rgb(18, 63, 50)"
-    : "rgb(7, 30, 47)";
+    ? "rgb(47, 64, 13)"
+    : "rgb(39, 39, 39)";
 
   return (
     <tr
@@ -1101,10 +1101,10 @@ function RowItem({
                   alignItems: "center",
                   width: "100%",
                   border: fieldError
-                    ? "1px solid rgba(255, 92, 92, 0.75)"
+                    ? "1px solid rgba(216, 93, 39, 0.75)"
                     : "1px solid var(--border)",
                   background: fieldError
-                    ? "rgba(120, 30, 30, 0.22)"
+                    ? "rgba(216, 93, 39, 0.22)"
                     : "rgba(0,0,0,.10)",
                   borderRadius: 10,
                   overflow: "hidden",
@@ -1199,10 +1199,10 @@ function RowItem({
                     width: "100%",
                     minWidth: 0,
                     background: fieldError
-                      ? "rgba(120, 30, 30, 0.22)"
+                      ? "rgba(216, 93, 39, 0.22)"
                       : "rgba(0,0,0,.10)",
                     border: fieldError
-                      ? "1px solid rgba(255, 92, 92, 0.75)"
+                      ? "1px solid rgba(216, 93, 39, 0.75)"
                       : "1px solid var(--border)",
                     color: "var(--text)",
                     borderRadius: 10,
@@ -1220,7 +1220,7 @@ function RowItem({
                     whiteSpace: "nowrap",
                     color:
                       value.length >= 100
-                        ? "rgb(255,170,170)"
+                        ? "rgb(235,176,134)"
                         : "rgba(255,255,255,.65)",
                   }}
                 >
@@ -1277,10 +1277,10 @@ function RowItem({
                     width: "100%",
                     minWidth: 0,
                     background: fieldError
-                      ? "rgba(120, 30, 30, 0.22)"
+                      ? "rgba(216, 93, 39, 0.22)"
                       : "rgba(0,0,0,.10)",
                     border: fieldError
-                      ? "1px solid rgba(255, 92, 92, 0.75)"
+                      ? "1px solid rgba(216, 93, 39, 0.75)"
                       : "1px solid var(--border)",
                     color: "var(--text)",
                     borderRadius: 10,
@@ -1298,7 +1298,7 @@ function RowItem({
                     whiteSpace: "nowrap",
                     color:
                       value.length > 0 && value.length !== 9
-                        ? "rgb(255,170,170)"
+                        ? "rgb(235,176,134)"
                         : "rgba(255,255,255,.65)",
                   }}
                 >
@@ -1352,10 +1352,10 @@ function RowItem({
                     width: "100%",
                     minWidth: 0,
                     background: fieldError
-                      ? "rgba(120, 30, 30, 0.22)"
+                      ? "rgba(216, 93, 39, 0.22)"
                       : "rgba(0,0,0,.10)",
                     border: fieldError
-                      ? "1px solid rgba(255, 92, 92, 0.75)"
+                      ? "1px solid rgba(216, 93, 39, 0.75)"
                       : "1px solid var(--border)",
                     color: "var(--text)",
                     borderRadius: 10,
@@ -1373,7 +1373,7 @@ function RowItem({
                     whiteSpace: "nowrap",
                     color:
                       value.length >= 100
-                        ? "rgb(255,170,170)"
+                        ? "rgb(235,176,134)"
                         : "rgba(255,255,255,.65)",
                   }}
                 >
@@ -1411,10 +1411,10 @@ function RowItem({
                 width: "100%",
                 minWidth: 0,
                 background: fieldError
-                  ? "rgba(120, 30, 30, 0.22)"
+                  ? "rgba(216, 93, 39, 0.22)"
                   : "rgba(0,0,0,.10)",
                 border: fieldError
-                  ? "1px solid rgba(255, 92, 92, 0.75)"
+                  ? "1px solid rgba(216, 93, 39, 0.75)"
                   : "1px solid var(--border)",
                 color: "var(--text)",
                 borderRadius: 10,
@@ -1768,13 +1768,13 @@ export default function SustainabilityProvTable() {
     );
   }
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
-  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
+  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
-  const editedRowBg = "rgba(30, 110, 74, 0.28)";
-  const invalidRowBg = "rgba(120, 24, 24, 0.34)";
+  const editedRowBg = "rgba(94, 128, 25, 0.28)";
+  const invalidRowBg = "rgba(216, 93, 39, 0.34)";
 
   const cellBase: React.CSSProperties = {
     padding: "6px 8px",
@@ -1787,7 +1787,7 @@ export default function SustainabilityProvTable() {
   };
 
   const inputBase: React.CSSProperties = {
-    border: "1px solid rgba(191,231,255,.18)",
+    border: "1px solid rgba(255,216,130,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
     fontWeight: 900,
@@ -1841,16 +1841,16 @@ export default function SustainabilityProvTable() {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(92, 211, 158, 0.45)",
+            border: "1px solid rgba(147, 178, 92, 0.45)",
             background:
               editedCount > 0
-                ? "rgba(38, 120, 88, 0.24)"
+                ? "rgba(94, 128, 25, 0.24)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
             color:
               editedCount > 0
-                ? "rgb(160, 255, 214)"
+                ? "rgb(174, 202, 125)"
                 : "rgba(255,255,255,0.8)",
           }}
         >
@@ -1862,11 +1862,11 @@ export default function SustainabilityProvTable() {
             style={{
               padding: "6px 10px",
               borderRadius: 999,
-              border: "1px solid rgba(255, 92, 92, 0.65)",
-              background: "rgba(120, 24, 24, 0.28)",
+              border: "1px solid rgba(216, 93, 39, 0.65)",
+              background: "rgba(216, 93, 39, 0.28)",
               fontSize: 12,
               fontWeight: 900,
-              color: "rgb(255, 170, 170)",
+              color: "rgb(235, 176, 134)",
             }}
           >
             Inválidas: {invalidEditedCount}
@@ -1954,12 +1954,12 @@ export default function SustainabilityProvTable() {
             flexShrink: 0,
             border:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "1px solid rgba(102,199,255,.45)"
-                : "1px solid rgba(255,80,80,.45)",
+                ? "1px solid rgba(198,146,20,.45)"
+                : "1px solid rgba(216,93,39,.45)",
             background:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "rgba(102,199,255,.10)"
-                : "rgba(255,80,80,.10)",
+                ? "rgba(198,146,20,.10)"
+                : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -2166,7 +2166,7 @@ export default function SustainabilityProvTable() {
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(191,231,255,.18)",
+              border: "1px solid rgba(255,216,130,.18)",
             }}
           >
             Página {safePage} / {totalPages}

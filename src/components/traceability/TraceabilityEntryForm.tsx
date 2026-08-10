@@ -758,7 +758,7 @@ function RowItem({
                 maxWidth: c.width || 110,
                 padding: isNumber ? "6px 4px" : "6px 8px",
                 color: invalidUsdMatch && (c.key === "usd_tms" || c.key === "lot_usd" || c.key === "tms")
-                  ? "rgb(255,170,170)"
+                  ? "rgb(235,176,134)"
                   : "rgb(185,185,185)",
               }}
               title={show || "—"}
@@ -804,13 +804,13 @@ function RowItem({
                     ? null
                     : invalidUsdMatch
                     ? {
-                        border: "1px solid rgba(255, 92, 92, 0.75)",
-                        background: "rgba(120, 30, 30, 0.22)",
+                        border: "1px solid rgba(216, 93, 39, 0.75)",
+                        background: "rgba(216, 93, 39, 0.22)",
                       }
                     : validUsdMatch
                     ? {
-                        border: "1px solid rgba(92, 211, 158, 0.55)",
-                        background: "rgba(38, 120, 88, 0.18)",
+                        border: "1px solid rgba(147, 178, 92, 0.55)",
+                        background: "rgba(94, 128, 25, 0.18)",
                       }
                     : null),
                 }}
@@ -839,13 +839,13 @@ function RowItem({
                     ? null
                     : invalidUsdMatch
                     ? {
-                        border: "1px solid rgba(255, 92, 92, 0.75)",
-                        background: "rgba(120, 30, 30, 0.22)",
+                        border: "1px solid rgba(216, 93, 39, 0.75)",
+                        background: "rgba(216, 93, 39, 0.22)",
                       }
                     : validUsdMatch
                     ? {
-                        border: "1px solid rgba(92, 211, 158, 0.55)",
-                        background: "rgba(38, 120, 88, 0.18)",
+                        border: "1px solid rgba(147, 178, 92, 0.55)",
+                        background: "rgba(94, 128, 25, 0.18)",
                       }
                     : null),
                 }}
@@ -1491,14 +1491,14 @@ useEffect(() => {
     return sortDir === "asc" ? " ▲" : " ▼";
   }
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
-  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
+  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
   const headerShadow = "none";
   const rowBg = "rgba(0,0,0,.10)";
-  const editedRowBg = "rgba(30, 110, 74, 0.28)";
-  const invalidRowBg = "rgba(120, 24, 24, 0.34)";
+  const editedRowBg = "rgba(94, 128, 25, 0.28)";
+  const invalidRowBg = "rgba(216, 93, 39, 0.34)";
 
   const stickyHead: React.CSSProperties = {
     position: "sticky",
@@ -1519,7 +1519,7 @@ useEffect(() => {
   };
 
   const inputBase: React.CSSProperties = {
-    border: "1px solid rgba(191,231,255,.18)",
+    border: "1px solid rgba(255,216,130,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
     fontWeight: 900,
@@ -1570,11 +1570,11 @@ useEffect(() => {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(92, 211, 158, 0.45)",
-            background: editedCount > 0 ? "rgba(38, 120, 88, 0.24)" : "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(147, 178, 92, 0.45)",
+            background: editedCount > 0 ? "rgba(94, 128, 25, 0.24)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: editedCount > 0 ? "rgb(160, 255, 214)" : "rgba(255,255,255,0.8)",
+            color: editedCount > 0 ? "rgb(174, 202, 125)" : "rgba(255,255,255,0.8)",
           }}
         >
           Editadas: {editedCount}
@@ -1588,19 +1588,19 @@ useEffect(() => {
             borderRadius: 999,
             border:
               valuationFilter === "invalid"
-                ? "1px solid rgba(255, 92, 92, 0.95)"
+                ? "1px solid rgba(216, 93, 39, 0.95)"
                 : invalidCount > 0
-                ? "1px solid rgba(255, 92, 92, 0.65)"
+                ? "1px solid rgba(216, 93, 39, 0.65)"
                 : "1px solid rgba(255,255,255,0.12)",
             background:
               valuationFilter === "invalid"
-                ? "rgba(120, 24, 24, 0.45)"
+                ? "rgba(216, 93, 39, 0.45)"
                 : invalidCount > 0
-                ? "rgba(120, 24, 24, 0.28)"
+                ? "rgba(216, 93, 39, 0.28)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: invalidCount > 0 ? "rgb(255, 170, 170)" : "rgba(255,255,255,0.8)",
+            color: invalidCount > 0 ? "rgb(235, 176, 134)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
         >
@@ -1615,15 +1615,15 @@ useEffect(() => {
             borderRadius: 999,
             border:
               valuationFilter === "valid"
-                ? "1px solid rgba(92, 211, 158, 0.95)"
-                : "1px solid rgba(92, 211, 158, 0.45)",
+                ? "1px solid rgba(147, 178, 92, 0.95)"
+                : "1px solid rgba(147, 178, 92, 0.45)",
             background:
               valuationFilter === "valid"
-                ? "rgba(38, 120, 88, 0.40)"
-                : "rgba(38, 120, 88, 0.24)",
+                ? "rgba(94, 128, 25, 0.40)"
+                : "rgba(94, 128, 25, 0.24)",
             fontSize: 12,
             fontWeight: 900,
-            color: "rgb(160, 255, 214)",
+            color: "rgb(174, 202, 125)",
             cursor: "pointer",
           }}
         >
@@ -1659,11 +1659,11 @@ useEffect(() => {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: valuationFilter === "all" ? "1px solid rgba(102,199,255,.55)" : "1px solid rgba(255,255,255,0.12)",
-            background: valuationFilter === "all" ? "rgba(102,199,255,.16)" : "rgba(255,255,255,0.06)",
+            border: valuationFilter === "all" ? "1px solid rgba(198,146,20,.55)" : "1px solid rgba(255,255,255,0.12)",
+            background: valuationFilter === "all" ? "rgba(198,146,20,.16)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: valuationFilter === "all" ? "rgb(170, 225, 255)" : "rgba(255,255,255,0.8)",
+            color: valuationFilter === "all" ? "rgb(255, 216, 130)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
         >
@@ -1774,12 +1774,12 @@ useEffect(() => {
             flexShrink: 0,
             border:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "1px solid rgba(102,199,255,.45)"
-                : "1px solid rgba(255,80,80,.45)",
+                ? "1px solid rgba(198,146,20,.45)"
+                : "1px solid rgba(216,93,39,.45)",
             background:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "rgba(102,199,255,.10)"
-                : "rgba(255,80,80,.10)",
+                ? "rgba(198,146,20,.10)"
+                : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -1941,7 +1941,7 @@ useEffect(() => {
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(191,231,255,.18)",
+              border: "1px solid rgba(255,216,130,.18)",
             }}
           >
             Página {safePage} / {totalPages}

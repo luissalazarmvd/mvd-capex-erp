@@ -265,7 +265,7 @@ function Select({
               right: 0,
               borderRadius: 12,
               border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(5, 25, 45, .98)",
+              background: "rgba(39, 39, 39, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
               maxHeight: 6 * 44,
@@ -288,7 +288,7 @@ function Select({
                     width: "100%",
                     textAlign: "left",
                     padding: "10px 12px",
-                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    background: active ? "rgba(198,146,20,.18)" : "transparent",
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
@@ -296,11 +296,11 @@ function Select({
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(102,199,255,.18)"
+                      ? "rgba(198,146,20,.18)"
                       : "rgba(255,255,255,.06)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as any).style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                    (e.currentTarget as any).style.background = active ? "rgba(198,146,20,.18)" : "transparent";
                   }}
                 >
                   {o.label}
@@ -515,9 +515,9 @@ export default function RefineryReportsPage() {
               marginTop: 10,
               padding: 10,
               border: msg.startsWith("ERROR")
-                ? "1px solid rgba(255,80,80,.45)"
+                ? "1px solid rgba(216,93,39,.45)"
                 : "1px solid rgba(255,255,255,.10)",
-              background: msg.startsWith("ERROR") ? "rgba(255,80,80,.10)" : "rgba(255,255,255,.04)",
+              background: msg.startsWith("ERROR") ? "rgba(216,93,39,.10)" : "rgba(255,255,255,.04)",
               fontWeight: 800,
               borderRadius: 12,
             }}

@@ -265,7 +265,7 @@ function Select({
               right: 0,
               borderRadius: 12,
               border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(5, 25, 45, .98)",
+              background: "rgba(39, 39, 39, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
             }}
@@ -285,7 +285,7 @@ function Select({
                     width: "100%",
                     textAlign: "left",
                     padding: "10px 12px",
-                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    background: active ? "rgba(198,146,20,.18)" : "transparent",
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
@@ -293,11 +293,11 @@ function Select({
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(102,199,255,.18)"
+                      ? "rgba(198,146,20,.18)"
                       : "rgba(255,255,255,.06)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as any).style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                    (e.currentTarget as any).style.background = active ? "rgba(198,146,20,.18)" : "transparent";
                   }}
                 >
                   {o.label}
@@ -864,7 +864,7 @@ export default function CarbonPage() {
     textAlign: "center",
   };
 
-  const groupBorder = "1px solid rgba(191, 231, 255, 0.22)";
+  const groupBorder = "1px solid rgba(255, 216, 130, 0.22)";
   const groupBg = "rgba(0,0,0,.08)";
 
   const auHeadTL: React.CSSProperties = { borderTopLeftRadius: 12 };
@@ -880,8 +880,8 @@ export default function CarbonPage() {
   const GAP_W = 14;
   const HEADER_ROW1_H = 44;
 
-  const solidHeaderBg = "rgb(6, 36, 58)";
-  const solidHeaderBorder = "1px solid rgba(191, 231, 255, 0.26)";
+  const solidHeaderBg = "rgb(39, 39, 39)";
+  const solidHeaderBorder = "1px solid rgba(255, 216, 130, 0.26)";
   const solidHeaderShadow = "0 8px 18px rgba(0,0,0,.18)";
 
   const stickyRow1: React.CSSProperties = {
@@ -900,7 +900,7 @@ export default function CarbonPage() {
     boxShadow: solidHeaderShadow,
   };
 
-  const stickyDayBg = "rgb(6, 36, 58)";
+  const stickyDayBg = "rgb(39, 39, 39)";
 
   const monthOptions = useMemo(() => MONTHS.map((m) => ({ value: String(m.value), label: m.label })), []);
 
@@ -1214,8 +1214,8 @@ export default function CarbonPage() {
           className="panel-inner"
           style={{
             padding: 10,
-            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            border: msg.startsWith("OK") ? "1px solid rgba(198,146,20,.45)" : "1px solid rgba(216,93,39,.45)",
+            background: msg.startsWith("OK") ? "rgba(198,146,20,.10)" : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -1360,7 +1360,7 @@ export default function CarbonPage() {
                   <tr
                     key={r.tank_day}
                     className="capex-tr"
-                    style={{ background: isDirty ? "rgba(102,199,255,.05)" : "transparent" }}
+                    style={{ background: isDirty ? "rgba(198,146,20,.05)" : "transparent" }}
                   >
                     <td
                       className="capex-td capex-td-strong"
@@ -1368,7 +1368,7 @@ export default function CarbonPage() {
                         position: "sticky",
                         left: 0,
                         zIndex: 2,
-                        background: isDirty ? "rgba(102,199,255,.05)" : "rgba(0,0,0,.18)",
+                        background: isDirty ? "rgba(198,146,20,.05)" : "rgba(0,0,0,.18)",
                         minWidth: 150,
                         padding: "6px 10px",
                       }}
@@ -1379,7 +1379,7 @@ export default function CarbonPage() {
                           {weekdayShort(r.tank_day)}
                         </div>
                         {!valid ? (
-                          <div style={{ marginLeft: 8, fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>
+                          <div style={{ marginLeft: 8, fontSize: 11, fontWeight: 900, color: "rgba(229,149,103,.95)" }}>
                             Inválido
                           </div>
                         ) : null}
@@ -1413,8 +1413,8 @@ export default function CarbonPage() {
                             onKeyDown={(e) => onMonthGridKeyDown(e, rowIdx, k)}
                             style={{
                               ...inputStyle,
-                              border: ok ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                              background: ok ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                              border: ok ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                              background: ok ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                               opacity: savingAll || loading ? 0.7 : 1,
                             }}
                           />
@@ -1460,8 +1460,8 @@ export default function CarbonPage() {
                             onKeyDown={(e) => onMonthGridKeyDown(e, rowIdx, k)}
                             style={{
                               ...inputStyle,
-                              border: ok ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                              background: ok ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                              border: ok ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                              background: ok ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                               opacity: savingAll || loading ? 0.7 : 1,
                             }}
                           />
@@ -1497,8 +1497,8 @@ export default function CarbonPage() {
           className="panel-inner"
           style={{
             padding: 10,
-            border: qtyMsg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: qtyMsg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            border: qtyMsg.startsWith("OK") ? "1px solid rgba(198,146,20,.45)" : "1px solid rgba(216,93,39,.45)",
+            background: qtyMsg.startsWith("OK") ? "rgba(198,146,20,.10)" : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -1557,11 +1557,11 @@ export default function CarbonPage() {
             const okCy2 = !meaningful || !l2.active || (okIntNonNegOrEmpty(r.cycles_2) && String(r.cycles_2 || "").trim() !== "");
 
             return (
-              <tr key={r.tank} className="capex-tr" style={{ background: isD ? "rgba(102,199,255,.05)" : "transparent" }}>
+              <tr key={r.tank} className="capex-tr" style={{ background: isD ? "rgba(198,146,20,.05)" : "transparent" }}>
                 <td className="capex-td capex-td-strong" style={{ fontWeight: 900 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <div>{r.tank}</div>
-                    {!valid ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Inválido</div> : null}
+                    {!valid ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(229,149,103,.95)" }}>Inválido</div> : null}
                   </div>
                 </td>
 
@@ -1573,8 +1573,8 @@ export default function CarbonPage() {
                     onChange={(e) => setQtyCell(r.tank, "entry_date", e.target.value)}
                     style={{
                       ...qtyInputStyle,
-                      border: okDate ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                      background: okDate ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                      border: okDate ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                      background: okDate ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                       opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                     }}
                   />
@@ -1596,8 +1596,8 @@ export default function CarbonPage() {
                           ...qtyInputStyle,
                           width: 54,
                           textAlign: "center",
-                          border: ok2DigitsOrEmpty(r.campaign1_mm) && okCamp1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                          background: ok2DigitsOrEmpty(r.campaign1_mm) && okCamp1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          border: ok2DigitsOrEmpty(r.campaign1_mm) && okCamp1 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign1_mm) && okCamp1 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                           opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                         }}
                         placeholder="MM"
@@ -1615,8 +1615,8 @@ export default function CarbonPage() {
                           ...qtyInputStyle,
                           width: 54,
                           textAlign: "center",
-                          border: ok2DigitsOrEmpty(r.campaign1_seq) && okCamp1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                          background: ok2DigitsOrEmpty(r.campaign1_seq) && okCamp1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          border: ok2DigitsOrEmpty(r.campaign1_seq) && okCamp1 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign1_seq) && okCamp1 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                           opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                         }}
                         placeholder="##"
@@ -1638,8 +1638,8 @@ export default function CarbonPage() {
                           ...qtyInputStyle,
                           width: 54,
                           textAlign: "center",
-                          border: ok2DigitsOrEmpty(r.campaign2_mm) && okCamp2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                          background: ok2DigitsOrEmpty(r.campaign2_mm) && okCamp2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          border: ok2DigitsOrEmpty(r.campaign2_mm) && okCamp2 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign2_mm) && okCamp2 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                           opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                         }}
                         placeholder="MM"
@@ -1657,8 +1657,8 @@ export default function CarbonPage() {
                           ...qtyInputStyle,
                           width: 54,
                           textAlign: "center",
-                          border: ok2DigitsOrEmpty(r.campaign2_seq) && okCamp2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                          background: ok2DigitsOrEmpty(r.campaign2_seq) && okCamp2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                          border: ok2DigitsOrEmpty(r.campaign2_seq) && okCamp2 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                          background: ok2DigitsOrEmpty(r.campaign2_seq) && okCamp2 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                           opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                         }}
                         placeholder="##"
@@ -1667,7 +1667,7 @@ export default function CarbonPage() {
                     </div>
 
                     {meaningful && !(l1.campComplete || l2.campComplete) ? (
-                      <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(255,120,120,.95)" }}>Mínimo 1 campaña completa</div>
+                      <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(229,149,103,.95)" }}>Mínimo 1 campaña completa</div>
                     ) : null}
                   </div>
                 </td>
@@ -1681,8 +1681,8 @@ export default function CarbonPage() {
                       style={{
                         ...qtyInputStyle,
                         textAlign: "right",
-                        border: okKg1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                        background: okKg1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        border: okKg1 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                        background: okKg1 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                         opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                       }}
                       placeholder="0.000"
@@ -1694,8 +1694,8 @@ export default function CarbonPage() {
                       style={{
                         ...qtyInputStyle,
                         textAlign: "right",
-                        border: okKg2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                        background: okKg2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        border: okKg2 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                        background: okKg2 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                         opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                       }}
                       placeholder="0.000"
@@ -1712,8 +1712,8 @@ export default function CarbonPage() {
                       style={{
                         ...qtyInputStyle,
                         textAlign: "right",
-                        border: okEff1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                        background: okEff1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        border: okEff1 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                        background: okEff1 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                         opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                       }}
                       placeholder="0-100"
@@ -1725,8 +1725,8 @@ export default function CarbonPage() {
                       style={{
                         ...qtyInputStyle,
                         textAlign: "right",
-                        border: okEff2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                        background: okEff2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        border: okEff2 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                        background: okEff2 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                         opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                       }}
                       placeholder="0-100"
@@ -1743,8 +1743,8 @@ export default function CarbonPage() {
                       style={{
                         ...qtyInputStyle,
                         textAlign: "right",
-                        border: okCy1 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                        background: okCy1 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        border: okCy1 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                        background: okCy1 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                         opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                       }}
                       placeholder="0"
@@ -1756,8 +1756,8 @@ export default function CarbonPage() {
                       style={{
                         ...qtyInputStyle,
                         textAlign: "right",
-                        border: okCy2 ? "1px solid var(--border)" : "1px solid rgba(255,80,80,.55)",
-                        background: okCy2 ? "rgba(0,0,0,.10)" : "rgba(255,80,80,.08)",
+                        border: okCy2 ? "1px solid var(--border)" : "1px solid rgba(216,93,39,.55)",
+                        background: okCy2 ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.08)",
                         opacity: qtySaving || qtyLoading || loading || savingAll ? 0.7 : 1,
                       }}
                       placeholder="0"

@@ -54,15 +54,15 @@ function Stat({
         gap: 4,
         padding: "8px 10px",
         borderRadius: 12,
-        border: danger ? "1px solid rgba(255,80,80,.45)" : "1px solid rgba(255,255,255,.08)",
-        background: danger ? "rgba(255,80,80,.12)" : "rgba(0,0,0,.08)",
+        border: danger ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,.08)",
+        background: danger ? "rgba(216,93,39,.12)" : "rgba(0,0,0,.08)",
         minWidth: 150,
       }}
     >
-      <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, color: danger ? "#ff9b9b" : undefined }}>
+      <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, color: danger ? "#EBB086" : undefined }}>
         {label}
       </div>
-      <div style={{ fontWeight: 900, fontSize: 16, lineHeight: "18px", color: danger ? "#ffb3b3" : undefined }}>
+      <div style={{ fontWeight: 900, fontSize: 16, lineHeight: "18px", color: danger ? "#EBB086" : undefined }}>
         {value}
       </div>
     </div>
@@ -128,8 +128,8 @@ export default function Summary({ campaignId }: { campaignId: string }) {
           style={{
             padding: 10,
             marginBottom: 10,
-            border: msg.startsWith("ERROR") ? "1px solid rgba(255,80,80,.45)" : "1px solid rgba(255,255,255,.10)",
-            background: msg.startsWith("ERROR") ? "rgba(255,80,80,.10)" : "rgba(255,255,255,.04)",
+            border: msg.startsWith("ERROR") ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,.10)",
+            background: msg.startsWith("ERROR") ? "rgba(216,93,39,.10)" : "rgba(255,255,255,.04)",
             fontWeight: 800,
             borderRadius: 12,
           }}

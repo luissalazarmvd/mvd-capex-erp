@@ -178,7 +178,7 @@ function DarkSelect({
             height: 0,
             borderLeft: "6px solid transparent",
             borderRight: "6px solid transparent",
-            borderTop: "7px solid rgba(191,231,255,.75)",
+            borderTop: "7px solid rgba(255,216,130,.75)",
             opacity: 0.9,
           }}
         />
@@ -217,19 +217,19 @@ function DarkSelect({
                     textAlign: "left",
                     padding: "10px 12px",
                     border: "none",
-                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    background: active ? "rgba(198,146,20,.18)" : "transparent",
                     color: "#fff",
                     cursor: "pointer",
                     fontWeight: active ? 900 : 800,
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLButtonElement).style.background = active
-                      ? "rgba(102,199,255,.18)"
-                      : "rgba(102,199,255,.10)";
+                      ? "rgba(198,146,20,.18)"
+                      : "rgba(198,146,20,.10)";
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as HTMLButtonElement).style.background = active
-                      ? "rgba(102,199,255,.18)"
+                      ? "rgba(198,146,20,.18)"
                       : "transparent";
                   }}
                 >
@@ -639,8 +639,8 @@ export default function ProjectsPage() {
                       textAlign: "left",
                       padding: "10px 12px",
                       borderRadius: 12,
-                      border: "1px solid rgba(191,231,255,.18)",
-                      background: active ? "rgba(191,231,255,.12)" : "rgba(0,0,0,.08)",
+                      border: "1px solid rgba(255,216,130,.18)",
+                      background: active ? "rgba(255,216,130,.12)" : "rgba(0,0,0,.08)",
                       color: "var(--text)",
                       cursor: "pointer",
                       fontWeight: 900,
@@ -662,8 +662,8 @@ export default function ProjectsPage() {
             className="panel-inner"
             style={{
               padding: 12,
-              border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-              background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+              border: msg.startsWith("OK") ? "1px solid rgba(198,146,20,.45)" : "1px solid rgba(216,93,39,.45)",
+              background: msg.startsWith("OK") ? "rgba(198,146,20,.10)" : "rgba(216,93,39,.10)",
               fontWeight: 800,
             }}
           >

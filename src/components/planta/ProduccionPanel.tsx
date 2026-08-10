@@ -221,8 +221,8 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: 
           className="panel-inner"
           style={{
             padding: 10,
-            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            border: msg.startsWith("OK") ? "1px solid rgba(198,146,20,.45)" : "1px solid rgba(216,93,39,.45)",
+            background: msg.startsWith("OK") ? "rgba(198,146,20,.10)" : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -240,7 +240,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: 
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDensityOf(e.target.value)}
               disabled={!sid || saving || loadingExisting}
               hint=""
-              style={densityInvalid ? { border: "1px solid rgba(255,80,80,.55)", background: "rgba(255,80,80,.10)" } : undefined}
+              style={densityInvalid ? { border: "1px solid rgba(216,93,39,.55)", background: "rgba(216,93,39,.10)" } : undefined}
             />
           </div>
 
@@ -252,7 +252,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: 
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPct200(e.target.value)}
               disabled={!sid || saving || loadingExisting}
               hint=""
-              style={pct200Invalid ? { border: "1px solid rgba(255,80,80,.55)", background: "rgba(255,80,80,.10)" } : undefined}
+              style={pct200Invalid ? { border: "1px solid rgba(216,93,39,.55)", background: "rgba(216,93,39,.10)" } : undefined}
             />
           </div>
         </div>
@@ -264,7 +264,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: 
         ) : null}
 
         {sid && !loadingExisting && !allValid ? (
-          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12, color: "rgba(255,120,120,.95)" }}>
+          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12, color: "rgba(229,149,103,.95)" }}>
             Corrige valores inválidos.
           </div>
         ) : null}

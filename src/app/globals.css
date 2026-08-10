@@ -1,15 +1,27 @@
 /* src/styles/globals.css */
 :root {
-  --bg: #0067ac;        /* fondo general */
-  --header: #0a5a94;    /* topbar */
-  --panel: #064a79;     /* contenedores */
-  --panel2: #053e67;    /* panel más profundo */
-  --accent: #bfe7ff;    /* celeste claro (texto/lineas) */
-  --accent2: #66c7ff;   /* hover / énfasis */
-  --text: #f7f9fb;      /* texto principal */
-  --muted: rgba(191,231,255,.75);
-  --border: rgba(191,231,255,.22);
-  --shadow: 0 10px 30px rgba(0,0,0,.18);
+  /* Paleta oficial Veta Dorada 2026 */
+  --brand-blue: #0067ac;
+  --brand-blue-light: #1b93e3;
+  --brand-gold: #c69214;
+  --brand-gold-light: #ffd882;
+  --brand-black: #272727;
+  --brand-gray: #757679;
+  --brand-success: #5e8019;
+  --brand-warning: #ffb71b;
+  --brand-danger: #d85d27;
+  --brand-info: #00a5ce;
+
+  --bg: #272727;
+  --header: linear-gradient(135deg, #0067ac 0%, #1b93e3 100%);
+  --panel: #3f3f3a;
+  --panel2: #272727;
+  --accent: #ffd882;
+  --accent2: #c69214;
+  --text: #ffffff;
+  --muted: rgba(255,216,130,.78);
+  --border: rgba(255,216,130,.26);
+  --shadow: 0 10px 30px rgba(0,0,0,.24);
 }
 
 html, body { height: 100%; }
@@ -17,7 +29,18 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: var(--font-exo), Arial, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+[style*="font-family"] {
+  font-family: var(--font-exo), Arial, sans-serif !important;
 }
 
 * { box-sizing: border-box; }
@@ -59,8 +82,8 @@ body {
 }
 
 .input:focus {
-  border-color: rgba(102,199,255,.85);
-  box-shadow: 0 0 0 3px rgba(102,199,255,.18);
+  border-color: rgba(198,146,20,.85);
+  box-shadow: 0 0 0 3px rgba(198,146,20,.18);
 }
 
 .select {
@@ -75,8 +98,8 @@ body {
 
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: rgba(0,0,0,.12); border-radius: 999px; }
-*::-webkit-scrollbar-thumb { background: rgba(191,231,255,.30); border-radius: 999px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(191,231,255,.45); }
+*::-webkit-scrollbar-thumb { background: rgba(198,146,20,.45); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(255,216,130,.65); }
 
 .container-fluid{
   max-width: none !important;
@@ -96,7 +119,8 @@ body {
 }
 
 .nav-pill:hover{
-  opacity: .85;
+  color: var(--brand-gold-light) !important;
+  opacity: 1;
 }
 
 header a,

@@ -27,13 +27,13 @@ const variantStyles: Record<Variant, React.CSSProperties> = {
     color: "var(--text)",
   },
   primary: {
-    background: "rgba(102,199,255,.22)",
-    border: "1px solid rgba(102,199,255,.55)",
-    color: "var(--text)",
+    background: "var(--brand-gold)",
+    border: "1px solid var(--brand-gold-light)",
+    color: "var(--brand-black)",
   },
   danger: {
-    background: "rgba(255,80,80,.18)",
-    border: "1px solid rgba(255,80,80,.45)",
+    background: "rgba(216,93,39,.22)",
+    border: "1px solid rgba(229,149,103,.65)",
     color: "var(--text)",
   },
 };
@@ -59,14 +59,13 @@ export function Button({ variant = "default", size = "md", style, disabled, ...p
       }}
       onMouseEnter={(e) => {
         if (disabled) return;
-        e.currentTarget.style.borderColor = "rgba(102,199,255,.75)";
-        e.currentTarget.style.background = variant === "primary" ? "rgba(102,199,255,.28)" : "rgba(0,0,0,.18)";
+        e.currentTarget.style.borderColor = "var(--brand-gold-light)";
+        e.currentTarget.style.background = variant === "primary" ? "var(--brand-gold-light)" : "rgba(0,0,0,.18)";
       }}
       onMouseLeave={(e) => {
         if (disabled) return;
         const v = variantStyles[variant];
-        e.currentTarget.style.borderColor =
-          (v.border as string)?.includes("rgba") ? (v.border as string).split(" ").pop()! : "var(--border)";
+        e.currentTarget.style.border = v.border as string;
         e.currentTarget.style.background = v.background as string;
       }}
     />

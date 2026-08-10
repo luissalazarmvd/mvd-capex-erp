@@ -52,8 +52,8 @@ export function SaveBar({ dirtyCount, isSaving = false, lastSavedAt, error, onSa
             marginTop: 8,
             padding: "10px 12px",
             borderRadius: 12,
-            border: "1px solid rgba(255,80,80,.55)",
-            background: "rgba(255,80,80,.10)",
+            border: "1px solid rgba(216,93,39,.55)",
+            background: "rgba(216,93,39,.10)",
             color: "var(--text)",
             fontWeight: 800,
           }}

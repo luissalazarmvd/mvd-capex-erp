@@ -455,7 +455,7 @@ function RowItem({
                 minWidth: colWidth,
                 maxWidth: colWidth,
                 padding: isNumber ? "6px 4px" : "6px 8px",
-                color: pending ? "rgb(255,190,190)" : "rgb(185,185,185)",
+                color: pending ? "rgb(229,149,103)" : "rgb(185,185,185)",
               }}
               title={show || "—"}
             >
@@ -526,7 +526,7 @@ function RowItem({
                       minWidth: 0,
                       textAlign: "left",
                       background: "rgba(0,0,0,.10)",
-                      border: pending ? "1px solid rgba(255, 92, 92, 0.75)" : "1px solid var(--border)",
+                      border: pending ? "1px solid rgba(216, 93, 39, 0.75)" : "1px solid var(--border)",
                       color: "var(--text)",
                       borderRadius: 10,
                       padding: "10px 12px",
@@ -560,7 +560,7 @@ function RowItem({
                         zIndex: 99999,
                         borderRadius: 12,
                         border: "1px solid rgba(255,255,255,.10)",
-                        background: "rgba(5, 25, 45, .98)",
+                        background: "rgba(39, 39, 39, .98)",
                         boxShadow: "0 10px 30px rgba(0,0,0,.45)",
                         overflowY: "auto",
                         overflowX: "hidden",
@@ -591,7 +591,7 @@ function RowItem({
                               width: "100%",
                               textAlign: "left",
                               padding: "10px 12px",
-                              background: active ? "rgba(102,199,255,.18)" : "transparent",
+                              background: active ? "rgba(198,146,20,.18)" : "transparent",
                               color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                               border: "none",
                               cursor: "pointer",
@@ -602,12 +602,12 @@ function RowItem({
                             }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.background = active
-                                ? "rgba(102,199,255,.18)"
+                                ? "rgba(198,146,20,.18)"
                                 : "rgba(255,255,255,.06)";
                             }}
                             onMouseLeave={(e) => {
                               e.currentTarget.style.background = active
-                                ? "rgba(102,199,255,.18)"
+                                ? "rgba(198,146,20,.18)"
                                 : "transparent";
                             }}
                           >
@@ -1062,13 +1062,13 @@ export default function TraceabilityStatusForm() {
     return sortDir === "asc" ? " ▲" : " ▼";
   }
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
-  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
+  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
-  const editedRowBg = "rgba(30, 110, 74, 0.28)";
-  const pendingRowBg = "rgba(120, 24, 24, 0.34)";
+  const editedRowBg = "rgba(94, 128, 25, 0.28)";
+  const pendingRowBg = "rgba(216, 93, 39, 0.34)";
 
   const stickyHead: React.CSSProperties = {
     position: "sticky",
@@ -1089,7 +1089,7 @@ export default function TraceabilityStatusForm() {
   };
 
   const inputBase: React.CSSProperties = {
-    border: "1px solid rgba(191,231,255,.18)",
+    border: "1px solid rgba(255,216,130,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
     fontWeight: 900,
@@ -1134,11 +1134,11 @@ export default function TraceabilityStatusForm() {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: "1px solid rgba(92, 211, 158, 0.45)",
-            background: editedCount > 0 ? "rgba(38, 120, 88, 0.24)" : "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(147, 178, 92, 0.45)",
+            background: editedCount > 0 ? "rgba(94, 128, 25, 0.24)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: editedCount > 0 ? "rgb(160, 255, 214)" : "rgba(255,255,255,0.8)",
+            color: editedCount > 0 ? "rgb(174, 202, 125)" : "rgba(255,255,255,0.8)",
           }}
         >
           Editadas: {editedCount}
@@ -1152,19 +1152,19 @@ export default function TraceabilityStatusForm() {
             borderRadius: 999,
             border:
               statusFilter === "pending"
-                ? "1px solid rgba(255, 92, 92, 0.95)"
+                ? "1px solid rgba(216, 93, 39, 0.95)"
                 : pendingCount > 0
-                ? "1px solid rgba(255, 92, 92, 0.65)"
+                ? "1px solid rgba(216, 93, 39, 0.65)"
                 : "1px solid rgba(255,255,255,0.12)",
             background:
               statusFilter === "pending"
-                ? "rgba(120, 24, 24, 0.45)"
+                ? "rgba(216, 93, 39, 0.45)"
                 : pendingCount > 0
-                ? "rgba(120, 24, 24, 0.28)"
+                ? "rgba(216, 93, 39, 0.28)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: pendingCount > 0 ? "rgb(255, 170, 170)" : "rgba(255,255,255,0.8)",
+            color: pendingCount > 0 ? "rgb(235, 176, 134)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
         >
@@ -1179,15 +1179,15 @@ export default function TraceabilityStatusForm() {
             borderRadius: 999,
             border:
               statusFilter === "mapped"
-                ? "1px solid rgba(92, 211, 158, 0.95)"
-                : "1px solid rgba(92, 211, 158, 0.45)",
+                ? "1px solid rgba(147, 178, 92, 0.95)"
+                : "1px solid rgba(147, 178, 92, 0.45)",
             background:
               statusFilter === "mapped"
-                ? "rgba(38, 120, 88, 0.40)"
-                : "rgba(38, 120, 88, 0.24)",
+                ? "rgba(94, 128, 25, 0.40)"
+                : "rgba(94, 128, 25, 0.24)",
             fontSize: 12,
             fontWeight: 900,
-            color: "rgb(160, 255, 214)",
+            color: "rgb(174, 202, 125)",
             cursor: "pointer",
           }}
         >
@@ -1200,11 +1200,11 @@ export default function TraceabilityStatusForm() {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            border: statusFilter === "all" ? "1px solid rgba(102,199,255,.55)" : "1px solid rgba(255,255,255,0.12)",
-            background: statusFilter === "all" ? "rgba(102,199,255,.16)" : "rgba(255,255,255,0.06)",
+            border: statusFilter === "all" ? "1px solid rgba(198,146,20,.55)" : "1px solid rgba(255,255,255,0.12)",
+            background: statusFilter === "all" ? "rgba(198,146,20,.16)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
             fontWeight: 900,
-            color: statusFilter === "all" ? "rgb(170, 225, 255)" : "rgba(255,255,255,0.8)",
+            color: statusFilter === "all" ? "rgb(255, 216, 130)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
         >
@@ -1297,12 +1297,12 @@ export default function TraceabilityStatusForm() {
             flexShrink: 0,
             border:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "1px solid rgba(102,199,255,.45)"
-                : "1px solid rgba(255,80,80,.45)",
+                ? "1px solid rgba(198,146,20,.45)"
+                : "1px solid rgba(216,93,39,.45)",
             background:
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
-                ? "rgba(102,199,255,.10)"
-                : "rgba(255,80,80,.10)",
+                ? "rgba(198,146,20,.10)"
+                : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -1460,7 +1460,7 @@ export default function TraceabilityStatusForm() {
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(191,231,255,.18)",
+              border: "1px solid rgba(255,216,130,.18)",
             }}
           >
             Página {safePage} / {totalPages}

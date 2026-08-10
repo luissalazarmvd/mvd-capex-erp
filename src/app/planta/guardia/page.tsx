@@ -171,7 +171,7 @@ function Select({
               right: 0,
               borderRadius: 12,
               border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(5, 25, 45, .98)",
+              background: "rgba(39, 39, 39, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
             }}
@@ -191,7 +191,7 @@ function Select({
                     width: "100%",
                     textAlign: "left",
                     padding: "10px 12px",
-                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    background: active ? "rgba(198,146,20,.18)" : "transparent",
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
@@ -199,12 +199,12 @@ function Select({
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(102,199,255,.18)"
+                      ? "rgba(198,146,20,.18)"
                       : "rgba(255,255,255,.06)";
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(102,199,255,.18)"
+                      ? "rgba(198,146,20,.18)"
                       : "transparent";
                   }}
                 >
@@ -646,8 +646,8 @@ export default function GuardiaPage() {
           className="panel-inner"
           style={{
             padding: 12,
-            border: msg.startsWith("OK") ? "1px solid rgba(102,199,255,.45)" : "1px solid rgba(255,80,80,.45)",
-            background: msg.startsWith("OK") ? "rgba(102,199,255,.10)" : "rgba(255,80,80,.10)",
+            border: msg.startsWith("OK") ? "1px solid rgba(198,146,20,.45)" : "1px solid rgba(216,93,39,.45)",
+            background: msg.startsWith("OK") ? "rgba(198,146,20,.10)" : "rgba(216,93,39,.10)",
             fontWeight: 800,
           }}
         >
@@ -743,7 +743,7 @@ export default function GuardiaPage() {
                               style={{
                                 width: 60,
                                 background: "rgba(0,0,0,.10)",
-                                border: showInvalid ? "1px solid rgba(255,80,80,.60)" : "1px solid var(--border)",
+                                border: showInvalid ? "1px solid rgba(216,93,39,.60)" : "1px solid var(--border)",
                                 color: "var(--text)",
                                 borderRadius: 10,
                                 padding: "10px 10px",
@@ -823,7 +823,7 @@ export default function GuardiaPage() {
                               height: 36,
                               borderRadius: 10,
                               border: "1px solid rgba(255,255,255,.12)",
-                              background: "rgba(255,80,80,.10)",
+                              background: "rgba(216,93,39,.10)",
                               color: "rgba(255,255,255,.90)",
                               fontWeight: 950,
                               cursor: saving ? "not-allowed" : "pointer",
@@ -877,8 +877,8 @@ export default function GuardiaPage() {
                 className="panel-inner"
                 style={{
                   padding: 10,
-                  border: "1px solid rgba(255,80,80,.45)",
-                  background: "rgba(255,80,80,.10)",
+                  border: "1px solid rgba(216,93,39,.45)",
+                  background: "rgba(216,93,39,.10)",
                   fontWeight: 850,
                 }}
               >

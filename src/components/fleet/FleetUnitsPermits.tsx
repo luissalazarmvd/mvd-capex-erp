@@ -255,8 +255,8 @@ function getAlertStyle(status: unknown): React.CSSProperties {
 
   if (s === "Activo") {
     return {
-      border: "1px solid rgba(102,199,255,.45)",
-      background: "rgba(102,199,255,.10)",
+      border: "1px solid rgba(198,146,20,.45)",
+      background: "rgba(198,146,20,.10)",
     };
   }
 
@@ -269,15 +269,15 @@ function getAlertStyle(status: unknown): React.CSSProperties {
 
   if (s === "Por Renovar <15d") {
     return {
-      border: "1px solid rgba(255,170,60,.45)",
-      background: "rgba(255,170,60,.12)",
+      border: "1px solid rgba(255,183,27,.45)",
+      background: "rgba(255,183,27,.12)",
     };
   }
 
   if (s === "Vencido") {
     return {
-      border: "1px solid rgba(255,80,80,.50)",
-      background: "rgba(255,80,80,.13)",
+      border: "1px solid rgba(216,93,39,.50)",
+      background: "rgba(216,93,39,.13)",
     };
   }
 
@@ -742,10 +742,10 @@ export default function FleetUnitsPermits() {
     }
   }
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
-  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
+  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
 
   const stickyHead: React.CSSProperties = {
@@ -767,7 +767,7 @@ export default function FleetUnitsPermits() {
   };
 
   const inputBase: React.CSSProperties = {
-    border: "1px solid rgba(191,231,255,.18)",
+    border: "1px solid rgba(255,216,130,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
     fontWeight: 900,
@@ -782,7 +782,7 @@ export default function FleetUnitsPermits() {
   const previewInputStyle: React.CSSProperties = {
     width: "100%",
     background: "rgba(0,0,0,.12)",
-    border: "1px solid rgba(191,231,255,.16)",
+    border: "1px solid rgba(255,216,130,.16)",
     color: "var(--text)",
     borderRadius: 8,
     padding: "6px 8px",
@@ -871,7 +871,7 @@ export default function FleetUnitsPermits() {
                     color: "var(--text)",
                     cursor: "pointer",
                     outline: active ? "2px solid rgba(255,255,255,.55)" : "none",
-                    boxShadow: active ? "0 0 0 2px rgba(102,199,255,.18)" : "none",
+                    boxShadow: active ? "0 0 0 2px rgba(198,146,20,.18)" : "none",
                     ...getAlertStyle(status),
                   }}
                 >
@@ -905,7 +905,7 @@ export default function FleetUnitsPermits() {
                     color: "var(--text)",
                     cursor: "pointer",
                     outline: active ? "2px solid rgba(255,255,255,.55)" : "none",
-                    boxShadow: active ? "0 0 0 2px rgba(102,199,255,.18)" : "none",
+                    boxShadow: active ? "0 0 0 2px rgba(198,146,20,.18)" : "none",
                     ...getAlertStyle(status),
                   }}
                 >
@@ -986,11 +986,11 @@ export default function FleetUnitsPermits() {
               padding: "8px 10px",
               borderRadius: 10,
               border: msg.startsWith("ERROR")
-                ? "1px solid rgba(255,80,80,.45)"
-                : "1px solid rgba(102,199,255,.35)",
+                ? "1px solid rgba(216,93,39,.45)"
+                : "1px solid rgba(198,146,20,.35)",
               background: msg.startsWith("ERROR")
-                ? "rgba(255,80,80,.10)"
-                : "rgba(102,199,255,.08)",
+                ? "rgba(216,93,39,.10)"
+                : "rgba(198,146,20,.08)",
               fontSize: 12,
               fontWeight: 900,
             }}
@@ -1126,7 +1126,7 @@ export default function FleetUnitsPermits() {
 
         <div
           style={{
-            borderTop: "1px solid rgba(191,231,255,.12)",
+            borderTop: "1px solid rgba(255,216,130,.12)",
             padding: "8px 10px",
             display: "flex",
             gap: 8,
@@ -1240,19 +1240,19 @@ export default function FleetUnitsPermits() {
                 <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                   Filas únicas: {importSummary.unique_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(102,199,255,.45)", background: "rgba(102,199,255,.10)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(198,146,20,.45)", background: "rgba(198,146,20,.10)", fontSize: 12, fontWeight: 900 }}>
                   Válidas: {importSummary.valid_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(255,80,80,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(255,80,80,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                   Inválidas: {importSummary.invalid_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_plates > 0 ? "1px solid rgba(255,170,60,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_plates > 0 ? "rgba(255,170,60,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_plates > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_plates > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                   Placas repetidas: {importSummary.repeated_plates}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,170,60,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,170,60,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                   Filas extra repetidas: {importSummary.repeated_extra_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(102,199,255,.45)", background: "rgba(102,199,255,.10)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(198,146,20,.45)", background: "rgba(198,146,20,.10)", fontSize: 12, fontWeight: 900 }}>
                   A postear: {importSummary.post_rows}
                 </div>
               </div>
@@ -1263,7 +1263,7 @@ export default function FleetUnitsPermits() {
                 minWidth: 0,
                 minHeight: 0,
                 overflow: "auto",
-                border: "1px solid rgba(191,231,255,.12)",
+                border: "1px solid rgba(255,216,130,.12)",
                 borderRadius: 12,
               }}
             >
@@ -1296,7 +1296,7 @@ export default function FleetUnitsPermits() {
 
                   <tbody>
                     {previewRows.map((row) => {
-                      const bg = row.valid ? rowBg : "rgba(255,80,80,.10)";
+                      const bg = row.valid ? rowBg : "rgba(216,93,39,.10)";
 
                       return (
                         <tr key={`${row.row_num}_${row.plate}`} className="capex-tr">

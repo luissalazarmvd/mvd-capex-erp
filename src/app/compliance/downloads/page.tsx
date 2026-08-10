@@ -73,11 +73,11 @@ export default function ComplianceDownloadsPage() {
             padding: "10px 12px",
             borderRadius: 12,
             border: String(msg).startsWith("OK:")
-              ? "1px solid rgba(191, 231, 255, 0.22)"
-              : "1px solid rgba(255, 107, 107, 0.28)",
+              ? "1px solid rgba(255, 216, 130, 0.22)"
+              : "1px solid rgba(216, 93, 39, 0.28)",
             background: String(msg).startsWith("OK:")
               ? "rgba(255, 255, 255, 0.04)"
-              : "rgba(255, 107, 107, 0.10)",
+              : "rgba(216, 93, 39, 0.10)",
             color: "var(--text)",
             fontWeight: 800,
             fontSize: 13,

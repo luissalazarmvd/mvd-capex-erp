@@ -445,7 +445,7 @@ function Select({
               right: 0,
               borderRadius: 12,
               border: "1px solid rgba(255,255,255,.10)",
-              background: "rgba(5, 25, 45, .98)",
+              background: "rgba(39, 39, 39, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
               overflow: "hidden",
               maxHeight: 6 * 44,
@@ -468,7 +468,7 @@ function Select({
                     width: "100%",
                     textAlign: "left",
                     padding: "10px 12px",
-                    background: active ? "rgba(102,199,255,.18)" : "transparent",
+                    background: active ? "rgba(198,146,20,.18)" : "transparent",
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
@@ -476,11 +476,11 @@ function Select({
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
-                      ? "rgba(102,199,255,.18)"
+                      ? "rgba(198,146,20,.18)"
                       : "rgba(255,255,255,.06)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as any).style.background = active ? "rgba(102,199,255,.18)" : "transparent";
+                    (e.currentTarget as any).style.background = active ? "rgba(198,146,20,.18)" : "transparent";
                   }}
                 >
                   {o.label}
@@ -1396,10 +1396,10 @@ useEffect(() => {
     }
   }
 
-  const headerBg = "rgb(6, 36, 58)";
-  const headerBorder = "1px solid rgba(191, 231, 255, 0.26)";
-  const gridV = "1px solid rgba(191, 231, 255, 0.10)";
-  const gridH = "1px solid rgba(191, 231, 255, 0.08)";
+  const headerBg = "rgb(39, 39, 39)";
+  const headerBorder = "1px solid rgba(255, 216, 130, 0.26)";
+  const gridV = "1px solid rgba(255, 216, 130, 0.10)";
+  const gridH = "1px solid rgba(255, 216, 130, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
 
   const cellBase: React.CSSProperties = {
@@ -1415,7 +1415,7 @@ useEffect(() => {
   const previewInputStyle: React.CSSProperties = {
     width: "100%",
     background: "rgba(0,0,0,.12)",
-    border: "1px solid rgba(191,231,255,.16)",
+    border: "1px solid rgba(255,216,130,.16)",
     color: "var(--text)",
     borderRadius: 8,
     padding: "6px 8px",
@@ -1563,16 +1563,16 @@ useEffect(() => {
                   <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                     Filas únicas: {importSummary.unique_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(102,199,255,.45)", background: "rgba(102,199,255,.10)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(198,146,20,.45)", background: "rgba(198,146,20,.10)", fontSize: 12, fontWeight: 900 }}>
                     Válidas: {importSummary.valid_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(255,80,80,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(255,80,80,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                     Inválidas: {importSummary.invalid_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_keys > 0 ? "1px solid rgba(255,170,60,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_keys > 0 ? "rgba(255,170,60,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_keys > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_keys > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                     Combinaciones repetidas: {importSummary.repeated_keys}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,170,60,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,170,60,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                     Filas extra repetidas: {importSummary.repeated_extra_rows}
                   </div>
                   <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
@@ -1584,26 +1584,26 @@ useEffect(() => {
                   <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                     Iguales: {importSummary.equal_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(102,199,255,.45)", background: "rgba(102,199,255,.10)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(198,146,20,.45)", background: "rgba(198,146,20,.10)", fontSize: 12, fontWeight: 900 }}>
                     A postear: {totalPostRows}
                   </div>
                 </div>
 
                 {selectedPreviewGroup ? (
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(102,199,255,.45)", background: "rgba(102,199,255,.10)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(198,146,20,.45)", background: "rgba(198,146,20,.10)", fontSize: 12, fontWeight: 900 }}>
                       Scope: {selectedPreviewGroup.reagent_name}
                     </div>
                     <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                       Filas únicas: {selectedPreviewSummary.total_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(102,199,255,.45)", background: "rgba(102,199,255,.10)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(198,146,20,.45)", background: "rgba(198,146,20,.10)", fontSize: 12, fontWeight: 900 }}>
                       Válidas: {selectedPreviewSummary.valid_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: selectedPreviewSummary.invalid_rows > 0 ? "1px solid rgba(255,80,80,.45)" : "1px solid rgba(255,255,255,0.12)", background: selectedPreviewSummary.invalid_rows > 0 ? "rgba(255,80,80,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: selectedPreviewSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: selectedPreviewSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                       Inválidas: {selectedPreviewSummary.invalid_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: selectedPreviewSummary.repeated_keys > 0 ? "1px solid rgba(255,170,60,.45)" : "1px solid rgba(255,255,255,0.12)", background: selectedPreviewSummary.repeated_keys > 0 ? "rgba(255,170,60,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: selectedPreviewSummary.repeated_keys > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: selectedPreviewSummary.repeated_keys > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                       Combinaciones repetidas: {selectedPreviewSummary.repeated_keys}
                     </div>
                     <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
@@ -1615,7 +1615,7 @@ useEffect(() => {
                     <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
                       Iguales: {selectedPreviewSummary.equal_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(102,199,255,.45)", background: "rgba(102,199,255,.10)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(198,146,20,.45)", background: "rgba(198,146,20,.10)", fontSize: 12, fontWeight: 900 }}>
                       A postear: {selectedPreviewSummary.post_rows}
                     </div>
                   </div>
@@ -1628,7 +1628,7 @@ useEffect(() => {
                 minWidth: 0,
                 minHeight: 0,
                 overflow: "auto",
-                border: "1px solid rgba(191,231,255,.12)",
+                border: "1px solid rgba(255,216,130,.12)",
                 borderRadius: 12,
                 padding: 10,
                 display: "grid",
@@ -1652,7 +1652,7 @@ useEffect(() => {
                   {selectedPreviewGroup ? (
                     <div
                       style={{
-                        border: "1px solid rgba(191,231,255,.12)",
+                        border: "1px solid rgba(255,216,130,.12)",
                         borderRadius: 12,
                         overflow: "hidden",
                         minWidth: 0,
@@ -1665,7 +1665,7 @@ useEffect(() => {
                         style={{
                           padding: "10px 12px",
                           background: "rgba(255,255,255,.04)",
-                          borderBottom: "1px solid rgba(191,231,255,.10)",
+                          borderBottom: "1px solid rgba(255,216,130,.10)",
                           fontWeight: 900,
                           display: "flex",
                           justifyContent: "space-between",
@@ -1731,7 +1731,7 @@ useEffect(() => {
 
                         <tbody>
                           {previewMatrixRows.map((row) => {
-                            const bg = row.status === "INVÁLIDA" ? "rgba(255,80,80,.10)" : rowBg;
+                            const bg = row.status === "INVÁLIDA" ? "rgba(216,93,39,.10)" : rowBg;
 
                             return (
                               <tr key={`${selectedPreviewGroup.reagent_name}_${row.row_num}_${row.campaign_id}_${row.consumption_date}`} className="capex-tr">
@@ -1755,7 +1755,7 @@ useEffect(() => {
                                 </td>
 
                                 {(SUBPROCESSES_BY_REAGENT.get(selectedPreviewGroup.reagent_name) || []).map((sp) => {
-                                  const cellBg = row.cellValid[sp] ? bg : "rgba(255,80,80,.16)";
+                                  const cellBg = row.cellValid[sp] ? bg : "rgba(216,93,39,.16)";
                                   return (
                                     <td
                                       key={`${row.row_num}_${sp}`}
