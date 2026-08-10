@@ -878,7 +878,11 @@ export default function LogisticsMreqStatusTable() {
               {columns.map((c) => (
                 <col
                   key={String(c.key)}
-                  style={{ width: getStatusColWidth(c.key) }}
+                  style={{
+                    width: getStatusColWidth(c.key),
+                    minWidth: getStatusColWidth(c.key),
+                    maxWidth: getStatusColWidth(c.key),
+                  }}
                 />
               ))}
             </colgroup>
@@ -890,6 +894,9 @@ export default function LogisticsMreqStatusTable() {
                 className="capex-th"
                 style={{
                   background: "rgb(6, 36, 58)",
+                  width: getStatusColWidth(c.key),
+                  minWidth: getStatusColWidth(c.key),
+                  maxWidth: getStatusColWidth(c.key),
                   position: "sticky",
                   top: 0,
                   left: isStickyStatusColumn(c.key)
@@ -1253,6 +1260,9 @@ export default function LogisticsMreqStatusTable() {
                           background: isStickyStatusColumn(c.key)
                             ? "rgb(10, 30, 46)"
                             : rowBackground,
+                          width: getStatusColWidth(c.key),
+                          minWidth: getStatusColWidth(c.key),
+                          maxWidth: getStatusColWidth(c.key),
                           whiteSpace: "nowrap",
                           textAlign: c.type === "num" ? "right" : "left",
                           overflow: isExpandableReadonly ? "visible" : "hidden",
