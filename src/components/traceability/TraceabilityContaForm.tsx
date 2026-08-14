@@ -76,7 +76,7 @@ const COLUMNS: Column[] = [
   { key: "doc_date", label: "F. Documento", kind: "date", width: 110 },
   { key: "reg_date", label: "F. Registro", kind: "date", width: 110 },
   { key: "payment_date", label: "F. Pago", kind: "date", width: 110 },
-  { key: "subledger", label: "Subledger", kind: "text", width: 105 },
+  { key: "subledger", label: "Subdiario", kind: "text", width: 105 },
   { key: "voucher_number", label: "N.º Voucher", kind: "text", width: 125 },
   { key: "sequence_number", label: "N.º Secuencia", kind: "text", width: 125 },
   { key: "doc_number", label: "N.º Documento", kind: "text", width: 135 },
@@ -213,6 +213,12 @@ export default function TraceabilityContaForm() {
       max: dates[dates.length - 1] ?? "",
     };
   }, [rows]);
+
+  useEffect(() => {
+    if (!rows.length) return;
+    setDateFrom((current) => current || paymentDateBounds.min);
+    setDateTo((current) => current || paymentDateBounds.max);
+  }, [rows, paymentDateBounds.min, paymentDateBounds.max]);
 
   const filteredRows = useMemo(
     () =>
@@ -450,6 +456,10 @@ export default function TraceabilityContaForm() {
                         title={displayValue === "—" ? "" : displayValue}
                         style={{
                           ...cellStyle,
+                          background:
+                            (pageStart + rowIndex) % 2 === 0
+                              ? "rgba(255,255,255,.035)"
+                              : "rgba(255,255,255,.07)",
                           textAlign: column.kind === "number" ? "right" : "left",
                           width: column.width,
                           minWidth: column.width,
