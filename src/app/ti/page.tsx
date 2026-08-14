@@ -251,13 +251,23 @@ function smoothSvgPath(points: Array<{ x: number; y: number }>) {
   if (!points.length) return "";
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
   let path = `M ${points[0].x} ${points[0].y}`;
-  for (let index = 1; index < points.length - 1; index++) {
-    const point = points[index];
+  const tension = 0.65;
+  for (let index = 0; index < points.length - 1; index++) {
+    const previous = points[index - 1] || points[index];
+    const current = points[index];
     const next = points[index + 1];
-    path += ` Q ${point.x} ${point.y} ${(point.x + next.x) / 2} ${(point.y + next.y) / 2}`;
+    const following = points[index + 2] || next;
+    const control1 = {
+      x: current.x + (next.x - previous.x) / 6 * tension,
+      y: current.y + (next.y - previous.y) / 6 * tension,
+    };
+    const control2 = {
+      x: next.x - (following.x - current.x) / 6 * tension,
+      y: next.y - (following.y - current.y) / 6 * tension,
+    };
+    path += ` C ${control1.x} ${control1.y} ${control2.x} ${control2.y} ${next.x} ${next.y}`;
   }
-  const last = points[points.length - 1];
-  return `${path} L ${last.x} ${last.y}`;
+  return path;
 }
 
 function finishResult(
@@ -614,6 +624,7 @@ function DelayChart({ rows, baseline, lang }: { rows: EntriesRow[]; baseline: nu
       {daily.length ? (
         <div className="ti-chart-shell ti-line-shell">
           {active && activePoint ? <div className="ti-tooltip" style={{ left: `${Math.min(92, Math.max(8, activePoint.x / width * 100))}%` }}><strong>{active.day}</strong><span>{tr(lang, "Period", "Période")}: <b>{active.day < cut ? tr(lang, "Before", "Avant") : tr(lang, "Current", "Actuel")}</b></span><span>{tr(lang, "Observed delay", "Délai observé")}: <b>{number(active.value, 2)} h</b></span><span>{tr(lang, "Legacy baseline", "Référence historique")}: <b>{number(baseline / 3600, 2)} h</b></span><span>{tr(lang, "Difference", "Écart")}: <b>{number(active.value - baseline / 3600, 2)} h</b></span></div> : null}
+          <div className="ti-line-canvas">
           {activePoint ? <span className="ti-line-marker" style={{ left: `${activePoint.x / width * 100}%`, top: `${activePoint.y / height * 100}%` }} /> : null}
           {gridTicks.map((ratio) => <span key={ratio} className="ti-y-label" style={{ top: `${(top + ratio * (bottom - top)) / height * 100}%` }}>{number(max * (1 - ratio), 1)} h</span>)}
           <svg className="ti-line-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={tr(lang, "Daily upload delay", "Délai quotidien de chargement")} tabIndex={0} onMouseMove={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)); setActiveIndex(Math.round(ratio * (daily.length - 1))); }} onMouseLeave={() => setActiveIndex(null)} onFocus={() => setActiveIndex((current) => current ?? 0)} onBlur={() => setActiveIndex(null)} onKeyDown={(event) => { if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return; event.preventDefault(); setActiveIndex((current) => Math.max(0, Math.min(daily.length - 1, (current ?? 0) + (event.key === "ArrowRight" ? 1 : -1)))); }}>
@@ -623,6 +634,7 @@ function DelayChart({ rows, baseline, lang }: { rows: EntriesRow[]; baseline: nu
             {currentPath ? <path d={currentPath} className="current" /> : null}
           </svg>
           <div className="ti-x-labels"><span>{daily[0].day}</span><span>{cut}</span><span>{daily[daily.length - 1].day}</span></div>
+          </div>
         </div>
       ) : <div className="ti-empty">{tr(lang, "No valid delays for the selected range.", "Aucun délai valide pour la période sélectionnée.")}</div>}
       <div className="ti-legend"><span className="legacy" /> {tr(lang, "Before implementation", "Avant mise en œuvre")} <span className="current" /> {tr(lang, "Current process", "Processus actuel")} <span className="baseline" /> {tr(lang, "Legacy baseline", "Référence historique")}</div>
@@ -1002,7 +1014,7 @@ function AutodeskProject({ lang, open, onToggle }: { lang: Lang; open: boolean; 
   return (
     <details className="ti-project" open={open} onToggle={(event) => onToggle(event.currentTarget.open)}>
       <summary>
-        <div className="ti-project-title"><div className="ti-icon">A</div><div><div className="ti-project-name">{tr(lang, "Autodesk License Optimization", "Optimisation des licences Autodesk")}</div><div className="ti-project-meta">{tr(lang, "Area", "Domaine")}: {tr(lang, "Projects", "Projets")} · Key User: {tr(lang, "To be defined", "À définir")}</div><span className="ti-status ok">{tr(lang, "Validated static data", "Données statiques validées")}</span></div></div>
+        <div className="ti-project-title"><div className="ti-icon">A</div><div><div className="ti-project-name">{tr(lang, "Autodesk License Optimization", "Optimisation des licences Autodesk")}</div><div className="ti-project-meta">{tr(lang, "Area", "Domaine")}: {tr(lang, "Projects", "Projets")} · Key User: Axel Gallegos</div><span className="ti-status ok">{tr(lang, "Validated static data", "Données statiques validées")}</span></div></div>
         <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Licenses reduced", "Licences supprimées")}</div><div className="ti-summary-value">13</div></div>
         <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Optimization", "Optimisation")}</div><div className="ti-summary-value good">43.2%</div></div>
         <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Annual savings", "Économies annuelles")}</div><div className="ti-summary-value">{money(24941)}</div></div>
@@ -1010,7 +1022,7 @@ function AutodeskProject({ lang, open, onToggle }: { lang: Lang; open: boolean; 
       </summary>
       <div className="ti-project-body">
         <div className="ti-lead"><h3>{tr(lang, "Autodesk License Optimization", "Optimisation des licences Autodesk")}</h3><p>{tr(lang, "Autodesk license use was analyzed against each user’s responsibilities and license capabilities. The optimized allocation lowers cost without affecting operational needs.", "L’utilisation des licences Autodesk a été analysée selon les responsabilités de chaque utilisateur et les capacités de chaque licence. La répartition optimisée réduit les coûts sans affecter les besoins opérationnels.")}</p></div>
-        <div className="ti-context"><div><span>{tr(lang, "Area", "Domaine")}</span><strong>{tr(lang, "Projects", "Projets")}</strong></div><div><span>Key User</span><strong>{tr(lang, "To be defined", "À définir")}</strong></div><div className="description"><span>{tr(lang, "Data source", "Source des données")}</span><strong>{tr(lang, "Validated static data from the Autodesk license optimization analysis.", "Données statiques validées de l’analyse d’optimisation des licences Autodesk.")}</strong></div></div>
+        <div className="ti-context"><div><span>{tr(lang, "Area", "Domaine")}</span><strong>{tr(lang, "Projects", "Projets")}</strong></div><div><span>Key User</span><strong>Axel Gallegos</strong></div><div className="description"><span>{tr(lang, "Data source", "Source des données")}</span><strong>{tr(lang, "Validated static data from the Autodesk license optimization analysis.", "Données statiques validées de l’analyse d’optimisation des licences Autodesk.")}</strong></div></div>
         <div className="ti-kpis"><div className="ti-kpi gold"><div className="ti-label">{tr(lang, "Licenses before", "Licences avant")}</div><div className="ti-kpi-value">35</div></div><div className="ti-kpi cyan"><div className="ti-label">{tr(lang, "Licenses after", "Licences après")}</div><div className="ti-kpi-value">22</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "License reduction", "Réduction des licences")}</div><div className="ti-kpi-value">13</div></div><div className="ti-kpi gold"><div className="ti-label">{tr(lang, "Annual cost before", "Coût annuel avant")}</div><div className="ti-kpi-value">{money(57721)}</div></div><div className="ti-kpi cyan"><div className="ti-label">{tr(lang, "Annual cost after", "Coût annuel après")}</div><div className="ti-kpi-value">{money(32780)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Annual savings", "Économies annuelles")}</div><div className="ti-kpi-value">{money(24941)}</div><div className="ti-sub">43.2%</div></div></div>
         <div className="ti-method"><strong>{tr(lang, "Method.", "Méthode.")}</strong> {tr(lang, "Static comparison between the previous and optimized license scenarios: 35 → 22 licenses and USD 57,721 → USD 32,780 per year.", "Comparaison statique entre les scénarios de licences antérieur et optimisé : 35 → 22 licences et 57 721 USD → 32 780 USD par an.")}</div>
       </div>
@@ -1255,6 +1267,9 @@ export default function TiPage() {
       `}</style>
       <style jsx global>{`
         .ti-line-shell{height:305px;margin-top:8px;padding:0}.ti-line-shell .ti-line-chart{display:block;width:100%;height:285px;margin:0;background:linear-gradient(to bottom,#fff,#FBFCFD);cursor:crosshair;outline:none}.ti-line-chart path{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round}.ti-line-chart path.before{stroke:#C69214}.ti-line-chart path.current{stroke:#0067AC}.ti-line-chart line.grid{stroke:#E8EEF1;stroke-width:1;vector-effect:non-scaling-stroke}.ti-line-chart line.baseline{stroke:#5E8019;stroke-width:1.5;stroke-dasharray:6 5;vector-effect:non-scaling-stroke}.ti-line-marker{position:absolute;z-index:8;width:11px;height:11px;border-radius:50%;background:#fff;border:3px solid #0067AC;box-shadow:0 2px 8px rgba(36,49,59,.28);transform:translate(-50%,-50%);pointer-events:none}.ti-y-label{position:absolute;z-index:3;left:0;transform:translateY(-50%);width:38px;text-align:right;color:#7B8790;font-size:8px;pointer-events:none}.ti-x-labels{position:absolute;left:4%;right:1%;bottom:0;display:flex;justify-content:space-between;color:#7B8790;font-size:8px;pointer-events:none}.ti-legend span.baseline{width:15px;height:0;border-top:2px dashed #5E8019;border-radius:0}.ti-line-shell .ti-tooltip{top:10px}@media(max-width:650px){.ti-line-shell{height:270px}.ti-line-shell .ti-line-chart{height:250px}.ti-x-labels span:nth-child(2){display:none}}
+      `}</style>
+      <style jsx global>{`
+        .ti-line-shell{height:auto}.ti-line-canvas{position:relative;height:285px}.ti-line-shell .ti-line-chart{height:100%}@media(max-width:650px){.ti-line-shell{height:auto}.ti-line-canvas{height:250px}.ti-line-shell .ti-line-chart{height:100%}}
       `}</style>
     </div>
   );
