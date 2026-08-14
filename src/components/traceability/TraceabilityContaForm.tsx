@@ -10,43 +10,24 @@ import { Table } from "../ui/Table";
 type NumericValue = number | string | null;
 
 type TraceabilityContaRow = {
-  lot: string | null;
-  doc_date: string | null;
-  reg_date: string | null;
-  payment_date: string | null;
   subledger: string | null;
   voucher_number: string | null;
-  sequence_number: string | number | null;
-  doc_number: string | null;
-  doc_type: string | null;
-  lot_usd: NumericValue;
-  description: string | null;
-  amount: NumericValue;
-  currency: string | null;
-  account_type: string | null;
+  payment_date: string | null;
   sede: string | null;
-  entry_date: string | null;
-  tmh: NumericValue;
-  tms: NumericValue;
-  au_grade_oztc: NumericValue;
-  ag_grade_oztc: NumericValue;
-  cu_grade_pct: NumericValue;
-  au_oz: NumericValue;
-  ag_oz: NumericValue;
-  au_rec: NumericValue;
-  ag_rec: NumericValue;
-  pio: NumericValue;
-  pip: NumericValue;
-  pio_disc: NumericValue;
-  maquila: NumericValue;
-  nacn: NumericValue;
-  escalador: NumericValue;
-  usd_tms: NumericValue;
-  au_usd: NumericValue;
-  ag_usd: NumericValue;
-  pay_type: string | null;
-  plate: string | null;
+  invoice_subledger: string | null;
+  invoice_voucher_number: string | null;
+  doc_type: string | null;
+  doc_number: string | null;
+  invoice_reg_date: string | null;
+  invoice_doc_date: string | null;
   ruc: string | null;
+  supplier: string | null;
+  lot: string | null;
+  tms: NumericValue;
+  currency: string | null;
+  lot_usd: NumericValue;
+  au_grade_oztc: NumericValue;
+  entry_date: string | null;
   concession_name: string | null;
   concession_code: string | null;
   district: string | null;
@@ -74,43 +55,24 @@ type SortDir = "asc" | "desc";
 
 // El orden de esta lista replica exactamente el SELECT de /api/traceability/conta.
 const COLUMNS: Column[] = [
-  { key: "lot", label: "Lote", kind: "text", width: 110 },
-  { key: "doc_date", label: "F. Documento", kind: "date", width: 110 },
-  { key: "reg_date", label: "F. Registro", kind: "date", width: 110 },
-  { key: "payment_date", label: "F. Pago", kind: "date", width: 110 },
   { key: "subledger", label: "Subdiario", kind: "text", width: 105 },
   { key: "voucher_number", label: "N.º Voucher", kind: "text", width: 125 },
-  { key: "sequence_number", label: "N.º Secuencia", kind: "text", width: 125 },
-  { key: "doc_number", label: "N.º Documento", kind: "text", width: 135 },
-  { key: "doc_type", label: "Tipo Documento", kind: "text", width: 125 },
-  { key: "lot_usd", label: "Lote USD", kind: "number", width: 110 },
-  { key: "description", label: "Descripción", kind: "text", width: 260 },
-  { key: "amount", label: "Importe", kind: "number", width: 115 },
-  { key: "currency", label: "Moneda", kind: "text", width: 90 },
-  { key: "account_type", label: "Tipo Cuenta", kind: "text", width: 115 },
+  { key: "payment_date", label: "F. Pago", kind: "date", width: 110 },
   { key: "sede", label: "Sede", kind: "text", width: 110 },
-  { key: "entry_date", label: "F. Ingreso", kind: "date", width: 110 },
-  { key: "tmh", label: "TMH", kind: "number", width: 90 },
-  { key: "tms", label: "TMS", kind: "number", width: 90 },
-  { key: "au_grade_oztc", label: "Au (Oz/TC)", kind: "number", width: 105 },
-  { key: "ag_grade_oztc", label: "Ag (Oz/TC)", kind: "number", width: 105 },
-  { key: "cu_grade_pct", label: "Cu %", kind: "number", width: 90 },
-  { key: "au_oz", label: "Au Oz", kind: "number", width: 90 },
-  { key: "ag_oz", label: "Ag Oz", kind: "number", width: 90 },
-  { key: "au_rec", label: "Au Rec", kind: "number", width: 90 },
-  { key: "ag_rec", label: "Ag Rec", kind: "number", width: 90 },
-  { key: "pio", label: "PIO", kind: "number", width: 90 },
-  { key: "pip", label: "PIP", kind: "number", width: 90 },
-  { key: "pio_disc", label: "PIO Desc.", kind: "number", width: 100 },
-  { key: "maquila", label: "Maquila", kind: "number", width: 95 },
-  { key: "nacn", label: "NaCN", kind: "number", width: 90 },
-  { key: "escalador", label: "Escalador", kind: "number", width: 100 },
-  { key: "usd_tms", label: "USD/TMS", kind: "number", width: 100 },
-  { key: "au_usd", label: "Au USD", kind: "number", width: 100 },
-  { key: "ag_usd", label: "Ag USD", kind: "number", width: 100 },
-  { key: "pay_type", label: "Tipo Pago", kind: "text", width: 115 },
-  { key: "plate", label: "Placa", kind: "text", width: 95 },
+  { key: "invoice_subledger", label: "Subdiario Factura", kind: "text", width: 140 },
+  { key: "invoice_voucher_number", label: "N.º Voucher Factura", kind: "text", width: 155 },
+  { key: "doc_type", label: "Tipo Documento", kind: "text", width: 125 },
+  { key: "doc_number", label: "N.º Documento", kind: "text", width: 135 },
+  { key: "invoice_reg_date", label: "F. Registro Factura", kind: "date", width: 145 },
+  { key: "invoice_doc_date", label: "F. Documento Factura", kind: "date", width: 160 },
   { key: "ruc", label: "RUC", kind: "text", width: 120 },
+  { key: "supplier", label: "Proveedor", kind: "text", width: 220 },
+  { key: "lot", label: "Lote", kind: "text", width: 110 },
+  { key: "tms", label: "TMS", kind: "number", width: 90 },
+  { key: "currency", label: "Moneda", kind: "text", width: 90 },
+  { key: "lot_usd", label: "Lote USD", kind: "number", width: 110 },
+  { key: "au_grade_oztc", label: "Au (Oz/TC)", kind: "number", width: 105 },
+  { key: "entry_date", label: "F. Ingreso", kind: "date", width: 110 },
   { key: "concession_name", label: "Concesión", kind: "text", width: 180 },
   { key: "concession_code", label: "Cód. Concesión", kind: "text", width: 130 },
   { key: "district", label: "Distrito", kind: "text", width: 120 },
@@ -528,7 +490,7 @@ export default function TraceabilityContaForm() {
               {visibleRows.map((row, rowIndex) => (
                 <tr
                   className="capex-tr"
-                  key={`${row.lot ?? "lote"}-${row.doc_number ?? "documento"}-${row.sequence_number ?? "secuencia"}-${pageStart + rowIndex}`}
+                  key={`${row.lot ?? "lote"}-${row.doc_number ?? "documento"}-${row.invoice_voucher_number ?? "voucher"}-${pageStart + rowIndex}`}
                 >
                   {COLUMNS.map((column) => {
                     const displayValue = formatCell(row, column);
