@@ -247,6 +247,19 @@ function duration(seconds: number) {
   return `${days}d ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
+function smoothSvgPath(points: Array<{ x: number; y: number }>) {
+  if (!points.length) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let index = 1; index < points.length - 1; index++) {
+    const point = points[index];
+    const next = points[index + 1];
+    path += ` Q ${point.x} ${point.y} ${(point.x + next.x) / 2} ${(point.y + next.y) / 2}`;
+  }
+  const last = points[points.length - 1];
+  return `${path} L ${last.x} ${last.y}`;
+}
+
 function finishResult(
   rows: MonthlyRow[],
   chart: ChartPoint[],
@@ -582,29 +595,38 @@ function DelayChart({ rows, baseline, lang }: { rows: EntriesRow[]; baseline: nu
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, values]) => ({ day, value: mean(values) }));
   }, [rows]);
   const values = daily.map((item) => item.value);
-  const max = Math.max(1, baseline / 3600 || 0, ...values);
-  const points = daily.map((item, index) => `${daily.length === 1 ? 50 : (index / (daily.length - 1)) * 100},${100 - (item.value / max) * 88}`).join(" ");
-  const baselineY = 100 - ((baseline / 3600) / max) * 88;
+  const max = Math.max(1, baseline / 3600 || 0, ...values) * 1.08;
+  const width = 1200, height = 260, left = 46, right = 1188, top = 14, bottom = 224;
+  const xAt = (index: number) => daily.length === 1 ? (left + right) / 2 : left + index / (daily.length - 1) * (right - left);
+  const yAt = (value: number) => top + (1 - Math.max(0, Math.min(max, value)) / max) * (bottom - top);
+  const plotted = daily.map((item, index) => ({ ...item, x: xAt(index), y: yAt(item.value) }));
+  const cut = dateKey(CUT.cdm);
+  const beforePath = smoothSvgPath(plotted.filter((item) => item.day < cut));
+  const currentPath = smoothSvgPath(plotted.filter((item) => item.day >= cut));
+  const baselineY = yAt(baseline / 3600);
   const active = activeIndex === null ? null : daily[activeIndex];
+  const activePoint = activeIndex === null ? null : plotted[activeIndex];
+  const gridTicks = [0, .25, .5, .75, 1];
   return (
     <div className="ti-chart-card ti-interactive-chart">
       <div className="ti-chart-title">{tr(lang, "Average upload delay · before vs. after", "Délai moyen de chargement · avant vs. après")}</div>
-      <div className="ti-chart-sub">{tr(lang, "Observed daily delay in hours; the green line is the fixed legacy baseline.", "Délai quotidien observé en heures ; la ligne verte représente la référence historique fixe.")}</div>
+      <div className="ti-chart-sub">{tr(lang, "Gold = before implementation · Blue = current · Dashed green = fixed legacy baseline", "Or = avant mise en œuvre · Bleu = actuel · Vert pointillé = référence historique fixe")}</div>
       {daily.length ? (
-        <div className="ti-chart-shell">
-          {active ? <div className="ti-tooltip" style={{ left: `${Math.min(92, Math.max(8, daily.length === 1 ? 50 : (Number(activeIndex) / (daily.length - 1)) * 100))}%` }}><strong>{active.day}</strong><span>{tr(lang, "Observed delay", "Délai observé")}: <b>{number(active.value, 2)} h</b></span><span>{tr(lang, "Legacy baseline", "Référence historique")}: <b>{number(baseline / 3600, 2)} h</b></span><span>{tr(lang, "Difference", "Écart")}: <b>{number(active.value - baseline / 3600, 2)} h</b></span></div> : null}
-          <svg className="ti-line-chart" viewBox="0 0 100 105" preserveAspectRatio="none" role="img" aria-label={tr(lang, "Daily upload delay", "Délai quotidien de chargement")} onMouseLeave={() => setActiveIndex(null)}>
-            <line x1="0" x2="100" y1={baselineY} y2={baselineY} className="baseline" />
-            <polyline points={points} />
-            {daily.map((item, index) => {
-              const x = daily.length === 1 ? 50 : index / (daily.length - 1) * 100;
-              const y = 100 - item.value / max * 88;
-              return <circle key={item.day} cx={x} cy={y} r={activeIndex === index ? 1.8 : 1.1} className={activeIndex === index ? "active" : ""} tabIndex={0} onMouseEnter={() => setActiveIndex(index)} onFocus={() => setActiveIndex(index)} onBlur={() => setActiveIndex(null)}><title>{item.day}: {number(item.value, 2)} h</title></circle>;
-            })}
+        <div className="ti-chart-shell ti-line-shell">
+          {active && activePoint ? <div className="ti-tooltip" style={{ left: `${Math.min(92, Math.max(8, activePoint.x / width * 100))}%` }}><strong>{active.day}</strong><span>{tr(lang, "Period", "Période")}: <b>{active.day < cut ? tr(lang, "Before", "Avant") : tr(lang, "Current", "Actuel")}</b></span><span>{tr(lang, "Observed delay", "Délai observé")}: <b>{number(active.value, 2)} h</b></span><span>{tr(lang, "Legacy baseline", "Référence historique")}: <b>{number(baseline / 3600, 2)} h</b></span><span>{tr(lang, "Difference", "Écart")}: <b>{number(active.value - baseline / 3600, 2)} h</b></span></div> : null}
+          {activePoint ? <span className="ti-line-marker" style={{ left: `${activePoint.x / width * 100}%`, top: `${activePoint.y / height * 100}%` }} /> : null}
+          {gridTicks.map((ratio) => <span key={ratio} className="ti-y-label" style={{ top: `${(top + ratio * (bottom - top)) / height * 100}%` }}>{number(max * (1 - ratio), 1)} h</span>)}
+          <svg className="ti-line-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={tr(lang, "Daily upload delay", "Délai quotidien de chargement")} tabIndex={0} onMouseMove={(event) => { const bounds = event.currentTarget.getBoundingClientRect(); const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)); setActiveIndex(Math.round(ratio * (daily.length - 1))); }} onMouseLeave={() => setActiveIndex(null)} onFocus={() => setActiveIndex((current) => current ?? 0)} onBlur={() => setActiveIndex(null)} onKeyDown={(event) => { if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return; event.preventDefault(); setActiveIndex((current) => Math.max(0, Math.min(daily.length - 1, (current ?? 0) + (event.key === "ArrowRight" ? 1 : -1)))); }}>
+            {gridTicks.map((ratio) => <line key={ratio} x1={left} x2={right} y1={top + ratio * (bottom - top)} y2={top + ratio * (bottom - top)} className="grid" />)}
+            <line x1={left} x2={right} y1={baselineY} y2={baselineY} className="baseline" />
+            {beforePath ? <path d={beforePath} className="before" /> : null}
+            {currentPath ? <path d={currentPath} className="current" /> : null}
           </svg>
+          <div className="ti-x-labels"><span>{daily[0].day}</span><span>{cut}</span><span>{daily[daily.length - 1].day}</span></div>
         </div>
       ) : <div className="ti-empty">{tr(lang, "No valid delays for the selected range.", "Aucun délai valide pour la période sélectionnée.")}</div>}
-      <div className="ti-chart-hint">{tr(lang, "Hover or focus a point to inspect the daily delay", "Survolez ou sélectionnez un point pour afficher le délai quotidien")}</div>
+      <div className="ti-legend"><span className="legacy" /> {tr(lang, "Before implementation", "Avant mise en œuvre")} <span className="current" /> {tr(lang, "Current process", "Processus actuel")} <span className="baseline" /> {tr(lang, "Legacy baseline", "Référence historique")}</div>
+      <div className="ti-chart-hint">{tr(lang, "Move across the curve or use the arrow keys to inspect each day", "Parcourez la courbe ou utilisez les flèches pour consulter chaque jour")}</div>
     </div>
   );
 }
@@ -1230,6 +1252,9 @@ export default function TiPage() {
       `}</style>
       <style jsx global>{`
         .ti-chart-card,.ti-chart-shell{position:relative}.ti-chart-shell{margin-top:4px}.ti-tooltip{position:absolute;z-index:12;top:8px;transform:translateX(-50%);min-width:170px;max-width:230px;padding:10px 12px;border-radius:10px;background:rgba(63,63,58,.97);color:#fff;box-shadow:0 10px 26px rgba(36,49,59,.28);pointer-events:none;display:grid;gap:4px;font-size:9px;line-height:1.35;animation:tiTooltipIn .14s ease-out}.ti-tooltip:after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:rgba(63,63,58,.97);transform:translateX(-50%) rotate(45deg)}.ti-tooltip strong{font-size:11px;color:#fff;margin-bottom:2px}.ti-tooltip span{display:flex;align-items:center;gap:4px;white-space:nowrap}.ti-tooltip b{margin-left:auto;color:#fff}.ti-tooltip i{width:7px;height:7px;border-radius:2px;display:inline-block;flex:none}.ti-tooltip i.legacy{background:#C69214}.ti-tooltip i.current{background:#00A5CE}.ti-chart-column{position:relative;border-radius:6px 6px 0 0;transition:opacity .16s ease,background .16s ease,transform .16s ease;outline:none}.ti-chart-column:hover,.ti-chart-column:focus,.ti-chart-column.active{background:rgba(0,103,172,.055);transform:translateY(-2px)}.ti-chart:has(.ti-chart-column.active) .ti-chart-column:not(.active){opacity:.5}.ti-bars span{transition:height .28s ease,filter .16s ease,transform .16s ease}.ti-chart-column.active .ti-bars span,.ti-chart-column:hover .ti-bars span{filter:saturate(1.2) brightness(1.04);transform:scaleX(1.08)}.ti-chart-hint{text-align:center;color:#7B8790;font-size:8px;margin-top:6px}.ti-line-chart circle{fill:#0067AC;stroke:#fff;stroke-width:.45;vector-effect:non-scaling-stroke;cursor:crosshair;outline:none;transition:r .12s ease,fill .12s ease}.ti-line-chart circle:hover,.ti-line-chart circle:focus,.ti-line-chart circle.active{fill:#C69214;stroke:#3F3F3A}.ti-kpi,.ti-portfolio-grid>div,.ti-context>div{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}.ti-kpi:hover,.ti-portfolio-grid>div:hover,.ti-context>div:hover{transform:translateY(-2px);border-color:rgba(0,103,172,.28);box-shadow:0 8px 20px rgba(20,47,66,.08)}.ti-project>summary{transition:background .18s ease}.ti-project>summary:hover{background:#F7FAFC}.ti-dashboard tbody tr{transition:background .12s ease}.ti-dashboard tbody tr:hover{background:rgba(0,165,206,.055)}.ti-field input:read-only{background:#F4F7F9;color:#51616D;cursor:default}@keyframes tiTooltipIn{from{opacity:0;transform:translateX(-50%) translateY(4px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}@media(max-width:650px){.ti-tooltip{min-width:155px;max-width:190px}.ti-chart-hint{display:none}}
+      `}</style>
+      <style jsx global>{`
+        .ti-line-shell{height:305px;margin-top:8px;padding:0}.ti-line-shell .ti-line-chart{display:block;width:100%;height:285px;margin:0;background:linear-gradient(to bottom,#fff,#FBFCFD);cursor:crosshair;outline:none}.ti-line-chart path{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round}.ti-line-chart path.before{stroke:#C69214}.ti-line-chart path.current{stroke:#0067AC}.ti-line-chart line.grid{stroke:#E8EEF1;stroke-width:1;vector-effect:non-scaling-stroke}.ti-line-chart line.baseline{stroke:#5E8019;stroke-width:1.5;stroke-dasharray:6 5;vector-effect:non-scaling-stroke}.ti-line-marker{position:absolute;z-index:8;width:11px;height:11px;border-radius:50%;background:#fff;border:3px solid #0067AC;box-shadow:0 2px 8px rgba(36,49,59,.28);transform:translate(-50%,-50%);pointer-events:none}.ti-y-label{position:absolute;z-index:3;left:0;transform:translateY(-50%);width:38px;text-align:right;color:#7B8790;font-size:8px;pointer-events:none}.ti-x-labels{position:absolute;left:4%;right:1%;bottom:0;display:flex;justify-content:space-between;color:#7B8790;font-size:8px;pointer-events:none}.ti-legend span.baseline{width:15px;height:0;border-top:2px dashed #5E8019;border-radius:0}.ti-line-shell .ti-tooltip{top:10px}@media(max-width:650px){.ti-line-shell{height:270px}.ti-line-shell .ti-line-chart{height:250px}.ti-x-labels span:nth-child(2){display:none}}
       `}</style>
     </div>
   );
