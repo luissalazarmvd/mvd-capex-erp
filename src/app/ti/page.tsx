@@ -847,7 +847,7 @@ type ProjectedDefinition = {
   afterMinutes: number;
   unitEn: string;
   unitFr: string;
-  volumeRule: "lots" | "samples" | "piles" | "campaigns";
+  volumeRule: "lots" | "samples" | "piles" | "campaigns" | "guides";
 };
 
 const PROJECTED_PROJECTS: ProjectedDefinition[] = [
@@ -857,11 +857,11 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     titleFr: "Digitalisation de la collecte et autorisation des expéditions",
     areaEn: "CDM / Collection",
     areaFr: "CDM / Collecte",
-    descriptionEn: "Digitize the coordination and authorization of mineral shipments from producer to plant, automating document checks, entry scheduling and the information required to receive the mineral.",
-    descriptionFr: "Digitaliser la coordination et l’autorisation des expéditions de minerai du producteur à l’usine, en automatisant les contrôles documentaires, la programmation des entrées et les informations nécessaires à la réception.",
-    logicEn: "Compare current person-minutes per shipment guide spent on coordination, validation and document preparation with the projected process, then scale the difference by guides processed.",
-    logicFr: "Comparer les minutes-personne actuelles par guide consacrées à la coordination, aux validations et à la préparation documentaire avec le processus projeté, puis multiplier l’écart par les guides traités.",
-    beforeMinutes: 0, afterMinutes: 0, unitEn: "shipment guide", unitFr: "guide d’expédition", volumeRule: "lots",
+    descriptionEn: "Digitize the process before mineral enters the plant by integrating producer coordination, sack distribution, documentary and legal shipment validation, and truck-entry scheduling in a single system. The system will automatically validate SUNAT, REINFO, SIDENCAT, internal contracts and all other required conditions; generate and attach the corresponding files; flag inconsistencies before weighing-scale entry; and keep the supplier informed through an application.",
+    descriptionFr: "Digitaliser le processus préalable à l’entrée du minerai dans l’usine en intégrant, dans un système unique, la coordination avec le producteur, la distribution des sacs, la validation documentaire et juridique de l’expédition ainsi que la programmation de l’entrée des camions. Le système validera automatiquement les informations SUNAT, REINFO, SIDENCAT, les contrats internes et les autres conditions requises ; générera et joindra les dossiers correspondants ; signalera les incohérences avant l’entrée à la balance ; et informera le fournisseur au moyen d’une application.",
+    logicEn: "Compare person-time per shipment guide in the current and projected processes. The current process requires 89 person-minutes per guide across coordination, sack distribution, guide review, legal validation and entry authorization. Automation reduces this to 40 person-minutes per guide, focused mainly on commercial coordination and sack distribution, while document validation, file generation and notifications are performed automatically.",
+    logicFr: "Comparer le temps-personne par guide d’expédition des processus actuel et projeté. Le processus actuel exige 89 minutes-personne par guide pour la coordination, la distribution des sacs, la révision des guides, les validations juridiques et l’autorisation d’entrée. L’automatisation réduit ce temps à 40 minutes-personne par guide, principalement consacrées à la coordination commerciale et à la distribution des sacs, tandis que les validations documentaires, la génération des dossiers et les notifications sont automatisées.",
+    beforeMinutes: 89, afterMinutes: 40, unitEn: "shipment guide", unitFr: "guide d’expédition", volumeRule: "guides",
   },
   {
     key: "weighing",
@@ -973,7 +973,7 @@ function AutodeskProject({ lang, open, onToggle }: { lang: Lang; open: boolean; 
   );
 }
 
-function ProjectedProject({ definition, lang, open, onToggle, onResult, averageLots }: { definition: ProjectedDefinition; lang: Lang; open: boolean; onToggle: (open: boolean) => void; onResult: (key: string, metric: ProjectionMetric) => void; averageLots: number }) {
+function ProjectedProject({ definition, lang, open, onToggle, onResult, averageLots, averageCampaigns }: { definition: ProjectedDefinition; lang: Lang; open: boolean; onToggle: (open: boolean) => void; onResult: (key: string, metric: ProjectionMetric) => void; averageLots: number; averageCampaigns: number }) {
   const [before, setBefore] = useState(definition.beforeMinutes);
   const [after, setAfter] = useState(definition.afterMinutes);
   const [rate, setRate] = useState(10);
@@ -982,14 +982,20 @@ function ProjectedProject({ definition, lang, open, onToggle, onResult, averageL
     : definition.volumeRule === "piles"
     ? 2 * 365 / 12
     : definition.volumeRule === "campaigns"
-    ? 7
+    ? averageCampaigns
+    : definition.volumeRule === "guides"
+    ? averageLots
     : averageLots;
-  const keyUser = definition.key === "laboratory"
+  const keyUser = definition.key === "collection"
+    ? tr(lang, "To be defined", "À définir")
+    : definition.key === "laboratory"
     ? "Luis Jimenez"
     : definition.key === "settlement"
     ? "Junior de La Cruz"
     : definition.key === "refinery-traceability"
     ? "Richard Alcocer"
+    : definition.areaEn === "Plant"
+    ? "Carlos Perez"
     : definition.areaEn.includes("CDM")
     ? "Carlos Huaman"
     : tr(lang, "To be defined", "À définir");
@@ -998,7 +1004,9 @@ function ProjectedProject({ definition, lang, open, onToggle, onResult, averageL
     : definition.volumeRule === "piles"
     ? tr(lang, "2 piles/day × 365/12", "2 piles/jour × 365/12")
     : definition.volumeRule === "campaigns"
-    ? tr(lang, "7 campaigns/month", "7 campagnes/mois")
+    ? tr(lang, "Average distinct campaigns/month from ref-ml", "Moyenne des campagnes distinctes/mois de ref-ml")
+    : definition.volumeRule === "guides"
+    ? tr(lang, "1 shipment guide per lot × average distinct lots/month from entries-up", "1 guide d’expédition par lot × moyenne des lots distincts/mois de entries-up")
     : tr(lang, "Average distinct lots/month from entries-up", "Moyenne des lots distincts/mois de entries-up");
   const savedMinutes = Math.max(0, before - after);
   const optimization = before > 0 ? savedMinutes / before * 100 : Number.NaN;
@@ -1140,6 +1148,18 @@ export default function TiPage() {
     return mean([...byMonth.values()].map((lots) => lots.size));
   }, [data.entries]);
 
+  const averageCampaigns = useMemo(() => {
+    const byMonth = new Map<string, Set<string>>();
+    data.ml.forEach((row) => {
+      if (!row.campaignDate || !row.campaignId) return;
+      const key = monthKey(row.campaignDate);
+      const campaigns = byMonth.get(key) || new Set<string>();
+      campaigns.add(row.campaignId);
+      byMonth.set(key, campaigns);
+    });
+    return mean([...byMonth.values()].map((campaigns) => campaigns.size));
+  }, [data.ml]);
+
   const executedAnnual = portfolio.usd * 12 + 24941;
   const unifiedAnnual = executedAnnual + projected.annual + potentialMetric.annualUsd;
   const executedKeys = ["cdm", "fin", "fcs", "log", "ro", "autodesk"];
@@ -1172,8 +1192,8 @@ export default function TiPage() {
           <RoProject lang={lang} open={open.ro} onToggle={(value) => setProjectOpen("ro", value)} onResult={(metric) => updateMetric("ro", metric)} />
           <AutodeskProject lang={lang} open={open.autodesk} onToggle={(value) => setProjectOpen("autodesk", value)} />
         </PortfolioSection>
-        <PortfolioSection lang={lang} category="02" title={tr(lang, "Projected", "Projetés")} subtitle={tr(lang, "Planning scenarios based on editable unit-time, monthly-volume and labor-rate assumptions.", "Scénarios de planification fondés sur des hypothèses modifiables de temps unitaire, volume mensuel et coût horaire.")} onExpand={() => setCategoryOpen(projectedKeys, true)} onCollapse={() => setCategoryOpen(projectedKeys, false)}>
-          {PROJECTED_PROJECTS.map((definition) => { const key = `projected-${definition.key}`; return <ProjectedProject key={definition.key} definition={definition} lang={lang} open={Boolean(open[key])} onToggle={(value) => setProjectOpen(key, value)} onResult={updateProjectionMetric} averageLots={Number.isFinite(averageLots) ? averageLots : 0} />; })}
+        <PortfolioSection lang={lang} category="02" title={tr(lang, "Projected", "Projetés")} subtitle={tr(lang, "Planning scenarios using API-derived monthly volumes, operational pile assumptions, and editable unit-time and labor-rate inputs.", "Scénarios de planification utilisant les volumes mensuels issus des API, les hypothèses opérationnelles de piles et des temps unitaires et coûts horaires modifiables.")} onExpand={() => setCategoryOpen(projectedKeys, true)} onCollapse={() => setCategoryOpen(projectedKeys, false)}>
+          {PROJECTED_PROJECTS.map((definition) => { const key = `projected-${definition.key}`; return <ProjectedProject key={definition.key} definition={definition} lang={lang} open={Boolean(open[key])} onToggle={(value) => setProjectOpen(key, value)} onResult={updateProjectionMetric} averageLots={Number.isFinite(averageLots) ? averageLots : 0} averageCampaigns={Number.isFinite(averageCampaigns) ? averageCampaigns : 0} />; })}
         </PortfolioSection>
         <PortfolioSection lang={lang} category="03" title={tr(lang, "Potential", "Potentiels")} subtitle={tr(lang, "Data-driven opportunities that still require operational validation before being recognized as executed savings.", "Opportunités fondées sur les données qui nécessitent encore une validation opérationnelle avant d’être reconnues comme économies exécutées.")} onExpand={() => setProjectOpen("ml", true)} onCollapse={() => setProjectOpen("ml", false)}>
           <MlProject rows={data.ml} lang={lang} open={open.ml} onToggle={(value) => setProjectOpen("ml", value)} onResult={setPotentialMetric} />
