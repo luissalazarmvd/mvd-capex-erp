@@ -307,6 +307,15 @@ function NumberField({
   );
 }
 
+function ReadOnlyField({ label, value }: { label: string; value: number }) {
+  return (
+    <label className="ti-field">
+      <span>{label}</span>
+      <input type="number" value={Number.isFinite(value) ? Number(value.toFixed(2)) : 0} readOnly />
+    </label>
+  );
+}
+
 function DateFields({
   lang,
   from,
@@ -838,7 +847,7 @@ type ProjectedDefinition = {
   afterMinutes: number;
   unitEn: string;
   unitFr: string;
-  defaultVolume: number;
+  volumeRule: "lots" | "samples" | "piles" | "campaigns";
 };
 
 const PROJECTED_PROJECTS: ProjectedDefinition[] = [
@@ -852,7 +861,7 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     descriptionFr: "Digitaliser la coordination et l’autorisation des expéditions de minerai du producteur à l’usine, en automatisant les contrôles documentaires, la programmation des entrées et les informations nécessaires à la réception.",
     logicEn: "Compare current person-minutes per shipment guide spent on coordination, validation and document preparation with the projected process, then scale the difference by guides processed.",
     logicFr: "Comparer les minutes-personne actuelles par guide consacrées à la coordination, aux validations et à la préparation documentaire avec le processus projeté, puis multiplier l’écart par les guides traités.",
-    beforeMinutes: 0, afterMinutes: 0, unitEn: "shipment guide", unitFr: "guide d’expédition", defaultVolume: 0,
+    beforeMinutes: 0, afterMinutes: 0, unitEn: "shipment guide", unitFr: "guide d’expédition", volumeRule: "lots",
   },
   {
     key: "weighing",
@@ -863,7 +872,7 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     descriptionFr: "Automatiser l’entrée, le pesage, la création des lots et la constitution du dossier documentaire, en supprimant les saisies, recalculs, recherches manuelles, modifications de fichiers et documents physiques.",
     logicEn: "Compare person-minutes per lot in the current and projected processes and multiply the difference by monthly lots processed.",
     logicFr: "Comparer les minutes-personne par lot des processus actuel et projeté, puis multiplier l’écart par les lots traités chaque mois.",
-    beforeMinutes: 129, afterMinutes: 49, unitEn: "lot", unitFr: "lot", defaultVolume: 0,
+    beforeMinutes: 129, afterMinutes: 49, unitEn: "lot", unitFr: "lot", volumeRule: "lots",
   },
   {
     key: "yard",
@@ -874,7 +883,7 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     descriptionFr: "Digitaliser la réception, l’identification, l’échantillonnage et la préparation du minerai au moyen d’enregistrements système et de codes QR, réduisant les notes terrain, calculs manuels et ressaisies.",
     logicEn: "Compare person-minutes per lot for receipt, sampling, pulverizing and registration, scaled by monthly lots processed.",
     logicFr: "Comparer les minutes-personne par lot pour la réception, l’échantillonnage, le broyage et l’enregistrement, multipliées par les lots mensuels traités.",
-    beforeMinutes: 398, afterMinutes: 290, unitEn: "lot", unitFr: "lot", defaultVolume: 0,
+    beforeMinutes: 398, afterMinutes: 290, unitEn: "lot", unitFr: "lot", volumeRule: "lots",
   },
   {
     key: "laboratory",
@@ -885,7 +894,7 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     descriptionFr: "Digitaliser la réception des échantillons, les essais, calculs, pesées, tests métallurgiques et l’émission des résultats, réduisant le papier, les transcriptions et les calculs manuels.",
     logicEn: "Compare person-minutes per sample before and after implementation and multiply the savings by monthly samples processed.",
     logicFr: "Comparer les minutes-personne par échantillon avant et après mise en œuvre, puis multiplier l’économie par les échantillons mensuels traités.",
-    beforeMinutes: 84, afterMinutes: 68, unitEn: "sample", unitFr: "échantillon", defaultVolume: 0,
+    beforeMinutes: 84, afterMinutes: 68, unitEn: "sample", unitFr: "échantillon", volumeRule: "samples",
   },
   {
     key: "grade",
@@ -896,7 +905,7 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     descriptionFr: "Automatiser la consolidation des résultats de laboratoire, le calcul des teneurs commerciales et le flux d’évaluation et d’approbation, en remplaçant Excel par un workflow numérique traçable.",
     logicEn: "Compare person-minutes per lot for data entry, calculation, evaluation and approval, scaled by monthly lots.",
     logicFr: "Comparer les minutes-personne par lot pour la saisie, le calcul, l’évaluation et l’approbation, multipliées par les lots mensuels.",
-    beforeMinutes: 16, afterMinutes: 8, unitEn: "lot", unitFr: "lot", defaultVolume: 0,
+    beforeMinutes: 16, afterMinutes: 8, unitEn: "lot", unitFr: "lot", volumeRule: "lots",
   },
   {
     key: "settlement",
@@ -907,7 +916,7 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     descriptionFr: "Intégrer la valorisation, la négociation, l’arbitrage, l’approbation et le règlement du minerai dans un flux numérique unique, réduisant les rapprochements Excel, courriels, calculs manuels et documents.",
     logicEn: "Compare person-minutes per lot in the current and projected commercial processes and multiply the savings by lots processed.",
     logicFr: "Comparer les minutes-personne par lot des processus commerciaux actuel et projeté, puis multiplier l’économie par les lots traités.",
-    beforeMinutes: 51, afterMinutes: 21, unitEn: "lot", unitFr: "lot", defaultVolume: 0,
+    beforeMinutes: 51, afterMinutes: 21, unitEn: "lot", unitFr: "lot", volumeRule: "lots",
   },
   {
     key: "blending",
@@ -918,7 +927,7 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     descriptionFr: "Intégrer la simulation du blending, l’approbation des recettes, la constitution des piles et le contrôle des poids sur une plateforme unique, supprimant Excel, courriels, impressions et saisies manuelles.",
     logicEn: "Compare person-minutes required to prepare and execute a pile today with the projected process, scaled by monthly piles.",
     logicFr: "Comparer les minutes-personne nécessaires pour préparer et exécuter une pile aujourd’hui avec le processus projeté, multipliées par les piles mensuelles.",
-    beforeMinutes: 412, afterMinutes: 338, unitEn: "pile", unitFr: "pile", defaultVolume: 0,
+    beforeMinutes: 412, afterMinutes: 338, unitEn: "pile", unitFr: "pile", volumeRule: "piles",
   },
   {
     key: "plant-records",
@@ -929,7 +938,7 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     descriptionFr: "Digitaliser les registres de broyage, lixiviation, adsorption, récolte, résidus et bilan métallurgique grâce à la saisie directe et aux calculs automatiques.",
     logicEn: "Compare person-minutes per pile in the current and projected processes. Savings tied to physical work or lower staffing must be validated before being treated as final.",
     logicFr: "Comparer les minutes-personne par pile des processus actuel et projeté. Les économies liées aux activités physiques ou à une baisse d’effectif doivent être validées avant d’être considérées comme définitives.",
-    beforeMinutes: 8970, afterMinutes: 7540, unitEn: "pile", unitFr: "pile", defaultVolume: 0,
+    beforeMinutes: 8970, afterMinutes: 7540, unitEn: "pile", unitFr: "pile", volumeRule: "piles",
   },
   {
     key: "refinery-traceability",
@@ -940,7 +949,7 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
     descriptionFr: "Digitaliser les campagnes de désorption et d’électrodéposition, les rapports et la documentation d’exportation et de clôture douanière, réduisant les registres manuels, saisies et reprises.",
     logicEn: "Compare person-minutes per campaign in the current and projected processes, multiply by monthly campaigns and value saved hours at the labor rate.",
     logicFr: "Comparer les minutes-personne par campagne des processus actuel et projeté, multiplier par les campagnes mensuelles et valoriser les heures économisées au coût horaire.",
-    beforeMinutes: 7350, afterMinutes: 6456, unitEn: "campaign", unitFr: "campagne", defaultVolume: 7,
+    beforeMinutes: 7350, afterMinutes: 6456, unitEn: "campaign", unitFr: "campagne", volumeRule: "campaigns",
   },
 ];
 
@@ -964,11 +973,33 @@ function AutodeskProject({ lang, open, onToggle }: { lang: Lang; open: boolean; 
   );
 }
 
-function ProjectedProject({ definition, lang, open, onToggle, onResult }: { definition: ProjectedDefinition; lang: Lang; open: boolean; onToggle: (open: boolean) => void; onResult: (key: string, metric: ProjectionMetric) => void }) {
+function ProjectedProject({ definition, lang, open, onToggle, onResult, averageLots }: { definition: ProjectedDefinition; lang: Lang; open: boolean; onToggle: (open: boolean) => void; onResult: (key: string, metric: ProjectionMetric) => void; averageLots: number }) {
   const [before, setBefore] = useState(definition.beforeMinutes);
   const [after, setAfter] = useState(definition.afterMinutes);
-  const [volume, setVolume] = useState(definition.defaultVolume);
   const [rate, setRate] = useState(10);
+  const volume = definition.volumeRule === "samples"
+    ? averageLots * 6
+    : definition.volumeRule === "piles"
+    ? 2 * 365 / 12
+    : definition.volumeRule === "campaigns"
+    ? 7
+    : averageLots;
+  const keyUser = definition.key === "laboratory"
+    ? "Luis Jimenez"
+    : definition.key === "settlement"
+    ? "Junior de La Cruz"
+    : definition.key === "refinery-traceability"
+    ? "Richard Alcocer"
+    : definition.areaEn.includes("CDM")
+    ? "Carlos Huaman"
+    : tr(lang, "To be defined", "À définir");
+  const volumeBasis = definition.volumeRule === "samples"
+    ? tr(lang, "Average distinct lots/month from entries-up × 6 samples", "Moyenne des lots distincts/mois de entries-up × 6 échantillons")
+    : definition.volumeRule === "piles"
+    ? tr(lang, "2 piles/day × 365/12", "2 piles/jour × 365/12")
+    : definition.volumeRule === "campaigns"
+    ? tr(lang, "7 campaigns/month", "7 campagnes/mois")
+    : tr(lang, "Average distinct lots/month from entries-up", "Moyenne des lots distincts/mois de entries-up");
   const savedMinutes = Math.max(0, before - after);
   const optimization = before > 0 ? savedMinutes / before * 100 : Number.NaN;
   const monthlyMh = savedMinutes / 60 * volume;
@@ -979,11 +1010,11 @@ function ProjectedProject({ definition, lang, open, onToggle, onResult }: { defi
   const quantified = before > 0;
   return (
     <details className="ti-project projected" open={open} onToggle={(event) => onToggle(event.currentTarget.open)}>
-      <summary><div className="ti-project-title"><div className="ti-icon">P</div><div><div className="ti-project-name">{tr(lang, definition.titleEn, definition.titleFr)}</div><div className="ti-project-meta">{tr(lang, "Area", "Domaine")}: {tr(lang, definition.areaEn, definition.areaFr)} · Key User: {tr(lang, "To be defined", "À définir")}</div><span className={`ti-status ${quantified ? "ok" : "bad"}`}>{quantified ? tr(lang, "Projected assumptions", "Hypothèses projetées") : tr(lang, "Baseline pending", "Référence à définir")}</span></div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Before · min-person/unit", "Avant · min-personne/unité")}</div><div className="ti-summary-value">{quantified ? number(before) : "—"}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Projected · min-person/unit", "Projeté · min-personne/unité")}</div><div className="ti-summary-value">{quantified ? number(after) : "—"}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Optimization", "Optimisation")}</div><div className="ti-summary-value good">{percent(optimization)}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Projected USD / year", "USD projetés / an")}</div><div className="ti-summary-value">{money(metric.annualUsd)}</div></div><div className="ti-chevron">⌄</div></summary>
-      <div className="ti-project-body"><div className="ti-lead"><h3>{tr(lang, definition.titleEn, definition.titleFr)}</h3><p>{tr(lang, definition.descriptionEn, definition.descriptionFr)}</p></div><div className="ti-context"><div><span>{tr(lang, "Area", "Domaine")}</span><strong>{tr(lang, definition.areaEn, definition.areaFr)}</strong></div><div><span>Key User</span><strong>{tr(lang, "To be defined", "À définir")}</strong></div><div className="description"><span>{tr(lang, "Optimization logic", "Logique d’optimisation")}</span><strong>{tr(lang, definition.logicEn, definition.logicFr)}</strong></div></div>
-        <div className="ti-controls assumptions"><NumberField label={`${tr(lang, "Before", "Avant")} · min-person/${unit}`} value={before} step={1} onChange={setBefore} /><NumberField label={`${tr(lang, "Projected", "Projeté")} · min-person/${unit}`} value={after} step={1} onChange={setAfter} /><NumberField label={`${tr(lang, "Monthly volume", "Volume mensuel")} · ${unit}`} value={volume} step={1} onChange={setVolume} /><NumberField label={tr(lang, "Labor cost · USD/MH", "Coût du travail · USD/HP")} value={rate} onChange={setRate} /></div>
+      <summary><div className="ti-project-title"><div className="ti-icon">P</div><div><div className="ti-project-name">{tr(lang, definition.titleEn, definition.titleFr)}</div><div className="ti-project-meta">{tr(lang, "Area", "Domaine")}: {tr(lang, definition.areaEn, definition.areaFr)} · Key User: {keyUser}</div><span className={`ti-status ${quantified ? "ok" : "bad"}`}>{quantified ? tr(lang, "Projected assumptions", "Hypothèses projetées") : tr(lang, "Baseline pending", "Référence à définir")}</span></div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Before · min-person/unit", "Avant · min-personne/unité")}</div><div className="ti-summary-value">{quantified ? number(before) : "—"}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Projected · min-person/unit", "Projeté · min-personne/unité")}</div><div className="ti-summary-value">{quantified ? number(after) : "—"}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Optimization", "Optimisation")}</div><div className="ti-summary-value good">{percent(optimization)}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Projected USD / year", "USD projetés / an")}</div><div className="ti-summary-value">{money(metric.annualUsd)}</div></div><div className="ti-chevron">⌄</div></summary>
+      <div className="ti-project-body"><div className="ti-lead"><h3>{tr(lang, definition.titleEn, definition.titleFr)}</h3><p>{tr(lang, definition.descriptionEn, definition.descriptionFr)}</p></div><div className="ti-context"><div><span>{tr(lang, "Area", "Domaine")}</span><strong>{tr(lang, definition.areaEn, definition.areaFr)}</strong></div><div><span>Key User</span><strong>{keyUser}</strong></div><div className="description"><span>{tr(lang, "Optimization logic", "Logique d’optimisation")}</span><strong>{tr(lang, definition.logicEn, definition.logicFr)}</strong></div></div>
+        <div className="ti-controls assumptions"><NumberField label={`${tr(lang, "Before", "Avant")} · min-person/${unit}`} value={before} step={1} onChange={setBefore} /><NumberField label={`${tr(lang, "Projected", "Projeté")} · min-person/${unit}`} value={after} step={1} onChange={setAfter} /><ReadOnlyField label={`${tr(lang, "Assumed monthly volume", "Volume mensuel supposé")} · ${unit}`} value={volume} /><NumberField label={tr(lang, "Labor cost · USD/MH", "Coût du travail · USD/HP")} value={rate} onChange={setRate} /></div>
         <div className="ti-kpis"><div className="ti-kpi gold"><div className="ti-label">{tr(lang, "Before · min-person/unit", "Avant · min-personne/unité")}</div><div className="ti-kpi-value">{quantified ? number(before) : "—"}</div><div className="ti-sub">{unit}</div></div><div className="ti-kpi cyan"><div className="ti-label">{tr(lang, "Projected · min-person/unit", "Projeté · min-personne/unité")}</div><div className="ti-kpi-value">{quantified ? number(after) : "—"}</div><div className="ti-sub">{unit}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Saved · min-person/unit", "Économie · min-personne/unité")}</div><div className="ti-kpi-value">{quantified ? number(savedMinutes) : "—"}</div><div className="ti-sub">{percent(optimization)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Projected MH saved / month", "HP projetées économisées / mois")}</div><div className="ti-kpi-value">{number(monthlyMh, 2)}</div><div className="ti-sub">{number(volume)} {unit}/{tr(lang, "month", "mois")}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Projected USD saved / month", "USD projetés économisés / mois")}</div><div className="ti-kpi-value">{money(monthlyUsd)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Projected USD saved / year", "USD projetés économisés / an")}</div><div className="ti-kpi-value">{money(metric.annualUsd)}</div></div></div>
-        <div className="ti-method"><strong>{tr(lang, "Method.", "Méthode.")}</strong> {tr(lang, "Projected savings = (before − projected person-minutes) × monthly volume. Labor savings are converted to hours and valued using the editable hourly rate. Values remain planning assumptions until validated.", "Économies projetées = (minutes-personne avant − projetées) × volume mensuel. Les économies sont converties en heures et valorisées au coût horaire modifiable. Les valeurs restent des hypothèses de planification jusqu’à validation.")}</div>
+        <div className="ti-method"><strong>{tr(lang, "Method.", "Méthode.")}</strong> {tr(lang, "Projected savings = (before − projected person-minutes) × monthly volume. Labor savings are converted to hours and valued using the editable hourly rate. Volume basis:", "Économies projetées = (minutes-personne avant − projetées) × volume mensuel. Les économies sont converties en heures et valorisées au coût horaire modifiable. Base de volume :")} <b>{volumeBasis}</b>.</div>
       </div>
     </details>
   );
@@ -994,18 +1025,18 @@ function MlProject({ rows, lang, open, onToggle, onResult }: { rows: MlRow[]; la
   const range = useRange(latest);
   const monthly = useMemo(() => {
     const from = inputDate(range.from) || ANALYSIS_START, to = inputDate(range.to, true) || latest || new Date();
-    const groups = new Map<string, Map<string, MlRow>>();
+    const groups = new Map<string, { campaignIds: Set<string>; rows: MlRow[] }>();
     rows.forEach((row) => {
       if (!row.campaignId || !row.campaignDate || row.campaignDate < from || row.campaignDate > to) return;
       const key = monthKey(row.campaignDate);
-      const campaigns = groups.get(key) || new Map<string, MlRow>();
-      if (!campaigns.has(row.campaignId)) campaigns.set(row.campaignId, row);
-      groups.set(key, campaigns);
+      const group = groups.get(key) || { campaignIds: new Set<string>(), rows: [] };
+      group.campaignIds.add(row.campaignId);
+      group.rows.push(row);
+      groups.set(key, group);
     });
-    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, campaigns]) => {
-      const selected = [...campaigns.values()];
-      const actual = sum(selected.map((row) => row.actualCost)), model = sum(selected.map((row) => row.modelCost));
-      return { month, campaigns: selected.length, actual, model, saved: actual - model };
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, group]) => {
+      const actual = sum(group.rows.map((row) => row.actualCost)), model = sum(group.rows.map((row) => row.modelCost));
+      return { month, campaigns: group.campaignIds.size, actual, model, saved: actual - model };
     });
   }, [rows, range.from, range.to, latest]);
   const avgActual = mean(monthly.map((row) => row.actual)), avgModel = mean(monthly.map((row) => row.model)), avgSaved = mean(monthly.map((row) => row.saved));
@@ -1018,12 +1049,12 @@ function MlProject({ rows, lang, open, onToggle, onResult }: { rows: MlRow[]; la
   useEffect(() => onResult(metric), [metric, onResult]);
   const maxCost = Math.max(1, ...monthly.flatMap((row) => [row.actual, row.model]));
   return (
-    <details className="ti-project potential" open={open} onToggle={(event) => onToggle(event.currentTarget.open)}><summary><div className="ti-project-title"><div className="ti-icon">ML</div><div><div className="ti-project-name">{tr(lang, "ML Refinery Consumption Optimization", "Optimisation ML de la consommation en raffinerie")}</div><div className="ti-project-meta">{tr(lang, "Area", "Domaine")}: {tr(lang, "Refinery", "Raffinerie")} · GET /api/dti/ref-ml</div><span className={`ti-status ${rows.length ? "ok" : "bad"}`}>{number(rows.length)} {tr(lang, "records", "enregistrements")}</span></div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Distinct campaigns", "Campagnes distinctes")}</div><div className="ti-summary-value">{sum(monthly.map((row) => row.campaigns))}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Potential optimization", "Optimisation potentielle")}</div><div className="ti-summary-value good">{percent(optimization)}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Potential USD / month", "USD potentiels / mois")}</div><div className="ti-summary-value">{money(avgSaved)}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Potential USD / year", "USD potentiels / an")}</div><div className="ti-summary-value">{money(metric.annualUsd)}</div></div><div className="ti-chevron">⌄</div></summary>
-      <div className="ti-project-body"><div className="ti-lead"><h3>{tr(lang, "ML Refinery Consumption Optimization", "Optimisation ML de la consommation en raffinerie")}</h3><p>{tr(lang, "A Machine Learning model estimates optimal input consumption for each refinery campaign, creating a data-driven benchmark to reduce material cost while preserving process requirements and operating performance.", "Un modèle de Machine Learning estime la consommation optimale d’intrants pour chaque campagne de raffinerie, créant une référence fondée sur les données afin de réduire le coût des matières tout en préservant les exigences du processus et la performance opérationnelle.")}</p></div><div className="ti-context"><div><span>{tr(lang, "Area", "Domaine")}</span><strong>{tr(lang, "Refinery", "Raffinerie")}</strong></div><div><span>Key User</span><strong>{tr(lang, "To be defined", "À définir")}</strong></div><div className="description"><span>{tr(lang, "Calculation logic", "Logique de calcul")}</span><strong>{tr(lang, "Distinct campaign_id values are grouped by campaign_date month. Potential savings equal actual consumption cost minus ML-model consumption cost.", "Les campaign_id distincts sont regroupés par mois de campaign_date. L’économie potentielle correspond au coût réel de consommation moins le coût estimé par le modèle ML.")}</strong></div></div><DateFields {...range} lang={lang} />
+    <details className="ti-project potential" open={open} onToggle={(event) => onToggle(event.currentTarget.open)}><summary><div className="ti-project-title"><div className="ti-icon">ML</div><div><div className="ti-project-name">{tr(lang, "ML Refinery Consumption Optimization", "Optimisation ML de la consommation en raffinerie")}</div><div className="ti-project-meta">{tr(lang, "Area", "Domaine")}: {tr(lang, "Refinery", "Raffinerie")} · Key User: Richard Alcocer · GET /api/dti/ref-ml</div><span className={`ti-status ${rows.length ? "ok" : "bad"}`}>{number(rows.length)} {tr(lang, "records", "enregistrements")}</span></div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Distinct campaigns", "Campagnes distinctes")}</div><div className="ti-summary-value">{sum(monthly.map((row) => row.campaigns))}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Potential optimization", "Optimisation potentielle")}</div><div className="ti-summary-value good">{percent(optimization)}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Potential USD / month", "USD potentiels / mois")}</div><div className="ti-summary-value">{money(avgSaved)}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Potential USD / year", "USD potentiels / an")}</div><div className="ti-summary-value">{money(metric.annualUsd)}</div></div><div className="ti-chevron">⌄</div></summary>
+      <div className="ti-project-body"><div className="ti-lead"><h3>{tr(lang, "ML Refinery Consumption Optimization", "Optimisation ML de la consommation en raffinerie")}</h3><p>{tr(lang, "A Machine Learning model estimates optimal input consumption for each refinery campaign, creating a data-driven benchmark to reduce material cost while preserving process requirements and operating performance.", "Un modèle de Machine Learning estime la consommation optimale d’intrants pour chaque campagne de raffinerie, créant une référence fondée sur les données afin de réduire le coût des matières tout en préservant les exigences du processus et la performance opérationnelle.")}</p></div><div className="ti-context"><div><span>{tr(lang, "Area", "Domaine")}</span><strong>{tr(lang, "Refinery", "Raffinerie")}</strong></div><div><span>Key User</span><strong>Richard Alcocer</strong></div><div className="description"><span>{tr(lang, "Calculation logic", "Logique de calcul")}</span><strong>{tr(lang, "Distinct campaign_id values are counted by campaign_date month. Costs are the sum of all campaign rows in each month; potential savings equal total actual consumption cost minus total ML-model consumption cost.", "Les campaign_id distincts sont comptés par mois de campaign_date. Les coûts correspondent à la somme de toutes les lignes de campagnes du mois ; l’économie potentielle est le coût réel total moins le coût total estimé par le modèle ML.")}</strong></div></div><DateFields {...range} lang={lang} />
         <div className="ti-kpis"><div className="ti-kpi gold"><div className="ti-label">{tr(lang, "Actual cost · USD/month", "Coût réel · USD/mois")}</div><div className="ti-kpi-value">{money(avgActual)}</div></div><div className="ti-kpi cyan"><div className="ti-label">{tr(lang, "ML model cost · USD/month", "Coût modèle ML · USD/mois")}</div><div className="ti-kpi-value">{money(avgModel)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Potential savings · USD/month", "Économies potentielles · USD/mois")}</div><div className="ti-kpi-value">{money(avgSaved)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Potential optimization", "Optimisation potentielle")}</div><div className="ti-kpi-value">{percent(optimization)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Potential savings · selected period", "Économies potentielles · période")}</div><div className="ti-kpi-value">{money(totalSaved)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Annualized potential", "Potentiel annualisé")}</div><div className="ti-kpi-value">{money(metric.annualUsd)}</div></div></div>
         <div className="ti-chart-card"><div className="ti-chart-title">{tr(lang, "Actual vs. ML-model consumption cost by month", "Coût de consommation réel vs. modèle ML par mois")}</div><div className="ti-chart-sub">{tr(lang, "Gold = actual cost · Blue = ML-model cost", "Or = coût réel · Bleu = coût du modèle ML")}</div><div className="ti-chart">{monthly.map((row) => <div className="ti-chart-column" key={row.month} title={`${row.month}: ${money(row.actual)} / ${money(row.model)}`}><div className="ti-bars"><span className="legacy" style={{ height: `${Math.max(2, row.actual / maxCost * 100)}%` }} /><span className="current" style={{ height: `${Math.max(2, row.model / maxCost * 100)}%` }} /></div><small>{row.month.slice(5)}</small></div>)}</div></div>
         <div className="ti-table-box"><div className="ti-table-head"><strong>{tr(lang, "Monthly campaign economics", "Économie mensuelle des campagnes")}</strong><span>{monthly.length} {tr(lang, "month(s)", "mois")}</span></div><div className="ti-table-wrap"><table><thead><tr><th>{tr(lang, "Month", "Mois")}</th><th>{tr(lang, "Distinct campaigns", "Campagnes distinctes")}</th><th>{tr(lang, "Actual cost", "Coût réel")}</th><th>{tr(lang, "ML model cost", "Coût modèle ML")}</th><th>{tr(lang, "Potential savings", "Économies potentielles")}</th></tr></thead><tbody>{monthly.map((row) => <tr key={row.month}><td>{row.month}</td><td>{row.campaigns}</td><td>{money(row.actual)}</td><td>{money(row.model)}</td><td className="ti-total">{money(row.saved)}</td></tr>)}</tbody></table></div></div>
-        <div className="ti-method"><strong>{tr(lang, "Method.", "Méthode.")}</strong> {tr(lang, "Each distinct campaign is counted once in its campaign_date month. Monthly potential savings are actual consumption_cost_us minus ml_consumption_cost_us; the annualized value is average monthly potential × 12.", "Chaque campagne distincte est comptée une fois dans le mois de campaign_date. L’économie potentielle mensuelle est consumption_cost_us moins ml_consumption_cost_us ; la valeur annualisée correspond au potentiel mensuel moyen × 12.")}</div>
+        <div className="ti-method"><strong>{tr(lang, "Method.", "Méthode.")}</strong> {tr(lang, "Distinct campaigns are counted once per campaign_date month, while monthly actual and ML costs sum every campaign row in that month. Monthly potential savings are total consumption_cost_us minus total ml_consumption_cost_us; annualized potential is the average monthly difference × 12.", "Les campagnes distinctes sont comptées une fois par mois de campaign_date, tandis que les coûts réels et ML mensuels additionnent toutes les lignes de campagnes du mois. L’économie potentielle mensuelle est le total consumption_cost_us moins le total ml_consumption_cost_us ; le potentiel annualisé est l’écart mensuel moyen × 12.")}</div>
       </div></details>
   );
 }
@@ -1097,6 +1128,18 @@ export default function TiPage() {
     };
   }, [projectionMetrics]);
 
+  const averageLots = useMemo(() => {
+    const byMonth = new Map<string, Set<string>>();
+    data.entries.forEach((row) => {
+      if (!row.entryDate || !row.lot) return;
+      const key = monthKey(row.entryDate);
+      const lots = byMonth.get(key) || new Set<string>();
+      lots.add(row.lot);
+      byMonth.set(key, lots);
+    });
+    return mean([...byMonth.values()].map((lots) => lots.size));
+  }, [data.entries]);
+
   const executedAnnual = portfolio.usd * 12 + 24941;
   const unifiedAnnual = executedAnnual + projected.annual + potentialMetric.annualUsd;
   const executedKeys = ["cdm", "fin", "fcs", "log", "ro", "autodesk"];
@@ -1130,7 +1173,7 @@ export default function TiPage() {
           <AutodeskProject lang={lang} open={open.autodesk} onToggle={(value) => setProjectOpen("autodesk", value)} />
         </PortfolioSection>
         <PortfolioSection lang={lang} category="02" title={tr(lang, "Projected", "Projetés")} subtitle={tr(lang, "Planning scenarios based on editable unit-time, monthly-volume and labor-rate assumptions.", "Scénarios de planification fondés sur des hypothèses modifiables de temps unitaire, volume mensuel et coût horaire.")} onExpand={() => setCategoryOpen(projectedKeys, true)} onCollapse={() => setCategoryOpen(projectedKeys, false)}>
-          {PROJECTED_PROJECTS.map((definition) => { const key = `projected-${definition.key}`; return <ProjectedProject key={definition.key} definition={definition} lang={lang} open={Boolean(open[key])} onToggle={(value) => setProjectOpen(key, value)} onResult={updateProjectionMetric} />; })}
+          {PROJECTED_PROJECTS.map((definition) => { const key = `projected-${definition.key}`; return <ProjectedProject key={definition.key} definition={definition} lang={lang} open={Boolean(open[key])} onToggle={(value) => setProjectOpen(key, value)} onResult={updateProjectionMetric} averageLots={Number.isFinite(averageLots) ? averageLots : 0} />; })}
         </PortfolioSection>
         <PortfolioSection lang={lang} category="03" title={tr(lang, "Potential", "Potentiels")} subtitle={tr(lang, "Data-driven opportunities that still require operational validation before being recognized as executed savings.", "Opportunités fondées sur les données qui nécessitent encore une validation opérationnelle avant d’être reconnues comme économies exécutées.")} onExpand={() => setProjectOpen("ml", true)} onCollapse={() => setProjectOpen("ml", false)}>
           <MlProject rows={data.ml} lang={lang} open={open.ml} onToggle={(value) => setProjectOpen("ml", value)} onResult={setPotentialMetric} />
