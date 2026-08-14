@@ -42,6 +42,7 @@ export async function POST(req: Request) {
         "logistics",
         "sustainability",
         "fleet",
+        "ti",
       ].includes(area)
     ) {
       return NextResponse.json({ ok: false, error: "area inválida" }, { status: 400 });
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
     const SUSTAINABILITY_PASSWORD = process.env.SUSTAINABILITY_PASSWORD || "";
     const FLEET_PASSWORD_L1 = process.env.FLEET_PASSWORD_L1 || "";
     const FLEET_PASSWORD_L2 = process.env.FLEET_PASSWORD_L2 || "";
+    const DTI_PASSWORD = process.env.DTI_PASSWORD || "";
 
     let ok = false;
     let scopes: string[] = [area];
@@ -77,6 +79,7 @@ export async function POST(req: Request) {
     if (area === "compliance" && password === COMPLIANCE_PASSWORD) ok = true;
     if (area === "logistics" && password === LOGISTICS_PASSWORD) ok = true;
     if (area === "sustainability" && password === SUSTAINABILITY_PASSWORD) ok = true;
+    if (area === "ti" && DTI_PASSWORD && password === DTI_PASSWORD) ok = true;
 
     if (area === "fleet" && password === FLEET_PASSWORD_L1) {
       ok = true;

@@ -82,15 +82,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/ti" || pathname.startsWith("/ti/")) {
-    const role = req.cookies.get("mvd_ti_session")?.value || "";
-    if (role === "ti" || role === "jefes") return NextResponse.next();
-
-    const url = req.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
-
   const secret = process.env.AUTH_SECRET || "";
   if (!secret) {
     const url = req.nextUrl.clone();
@@ -109,6 +100,8 @@ export async function middleware(req: NextRequest) {
 
   const need = pathname.startsWith("/planta")
     ? "planta"
+    : pathname.startsWith("/ti")
+    ? "ti"
     : pathname.startsWith("/refinery")
     ? "refinery"
     : pathname.startsWith("/traceability")

@@ -80,14 +80,11 @@ export default function PortalClient() {
 
     setLoading(true);
     try {
-      const url = area === "ti" ? "/api/ti/auth/login" : "/api/auth/login";
-      const body = area === "ti" ? { pass } : { area, password: pass };
-
-      const res = await fetch(url, {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ area, password: pass }),
       });
 
       const j = await res.json().catch(() => ({}));
@@ -247,7 +244,7 @@ export default function PortalClient() {
               onClick={() => start("ti")}
               disabled={checkingAccess || !hasInternalAccess}
             >
-              Tickets TI
+              Eficiencia Operacional TI
             </Button>
           </div>
         ) : (
@@ -269,7 +266,7 @@ export default function PortalClient() {
                 ? "Clave Flota"
                 : area === "sustainability"
                 ? "Clave Sustainability"
-                : "Clave Tickets TI"}
+                : "Clave Eficiencia Operacional TI"}
             </div>
 
             <input
