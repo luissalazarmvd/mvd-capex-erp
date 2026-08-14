@@ -70,6 +70,8 @@ type Column = {
   width: number;
 };
 
+type SortDir = "asc" | "desc";
+
 // El orden de esta lista replica exactamente el SELECT de /api/traceability/conta.
 const COLUMNS: Column[] = [
   { key: "lot", label: "Lote", kind: "text", width: 110 },
@@ -174,6 +176,45 @@ function matchesGlobalSearch(row: TraceabilityContaRow, search: string) {
   );
 }
 
+function compareRowsByColumn(
+  a: TraceabilityContaRow,
+  b: TraceabilityContaRow,
+  column: Column,
+  direction: SortDir
+) {
+  const aValue = a[column.key];
+  const bValue = b[column.key];
+  const aBlank = aValue === null || aValue === undefined || String(aValue).trim() === "";
+  const bBlank = bValue === null || bValue === undefined || String(bValue).trim() === "";
+
+  // Los valores vacíos siempre quedan al final, en ambos sentidos.
+  if (aBlank && bBlank) return 0;
+  if (aBlank) return 1;
+  if (bBlank) return -1;
+
+  let result: number;
+
+  if (column.kind === "number") {
+    const aNumber = Number(aValue);
+    const bNumber = Number(bValue);
+    result = Number.isFinite(aNumber) && Number.isFinite(bNumber)
+      ? aNumber - bNumber
+      : String(aValue).localeCompare(String(bValue), "es", {
+          numeric: true,
+          sensitivity: "base",
+        });
+  } else {
+    const aText = column.kind === "date" ? normalizeDate(aValue) : String(aValue).trim();
+    const bText = column.kind === "date" ? normalizeDate(bValue) : String(bValue).trim();
+    result = aText.localeCompare(bText, "es", {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
+
+  return direction === "asc" ? result : -result;
+}
+
 export default function TraceabilityContaForm() {
   const [rows, setRows] = useState<TraceabilityContaRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -181,6 +222,8 @@ export default function TraceabilityContaForm() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
+  const [sortKey, setSortKey] = useState<keyof TraceabilityContaRow>("payment_date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
 
   const loadData = useCallback(async () => {
@@ -204,7 +247,7 @@ export default function TraceabilityContaForm() {
 
   useEffect(() => {
     setPage(1);
-  }, [dateFrom, dateTo, globalSearch]);
+  }, [dateFrom, dateTo, globalSearch, sortKey, sortDir]);
 
   const paymentDateBounds = useMemo(() => {
     const dates = rows.map((row) => normalizeDate(row.payment_date)).filter(Boolean).sort();
@@ -220,20 +263,42 @@ export default function TraceabilityContaForm() {
     setDateTo((current) => current || paymentDateBounds.max);
   }, [rows, paymentDateBounds.min, paymentDateBounds.max]);
 
-  const filteredRows = useMemo(
-    () =>
-      rows.filter(
+  const filteredRows = useMemo(() => {
+    const column = COLUMNS.find((item) => item.key === sortKey) ?? COLUMNS[0];
+    const matchingRows = rows.filter(
         (row) =>
           isInPaymentDateRange(row, dateFrom, dateTo) &&
           matchesGlobalSearch(row, globalSearch)
-      ),
-    [rows, dateFrom, dateTo, globalSearch]
-  );
+      );
+
+    return matchingRows
+      .map((row, originalIndex) => ({ row, originalIndex }))
+      .sort((a, b) => {
+        const result = compareRowsByColumn(a.row, b.row, column, sortDir);
+        return result || a.originalIndex - b.originalIndex;
+      })
+      .map(({ row }) => row);
+  }, [rows, dateFrom, dateTo, globalSearch, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const visibleRows = filteredRows.slice(pageStart, pageStart + PAGE_SIZE);
+
+  function onSortClick(key: keyof TraceabilityContaRow) {
+    if (sortKey === key) {
+      setSortDir((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(key);
+    setSortDir("asc");
+  }
+
+  function getSortIndicator(key: keyof TraceabilityContaRow) {
+    if (sortKey !== key) return "";
+    return sortDir === "asc" ? " ▲" : " ▼";
+  }
 
   function exportExcel() {
     if (!filteredRows.length) {
@@ -418,7 +483,22 @@ export default function TraceabilityContaForm() {
                   <th
                     key={column.key}
                     className="capex-th"
-                    title={column.label}
+                    onClick={() => onSortClick(column.key)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSortClick(column.key);
+                      }
+                    }}
+                    tabIndex={0}
+                    aria-sort={
+                      sortKey === column.key
+                        ? sortDir === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                    title={`Ordenar por ${column.label}`}
                     style={{
                       top: 0,
                       zIndex: 20,
@@ -433,9 +513,12 @@ export default function TraceabilityContaForm() {
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       boxSizing: "border-box",
+                      cursor: "pointer",
+                      userSelect: "none",
                     }}
                   >
                     {column.label}
+                    {getSortIndicator(column.key)}
                   </th>
                 ))}
               </tr>
