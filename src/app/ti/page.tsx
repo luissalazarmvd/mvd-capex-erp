@@ -14,6 +14,12 @@ const CUT = {
   ro: new Date(2026, 3, 1),
 };
 
+type Lang = "en" | "fr";
+
+function tr(lang: Lang, en: string, fr: string) {
+  return lang === "fr" ? fr : en;
+}
+
 type EntriesRow = {
   entryDate: Date | null;
   entryDatetime: Date | null;
@@ -35,6 +41,12 @@ type FinanceRow = {
 
 type FcsRow = { lot: string; entryDate: Date | null };
 type LogisticsRow = { reqDate: Date | null; responsible: string };
+type MlRow = {
+  campaignId: string;
+  campaignDate: Date | null;
+  actualCost: number;
+  modelCost: number;
+};
 
 type MonthlyRow = {
   month: string;
@@ -296,12 +308,14 @@ function NumberField({
 }
 
 function DateFields({
+  lang,
   from,
   to,
   max,
   setFrom,
   setTo,
 }: {
+  lang: Lang;
   from: string;
   to: string;
   max: string;
@@ -311,24 +325,24 @@ function DateFields({
   return (
     <div className="ti-controls">
       <label className="ti-field">
-        <span>Desde</span>
+        <span>{tr(lang, "From", "Depuis")}</span>
         <input type="date" min="2026-01-01" max={max} value={from} onChange={(event) => setFrom(event.target.value)} />
       </label>
       <label className="ti-field">
-        <span>Hasta</span>
+        <span>{tr(lang, "To", "Jusqu’au")}</span>
         <input type="date" min="2026-01-01" max={max} value={to} onChange={(event) => setTo(event.target.value)} />
       </label>
     </div>
   );
 }
 
-function Kpis({ result }: { result: ProjectResult }) {
+function Kpis({ result, lang }: { result: ProjectResult; lang: Lang }) {
   const items = [
-    ["Trabajo anterior · HH/mes", `${number(result.avgBefore, 2)} HH/mes`, "Promedio mensual previo a la implementación", "gold"],
-    ["Trabajo actual · HH/mes", `${number(result.avgCurrent, 2)} HH/mes`, "Promedio mensual posterior a la implementación", "cyan"],
-    ["Optimización · %", percent(result.optimization), "Reducción posterior vs. equivalente anterior", "green"],
-    ["Costo laboral ahorrado · USD/mes", money(result.avgUsd), "Ritmo promedio posterior", "green"],
-    ["Ahorro anualizado · USD/año", money(result.avgUsd * 12), "Ritmo mensual × 12", "green"],
+    [tr(lang, "Before labor · MH/month", "Travail avant · HP/mois"), `${number(result.avgBefore, 2)} ${tr(lang, "MH/month", "HP/mois")}`, tr(lang, "Average pre-implementation monthly workload", "Charge mensuelle moyenne avant mise en œuvre"), "gold"],
+    [tr(lang, "Current labor · MH/month", "Travail actuel · HP/mois"), `${number(result.avgCurrent, 2)} ${tr(lang, "MH/month", "HP/mois")}`, tr(lang, "Average post-implementation monthly workload", "Charge mensuelle moyenne après mise en œuvre"), "cyan"],
+    [tr(lang, "Labor optimization · %", "Optimisation du travail · %"), percent(result.optimization), tr(lang, "Post-cut reduction vs. legacy equivalent", "Réduction après coupure vs. équivalent historique"), "green"],
+    [tr(lang, "Labor cost saved · USD/month", "Coût du travail économisé · USD/mois"), money(result.avgUsd), tr(lang, "Average post-implementation run-rate", "Rythme moyen après mise en œuvre"), "green"],
+    [tr(lang, "Annualized labor savings · USD/year", "Économies de travail annualisées · USD/an"), money(result.avgUsd * 12), tr(lang, "Monthly run-rate × 12", "Rythme mensuel × 12"), "green"],
     [result.extraLabel, result.extraValue, result.extraSub, "blue"],
   ];
   return (
@@ -344,40 +358,40 @@ function Kpis({ result }: { result: ProjectResult }) {
   );
 }
 
-function Comparison({ result, note }: { result: ProjectResult; note: string }) {
+function Comparison({ result, note, lang }: { result: ProjectResult; note: string; lang: Lang }) {
   return (
     <div className="ti-compare">
       <div className="ti-compare-head">
-        <strong>Antes vs. actual</strong>
+        <strong>{tr(lang, "Before vs. current", "Avant vs. actuel")}</strong>
         <span>{note}</span>
       </div>
       <div className="ti-compare-grid">
         <div className="ti-compare-box">
-          <div className="ti-label">Antes de la implementación</div>
-          <div className="ti-compare-value">{number(result.avgBefore, 2)} HH/mes</div>
-          <div className="ti-sub">Carga mensual promedio del proceso anterior</div>
+          <div className="ti-label">{tr(lang, "Before implementation", "Avant la mise en œuvre")}</div>
+          <div className="ti-compare-value">{number(result.avgBefore, 2)} {tr(lang, "MH/month", "HP/mois")}</div>
+          <div className="ti-sub">{tr(lang, "Average legacy-process monthly workload", "Charge mensuelle moyenne du processus historique")}</div>
         </div>
         <div className="ti-compare-box current">
-          <div className="ti-label">Proceso actual</div>
-          <div className="ti-compare-value">{number(result.avgCurrent, 2)} HH/mes</div>
-          <div className="ti-sub">Carga mensual promedio dentro del alcance</div>
+          <div className="ti-label">{tr(lang, "Current process", "Processus actuel")}</div>
+          <div className="ti-compare-value">{number(result.avgCurrent, 2)} {tr(lang, "MH/month", "HP/mois")}</div>
+          <div className="ti-sub">{tr(lang, "Average in-scope monthly workload", "Charge mensuelle moyenne dans le périmètre")}</div>
         </div>
         <div className="ti-compare-box good">
-          <div className="ti-label">Optimización</div>
+          <div className="ti-label">{tr(lang, "Optimization", "Optimisation")}</div>
           <div className="ti-compare-value">{percent(result.optimization)}</div>
-          <div className="ti-sub">{number(result.avgSaved, 2)} HH/mes · {money(result.avgUsd)}/mes</div>
+          <div className="ti-sub">{number(result.avgSaved, 2)} {tr(lang, "MH/month", "HP/mois")} · {money(result.avgUsd)}/{tr(lang, "month", "mois")}</div>
         </div>
       </div>
     </div>
   );
 }
 
-function MonthlyChart({ points, title }: { points: ChartPoint[]; title: string }) {
+function MonthlyChart({ points, title, lang }: { points: ChartPoint[]; title: string; lang: Lang }) {
   const max = Math.max(1, ...points.flatMap((point) => [point.legacy || 0, point.current || 0]));
   return (
     <div className="ti-chart-card">
       <div className="ti-chart-title">{title}</div>
-      <div className="ti-chart-sub">Dorado = equivalente anterior · Azul = carga actual</div>
+      <div className="ti-chart-sub">{tr(lang, "Gold = legacy equivalent · Blue = current workload", "Or = équivalent historique · Bleu = charge actuelle")}</div>
       {points.length ? (
         <div className="ti-chart" role="img" aria-label={title}>
           {points.map((point) => (
@@ -391,23 +405,23 @@ function MonthlyChart({ points, title }: { points: ChartPoint[]; title: string }
           ))}
         </div>
       ) : (
-        <div className="ti-empty">No hay datos para el rango seleccionado.</div>
+        <div className="ti-empty">{tr(lang, "No data for the selected range.", "Aucune donnée pour la période sélectionnée.")}</div>
       )}
-      <div className="ti-legend"><span className="legacy" /> Proceso anterior <span className="current" /> Proceso actual</div>
+      <div className="ti-legend"><span className="legacy" /> {tr(lang, "Legacy process", "Processus historique")} <span className="current" /> {tr(lang, "Current process", "Processus actuel")}</div>
     </div>
   );
 }
 
-function MonthlyTable({ rows }: { rows: MonthlyRow[] }) {
+function MonthlyTable({ rows, lang }: { rows: MonthlyRow[]; lang: Lang }) {
   return (
     <div className="ti-table-box">
-      <div className="ti-table-head"><strong>Antes vs. actual por mes</strong><span>{rows.length} periodo(s)</span></div>
+      <div className="ti-table-head"><strong>{tr(lang, "Monthly before vs. current", "Avant vs. actuel par mois")}</strong><span>{rows.length} {tr(lang, "period(s)", "période(s)")}</span></div>
       <div className="ti-table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Mes</th><th>Periodo</th><th>Base de carga</th><th>Anterior HH</th><th>Anterior USD</th>
-              <th>Actual HH</th><th>Actual USD</th><th>Ahorrado HH</th><th>Ahorrado USD</th>
+              <th>{tr(lang, "Month", "Mois")}</th><th>{tr(lang, "Period", "Période")}</th><th>{tr(lang, "Workload basis", "Base de charge")}</th><th>{tr(lang, "Before MH", "HP avant")}</th><th>{tr(lang, "Before USD", "USD avant")}</th>
+              <th>{tr(lang, "Current MH", "HP actuelles")}</th><th>{tr(lang, "Current USD", "USD actuels")}</th><th>{tr(lang, "Saved MH", "HP économisées")}</th><th>{tr(lang, "Saved USD", "USD économisés")}</th>
             </tr>
           </thead>
           <tbody>
@@ -428,6 +442,7 @@ function MonthlyTable({ rows }: { rows: MonthlyRow[] }) {
 }
 
 function ProjectCard({
+  lang,
   name,
   icon,
   area,
@@ -446,6 +461,7 @@ function ProjectCard({
   onToggle,
   extra,
 }: {
+  lang: Lang;
   name: string;
   icon: string;
   area: string;
@@ -471,32 +487,32 @@ function ProjectCard({
           <div className="ti-icon">{icon}</div>
           <div>
             <div className="ti-project-name">{name}</div>
-            <div className="ti-project-meta">Fuente: {source} · Inicio: {implementation}</div>
-            <span className={`ti-status ${rowCount || source === "Supuestos validados" ? "ok" : "bad"}`}>
-              {source === "Supuestos validados" ? "Supuestos validados" : `${number(rowCount)} registros`}
+            <div className="ti-project-meta">{tr(lang, "Source", "Source")}: {source} · {tr(lang, "Implementation start", "Début de mise en œuvre")}: {implementation}</div>
+            <span className={`ti-status ${rowCount || source === "Validated assumptions" ? "ok" : "bad"}`}>
+              {source === "Validated assumptions" ? tr(lang, "Validated assumptions", "Hypothèses validées") : `${number(rowCount)} ${tr(lang, "records", "enregistrements")}`}
             </span>
           </div>
         </div>
-        <div className="ti-summary-metric"><div className="ti-label">HH ahorradas · periodo posterior</div><div className="ti-summary-value">{number(result.totalSaved, 2)} HH</div></div>
-        <div className="ti-summary-metric"><div className="ti-label">Optimización</div><div className="ti-summary-value good">{percent(result.optimization)}</div></div>
-        <div className="ti-summary-metric"><div className="ti-label">USD ahorrados · periodo</div><div className="ti-summary-value">{money(result.totalUsd)}</div></div>
-        <div className="ti-summary-metric"><div className="ti-label">USD ahorrados / mes</div><div className="ti-summary-value">{money(result.avgUsd)}</div></div>
+        <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "MH saved · post-cut period", "HP économisées · période après coupure")}</div><div className="ti-summary-value">{number(result.totalSaved, 2)} {tr(lang, "MH", "HP")}</div></div>
+        <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Optimization", "Optimisation")}</div><div className="ti-summary-value good">{percent(result.optimization)}</div></div>
+        <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "USD saved · post-cut period", "USD économisés · période après coupure")}</div><div className="ti-summary-value">{money(result.totalUsd)}</div></div>
+        <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "USD saved / month", "USD économisés / mois")}</div><div className="ti-summary-value">{money(result.avgUsd)}</div></div>
         <div className="ti-chevron">⌄</div>
       </summary>
       <div className="ti-project-body">
         <div className="ti-lead"><h3>{name}</h3><p>{description}</p></div>
         <div className="ti-context">
-          <div><span>Área</span><strong>{area}</strong></div>
-          <div><span>Key User</span><strong>{keyUser}</strong></div>
-          <div className="description"><span>Solución implementada</span><strong>{solution}</strong></div>
+          <div><span>{tr(lang, "Area", "Domaine")}</span><strong>{area}</strong></div>
+          <div><span>{tr(lang, "Key User", "Utilisateur clé")}</span><strong>{keyUser}</strong></div>
+          <div className="description"><span>{tr(lang, "Implemented solution", "Solution mise en œuvre")}</span><strong>{solution}</strong></div>
         </div>
         {controls}
-        <Kpis result={result} />
-        <Comparison result={result} note={note} />
+        <Kpis result={result} lang={lang} />
+        <Comparison result={result} note={note} lang={lang} />
         {extra}
-        <MonthlyChart points={result.chart} title={chartTitle} />
-        <MonthlyTable rows={result.rows} />
-        <div className="ti-method"><strong>Método.</strong> {method}</div>
+        <MonthlyChart points={result.chart} title={chartTitle} lang={lang} />
+        <MonthlyTable rows={result.rows} lang={lang} />
+        <div className="ti-method"><strong>{tr(lang, "Method.", "Méthode.")}</strong> {method}</div>
       </div>
     </details>
   );
@@ -533,7 +549,7 @@ function cleanDelay(rows: EntriesRow[]) {
   return { average: mean(kept.map((row) => row.delaySeconds)), outliers, rows: kept };
 }
 
-function DelayChart({ rows, baseline }: { rows: EntriesRow[]; baseline: number }) {
+function DelayChart({ rows, baseline, lang }: { rows: EntriesRow[]; baseline: number; lang: Lang }) {
   const daily = useMemo(() => {
     const map = new Map<string, number[]>();
     rows.forEach((row) => {
@@ -549,19 +565,19 @@ function DelayChart({ rows, baseline }: { rows: EntriesRow[]; baseline: number }
   const baselineY = 100 - ((baseline / 3600) / max) * 88;
   return (
     <div className="ti-chart-card">
-      <div className="ti-chart-title">Demora promedio de carga · antes vs. después</div>
-      <div className="ti-chart-sub">Demora diaria observada en horas; la línea verde representa la referencia fija anterior.</div>
+      <div className="ti-chart-title">{tr(lang, "Average upload delay · before vs. after", "Délai moyen de chargement · avant vs. après")}</div>
+      <div className="ti-chart-sub">{tr(lang, "Observed daily delay in hours; the green line is the fixed legacy baseline.", "Délai quotidien observé en heures ; la ligne verte représente la référence historique fixe.")}</div>
       {daily.length ? (
-        <svg className="ti-line-chart" viewBox="0 0 100 105" preserveAspectRatio="none" role="img" aria-label="Demora diaria de carga">
+        <svg className="ti-line-chart" viewBox="0 0 100 105" preserveAspectRatio="none" role="img" aria-label={tr(lang, "Daily upload delay", "Délai quotidien de chargement")}>
           <line x1="0" x2="100" y1={baselineY} y2={baselineY} className="baseline" />
           <polyline points={points} />
         </svg>
-      ) : <div className="ti-empty">No hay demoras válidas para el rango seleccionado.</div>}
+      ) : <div className="ti-empty">{tr(lang, "No valid delays for the selected range.", "Aucun délai valide pour la période sélectionnée.")}</div>}
     </div>
   );
 }
 
-function CdmProject({ rows, open, onToggle, onResult }: { rows: EntriesRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void }) {
+function CdmProject({ rows, open, onToggle, onResult, lang }: { rows: EntriesRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
   const latest = useMemo(() => latestDate(rows.map((row) => row.entryDate)), [rows]);
   const range = useRange(latest);
   const [department, setDepartment] = useState("");
@@ -604,36 +620,36 @@ function CdmProject({ rows, open, onToggle, onResult }: { rows: EntriesRow[]; op
       const preActual = calculate(pre, false);
       const postLegacy = calculate(post, true);
       const postActual = calculate(post, false);
-      if (pre.length) monthly.push({ month, period: end < CUT.cdm ? "Antes de implementación" : "Antes · 01–19 jul", workload: `${new Set(pre.map((row) => row.lot)).size} lotes`, beforeMh: preActual.mh, beforeUsd: preActual.usd, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: start >= from && end <= to && end < CUT.cdm });
-      if (post.length) monthly.push({ month, period: start >= CUT.cdm ? "Actual" : "Actual · desde 20 jul", workload: `${new Set(post.map((row) => row.lot)).size} lotes`, beforeMh: postLegacy.mh, beforeUsd: postLegacy.usd, currentMh: postActual.mh, currentUsd: postActual.usd, savedMh: postLegacy.mh - postActual.mh, savedUsd: postLegacy.usd - postActual.usd, segment: "current", fullSegment: start >= CUT.cdm && start >= from && end <= to });
+      if (pre.length) monthly.push({ month, period: end < CUT.cdm ? tr(lang, "Before implementation", "Avant mise en œuvre") : tr(lang, "Before · 01–19 Jul", "Avant · 01–19 juil."), workload: `${new Set(pre.map((row) => row.lot)).size} ${tr(lang, "lots", "lots")}`, beforeMh: preActual.mh, beforeUsd: preActual.usd, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: start >= from && end <= to && end < CUT.cdm });
+      if (post.length) monthly.push({ month, period: start >= CUT.cdm ? tr(lang, "Current", "Actuel") : tr(lang, "Current · from 20 Jul", "Actuel · dès le 20 juil."), workload: `${new Set(post.map((row) => row.lot)).size} ${tr(lang, "lots", "lots")}`, beforeMh: postLegacy.mh, beforeUsd: postLegacy.usd, currentMh: postActual.mh, currentUsd: postActual.usd, savedMh: postLegacy.mh - postActual.mh, savedUsd: postLegacy.usd - postActual.usd, segment: "current", fullSegment: start >= CUT.cdm && start >= from && end <= to });
       chart.push({ month, legacy: preActual.mh + postLegacy.mh, current: pre.length || post.length ? preActual.mh + postActual.mh : null, volume: new Set([...pre, ...post].map((row) => row.lot)).size });
     });
-    const result = finishResult(monthly, chart, "Demora promedio de carga", `${duration(beforeClean.average)} → ${duration(afterClean.average)}`, `${beforeClean.outliers.length + afterClean.outliers.length} día(s) atípico(s) excluido(s)`);
+    const result = finishResult(monthly, chart, tr(lang, "Average upload delay", "Délai moyen de chargement"), `${duration(beforeClean.average)} → ${duration(afterClean.average)}`, `${beforeClean.outliers.length + afterClean.outliers.length} ${tr(lang, "outlier day(s) excluded", "jour(s) atypique(s) exclu(s)")}`);
     result.avgUsd = averageRun(monthly, "savedMh", "current");
     const fullCurrent = monthly.filter((row) => row.segment === "current" && row.fullSegment && row.savedUsd !== null);
     const anyCurrent = monthly.filter((row) => row.segment === "current" && row.savedUsd !== null);
     result.avgUsd = mean((fullCurrent.length ? fullCurrent : anyCurrent).map((row) => Number(row.savedUsd)));
     return { result, base: base.filter((row) => row.entryDate && row.entryDate >= from && row.entryDate <= to), baseline: beforeClean.average };
-  }, [rows, range.from, range.to, latest, department, miner, rates]);
+  }, [rows, range.from, range.to, latest, department, miner, rates, lang]);
   useEffect(() => reportMetric(onResult, calculation.result), [calculation.result, onResult]);
 
   const controls = <>
-    <DateFields {...range} />
+    <DateFields {...range} lang={lang} />
     <div className="ti-controls">
-      <label className="ti-field"><span>Departamento</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="">Todos</option>{departments.map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label className="ti-field"><span>Minero</span><select value={miner} onChange={(event) => setMiner(event.target.value)}><option value="">Todos</option>{miners.map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label className="ti-field"><span>{tr(lang, "Department", "Département")}</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="">{tr(lang, "All", "Tous")}</option>{departments.map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label className="ti-field"><span>{tr(lang, "Miner", "Mineur")}</span><select value={miner} onChange={(event) => setMiner(event.target.value)}><option value="">{tr(lang, "All", "Tous")}</option>{miners.map((value) => <option key={value}>{value}</option>)}</select></label>
     </div>
     <div className="ti-controls assumptions">
-      <NumberField label="Costo Contabilidad · USD/HH" value={rates.accounting} onChange={(value) => setRates((current) => ({ ...current, accounting: value }))} />
-      <NumberField label="Costo Comercial · USD/HH" value={rates.commercial} onChange={(value) => setRates((current) => ({ ...current, commercial: value }))} />
-      <NumberField label="Costo Control de Minerales · USD/HH" value={rates.control} onChange={(value) => setRates((current) => ({ ...current, control: value }))} />
-      <NumberField label="Tope Control de Minerales · h/persona/día" value={rates.cap} onChange={(value) => setRates((current) => ({ ...current, cap: value }))} />
+      <NumberField label={tr(lang, "Accounting labor cost · USD/MH", "Coût Comptabilité · USD/HP")} value={rates.accounting} onChange={(value) => setRates((current) => ({ ...current, accounting: value }))} />
+      <NumberField label={tr(lang, "Commercial labor cost · USD/MH", "Coût Commercial · USD/HP")} value={rates.commercial} onChange={(value) => setRates((current) => ({ ...current, commercial: value }))} />
+      <NumberField label={tr(lang, "Mineral Control labor cost · USD/MH", "Coût Contrôle des Minéraux · USD/HP")} value={rates.control} onChange={(value) => setRates((current) => ({ ...current, control: value }))} />
+      <NumberField label={tr(lang, "Mineral Control cap · h/person/day", "Plafond Contrôle des Minéraux · h/personne/jour")} value={rates.cap} onChange={(value) => setRates((current) => ({ ...current, cap: value }))} />
     </div>
   </>;
-  return <ProjectCard name="Entradas y cargas de lotes" icon="↥" area="CDM" keyUser="Carlos Huamán" implementation="20/07/2026" description="Automatización de balanza que crea e inserta el archivo del lote, eliminando el registro manual y su tiempo de espera." solution="El nuevo sistema de balanza crea e inserta automáticamente el archivo de cada ingreso, reduciendo la espera de Contabilidad, Comercial y Control de Minerales." source="GET /api/dti/entries-up" rowCount={rows.length} result={calculation.result} controls={controls} note="Las demoras atípicas se excluyen mediante IQR 1.5× de los KPI y cálculos laborales." chartTitle="Entradas y cargas · HH anteriores vs. actuales por mes" method="El análisis inicia el 01/01/2026 y la implementación el 20/07/2026. La referencia fija usa registros válidos previos al corte. Contabilidad y Comercial consideran 90% de exposición para 3 y 2 personas, con tope de 8 h/persona/día; Control de Minerales se calcula por lote con un tope diario de 2 personas." open={open} onToggle={onToggle} extra={<DelayChart rows={calculation.base} baseline={calculation.baseline} />} />;
+  return <ProjectCard lang={lang} name={tr(lang, "Lot Entries & Uploads", "Entrées et chargements des lots")} icon="↥" area="CDM" keyUser="Carlos Huamán" implementation="20/07/2026" description={tr(lang, "A weighing-scale automation that creates and inserts the lot file automatically, eliminating manual registration and its associated waiting time.", "Une automatisation de la balance crée et insère automatiquement le dossier du lot, supprimant l’enregistrement manuel et le temps d’attente associé.")} solution={tr(lang, "The new weighing-scale system automatically creates and inserts each entry file, reducing standby time for Accounting, Commercial and Mineral Control.", "Le nouveau système de balance crée et insère automatiquement chaque dossier d’entrée, réduisant l’attente pour la Comptabilité, le Commercial et le Contrôle des Minéraux.")} source="GET /api/dti/entries-up" rowCount={rows.length} result={calculation.result} controls={controls} note={tr(lang, "Delay outliers are excluded from KPIs and labor calculations using 1.5× IQR.", "Les délais atypiques sont exclus des KPI et des calculs de travail selon l’IQR 1,5×.")} chartTitle={tr(lang, "Lot Entries & Uploads · legacy vs. current MH by month", "Entrées et chargements · HP historiques vs. actuelles par mois")} method={tr(lang, "Analysis starts on 01/01/2026 and implementation on 20/07/2026. The fixed baseline uses valid pre-cut records. Accounting and Commercial apply 90% exposure for 3 and 2 people, capped at 8 h/person/day; Mineral Control is calculated lot by lot with a daily two-person cap.", "L’analyse débute le 01/01/2026 et la mise en œuvre le 20/07/2026. La référence fixe utilise les enregistrements valides avant coupure. Comptabilité et Commercial appliquent une exposition de 90 % pour 3 et 2 personnes, plafonnée à 8 h/personne/jour ; le Contrôle des Minéraux est calculé lot par lot avec un plafond quotidien de deux personnes.")} open={open} onToggle={onToggle} extra={<DelayChart rows={calculation.base} baseline={calculation.baseline} lang={lang} />} />;
 }
 
-function FinProject({ rows, open, onToggle, onResult }: { rows: FinanceRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void }) {
+function FinProject({ rows, open, onToggle, onResult, lang }: { rows: FinanceRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
   const latest = useMemo(() => latestDate(rows.flatMap((row) => [row.entryDate, row.valuationDate, row.docDate])), [rows]);
   const range = useRange(latest);
   const [a, setA] = useState({ financeRate: 20, commercialRate: 8, controlRate: 20, financeOld: 1.25, people: 7, commercialOld: 2, commercialNew: 0.25, controlOld: 9, controlNew: 1 });
@@ -671,38 +687,38 @@ function FinProject({ rows, open, onToggle, onResult }: { rows: FinanceRow[]; op
       const beforeMh = financeBefore + commercialBefore + controlBefore;
       const beforeUsd = financeBefore * a.financeRate + commercialBefore * a.commercialRate + controlBefore * a.controlRate;
       if (end < CUT.fin) {
-        monthly.push({ month, period: "Antes de implementación", workload: `${volume.entered} / ${volume.commercial} / ${volume.review}`, beforeMh, beforeUsd, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: start >= from && end <= to });
+        monthly.push({ month, period: tr(lang, "Before implementation", "Avant mise en œuvre"), workload: `${volume.entered} / ${volume.commercial} / ${volume.review}`, beforeMh, beforeUsd, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: start >= from && end <= to });
         chart.push({ month, legacy: beforeMh, current: beforeMh, volume: volume.entered });
       } else {
         const commercialNow = volume.commercial * newCommercialPerLot;
         const controlNow = volume.review * newReviewPerLot;
         const currentMh = commercialNow + controlNow;
         const currentUsd = commercialNow * a.commercialRate + controlNow * a.controlRate;
-        monthly.push({ month, period: "Actual", workload: `${volume.entered} / ${volume.commercial} / ${volume.review}`, beforeMh, beforeUsd, currentMh, currentUsd, savedMh: beforeMh - currentMh, savedUsd: beforeUsd - currentUsd, segment: "current", fullSegment: start >= CUT.fin && start >= from && end <= to && end <= dataEnd });
+        monthly.push({ month, period: tr(lang, "Current", "Actuel"), workload: `${volume.entered} / ${volume.commercial} / ${volume.review}`, beforeMh, beforeUsd, currentMh, currentUsd, savedMh: beforeMh - currentMh, savedUsd: beforeUsd - currentUsd, segment: "current", fullSegment: start >= CUT.fin && start >= from && end <= to && end <= dataEnd });
         chart.push({ month, legacy: beforeMh, current: currentMh, volume: volume.entered });
       }
     });
-    const calculated = finishResult(monthly, chart, "Base de carga", `${sum(chart.map((item) => item.volume || 0))} lotes ingresados`, "Ingresados / Comercial / revisión CDM");
+    const calculated = finishResult(monthly, chart, tr(lang, "Workload basis", "Base de charge"), `${sum(chart.map((item) => item.volume || 0))} ${tr(lang, "entered lots", "lots entrés")}`, tr(lang, "Entered / Commercial / Mineral Control review", "Entrés / Commercial / Révision Contrôle des Minéraux"));
     const fullCurrent = monthly.filter((row) => row.segment === "current" && row.fullSegment);
     calculated.avgUsd = mean((fullCurrent.length ? fullCurrent : monthly.filter((row) => row.segment === "current")).map((row) => Number(row.savedUsd)));
     return calculated;
-  }, [rows, range.from, range.to, latest, a]);
+  }, [rows, range.from, range.to, latest, a, lang]);
   useEffect(() => reportMetric(onResult, result), [result, onResult]);
-  const controls = <><DateFields {...range} /><div className="ti-controls assumptions">
-    <NumberField label="Costo Finance · USD/HH" value={a.financeRate} onChange={(value) => setA((c) => ({ ...c, financeRate: value }))} />
-    <NumberField label="Costo Comercial · USD/HH" value={a.commercialRate} onChange={(value) => setA((c) => ({ ...c, commercialRate: value }))} />
-    <NumberField label="Costo Control de Minerales · USD/HH" value={a.controlRate} onChange={(value) => setA((c) => ({ ...c, controlRate: value }))} />
-    <NumberField label="Preparación anterior Finance · HH/mes" value={a.financeOld} step={0.25} onChange={(value) => setA((c) => ({ ...c, financeOld: value }))} />
-    <NumberField label="Personas Comercial" value={a.people} step={1} onChange={(value) => setA((c) => ({ ...c, people: Math.max(1, value) }))} />
-    <NumberField label="Esfuerzo anterior Comercial · h/persona/mes" value={a.commercialOld} step={0.25} onChange={(value) => setA((c) => ({ ...c, commercialOld: value }))} />
-    <NumberField label="Esfuerzo actual Comercial · h/persona/mes" value={a.commercialNew} step={0.05} onChange={(value) => setA((c) => ({ ...c, commercialNew: value }))} />
-    <NumberField label="Esfuerzo anterior CDM · HH/mes" value={a.controlOld} step={0.25} onChange={(value) => setA((c) => ({ ...c, controlOld: value }))} />
-    <NumberField label="Esfuerzo actual CDM · HH/mes" value={a.controlNew} step={0.25} onChange={(value) => setA((c) => ({ ...c, controlNew: value }))} />
+  const controls = <><DateFields {...range} lang={lang} /><div className="ti-controls assumptions">
+    <NumberField label={tr(lang, "Finance labor cost · USD/MH", "Coût Finance · USD/HP")} value={a.financeRate} onChange={(value) => setA((c) => ({ ...c, financeRate: value }))} />
+    <NumberField label={tr(lang, "Commercial labor cost · USD/MH", "Coût Commercial · USD/HP")} value={a.commercialRate} onChange={(value) => setA((c) => ({ ...c, commercialRate: value }))} />
+    <NumberField label={tr(lang, "Mineral Control labor cost · USD/MH", "Coût Contrôle des Minéraux · USD/HP")} value={a.controlRate} onChange={(value) => setA((c) => ({ ...c, controlRate: value }))} />
+    <NumberField label={tr(lang, "Legacy Finance preparation · MH/month", "Préparation historique Finance · HP/mois")} value={a.financeOld} step={0.25} onChange={(value) => setA((c) => ({ ...c, financeOld: value }))} />
+    <NumberField label={tr(lang, "Commercial headcount", "Effectif Commercial")} value={a.people} step={1} onChange={(value) => setA((c) => ({ ...c, people: Math.max(1, value) }))} />
+    <NumberField label={tr(lang, "Legacy Commercial effort · h/person/month", "Effort historique Commercial · h/personne/mois")} value={a.commercialOld} step={0.25} onChange={(value) => setA((c) => ({ ...c, commercialOld: value }))} />
+    <NumberField label={tr(lang, "Current Commercial effort · h/person/month", "Effort actuel Commercial · h/personne/mois")} value={a.commercialNew} step={0.05} onChange={(value) => setA((c) => ({ ...c, commercialNew: value }))} />
+    <NumberField label={tr(lang, "Legacy Mineral Control effort · MH/month", "Effort historique Contrôle des Minéraux · HP/mois")} value={a.controlOld} step={0.25} onChange={(value) => setA((c) => ({ ...c, controlOld: value }))} />
+    <NumberField label={tr(lang, "Current Mineral Control effort · MH/month", "Effort actuel Contrôle des Minéraux · HP/mois")} value={a.controlNew} step={0.25} onChange={(value) => setA((c) => ({ ...c, controlNew: value }))} />
   </div></>;
-  return <ProjectCard name="Control de valorización y pagos" icon="$" area="Finance, CDM y Comercial" keyUser="Carlos Huamán" implementation="01/04/2026" description="Trazabilidad integrada de la valorización y pago de lotes, comparando la carga anterior con el proceso automatizado." solution="Los datos de SGM, Concar y Comercial se integraron en un reporte validado que brinda trazabilidad de extremo a extremo de los lotes pagados." source="GET /api/dti/trace-fin" rowCount={rows.length} result={result} controls={controls} note="Los ahorros posteriores usan los volúmenes mensuales reales de cada etapa valorizados bajo ambos procesos." chartTitle="Valorización y pagos · HH anteriores vs. actuales por mes" method="El histórico inicia el 01/01/2026 y la implementación el 01/04/2026. Finance anterior usa una preparación mensual editable; Comercial y Control de Minerales se convierten a HH/lote con su productividad media previa y posterior. La revisión de CDM requiere valuation_date y doc_number." open={open} onToggle={onToggle} />;
+  return <ProjectCard lang={lang} name={tr(lang, "Valuation & Payment Control", "Contrôle des valorisations et paiements")} icon="$" area={tr(lang, "Finance, CDM & Commercial", "Finance, CDM et Commercial")} keyUser="Carlos Huamán" implementation="01/04/2026" description={tr(lang, "Integrated traceability of lot valuation and payment, comparing legacy workload with the automated process.", "Traçabilité intégrée de la valorisation et du paiement des lots, comparant la charge historique au processus automatisé.")} solution={tr(lang, "SGM, Concar and Commercial data were integrated into a validated report that provides end-to-end traceability of paid lots.", "Les données SGM, Concar et Commercial ont été intégrées dans un rapport validé offrant une traçabilité de bout en bout des lots payés.")} source="GET /api/dti/trace-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "Post-cut savings use actual monthly stage volumes valued under both workflows.", "Les économies après coupure utilisent les volumes mensuels réels de chaque étape valorisés selon les deux processus.")} chartTitle={tr(lang, "Valuation & Payment Control · legacy vs. current MH by month", "Contrôle des valorisations et paiements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 01/04/2026. Legacy Finance uses editable monthly preparation; Commercial and Mineral Control are converted to MH/lot using their pre- and post-cut productivity. Mineral Control review requires valuation_date and doc_number.", "L’historique débute le 01/01/2026 et la mise en œuvre le 01/04/2026. Finance historique utilise une préparation mensuelle modifiable ; Commercial et Contrôle des Minéraux sont convertis en HP/lot selon leur productivité avant et après coupure. La révision exige valuation_date et doc_number.")} open={open} onToggle={onToggle} />;
 }
 
-function FcsProject({ rows, open, onToggle, onResult }: { rows: FcsRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void }) {
+function FcsProject({ rows, open, onToggle, onResult, lang }: { rows: FcsRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
   const latest = useMemo(() => latestDate(rows.map((row) => row.entryDate)), [rows]);
   const range = useRange(latest);
   const [a, setA] = useState({ finance: 20, commercial: 8, control: 20, weekly: 4.5 });
@@ -723,24 +739,24 @@ function FcsProject({ rows, open, onToggle, onResult }: { rows: FcsRow[]; open: 
       const preDays = overlapDays(selectedStart, selectedEnd, start, new Date(Math.min(end.getTime(), beforeEnd.getTime())));
       const postDays = overlapDays(selectedStart, selectedEnd, new Date(Math.max(start.getTime(), CUT.fcs.getTime())), end);
       const beforePre = a.weekly * preDays / 7, beforePost = a.weekly * postDays / 7;
-      const workload = `${number(referenceLots)} (${number(referenceLots * 0.95)}–${number(referenceLots * 1.05)}) lotes ref.`;
-      if (preDays > 0) monthly.push({ month, period: "Antes de implementación", workload, beforeMh: beforePre, beforeUsd: beforePre * effectiveRate, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: false });
-      if (postDays > 0) monthly.push({ month, period: month === "2026-01" ? "Actual · desde 19 ene" : "Actual", workload, beforeMh: beforePost, beforeUsd: beforePost * effectiveRate, currentMh: 0, currentUsd: 0, savedMh: beforePost, savedUsd: beforePost * effectiveRate, segment: "current", fullSegment: postDays === end.getDate() });
+      const workload = `${number(referenceLots)} (${number(referenceLots * 0.95)}–${number(referenceLots * 1.05)}) ${tr(lang, "reference lots", "lots de référence")}`;
+      if (preDays > 0) monthly.push({ month, period: tr(lang, "Before implementation", "Avant mise en œuvre"), workload, beforeMh: beforePre, beforeUsd: beforePre * effectiveRate, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: false });
+      if (postDays > 0) monthly.push({ month, period: month === "2026-01" ? tr(lang, "Current · from 19 Jan", "Actuel · dès le 19 janv.") : tr(lang, "Current", "Actuel"), workload, beforeMh: beforePost, beforeUsd: beforePost * effectiveRate, currentMh: 0, currentUsd: 0, savedMh: beforePost, savedUsd: beforePost * effectiveRate, segment: "current", fullSegment: postDays === end.getDate() });
       chart.push({ month, legacy: beforePre + beforePost, current: beforePre, volume: referenceLots });
     });
-    return finishResult(monthly, chart, "Volumen representativo", `${number(referenceLots)} lotes/mes`, `${number(referenceLots * 0.95)}–${number(referenceLots * 1.05)} lotes/mes · ±5%`, { avgBefore: monthlyRun, avgCurrent: 0, avgSaved: monthlyRun, avgUsd: monthlyUsd, optimization: 100 });
-  }, [rows, range.from, range.to, latest, a]);
+    return finishResult(monthly, chart, tr(lang, "Representative stock volume", "Volume de stock représentatif"), `${number(referenceLots)} ${tr(lang, "lots/month", "lots/mois")}`, `${number(referenceLots * 0.95)}–${number(referenceLots * 1.05)} ${tr(lang, "lots/month", "lots/mois")} · ±5%`, { avgBefore: monthlyRun, avgCurrent: 0, avgSaved: monthlyRun, avgUsd: monthlyUsd, optimization: 100 });
+  }, [rows, range.from, range.to, latest, a, lang]);
   useEffect(() => reportMetric(onResult, result), [result, onResult]);
-  const controls = <><DateFields {...range} /><div className="ti-controls assumptions">
-    <NumberField label="Costo Finance · USD/HH" value={a.finance} onChange={(value) => setA((c) => ({ ...c, finance: value }))} />
-    <NumberField label="Costo Comercial · USD/HH" value={a.commercial} onChange={(value) => setA((c) => ({ ...c, commercial: value }))} />
-    <NumberField label="Costo Control de Minerales · USD/HH" value={a.control} onChange={(value) => setA((c) => ({ ...c, control: value }))} />
-    <NumberField label="Ciclo anterior · HH/semana" value={a.weekly} step={0.25} onChange={(value) => setA((c) => ({ ...c, weekly: value }))} />
+  const controls = <><DateFields {...range} lang={lang} /><div className="ti-controls assumptions">
+    <NumberField label={tr(lang, "Finance labor cost · USD/MH", "Coût Finance · USD/HP")} value={a.finance} onChange={(value) => setA((c) => ({ ...c, finance: value }))} />
+    <NumberField label={tr(lang, "Commercial labor cost · USD/MH", "Coût Commercial · USD/HP")} value={a.commercial} onChange={(value) => setA((c) => ({ ...c, commercial: value }))} />
+    <NumberField label={tr(lang, "Mineral Control labor cost · USD/MH", "Coût Contrôle des Minéraux · USD/HP")} value={a.control} onChange={(value) => setA((c) => ({ ...c, control: value }))} />
+    <NumberField label={tr(lang, "Legacy cycle · MH/week", "Cycle historique · HP/semaine")} value={a.weekly} step={0.25} onChange={(value) => setA((c) => ({ ...c, weekly: value }))} />
   </div></>;
-  return <ProjectCard name="Proyección de pago de lotes" icon="F" area="Finance" keyUser="Daniel Pajuelo" implementation="19/01/2026" description="Proyección semanal automatizada de pagos de mineral usando un volumen representativo de stock y lógica integrada de pagos y valorización." solution="Los lotes no pagados se concilian automáticamente con Concar y se valorizan para proyectar obligaciones y sustentar la solicitud semanal de fondos." source="GET /api/dti/fcs-non" rowCount={rows.length} result={result} controls={controls} note="La vista es un stock actual; el máximo mensual de lotes distintos define solo el volumen operativo representativo." chartTitle="Proyección de pago · HH anteriores vs. actuales por mes" method="El análisis inicia el 01/01/2026 y la implementación el 19/01/2026. El ciclo semanal editable se prorratea por días calendario. La preparación actual dentro del alcance es cero; la revisión y gestión restante de Finance está fuera del alcance de esta automatización." open={open} onToggle={onToggle} />;
+  return <ProjectCard lang={lang} name={tr(lang, "Lot Payment Forecast", "Prévision de paiement des lots")} icon="F" area="Finance" keyUser="Daniel Pajuelo" implementation="19/01/2026" description={tr(lang, "Automated weekly mineral-payment forecast using a representative stock volume and integrated payment and valuation logic.", "Prévision hebdomadaire automatisée des paiements de minerai à partir d’un volume de stock représentatif et d’une logique intégrée de paiement et de valorisation.")} solution={tr(lang, "Unpaid lots are automatically reconciled with Concar and valued to forecast liabilities and support the weekly funding request.", "Les lots non payés sont automatiquement rapprochés avec Concar et valorisés afin de prévoir les obligations et d’appuyer la demande hebdomadaire de fonds.")} source="GET /api/dti/fcs-non" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "This is a current-stock view; the highest monthly distinct-lot count only defines a representative operating volume.", "Il s’agit d’une vue du stock actuel ; le nombre mensuel maximal de lots distincts définit uniquement un volume opérationnel représentatif.")} chartTitle={tr(lang, "Lot Payment Forecast · legacy vs. current MH by month", "Prévision de paiement · HP historiques vs. actuelles par mois")} method={tr(lang, "Analysis starts on 01/01/2026 and implementation on 19/01/2026. The editable weekly cycle is prorated by calendar days. Current in-scope preparation is zero; remaining Finance review and management are outside this automation scope.", "L’analyse débute le 01/01/2026 et la mise en œuvre le 19/01/2026. Le cycle hebdomadaire modifiable est proratisé selon les jours calendaires. La préparation actuelle dans le périmètre est nulle ; la révision et la gestion Finance restantes sont hors périmètre.")} open={open} onToggle={onToggle} />;
 }
 
-function LogProject({ rows, open, onToggle, onResult }: { rows: LogisticsRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void }) {
+function LogProject({ rows, open, onToggle, onResult, lang }: { rows: LogisticsRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
   const latest = useMemo(() => latestDate(rows.map((row) => row.reqDate)), [rows]);
   const range = useRange(latest);
   const [a, setA] = useState({ rate: 10, prep: 2, review: 1 });
@@ -756,71 +772,285 @@ function LogProject({ rows, open, onToggle, onResult }: { rows: LogisticsRow[]; 
       const prepFull = buyers * a.prep, preReview = pre.length * a.review / 60, postReview = post.length * a.review / 60;
       if (end < CUT.log) {
         const before = prepFull + preReview;
-        monthly.push({ month, period: "Antes de implementación", workload: `${buyers} compradores · ${pre.length} RQ`, beforeMh: before, beforeUsd: before * a.rate, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: start >= from && end <= to });
+        monthly.push({ month, period: tr(lang, "Before implementation", "Avant mise en œuvre"), workload: `${buyers} ${tr(lang, "buyers", "acheteurs")} · ${pre.length} RQ`, beforeMh: before, beforeUsd: before * a.rate, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: start >= from && end <= to });
         chart.push({ month, legacy: before, current: before, volume: pre.length });
       } else if (start >= CUT.log) {
         const before = prepFull + postReview;
-        monthly.push({ month, period: "Actual", workload: `${buyers} compradores · ${post.length} RQ`, beforeMh: before, beforeUsd: before * a.rate, currentMh: 0, currentUsd: 0, savedMh: before, savedUsd: before * a.rate, segment: "current", fullSegment: start >= from && end <= to && end <= dataEnd });
+        monthly.push({ month, period: tr(lang, "Current", "Actuel"), workload: `${buyers} ${tr(lang, "buyers", "acheteurs")} · ${post.length} RQ`, beforeMh: before, beforeUsd: before * a.rate, currentMh: 0, currentUsd: 0, savedMh: before, savedUsd: before * a.rate, segment: "current", fullSegment: start >= from && end <= to && end <= dataEnd });
         chart.push({ month, legacy: before, current: 0, volume: post.length });
       } else {
         const before = prepFull + preReview;
-        if (pre.length) monthly.push({ month, period: "Antes · 01–10 may", workload: `${buyers} compradores · ${pre.length} RQ`, beforeMh: before, beforeUsd: before * a.rate, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: false });
-        if (post.length) monthly.push({ month, period: "Actual · desde 11 may", workload: `${post.length} RQ`, beforeMh: postReview, beforeUsd: postReview * a.rate, currentMh: 0, currentUsd: 0, savedMh: postReview, savedUsd: postReview * a.rate, segment: "current", fullSegment: false });
+        if (pre.length) monthly.push({ month, period: tr(lang, "Before · 01–10 May", "Avant · 01–10 mai"), workload: `${buyers} ${tr(lang, "buyers", "acheteurs")} · ${pre.length} RQ`, beforeMh: before, beforeUsd: before * a.rate, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: false });
+        if (post.length) monthly.push({ month, period: tr(lang, "Current · from 11 May", "Actuel · dès le 11 mai"), workload: `${post.length} RQ`, beforeMh: postReview, beforeUsd: postReview * a.rate, currentMh: 0, currentUsd: 0, savedMh: postReview, savedUsd: postReview * a.rate, segment: "current", fullSegment: false });
         chart.push({ month, legacy: prepFull + preReview + postReview, current: before, volume: selected.length });
       }
     });
     const selectedRows = rows.filter((row) => row.reqDate && row.reqDate >= from && row.reqDate <= to);
-    const calculated = finishResult(monthly, chart, "Base de carga", `${new Set(selectedRows.map((row) => row.responsible).filter(Boolean)).size} compradores`, `${selectedRows.length} filas RQ`);
+    const calculated = finishResult(monthly, chart, tr(lang, "Workload basis", "Base de charge"), `${new Set(selectedRows.map((row) => row.responsible).filter(Boolean)).size} ${tr(lang, "buyers", "acheteurs")}`, `${selectedRows.length} ${tr(lang, "requirement rows", "lignes de demandes")}`);
     const fullCurrent = monthly.filter((row) => row.segment === "current" && row.fullSegment);
     calculated.avgUsd = mean((fullCurrent.length ? fullCurrent : monthly.filter((row) => row.segment === "current")).map((row) => Number(row.savedUsd)));
     return calculated;
-  }, [rows, range.from, range.to, latest, a]);
+  }, [rows, range.from, range.to, latest, a, lang]);
   useEffect(() => reportMetric(onResult, result), [result, onResult]);
-  const controls = <><DateFields {...range} /><div className="ti-controls assumptions">
-    <NumberField label="Costo comprador Logística · USD/HH" value={a.rate} onChange={(value) => setA((c) => ({ ...c, rate: value }))} />
-    <NumberField label="Preparación anterior · h/comprador/mes" value={a.prep} step={0.25} onChange={(value) => setA((c) => ({ ...c, prep: value }))} />
-    <NumberField label="Revisión anterior · min/fila RQ" value={a.review} step={0.25} onChange={(value) => setA((c) => ({ ...c, review: value }))} />
+  const controls = <><DateFields {...range} lang={lang} /><div className="ti-controls assumptions">
+    <NumberField label={tr(lang, "Logistics buyer labor cost · USD/MH", "Coût acheteur Logistique · USD/HP")} value={a.rate} onChange={(value) => setA((c) => ({ ...c, rate: value }))} />
+    <NumberField label={tr(lang, "Legacy preparation · h/buyer/month", "Préparation historique · h/acheteur/mois")} value={a.prep} step={0.25} onChange={(value) => setA((c) => ({ ...c, prep: value }))} />
+    <NumberField label={tr(lang, "Legacy review · min/requirement row", "Révision historique · min/ligne de demande")} value={a.review} step={0.25} onChange={(value) => setA((c) => ({ ...c, review: value }))} />
   </div></>;
-  return <ProjectCard name="Trazabilidad logística" icon="⇄" area="Logística" keyUser="Joel Morales" implementation="11/05/2026" description="Trazabilidad integrada desde la requisición hasta la orden de compra, con una vista preparada automáticamente para cada comprador." solution="Las requisiciones se integraron con responsables, órdenes, fechas, cantidades, recepciones parciales, estados y almacenes para agilizar el seguimiento." source="GET /api/dti/trace-log" rowCount={rows.length} result={result} controls={controls} note="La carga anterior usa responsables distintos como compradores y todas las filas como trabajo de revisión." chartTitle="Trazabilidad logística · HH anteriores vs. actuales por mes" method="El histórico inicia el 01/01/2026 y la implementación el 11/05/2026. El esfuerzo anterior mensual equivale a compradores distintos × horas de preparación + filas RQ × minutos de revisión. En mayo se considera que la preparación mensual ya había ocurrido antes del corte; desde junio la preparación y revisión actuales dentro del alcance son cero." open={open} onToggle={onToggle} />;
+  return <ProjectCard lang={lang} name={tr(lang, "Logistics Traceability", "Traçabilité logistique")} icon="⇄" area={tr(lang, "Logistics", "Logistique")} keyUser="Joel Morales" implementation="11/05/2026" description={tr(lang, "Integrated traceability from procurement requirements to purchase orders, with an automatically prepared view for each buyer.", "Traçabilité intégrée des demandes d’achat jusqu’aux commandes, avec une vue préparée automatiquement pour chaque acheteur.")} solution={tr(lang, "Procurement requirements were integrated with owners, orders, dates, quantities, partial receipts, statuses and warehouses to accelerate follow-up.", "Les demandes d’achat ont été intégrées avec les responsables, commandes, dates, quantités, réceptions partielles, statuts et magasins afin d’accélérer le suivi.")} source="GET /api/dti/trace-log" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "Legacy workload uses distinct responsible buyers and all requirement rows as review workload.", "La charge historique utilise les acheteurs responsables distincts et toutes les lignes de demandes comme charge de révision.")} chartTitle={tr(lang, "Logistics Traceability · legacy vs. current MH by month", "Traçabilité logistique · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 11/05/2026. Legacy monthly effort equals distinct buyers × preparation hours + requirement rows × review minutes. May assumes monthly preparation occurred before the cut; from June onward, current in-scope preparation and review are zero.", "L’historique débute le 01/01/2026 et la mise en œuvre le 11/05/2026. L’effort mensuel historique correspond aux acheteurs distincts × heures de préparation + lignes de demandes × minutes de révision. En mai, la préparation mensuelle est considérée comme antérieure à la coupure ; dès juin, la préparation et la révision actuelles dans le périmètre sont nulles.")} open={open} onToggle={onToggle} />;
 }
 
-function RoProject({ open, onToggle, onResult }: { open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void }) {
+function RoProject({ open, onToggle, onResult, lang }: { open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
   const [rate, setRate] = useState(10);
   const result = useMemo(() => {
     const monthly: MonthlyRow[] = [], chart: ChartPoint[] = [];
     monthsFrom(ANALYSIS_START, new Date()).forEach((month) => {
       const { end } = monthBounds(month);
       if (end < CUT.ro) {
-        monthly.push({ month, period: "Antes de implementación", workload: "Alcance validado de preparación Compliance", beforeMh: 136, beforeUsd: 136 * rate, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: true });
+        monthly.push({ month, period: tr(lang, "Before implementation", "Avant mise en œuvre"), workload: tr(lang, "Validated Compliance preparation scope", "Périmètre de préparation Compliance validé"), beforeMh: 136, beforeUsd: 136 * rate, currentMh: null, currentUsd: null, savedMh: null, savedUsd: null, segment: "before", fullSegment: true });
         chart.push({ month, legacy: 136, current: 136 });
       } else {
-        monthly.push({ month, period: "Actual", workload: "Alcance validado de preparación Compliance", beforeMh: 136, beforeUsd: 136 * rate, currentMh: 30, currentUsd: 30 * rate, savedMh: 106, savedUsd: 106 * rate, segment: "current", fullSegment: true });
+        monthly.push({ month, period: tr(lang, "Current", "Actuel"), workload: tr(lang, "Validated Compliance preparation scope", "Périmètre de préparation Compliance validé"), beforeMh: 136, beforeUsd: 136 * rate, currentMh: 30, currentUsd: 30 * rate, savedMh: 106, savedUsd: 106 * rate, segment: "current", fullSegment: true });
         chart.push({ month, legacy: 136, current: 30 });
       }
     });
-    return finishResult(monthly, chart, "Alcance validado", "136 → 30 HH/mes", "Revisión final del RO excluida", { avgBefore: 136, avgCurrent: 30, avgSaved: 106, avgUsd: 106 * rate, optimization: (106 / 136) * 100 });
-  }, [rate]);
+    return finishResult(monthly, chart, tr(lang, "Validated scope", "Périmètre validé"), `136 → 30 ${tr(lang, "MH/month", "HP/mois")}`, tr(lang, "Final RO review excluded", "Révision finale du RO exclue"), { avgBefore: 136, avgCurrent: 30, avgSaved: 106, avgUsd: 106 * rate, optimization: (106 / 136) * 100 });
+  }, [rate, lang]);
   useEffect(() => reportMetric(onResult, result), [result, onResult]);
-  const activityTable = <div className="ti-table-box ti-activity"><div className="ti-table-head"><strong>Base de actividades validada por Compliance</strong><span>Equivalente mensual</span></div><div className="ti-table-wrap"><table><thead><tr><th>Actividad</th><th>Anterior HH/mes</th><th>Actual HH/mes</th><th>Cambio</th></tr></thead><tbody><tr><td>Preparación Excel y actualización RO</td><td>44.00</td><td>22.00</td><td className="ti-total">-22.00</td></tr><tr><td>Archivos manuales de proveedores/contabilidad</td><td>88.00</td><td>0.00</td><td className="ti-total">-88.00</td></tr><tr><td>Anexos de cierre de mes</td><td>4.00</td><td>8.00</td><td>+4.00</td></tr><tr><td><strong>Total dentro del alcance</strong></td><td><strong>136.00</strong></td><td><strong>30.00</strong></td><td className="ti-total"><strong>-106.00</strong></td></tr></tbody></table></div></div>;
-  return <ProjectCard name="RO" icon="✓" area="Compliance" keyUser="Santiago Jacobo" implementation="01/04/2026" description="Generación automatizada de reportes RO de compras y ventas de mineral, reduciendo el riesgo de error manual y liberando capacidad de revisión." solution="La información de Concar, SGM, GEOCATMIN y tablas de soporte se integró para automatizar los reportes y brindar trazabilidad por lote de proveedor a cliente." source="Supuestos validados" rowCount={0} result={result} controls={<div className="ti-controls assumptions"><NumberField label="Costo Compliance · USD/HH" value={rate} onChange={setRate} /></div>} note="Solo la preparación del reporte y el armado manual de datos están dentro del alcance; la revisión final permanece en Compliance." chartTitle="RO · HH anteriores vs. actuales por mes" method="La preparación validada dentro del alcance es 44→22 + 88→0 + 4→8 = 136→30 HH/mes: 106 HH/mes ahorradas. El ahorro mensual en USD equivale a 106 × costo horario y el anualizado al resultado mensual × 12." open={open} onToggle={onToggle} extra={activityTable} />;
+  const activityTable = <div className="ti-table-box ti-activity"><div className="ti-table-head"><strong>{tr(lang, "Validated Compliance activity basis", "Base d’activités validée par Compliance")}</strong><span>{tr(lang, "Monthly equivalent", "Équivalent mensuel")}</span></div><div className="ti-table-wrap"><table><thead><tr><th>{tr(lang, "Activity", "Activité")}</th><th>{tr(lang, "Before MH/month", "HP avant/mois")}</th><th>{tr(lang, "Current MH/month", "HP actuelles/mois")}</th><th>{tr(lang, "Change", "Variation")}</th></tr></thead><tbody><tr><td>{tr(lang, "Excel preparation and RO update", "Préparation Excel et mise à jour RO")}</td><td>44.00</td><td>22.00</td><td className="ti-total">-22.00</td></tr><tr><td>{tr(lang, "Manual supplier/accounting files", "Dossiers fournisseurs/comptables manuels")}</td><td>88.00</td><td>0.00</td><td className="ti-total">-88.00</td></tr><tr><td>{tr(lang, "Month-end annexes", "Annexes de fin de mois")}</td><td>4.00</td><td>8.00</td><td>+4.00</td></tr><tr><td><strong>{tr(lang, "In-scope total", "Total dans le périmètre")}</strong></td><td><strong>136.00</strong></td><td><strong>30.00</strong></td><td className="ti-total"><strong>-106.00</strong></td></tr></tbody></table></div></div>;
+  return <ProjectCard lang={lang} name="RO" icon="✓" area="Compliance" keyUser="Santiago Jacobo" implementation="01/04/2026" description={tr(lang, "Automated generation of mineral Purchase and Sales RO reports, reducing manual-error risk and freeing review capacity.", "Génération automatisée des rapports RO d’achats et de ventes de minerai, réduisant le risque d’erreur manuelle et libérant de la capacité de révision.")} solution={tr(lang, "Concar, SGM, GEOCATMIN and support tables were integrated to automate reporting and provide lot-level supplier-to-customer traceability.", "Concar, SGM, GEOCATMIN et les tables auxiliaires ont été intégrés afin d’automatiser les rapports et d’assurer une traçabilité par lot du fournisseur au client.")} source="Validated assumptions" rowCount={0} result={result} controls={<div className="ti-controls assumptions"><NumberField label={tr(lang, "Compliance labor cost · USD/MH", "Coût Compliance · USD/HP")} value={rate} onChange={setRate} /></div>} note={tr(lang, "Only report preparation and manual data assembly are in scope; final review remains with Compliance.", "Seules la préparation du rapport et l’assemblage manuel des données sont dans le périmètre ; la révision finale reste à la charge de Compliance.")} chartTitle={tr(lang, "RO · legacy vs. current MH by month", "RO · HP historiques vs. actuelles par mois")} method={tr(lang, "Validated in-scope preparation is 44→22 + 88→0 + 4→8 = 136→30 MH/month: 106 MH/month saved. Monthly USD savings equal 106 × hourly rate; annualized savings equal monthly savings × 12.", "La préparation validée dans le périmètre est 44→22 + 88→0 + 4→8 = 136→30 HP/mois : 106 HP/mois économisées. Les économies mensuelles en USD correspondent à 106 × coût horaire ; les économies annualisées au montant mensuel × 12.")} open={open} onToggle={onToggle} extra={activityTable} />;
+}
+
+type ProjectionMetric = { monthlyMh: number; monthlyUsd: number; annualUsd: number };
+type PotentialMetric = { monthlyUsd: number; annualUsd: number; totalUsd: number };
+
+type ProjectedDefinition = {
+  key: string;
+  titleEn: string;
+  titleFr: string;
+  areaEn: string;
+  areaFr: string;
+  descriptionEn: string;
+  descriptionFr: string;
+  logicEn: string;
+  logicFr: string;
+  beforeMinutes: number;
+  afterMinutes: number;
+  unitEn: string;
+  unitFr: string;
+  defaultVolume: number;
+};
+
+const PROJECTED_PROJECTS: ProjectedDefinition[] = [
+  {
+    key: "collection",
+    titleEn: "Digital Collection and Shipment Authorization",
+    titleFr: "Digitalisation de la collecte et autorisation des expéditions",
+    areaEn: "CDM / Collection",
+    areaFr: "CDM / Collecte",
+    descriptionEn: "Digitize the coordination and authorization of mineral shipments from producer to plant, automating document checks, entry scheduling and the information required to receive the mineral.",
+    descriptionFr: "Digitaliser la coordination et l’autorisation des expéditions de minerai du producteur à l’usine, en automatisant les contrôles documentaires, la programmation des entrées et les informations nécessaires à la réception.",
+    logicEn: "Compare current person-minutes per shipment guide spent on coordination, validation and document preparation with the projected process, then scale the difference by guides processed.",
+    logicFr: "Comparer les minutes-personne actuelles par guide consacrées à la coordination, aux validations et à la préparation documentaire avec le processus projeté, puis multiplier l’écart par les guides traités.",
+    beforeMinutes: 0, afterMinutes: 0, unitEn: "shipment guide", unitFr: "guide d’expédition", defaultVolume: 0,
+  },
+  {
+    key: "weighing",
+    titleEn: "Weighing Process Digitalization",
+    titleFr: "Digitalisation du processus de pesage",
+    areaEn: "CDM / Weighing Scale", areaFr: "CDM / Balance",
+    descriptionEn: "Automate entry, weighing, lot creation and document-file assembly, removing data entry, recalculations, manual searches, file editing and physical document handling.",
+    descriptionFr: "Automatiser l’entrée, le pesage, la création des lots et la constitution du dossier documentaire, en supprimant les saisies, recalculs, recherches manuelles, modifications de fichiers et documents physiques.",
+    logicEn: "Compare person-minutes per lot in the current and projected processes and multiply the difference by monthly lots processed.",
+    logicFr: "Comparer les minutes-personne par lot des processus actuel et projeté, puis multiplier l’écart par les lots traités chaque mois.",
+    beforeMinutes: 129, afterMinutes: 49, unitEn: "lot", unitFr: "lot", defaultVolume: 0,
+  },
+  {
+    key: "yard",
+    titleEn: "Digital Mineral Yard Traceability",
+    titleFr: "Traçabilité numérique du minerai en parc",
+    areaEn: "CDM / Mineral Yard", areaFr: "CDM / Parc à minerai",
+    descriptionEn: "Digitize mineral receipt, identification, sampling and preparation through system records and QR codes, reducing field notes, manual calculations and subsequent re-entry.",
+    descriptionFr: "Digitaliser la réception, l’identification, l’échantillonnage et la préparation du minerai au moyen d’enregistrements système et de codes QR, réduisant les notes terrain, calculs manuels et ressaisies.",
+    logicEn: "Compare person-minutes per lot for receipt, sampling, pulverizing and registration, scaled by monthly lots processed.",
+    logicFr: "Comparer les minutes-personne par lot pour la réception, l’échantillonnage, le broyage et l’enregistrement, multipliées par les lots mensuels traités.",
+    beforeMinutes: 398, afterMinutes: 290, unitEn: "lot", unitFr: "lot", defaultVolume: 0,
+  },
+  {
+    key: "laboratory",
+    titleEn: "Laboratory Traceability and Digitalization",
+    titleFr: "Traçabilité et digitalisation du laboratoire",
+    areaEn: "Laboratory", areaFr: "Laboratoire",
+    descriptionEn: "Digitize sample receipt, assay records, calculations, weighing, metallurgical tests and result issuance, reducing paper, transcription and manual calculations.",
+    descriptionFr: "Digitaliser la réception des échantillons, les essais, calculs, pesées, tests métallurgiques et l’émission des résultats, réduisant le papier, les transcriptions et les calculs manuels.",
+    logicEn: "Compare person-minutes per sample before and after implementation and multiply the savings by monthly samples processed.",
+    logicFr: "Comparer les minutes-personne par échantillon avant et après mise en œuvre, puis multiplier l’économie par les échantillons mensuels traités.",
+    beforeMinutes: 84, afterMinutes: 68, unitEn: "sample", unitFr: "échantillon", defaultVolume: 0,
+  },
+  {
+    key: "grade",
+    titleEn: "Grade Evaluation and Approval Automation",
+    titleFr: "Automatisation de l’évaluation et de l’approbation des teneurs",
+    areaEn: "CDM", areaFr: "CDM",
+    descriptionEn: "Automate laboratory-result consolidation, commercial-grade calculations and the evaluation and approval flow, replacing manual Excel calculations with a traceable digital workflow.",
+    descriptionFr: "Automatiser la consolidation des résultats de laboratoire, le calcul des teneurs commerciales et le flux d’évaluation et d’approbation, en remplaçant Excel par un workflow numérique traçable.",
+    logicEn: "Compare person-minutes per lot for data entry, calculation, evaluation and approval, scaled by monthly lots.",
+    logicFr: "Comparer les minutes-personne par lot pour la saisie, le calcul, l’évaluation et l’approbation, multipliées par les lots mensuels.",
+    beforeMinutes: 16, afterMinutes: 8, unitEn: "lot", unitFr: "lot", defaultVolume: 0,
+  },
+  {
+    key: "settlement",
+    titleEn: "Commercial Valuation and Settlement Digitalization",
+    titleFr: "Digitalisation de la valorisation et du règlement commercial",
+    areaEn: "Commercial / CDM", areaFr: "Commercial / CDM",
+    descriptionEn: "Integrate mineral valuation, negotiation, umpire analysis, approval and settlement into one digital flow, reducing Excel cross-checks, emails, manual calculations and document handling.",
+    descriptionFr: "Intégrer la valorisation, la négociation, l’arbitrage, l’approbation et le règlement du minerai dans un flux numérique unique, réduisant les rapprochements Excel, courriels, calculs manuels et documents.",
+    logicEn: "Compare person-minutes per lot in the current and projected commercial processes and multiply the savings by lots processed.",
+    logicFr: "Comparer les minutes-personne par lot des processus commerciaux actuel et projeté, puis multiplier l’économie par les lots traités.",
+    beforeMinutes: 51, afterMinutes: 21, unitEn: "lot", unitFr: "lot", defaultVolume: 0,
+  },
+  {
+    key: "blending",
+    titleEn: "Blending Digitalization and Optimization",
+    titleFr: "Digitalisation et optimisation du blending",
+    areaEn: "CDM / Plant", areaFr: "CDM / Usine",
+    descriptionEn: "Integrate blending simulation, recipe approval, pile assembly and weight control in one platform, removing Excel files, emails, printouts and manual entries.",
+    descriptionFr: "Intégrer la simulation du blending, l’approbation des recettes, la constitution des piles et le contrôle des poids sur une plateforme unique, supprimant Excel, courriels, impressions et saisies manuelles.",
+    logicEn: "Compare person-minutes required to prepare and execute a pile today with the projected process, scaled by monthly piles.",
+    logicFr: "Comparer les minutes-personne nécessaires pour préparer et exécuter une pile aujourd’hui avec le processus projeté, multipliées par les piles mensuelles.",
+    beforeMinutes: 412, afterMinutes: 338, unitEn: "pile", unitFr: "pile", defaultVolume: 0,
+  },
+  {
+    key: "plant-records",
+    titleEn: "Plant Operational Records Digitalization",
+    titleFr: "Digitalisation des registres opérationnels de l’usine",
+    areaEn: "Plant", areaFr: "Usine",
+    descriptionEn: "Digitize grinding, leaching, adsorption, harvesting, tailings and metallurgical-balance records through direct data capture and automatic calculations.",
+    descriptionFr: "Digitaliser les registres de broyage, lixiviation, adsorption, récolte, résidus et bilan métallurgique grâce à la saisie directe et aux calculs automatiques.",
+    logicEn: "Compare person-minutes per pile in the current and projected processes. Savings tied to physical work or lower staffing must be validated before being treated as final.",
+    logicFr: "Comparer les minutes-personne par pile des processus actuel et projeté. Les économies liées aux activités physiques ou à une baisse d’effectif doivent être validées avant d’être considérées comme définitives.",
+    beforeMinutes: 8970, afterMinutes: 7540, unitEn: "pile", unitFr: "pile", defaultVolume: 0,
+  },
+  {
+    key: "refinery-traceability",
+    titleEn: "Digital Refinery and Export Traceability",
+    titleFr: "Traçabilité numérique de la raffinerie et des exportations",
+    areaEn: "Refinery", areaFr: "Raffinerie",
+    descriptionEn: "Digitize desorption and electrowinning campaign records, reporting and export/customs-close documentation, reducing manual records, data entry and rework.",
+    descriptionFr: "Digitaliser les campagnes de désorption et d’électrodéposition, les rapports et la documentation d’exportation et de clôture douanière, réduisant les registres manuels, saisies et reprises.",
+    logicEn: "Compare person-minutes per campaign in the current and projected processes, multiply by monthly campaigns and value saved hours at the labor rate.",
+    logicFr: "Comparer les minutes-personne par campagne des processus actuel et projeté, multiplier par les campagnes mensuelles et valoriser les heures économisées au coût horaire.",
+    beforeMinutes: 7350, afterMinutes: 6456, unitEn: "campaign", unitFr: "campagne", defaultVolume: 7,
+  },
+];
+
+function AutodeskProject({ lang, open, onToggle }: { lang: Lang; open: boolean; onToggle: (open: boolean) => void }) {
+  return (
+    <details className="ti-project" open={open} onToggle={(event) => onToggle(event.currentTarget.open)}>
+      <summary>
+        <div className="ti-project-title"><div className="ti-icon">A</div><div><div className="ti-project-name">{tr(lang, "Autodesk License Optimization", "Optimisation des licences Autodesk")}</div><div className="ti-project-meta">{tr(lang, "Area", "Domaine")}: {tr(lang, "Projects", "Projets")} · Key User: {tr(lang, "To be defined", "À définir")}</div><span className="ti-status ok">{tr(lang, "Validated static data", "Données statiques validées")}</span></div></div>
+        <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Licenses reduced", "Licences supprimées")}</div><div className="ti-summary-value">13</div></div>
+        <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Optimization", "Optimisation")}</div><div className="ti-summary-value good">43.2%</div></div>
+        <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Annual savings", "Économies annuelles")}</div><div className="ti-summary-value">{money(24941)}</div></div>
+        <div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Optimized annual cost", "Coût annuel optimisé")}</div><div className="ti-summary-value">{money(32780)}</div></div><div className="ti-chevron">⌄</div>
+      </summary>
+      <div className="ti-project-body">
+        <div className="ti-lead"><h3>{tr(lang, "Autodesk License Optimization", "Optimisation des licences Autodesk")}</h3><p>{tr(lang, "Autodesk license use was analyzed against each user’s responsibilities and license capabilities. The optimized allocation lowers cost without affecting operational needs.", "L’utilisation des licences Autodesk a été analysée selon les responsabilités de chaque utilisateur et les capacités de chaque licence. La répartition optimisée réduit les coûts sans affecter les besoins opérationnels.")}</p></div>
+        <div className="ti-context"><div><span>{tr(lang, "Area", "Domaine")}</span><strong>{tr(lang, "Projects", "Projets")}</strong></div><div><span>Key User</span><strong>{tr(lang, "To be defined", "À définir")}</strong></div><div className="description"><span>{tr(lang, "Data source", "Source des données")}</span><strong>{tr(lang, "Validated static data from the Autodesk license optimization analysis.", "Données statiques validées de l’analyse d’optimisation des licences Autodesk.")}</strong></div></div>
+        <div className="ti-kpis"><div className="ti-kpi gold"><div className="ti-label">{tr(lang, "Licenses before", "Licences avant")}</div><div className="ti-kpi-value">35</div></div><div className="ti-kpi cyan"><div className="ti-label">{tr(lang, "Licenses after", "Licences après")}</div><div className="ti-kpi-value">22</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "License reduction", "Réduction des licences")}</div><div className="ti-kpi-value">13</div></div><div className="ti-kpi gold"><div className="ti-label">{tr(lang, "Annual cost before", "Coût annuel avant")}</div><div className="ti-kpi-value">{money(57721)}</div></div><div className="ti-kpi cyan"><div className="ti-label">{tr(lang, "Annual cost after", "Coût annuel après")}</div><div className="ti-kpi-value">{money(32780)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Annual savings", "Économies annuelles")}</div><div className="ti-kpi-value">{money(24941)}</div><div className="ti-sub">43.2%</div></div></div>
+        <div className="ti-method"><strong>{tr(lang, "Method.", "Méthode.")}</strong> {tr(lang, "Static comparison between the previous and optimized license scenarios: 35 → 22 licenses and USD 57,721 → USD 32,780 per year.", "Comparaison statique entre les scénarios de licences antérieur et optimisé : 35 → 22 licences et 57 721 USD → 32 780 USD par an.")}</div>
+      </div>
+    </details>
+  );
+}
+
+function ProjectedProject({ definition, lang, open, onToggle, onResult }: { definition: ProjectedDefinition; lang: Lang; open: boolean; onToggle: (open: boolean) => void; onResult: (key: string, metric: ProjectionMetric) => void }) {
+  const [before, setBefore] = useState(definition.beforeMinutes);
+  const [after, setAfter] = useState(definition.afterMinutes);
+  const [volume, setVolume] = useState(definition.defaultVolume);
+  const [rate, setRate] = useState(10);
+  const savedMinutes = Math.max(0, before - after);
+  const optimization = before > 0 ? savedMinutes / before * 100 : Number.NaN;
+  const monthlyMh = savedMinutes / 60 * volume;
+  const monthlyUsd = monthlyMh * rate;
+  const metric = useMemo(() => ({ monthlyMh, monthlyUsd, annualUsd: monthlyUsd * 12 }), [monthlyMh, monthlyUsd]);
+  useEffect(() => onResult(definition.key, metric), [definition.key, metric, onResult]);
+  const unit = tr(lang, definition.unitEn, definition.unitFr);
+  const quantified = before > 0;
+  return (
+    <details className="ti-project projected" open={open} onToggle={(event) => onToggle(event.currentTarget.open)}>
+      <summary><div className="ti-project-title"><div className="ti-icon">P</div><div><div className="ti-project-name">{tr(lang, definition.titleEn, definition.titleFr)}</div><div className="ti-project-meta">{tr(lang, "Area", "Domaine")}: {tr(lang, definition.areaEn, definition.areaFr)} · Key User: {tr(lang, "To be defined", "À définir")}</div><span className={`ti-status ${quantified ? "ok" : "bad"}`}>{quantified ? tr(lang, "Projected assumptions", "Hypothèses projetées") : tr(lang, "Baseline pending", "Référence à définir")}</span></div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Before · min-person/unit", "Avant · min-personne/unité")}</div><div className="ti-summary-value">{quantified ? number(before) : "—"}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Projected · min-person/unit", "Projeté · min-personne/unité")}</div><div className="ti-summary-value">{quantified ? number(after) : "—"}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Optimization", "Optimisation")}</div><div className="ti-summary-value good">{percent(optimization)}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Projected USD / year", "USD projetés / an")}</div><div className="ti-summary-value">{money(metric.annualUsd)}</div></div><div className="ti-chevron">⌄</div></summary>
+      <div className="ti-project-body"><div className="ti-lead"><h3>{tr(lang, definition.titleEn, definition.titleFr)}</h3><p>{tr(lang, definition.descriptionEn, definition.descriptionFr)}</p></div><div className="ti-context"><div><span>{tr(lang, "Area", "Domaine")}</span><strong>{tr(lang, definition.areaEn, definition.areaFr)}</strong></div><div><span>Key User</span><strong>{tr(lang, "To be defined", "À définir")}</strong></div><div className="description"><span>{tr(lang, "Optimization logic", "Logique d’optimisation")}</span><strong>{tr(lang, definition.logicEn, definition.logicFr)}</strong></div></div>
+        <div className="ti-controls assumptions"><NumberField label={`${tr(lang, "Before", "Avant")} · min-person/${unit}`} value={before} step={1} onChange={setBefore} /><NumberField label={`${tr(lang, "Projected", "Projeté")} · min-person/${unit}`} value={after} step={1} onChange={setAfter} /><NumberField label={`${tr(lang, "Monthly volume", "Volume mensuel")} · ${unit}`} value={volume} step={1} onChange={setVolume} /><NumberField label={tr(lang, "Labor cost · USD/MH", "Coût du travail · USD/HP")} value={rate} onChange={setRate} /></div>
+        <div className="ti-kpis"><div className="ti-kpi gold"><div className="ti-label">{tr(lang, "Before · min-person/unit", "Avant · min-personne/unité")}</div><div className="ti-kpi-value">{quantified ? number(before) : "—"}</div><div className="ti-sub">{unit}</div></div><div className="ti-kpi cyan"><div className="ti-label">{tr(lang, "Projected · min-person/unit", "Projeté · min-personne/unité")}</div><div className="ti-kpi-value">{quantified ? number(after) : "—"}</div><div className="ti-sub">{unit}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Saved · min-person/unit", "Économie · min-personne/unité")}</div><div className="ti-kpi-value">{quantified ? number(savedMinutes) : "—"}</div><div className="ti-sub">{percent(optimization)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Projected MH saved / month", "HP projetées économisées / mois")}</div><div className="ti-kpi-value">{number(monthlyMh, 2)}</div><div className="ti-sub">{number(volume)} {unit}/{tr(lang, "month", "mois")}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Projected USD saved / month", "USD projetés économisés / mois")}</div><div className="ti-kpi-value">{money(monthlyUsd)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Projected USD saved / year", "USD projetés économisés / an")}</div><div className="ti-kpi-value">{money(metric.annualUsd)}</div></div></div>
+        <div className="ti-method"><strong>{tr(lang, "Method.", "Méthode.")}</strong> {tr(lang, "Projected savings = (before − projected person-minutes) × monthly volume. Labor savings are converted to hours and valued using the editable hourly rate. Values remain planning assumptions until validated.", "Économies projetées = (minutes-personne avant − projetées) × volume mensuel. Les économies sont converties en heures et valorisées au coût horaire modifiable. Les valeurs restent des hypothèses de planification jusqu’à validation.")}</div>
+      </div>
+    </details>
+  );
+}
+
+function MlProject({ rows, lang, open, onToggle, onResult }: { rows: MlRow[]; lang: Lang; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PotentialMetric) => void }) {
+  const latest = useMemo(() => latestDate(rows.map((row) => row.campaignDate)), [rows]);
+  const range = useRange(latest);
+  const monthly = useMemo(() => {
+    const from = inputDate(range.from) || ANALYSIS_START, to = inputDate(range.to, true) || latest || new Date();
+    const groups = new Map<string, Map<string, MlRow>>();
+    rows.forEach((row) => {
+      if (!row.campaignId || !row.campaignDate || row.campaignDate < from || row.campaignDate > to) return;
+      const key = monthKey(row.campaignDate);
+      const campaigns = groups.get(key) || new Map<string, MlRow>();
+      if (!campaigns.has(row.campaignId)) campaigns.set(row.campaignId, row);
+      groups.set(key, campaigns);
+    });
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, campaigns]) => {
+      const selected = [...campaigns.values()];
+      const actual = sum(selected.map((row) => row.actualCost)), model = sum(selected.map((row) => row.modelCost));
+      return { month, campaigns: selected.length, actual, model, saved: actual - model };
+    });
+  }, [rows, range.from, range.to, latest]);
+  const avgActual = mean(monthly.map((row) => row.actual)), avgModel = mean(monthly.map((row) => row.model)), avgSaved = mean(monthly.map((row) => row.saved));
+  const totalActual = sum(monthly.map((row) => row.actual)), totalSaved = sum(monthly.map((row) => row.saved));
+  const optimization = totalActual > 0 ? totalSaved / totalActual * 100 : Number.NaN;
+  const metric = useMemo(() => {
+    const monthlyUsd = Number.isFinite(avgSaved) ? avgSaved : 0;
+    return { monthlyUsd, annualUsd: monthlyUsd * 12, totalUsd: Number.isFinite(totalSaved) ? totalSaved : 0 };
+  }, [avgSaved, totalSaved]);
+  useEffect(() => onResult(metric), [metric, onResult]);
+  const maxCost = Math.max(1, ...monthly.flatMap((row) => [row.actual, row.model]));
+  return (
+    <details className="ti-project potential" open={open} onToggle={(event) => onToggle(event.currentTarget.open)}><summary><div className="ti-project-title"><div className="ti-icon">ML</div><div><div className="ti-project-name">{tr(lang, "ML Refinery Consumption Optimization", "Optimisation ML de la consommation en raffinerie")}</div><div className="ti-project-meta">{tr(lang, "Area", "Domaine")}: {tr(lang, "Refinery", "Raffinerie")} · GET /api/dti/ref-ml</div><span className={`ti-status ${rows.length ? "ok" : "bad"}`}>{number(rows.length)} {tr(lang, "records", "enregistrements")}</span></div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Distinct campaigns", "Campagnes distinctes")}</div><div className="ti-summary-value">{sum(monthly.map((row) => row.campaigns))}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Potential optimization", "Optimisation potentielle")}</div><div className="ti-summary-value good">{percent(optimization)}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Potential USD / month", "USD potentiels / mois")}</div><div className="ti-summary-value">{money(avgSaved)}</div></div><div className="ti-summary-metric"><div className="ti-label">{tr(lang, "Potential USD / year", "USD potentiels / an")}</div><div className="ti-summary-value">{money(metric.annualUsd)}</div></div><div className="ti-chevron">⌄</div></summary>
+      <div className="ti-project-body"><div className="ti-lead"><h3>{tr(lang, "ML Refinery Consumption Optimization", "Optimisation ML de la consommation en raffinerie")}</h3><p>{tr(lang, "A Machine Learning model estimates optimal input consumption for each refinery campaign, creating a data-driven benchmark to reduce material cost while preserving process requirements and operating performance.", "Un modèle de Machine Learning estime la consommation optimale d’intrants pour chaque campagne de raffinerie, créant une référence fondée sur les données afin de réduire le coût des matières tout en préservant les exigences du processus et la performance opérationnelle.")}</p></div><div className="ti-context"><div><span>{tr(lang, "Area", "Domaine")}</span><strong>{tr(lang, "Refinery", "Raffinerie")}</strong></div><div><span>Key User</span><strong>{tr(lang, "To be defined", "À définir")}</strong></div><div className="description"><span>{tr(lang, "Calculation logic", "Logique de calcul")}</span><strong>{tr(lang, "Distinct campaign_id values are grouped by campaign_date month. Potential savings equal actual consumption cost minus ML-model consumption cost.", "Les campaign_id distincts sont regroupés par mois de campaign_date. L’économie potentielle correspond au coût réel de consommation moins le coût estimé par le modèle ML.")}</strong></div></div><DateFields {...range} lang={lang} />
+        <div className="ti-kpis"><div className="ti-kpi gold"><div className="ti-label">{tr(lang, "Actual cost · USD/month", "Coût réel · USD/mois")}</div><div className="ti-kpi-value">{money(avgActual)}</div></div><div className="ti-kpi cyan"><div className="ti-label">{tr(lang, "ML model cost · USD/month", "Coût modèle ML · USD/mois")}</div><div className="ti-kpi-value">{money(avgModel)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Potential savings · USD/month", "Économies potentielles · USD/mois")}</div><div className="ti-kpi-value">{money(avgSaved)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Potential optimization", "Optimisation potentielle")}</div><div className="ti-kpi-value">{percent(optimization)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Potential savings · selected period", "Économies potentielles · période")}</div><div className="ti-kpi-value">{money(totalSaved)}</div></div><div className="ti-kpi green"><div className="ti-label">{tr(lang, "Annualized potential", "Potentiel annualisé")}</div><div className="ti-kpi-value">{money(metric.annualUsd)}</div></div></div>
+        <div className="ti-chart-card"><div className="ti-chart-title">{tr(lang, "Actual vs. ML-model consumption cost by month", "Coût de consommation réel vs. modèle ML par mois")}</div><div className="ti-chart-sub">{tr(lang, "Gold = actual cost · Blue = ML-model cost", "Or = coût réel · Bleu = coût du modèle ML")}</div><div className="ti-chart">{monthly.map((row) => <div className="ti-chart-column" key={row.month} title={`${row.month}: ${money(row.actual)} / ${money(row.model)}`}><div className="ti-bars"><span className="legacy" style={{ height: `${Math.max(2, row.actual / maxCost * 100)}%` }} /><span className="current" style={{ height: `${Math.max(2, row.model / maxCost * 100)}%` }} /></div><small>{row.month.slice(5)}</small></div>)}</div></div>
+        <div className="ti-table-box"><div className="ti-table-head"><strong>{tr(lang, "Monthly campaign economics", "Économie mensuelle des campagnes")}</strong><span>{monthly.length} {tr(lang, "month(s)", "mois")}</span></div><div className="ti-table-wrap"><table><thead><tr><th>{tr(lang, "Month", "Mois")}</th><th>{tr(lang, "Distinct campaigns", "Campagnes distinctes")}</th><th>{tr(lang, "Actual cost", "Coût réel")}</th><th>{tr(lang, "ML model cost", "Coût modèle ML")}</th><th>{tr(lang, "Potential savings", "Économies potentielles")}</th></tr></thead><tbody>{monthly.map((row) => <tr key={row.month}><td>{row.month}</td><td>{row.campaigns}</td><td>{money(row.actual)}</td><td>{money(row.model)}</td><td className="ti-total">{money(row.saved)}</td></tr>)}</tbody></table></div></div>
+        <div className="ti-method"><strong>{tr(lang, "Method.", "Méthode.")}</strong> {tr(lang, "Each distinct campaign is counted once in its campaign_date month. Monthly potential savings are actual consumption_cost_us minus ml_consumption_cost_us; the annualized value is average monthly potential × 12.", "Chaque campagne distincte est comptée une fois dans le mois de campaign_date. L’économie potentielle mensuelle est consumption_cost_us moins ml_consumption_cost_us ; la valeur annualisée correspond au potentiel mensuel moyen × 12.")}</div>
+      </div></details>
+  );
+}
+
+function PortfolioSection({ title, subtitle, category, children, onExpand, onCollapse, lang }: { title: string; subtitle: string; category: string; children: React.ReactNode; onExpand: () => void; onCollapse: () => void; lang: Lang }) {
+  return <section className="ti-category"><div className="ti-category-head"><div><span>{category}</span><h2>{title}</h2><p>{subtitle}</p></div><div className="ti-actions"><button onClick={onExpand}>{tr(lang, "Expand all", "Tout développer")}</button><button onClick={onCollapse}>{tr(lang, "Collapse all", "Tout réduire")}</button></div></div>{children}</section>;
 }
 
 export default function TiPage() {
   const router = useRouter();
-  const [data, setData] = useState<{ entries: EntriesRow[]; finance: FinanceRow[]; fcs: FcsRow[]; logistics: LogisticsRow[] }>({ entries: [], finance: [], fcs: [], logistics: [] });
+  const [lang, setLang] = useState<Lang>("en");
+  const [data, setData] = useState<{ entries: EntriesRow[]; finance: FinanceRow[]; fcs: FcsRow[]; logistics: LogisticsRow[]; ml: MlRow[] }>({ entries: [], finance: [], fcs: [], logistics: [], ml: [] });
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  const [open, setOpen] = useState<Record<ProjectKey, boolean>>({ cdm: false, fin: false, fcs: false, log: false, ro: false });
+  const [open, setOpen] = useState<Record<string, boolean>>({ cdm: false, fin: false, fcs: false, log: false, ro: false, autodesk: false, ml: false });
   const [metrics, setMetrics] = useState<Partial<Record<ProjectKey, PortfolioMetric>>>({});
+  const [projectionMetrics, setProjectionMetrics] = useState<Record<string, ProjectionMetric>>({});
+  const [potentialMetric, setPotentialMetric] = useState<PotentialMetric>({ monthlyUsd: 0, annualUsd: 0, totalUsd: 0 });
 
   const load = useCallback(async () => {
     setLoading(true);
     const endpoints = [
-      ["entries", "/api/dti/entries-up"], ["finance", "/api/dti/trace-fin"], ["fcs", "/api/dti/fcs-non"], ["logistics", "/api/dti/trace-log"],
+      ["entries", "/api/dti/entries-up"], ["finance", "/api/dti/trace-fin"], ["fcs", "/api/dti/fcs-non"], ["logistics", "/api/dti/trace-log"], ["ml", "/api/dti/ref-ml"],
     ] as const;
     const responses = await Promise.allSettled(endpoints.map(([, path]) => apiGet(path)));
-    const next = { entries: [] as EntriesRow[], finance: [] as FinanceRow[], fcs: [] as FcsRow[], logistics: [] as LogisticsRow[] };
+    const next = { entries: [] as EntriesRow[], finance: [] as FinanceRow[], fcs: [] as FcsRow[], logistics: [] as LogisticsRow[], ml: [] as MlRow[] };
     const nextErrors: string[] = [];
     responses.forEach((response, index) => {
       const [key, path] = endpoints[index];
@@ -830,6 +1060,7 @@ export default function TiPage() {
       if (key === "finance") next.finance = raw.map((row) => ({ lot: text(row.lot), entryDate: toDate(row.entry_date), valuationDate: toDate(row.valuation_date), docDate: toDate(row.doc_date), hasAu: has(row.au_usd), hasDoc: has(row.doc_number) })).filter((row) => (row.lot || row.entryDate) && (!row.entryDate || row.entryDate >= ANALYSIS_START));
       if (key === "fcs") next.fcs = raw.map((row) => ({ lot: text(row.lot), entryDate: toDate(row.entry_date) })).filter((row) => (row.lot || row.entryDate) && (!row.entryDate || row.entryDate >= ANALYSIS_START));
       if (key === "logistics") next.logistics = raw.map((row) => ({ reqDate: toDate(row.req_date), responsible: text(row.responsible) })).filter((row) => row.reqDate && row.reqDate >= ANALYSIS_START);
+      if (key === "ml") next.ml = raw.map((row) => ({ campaignId: text(row.campaign_id), campaignDate: toDate(row.campaign_date), actualCost: Number(row.consumption_cost_us) || 0, modelCost: Number(row.ml_consumption_cost_us) || 0 })).filter((row) => row.campaignId && row.campaignDate);
     });
     setData(next); setErrors(nextErrors); setUpdatedAt(new Date()); setLoading(false);
   }, []);
@@ -844,10 +1075,36 @@ export default function TiPage() {
     });
   }, []);
 
+  const updateProjectionMetric = useCallback((key: string, metric: ProjectionMetric) => {
+    setProjectionMetrics((current) => {
+      const previous = current[key];
+      if (previous && Object.keys(metric).every((field) => Object.is(previous[field as keyof ProjectionMetric], metric[field as keyof ProjectionMetric]))) return current;
+      return { ...current, [key]: metric };
+    });
+  }, []);
+
   const portfolio = useMemo(() => {
     const valid = Object.values(metrics).filter((metric): metric is PortfolioMetric => Boolean(metric && Number.isFinite(metric.avgSaved) && Number.isFinite(metric.avgUsd)));
     return { mh: sum(valid.map((metric) => metric.avgSaved)), usd: sum(valid.map((metric) => metric.avgUsd)) };
   }, [metrics]);
+
+  const projected = useMemo(() => {
+    const values = Object.values(projectionMetrics);
+    return {
+      mh: sum(values.map((metric) => metric.monthlyMh)),
+      usd: sum(values.map((metric) => metric.monthlyUsd)),
+      annual: sum(values.map((metric) => metric.annualUsd)),
+    };
+  }, [projectionMetrics]);
+
+  const executedAnnual = portfolio.usd * 12 + 24941;
+  const unifiedAnnual = executedAnnual + projected.annual + potentialMetric.annualUsd;
+  const executedKeys = ["cdm", "fin", "fcs", "log", "ro", "autodesk"];
+  const projectedKeys = PROJECTED_PROJECTS.map((project) => `projected-${project.key}`);
+  const setCategoryOpen = (keys: string[], value: boolean) =>
+    setOpen((current) => ({ ...current, ...Object.fromEntries(keys.map((key) => [key, value])) }));
+  const setProjectOpen = (key: string, value: boolean) =>
+    setOpen((current) => ({ ...current, [key]: value }));
 
   const logout = async () => {
     try { await fetch("/api/auth/logout", { method: "POST" }); } finally { router.push("/"); router.refresh(); }
@@ -855,24 +1112,33 @@ export default function TiPage() {
 
   return (
     <div className="ti-dashboard">
-      <header className="ti-header"><div className="ti-stripe"><span /><span /></div><div className="ti-header-inner"><div><div className="ti-eyebrow">Veta Dorada · Excelencia Operacional</div><h1>Eficiencia Operacional TI</h1><p>Portafolio de cinco iniciativas · optimización de trabajo antes vs. actual</p></div><div className="ti-actions"><span className={`ti-live ${errors.length ? "warning" : ""}`}>{loading ? "Actualizando datos…" : errors.length ? `${errors.length} fuente(s) con error` : "Datos API actualizados"}</span><button onClick={() => void load()} disabled={loading}>Actualizar</button><button className="primary" onClick={logout}>Salir</button></div></div></header>
+      <header className="ti-header"><div className="ti-stripe"><span /><span /></div><div className="ti-header-inner"><div><div className="ti-eyebrow">Veta Dorada · {tr(lang, "Operational Excellence", "Excellence opérationnelle")}</div><h1>{tr(lang, "IT Operational Efficiency", "Efficacité opérationnelle IT")}</h1><p>{tr(lang, "Executed, projected and potential initiatives · standardized savings portfolio", "Initiatives exécutées, projetées et potentielles · portefeuille d’économies standardisé")}</p></div><div className="ti-actions"><span className={`ti-live ${errors.length ? "warning" : ""}`}>{loading ? tr(lang, "Refreshing data…", "Actualisation des données…") : errors.length ? `${errors.length} ${tr(lang, "source(s) with errors", "source(s) en erreur")}` : tr(lang, "API data refreshed", "Données API actualisées")}</span><button className="lang" onClick={() => setLang((current) => current === "en" ? "fr" : "en")}>{lang === "en" ? "FR" : "EN"}</button><button onClick={() => void load()} disabled={loading}>{tr(lang, "Refresh", "Actualiser")}</button><button className="primary" onClick={logout}>{tr(lang, "Sign out", "Quitter")}</button></div></div></header>
       <main className="ti-main">
-        {errors.length ? <div className="ti-error"><strong>No se pudieron cargar todas las fuentes.</strong>{errors.map((error) => <div key={error}>{error}</div>)}</div> : null}
+        {errors.length ? <div className="ti-error"><strong>{tr(lang, "Some data sources could not be loaded.", "Certaines sources de données n’ont pas pu être chargées.")}</strong>{errors.map((error) => <div key={error}>{error}</div>)}</div> : null}
         <section className="ti-portfolio">
-          <div className="ti-portfolio-head"><div><h2>Resumen de ahorros del portafolio</h2><p>Vista estandarizada de la carga laboral anterior, la carga actual dentro del alcance y el esfuerzo evitado. Los datos se consultan directamente desde las vistas DTI; no se carga ni procesa Excel.</p></div><div className="ti-actions"><button onClick={() => setOpen({ cdm: true, fin: true, fcs: true, log: true, ro: true })}>Expandir todo</button><button onClick={() => setOpen({ cdm: false, fin: false, fcs: false, log: false, ro: false })}>Contraer todo</button></div></div>
-          <div className="ti-portfolio-grid"><div><span>HH promedio ahorradas / mes</span><strong>{number(portfolio.mh, 2)} HH/mes</strong></div><div className="green"><span>Costo laboral ahorrado / mes</span><strong>{money(portfolio.usd)}</strong></div><div className="gold"><span>Ahorro laboral anualizado</span><strong>{money(portfolio.usd * 12)}</strong></div></div>
-          <div className="ti-source-status"><span className={data.entries.length ? "ok" : "bad"}>entries-up · {number(data.entries.length)} filas</span><span className={data.finance.length ? "ok" : "bad"}>trace-fin · {number(data.finance.length)} filas</span><span className={data.fcs.length ? "ok" : "bad"}>fcs-non · {number(data.fcs.length)} filas</span><span className={data.logistics.length ? "ok" : "bad"}>trace-log · {number(data.logistics.length)} filas</span><span className="ok">RO · supuestos validados</span></div>
-          {updatedAt ? <div className="ti-updated">Última consulta: {updatedAt.toLocaleString("es-PE")}</div> : null}
+          <div className="ti-portfolio-head"><div><h2>{tr(lang, "Portfolio savings overview", "Vue d’ensemble des économies du portefeuille")}</h2><p>{tr(lang, "Comparable annualized view across executed, projected and potential initiatives. Executed combines validated run-rate savings and Autodesk; projected uses editable planning assumptions; potential uses the ML benchmark.", "Vue annualisée comparable des initiatives exécutées, projetées et potentielles. Les économies exécutées combinent le rythme validé et Autodesk ; les projections utilisent des hypothèses modifiables ; le potentiel utilise la référence ML.")}</p></div></div>
+          <div className="ti-portfolio-grid four"><div className="green"><span>{tr(lang, "Executed savings · USD/year", "Économies exécutées · USD/an")}</span><strong>{money(executedAnnual)}</strong><small>{number(portfolio.mh, 2)} {tr(lang, "MH/month saved + Autodesk", "HP/mois économisées + Autodesk")}</small></div><div><span>{tr(lang, "Projected savings · USD/year", "Économies projetées · USD/an")}</span><strong>{money(projected.annual)}</strong><small>{number(projected.mh, 2)} {tr(lang, "projected MH/month", "HP/mois projetées")}</small></div><div className="gold"><span>{tr(lang, "Potential savings · USD/year", "Économies potentielles · USD/an")}</span><strong>{money(potentialMetric.annualUsd)}</strong><small>{tr(lang, "ML annualized potential", "Potentiel ML annualisé")}</small></div><div className="total"><span>{tr(lang, "Unified savings · USD/year", "Économies unifiées · USD/an")}</span><strong>{money(unifiedAnnual)}</strong><small>{tr(lang, "Executed + projected + potential", "Exécutées + projetées + potentielles")}</small></div></div>
+          <div className="ti-source-status"><span className={data.entries.length ? "ok" : "bad"}>entries-up · {number(data.entries.length)} {tr(lang, "rows", "lignes")}</span><span className={data.finance.length ? "ok" : "bad"}>trace-fin · {number(data.finance.length)} {tr(lang, "rows", "lignes")}</span><span className={data.fcs.length ? "ok" : "bad"}>fcs-non · {number(data.fcs.length)} {tr(lang, "rows", "lignes")}</span><span className={data.logistics.length ? "ok" : "bad"}>trace-log · {number(data.logistics.length)} {tr(lang, "rows", "lignes")}</span><span className={data.ml.length ? "ok" : "bad"}>ref-ml · {number(data.ml.length)} {tr(lang, "rows", "lignes")}</span><span className="ok">RO · {tr(lang, "validated assumptions", "hypothèses validées")}</span></div>
+          {updatedAt ? <div className="ti-updated">{tr(lang, "Last query", "Dernière requête")}: {updatedAt.toLocaleString(lang === "fr" ? "fr-FR" : "en-US")}</div> : null}
         </section>
-        <CdmProject rows={data.entries} open={open.cdm} onToggle={(value) => setOpen((current) => ({ ...current, cdm: value }))} onResult={(metric) => updateMetric("cdm", metric)} />
-        <FinProject rows={data.finance} open={open.fin} onToggle={(value) => setOpen((current) => ({ ...current, fin: value }))} onResult={(metric) => updateMetric("fin", metric)} />
-        <FcsProject rows={data.fcs} open={open.fcs} onToggle={(value) => setOpen((current) => ({ ...current, fcs: value }))} onResult={(metric) => updateMetric("fcs", metric)} />
-        <LogProject rows={data.logistics} open={open.log} onToggle={(value) => setOpen((current) => ({ ...current, log: value }))} onResult={(metric) => updateMetric("log", metric)} />
-        <RoProject open={open.ro} onToggle={(value) => setOpen((current) => ({ ...current, ro: value }))} onResult={(metric) => updateMetric("ro", metric)} />
-        <footer>Veta Dorada · Dashboard conectado a las vistas de Eficiencia Operacional DTI</footer>
+        <PortfolioSection lang={lang} category="01" title={tr(lang, "Executed", "Exécutés")} subtitle={tr(lang, "Implemented initiatives with observed or validated savings.", "Initiatives mises en œuvre avec des économies observées ou validées.")} onExpand={() => setCategoryOpen(executedKeys, true)} onCollapse={() => setCategoryOpen(executedKeys, false)}>
+          <CdmProject lang={lang} rows={data.entries} open={open.cdm} onToggle={(value) => setProjectOpen("cdm", value)} onResult={(metric) => updateMetric("cdm", metric)} />
+          <FinProject lang={lang} rows={data.finance} open={open.fin} onToggle={(value) => setProjectOpen("fin", value)} onResult={(metric) => updateMetric("fin", metric)} />
+          <FcsProject lang={lang} rows={data.fcs} open={open.fcs} onToggle={(value) => setProjectOpen("fcs", value)} onResult={(metric) => updateMetric("fcs", metric)} />
+          <LogProject lang={lang} rows={data.logistics} open={open.log} onToggle={(value) => setProjectOpen("log", value)} onResult={(metric) => updateMetric("log", metric)} />
+          <RoProject lang={lang} open={open.ro} onToggle={(value) => setProjectOpen("ro", value)} onResult={(metric) => updateMetric("ro", metric)} />
+          <AutodeskProject lang={lang} open={open.autodesk} onToggle={(value) => setProjectOpen("autodesk", value)} />
+        </PortfolioSection>
+        <PortfolioSection lang={lang} category="02" title={tr(lang, "Projected", "Projetés")} subtitle={tr(lang, "Planning scenarios based on editable unit-time, monthly-volume and labor-rate assumptions.", "Scénarios de planification fondés sur des hypothèses modifiables de temps unitaire, volume mensuel et coût horaire.")} onExpand={() => setCategoryOpen(projectedKeys, true)} onCollapse={() => setCategoryOpen(projectedKeys, false)}>
+          {PROJECTED_PROJECTS.map((definition) => { const key = `projected-${definition.key}`; return <ProjectedProject key={definition.key} definition={definition} lang={lang} open={Boolean(open[key])} onToggle={(value) => setProjectOpen(key, value)} onResult={updateProjectionMetric} />; })}
+        </PortfolioSection>
+        <PortfolioSection lang={lang} category="03" title={tr(lang, "Potential", "Potentiels")} subtitle={tr(lang, "Data-driven opportunities that still require operational validation before being recognized as executed savings.", "Opportunités fondées sur les données qui nécessitent encore une validation opérationnelle avant d’être reconnues comme économies exécutées.")} onExpand={() => setProjectOpen("ml", true)} onCollapse={() => setProjectOpen("ml", false)}>
+          <MlProject rows={data.ml} lang={lang} open={open.ml} onToggle={(value) => setProjectOpen("ml", value)} onResult={setPotentialMetric} />
+        </PortfolioSection>
+        <footer>Veta Dorada · {tr(lang, "IT Operational Efficiency portfolio · API-connected dashboard", "Portefeuille d’efficacité opérationnelle IT · tableau connecté aux API")}</footer>
       </main>
       <style jsx global>{`
-        .ti-dashboard{--blue:#0067AC;--gold:#C69214;--cyan:#00A5CE;--green:#5E8019;--orange:#D85D27;--ink:#24313B;--muted:#6B7280;--line:#DDE5EA;min-height:100vh;background:#F2F5F7;color:var(--ink);font-family:var(--font-exo),Exo,Arial,sans-serif}.ti-dashboard *{box-sizing:border-box}.ti-header{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}.ti-stripe{height:7px;display:grid;grid-template-columns:2fr 1fr}.ti-stripe span:first-child{background:var(--blue)}.ti-stripe span:last-child{background:var(--gold)}.ti-header-inner,.ti-main{max-width:1600px;margin:auto}.ti-header-inner{padding:15px 26px;display:flex;justify-content:space-between;align-items:center;gap:16px}.ti-eyebrow{color:var(--blue);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.ti-header h1{margin:3px 0 0;color:var(--blue);font-size:clamp(24px,2.4vw,36px)}.ti-header p{margin:5px 0 0;color:var(--muted);font-size:13px}.ti-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.ti-dashboard button,.ti-dashboard input,.ti-dashboard select{font:inherit;border:1px solid #C9D5DC;background:#fff;color:var(--ink);border-radius:9px;padding:9px 11px;font-size:12px;outline:none}.ti-dashboard button{cursor:pointer;font-weight:800}.ti-dashboard button:disabled{cursor:wait;opacity:.55}.ti-dashboard button.primary{background:var(--blue);border-color:var(--blue);color:#fff}.ti-live{border:1px solid rgba(94,128,25,.3);background:rgba(94,128,25,.08);color:#2F6B19;border-radius:999px;padding:8px 11px;font-size:11px;font-weight:800}.ti-live.warning{border-color:rgba(216,93,39,.3);background:rgba(216,93,39,.08);color:#AA431B}.ti-main{padding:22px 26px 42px}.ti-error{background:#FFF6F2;border:1px solid #E9B8A4;color:#9A3D18;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:11px;line-height:1.6}.ti-error strong{display:block}.ti-portfolio,.ti-project{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 30px rgba(20,47,66,.08)}.ti-portfolio{padding:18px;margin-bottom:18px;border-top:5px solid var(--gold)}.ti-portfolio-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.ti-portfolio h2{margin:0;color:var(--blue);font-size:20px}.ti-portfolio-head p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5;max-width:900px}.ti-portfolio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.ti-portfolio-grid>div{border:1px solid var(--line);border-radius:12px;padding:13px;background:#FBFCFD}.ti-portfolio-grid span,.ti-label{font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em}.ti-portfolio-grid strong{display:block;font-size:22px;color:var(--blue);margin-top:5px}.ti-portfolio-grid .green strong{color:#2F6B19}.ti-portfolio-grid .gold strong{color:#9A700C}.ti-source-status{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.ti-source-status span,.ti-status{border-radius:999px;padding:6px 9px;font-size:9px;font-weight:800}.ti-source-status .ok,.ti-status.ok{background:rgba(94,128,25,.08);color:#2F6B19;border:1px solid rgba(94,128,25,.3)}.ti-source-status .bad,.ti-status.bad{background:rgba(216,93,39,.07);color:#AA431B;border:1px solid rgba(216,93,39,.3)}.ti-updated{text-align:right;color:var(--muted);font-size:9px;margin-top:9px}.ti-project{margin-bottom:14px;overflow:hidden}.ti-project>summary{list-style:none;cursor:pointer;padding:16px 18px;display:grid;grid-template-columns:minmax(300px,1.4fr) repeat(4,minmax(120px,.55fr)) 26px;gap:10px;align-items:center}.ti-project>summary::-webkit-details-marker{display:none}.ti-project[open]>summary{border-bottom:1px solid var(--line);background:#FBFCFD}.ti-project-title{display:flex;gap:12px;align-items:center}.ti-icon{width:42px;height:42px;border-radius:12px;background:rgba(0,103,172,.09);display:grid;place-items:center;color:var(--blue);font-size:20px;font-weight:800;flex:none}.ti-project-name{color:var(--blue);font-weight:800;font-size:16px}.ti-project-meta{font-size:9px;color:var(--muted);margin:4px 0 6px}.ti-summary-metric{border-left:1px solid #EDF1F3;padding-left:12px}.ti-summary-value{font-size:16px;font-weight:800;margin-top:4px;white-space:nowrap}.ti-summary-value.good{color:#2F6B19}.ti-chevron{font-size:22px;color:var(--gold);transition:.2s}.ti-project[open] .ti-chevron{transform:rotate(180deg)}.ti-project-body{padding:18px}.ti-lead h3{margin:0;color:var(--blue);font-size:18px}.ti-lead p{margin:5px 0 14px;color:var(--muted);font-size:11px;line-height:1.5;max-width:1200px}.ti-context{display:grid;grid-template-columns:minmax(180px,.45fr) minmax(180px,.45fr) minmax(0,2fr);gap:10px;margin-bottom:14px}.ti-context>div{border:1px solid var(--line);border-radius:11px;background:#F8FAFB;padding:11px 12px}.ti-context span,.ti-field span{display:block;font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em}.ti-context strong{display:block;margin-top:4px;font-size:11px;line-height:1.45}.ti-context .description strong{font-weight:500}.ti-controls{display:flex;gap:9px;flex-wrap:wrap;align-items:end;margin-bottom:10px}.ti-controls.assumptions{margin-bottom:14px}.ti-field{min-width:150px;flex:0 1 205px}.ti-field span{margin:0 0 5px 2px}.ti-field input,.ti-field select{width:100%}.ti-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}.ti-kpi{min-height:103px;position:relative;overflow:hidden;background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px}.ti-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--blue)}.ti-kpi.gold:before{background:var(--gold)}.ti-kpi.cyan:before{background:var(--cyan)}.ti-kpi.green:before{background:var(--green)}.ti-kpi-value{font-size:19px;font-weight:800;color:var(--blue);margin-top:7px}.ti-kpi.green .ti-kpi-value{color:#2F6B19}.ti-sub{font-size:9px;color:var(--muted);margin-top:4px;line-height:1.4}.ti-compare{border:1px solid var(--line);border-top:4px solid var(--gold);border-radius:12px;background:#FBFCFD;padding:13px;margin-bottom:14px}.ti-compare-head{display:flex;justify-content:space-between;gap:12px}.ti-compare-head strong{color:var(--blue);font-size:13px}.ti-compare-head span{font-size:9px;color:var(--muted);max-width:850px;text-align:right;line-height:1.45}.ti-compare-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:11px}.ti-compare-box{border:1px solid var(--line);border-radius:11px;background:#fff;padding:12px}.ti-compare-value{font-size:20px;color:var(--blue);font-weight:800;margin-top:5px}.ti-compare-box.current .ti-compare-value{color:#007FA0}.ti-compare-box.good .ti-compare-value{color:#2F6B19}.ti-chart-card,.ti-table-box{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;margin-bottom:12px}.ti-chart-card{padding:13px}.ti-chart-title{font-size:12px;font-weight:800}.ti-chart-sub{font-size:9px;color:var(--muted);margin-top:3px}.ti-chart{height:245px;display:flex;gap:7px;align-items:stretch;border-bottom:1px solid var(--line);padding:14px 8px 0;overflow-x:auto}.ti-chart-column{min-width:34px;flex:1;display:grid;grid-template-rows:1fr 20px;align-items:end;text-align:center}.ti-bars{height:100%;display:flex;gap:2px;align-items:end;justify-content:center}.ti-bars span{width:min(15px,42%);border-radius:3px 3px 0 0}.ti-bars .legacy,.ti-legend .legacy{background:var(--gold)}.ti-bars .current,.ti-legend .current{background:var(--blue)}.ti-chart-column small{font-size:8px;color:var(--muted);padding-top:5px}.ti-legend{font-size:9px;color:var(--muted);display:flex;gap:5px;align-items:center;justify-content:center;padding-top:8px}.ti-legend span{width:9px;height:9px;border-radius:2px;margin-left:8px}.ti-line-chart{width:100%;height:245px;margin-top:10px;background:linear-gradient(to bottom,#fff,#F8FAFB);overflow:visible}.ti-line-chart polyline{fill:none;stroke:var(--blue);stroke-width:1.3;vector-effect:non-scaling-stroke}.ti-line-chart .baseline{stroke:var(--green);stroke-width:1;stroke-dasharray:5 4;vector-effect:non-scaling-stroke}.ti-table-head{padding:11px 13px;background:#F8FAFB;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}.ti-table-head strong{font-size:12px;color:var(--blue)}.ti-table-head span{font-size:9px;color:var(--muted)}.ti-table-wrap{overflow:auto;max-height:340px}.ti-dashboard table{width:100%;border-collapse:collapse;font-size:9px}.ti-dashboard th{position:sticky;top:0;background:#F4F7F9;color:#51616D;padding:9px 10px;text-align:right;white-space:nowrap;z-index:1}.ti-dashboard th:first-child,.ti-dashboard td:first-child{text-align:left}.ti-dashboard td{padding:8px 10px;border-top:1px solid #EDF1F3;text-align:right;white-space:nowrap}.ti-total{font-weight:800;color:#2F6B19}.ti-activity{margin-top:0}.ti-method{margin-top:12px;padding:11px 13px;border-radius:10px;background:#F4F8FA;border:1px solid #DCE8EE;color:#586A76;font-size:10px;line-height:1.55}.ti-empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:11px}.ti-main footer{text-align:center;color:#7B8790;font-size:10px;margin-top:18px}@media(max-width:1250px){.ti-kpis{grid-template-columns:repeat(3,1fr)}.ti-project>summary{grid-template-columns:minmax(260px,1fr) repeat(2,minmax(120px,.5fr)) 26px}.ti-project>summary .ti-summary-metric:nth-of-type(n+4){display:none}}@media(max-width:850px){.ti-header-inner,.ti-portfolio-head,.ti-compare-head{flex-direction:column;align-items:flex-start}.ti-header{position:static}.ti-context{grid-template-columns:1fr}.ti-portfolio-grid,.ti-kpis{grid-template-columns:1fr 1fr}.ti-project>summary{grid-template-columns:1fr 24px}.ti-project>summary .ti-summary-metric{display:none!important}.ti-compare-grid{grid-template-columns:1fr}.ti-main{padding:16px 12px 28px}.ti-header-inner{padding:14px 16px}.ti-compare-head span{text-align:left}}@media(max-width:560px){.ti-portfolio-grid,.ti-kpis{grid-template-columns:1fr}.ti-field{flex:1 1 100%}}
+        .ti-dashboard{--blue:#0067AC;--gold:#C69214;--cyan:#00A5CE;--green:#5E8019;--orange:#D85D27;--ink:#24313B;--muted:#6B7280;--line:#DDE5EA;min-height:100vh;background:#F2F5F7;color:var(--ink);font-family:var(--font-exo),Exo,Arial,sans-serif}.ti-dashboard *{box-sizing:border-box}.ti-header{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}.ti-stripe{height:7px;display:grid;grid-template-columns:2fr 1fr}.ti-stripe span:first-child{background:var(--blue)}.ti-stripe span:last-child{background:var(--gold)}.ti-header-inner,.ti-main{max-width:1600px;margin:auto}.ti-header-inner{padding:15px 26px;display:flex;justify-content:space-between;align-items:center;gap:16px}.ti-eyebrow{color:var(--blue);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.ti-header h1{margin:3px 0 0;color:var(--blue);font-size:clamp(24px,2.4vw,36px)}.ti-header p{margin:5px 0 0;color:var(--muted);font-size:13px}.ti-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.ti-dashboard button,.ti-dashboard input,.ti-dashboard select{font:inherit;border:1px solid #C9D5DC;background:#fff;color:var(--ink);border-radius:9px;padding:9px 11px;font-size:12px;outline:none}.ti-dashboard button{cursor:pointer;font-weight:800}.ti-dashboard button:disabled{cursor:wait;opacity:.55}.ti-dashboard button.primary,.ti-dashboard button.lang{background:var(--blue);border-color:var(--blue);color:#fff}.ti-live{border:1px solid rgba(94,128,25,.3);background:rgba(94,128,25,.08);color:#2F6B19;border-radius:999px;padding:8px 11px;font-size:11px;font-weight:800}.ti-live.warning{border-color:rgba(216,93,39,.3);background:rgba(216,93,39,.08);color:#AA431B}.ti-main{padding:22px 26px 42px}.ti-error{background:#FFF6F2;border:1px solid #E9B8A4;color:#9A3D18;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:11px;line-height:1.6}.ti-error strong{display:block}.ti-portfolio,.ti-project{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 30px rgba(20,47,66,.08)}.ti-portfolio{padding:18px;margin-bottom:28px;border-top:5px solid var(--gold)}.ti-portfolio-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.ti-portfolio h2{margin:0;color:var(--blue);font-size:20px}.ti-portfolio-head p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5;max-width:1000px}.ti-portfolio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.ti-portfolio-grid.four{grid-template-columns:repeat(4,1fr)}.ti-portfolio-grid>div{border:1px solid var(--line);border-radius:12px;padding:13px;background:#FBFCFD}.ti-portfolio-grid span,.ti-label{font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em}.ti-portfolio-grid strong{display:block;font-size:22px;color:var(--blue);margin-top:5px}.ti-portfolio-grid small{display:block;color:var(--muted);font-size:9px;margin-top:5px}.ti-portfolio-grid .green strong{color:#2F6B19}.ti-portfolio-grid .gold strong{color:#9A700C}.ti-portfolio-grid .total{background:var(--blue);border-color:var(--blue)}.ti-portfolio-grid .total span,.ti-portfolio-grid .total strong,.ti-portfolio-grid .total small{color:#fff}.ti-source-status{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.ti-source-status span,.ti-status{border-radius:999px;padding:6px 9px;font-size:9px;font-weight:800}.ti-source-status .ok,.ti-status.ok{background:rgba(94,128,25,.08);color:#2F6B19;border:1px solid rgba(94,128,25,.3)}.ti-source-status .bad,.ti-status.bad{background:rgba(216,93,39,.07);color:#AA431B;border:1px solid rgba(216,93,39,.3)}.ti-updated{text-align:right;color:var(--muted);font-size:9px;margin-top:9px}.ti-category{margin:0 0 30px}.ti-category-head{display:flex;justify-content:space-between;gap:16px;align-items:end;margin:0 2px 13px;padding-bottom:10px;border-bottom:2px solid rgba(0,103,172,.18)}.ti-category-head>div:first-child>span{color:var(--gold);font-size:10px;font-weight:800;letter-spacing:.16em}.ti-category-head h2{color:var(--blue);font-size:24px;margin:2px 0}.ti-category-head p{color:var(--muted);font-size:11px;margin:0;max-width:900px}.ti-project{margin-bottom:14px;overflow:hidden}.ti-project.projected{border-left:4px solid var(--cyan)}.ti-project.potential{border-left:4px solid var(--gold)}.ti-project>summary{list-style:none;cursor:pointer;padding:16px 18px;display:grid;grid-template-columns:minmax(300px,1.4fr) repeat(4,minmax(120px,.55fr)) 26px;gap:10px;align-items:center}.ti-project>summary::-webkit-details-marker{display:none}.ti-project[open]>summary{border-bottom:1px solid var(--line);background:#FBFCFD}.ti-project-title{display:flex;gap:12px;align-items:center}.ti-icon{width:42px;height:42px;border-radius:12px;background:rgba(0,103,172,.09);display:grid;place-items:center;color:var(--blue);font-size:18px;font-weight:800;flex:none}.ti-project-name{color:var(--blue);font-weight:800;font-size:16px}.ti-project-meta{font-size:9px;color:var(--muted);margin:4px 0 6px}.ti-summary-metric{border-left:1px solid #EDF1F3;padding-left:12px}.ti-summary-value{font-size:16px;font-weight:800;margin-top:4px;white-space:nowrap}.ti-summary-value.good{color:#2F6B19}.ti-chevron{font-size:22px;color:var(--gold);transition:.2s}.ti-project[open] .ti-chevron{transform:rotate(180deg)}.ti-project-body{padding:18px}.ti-lead h3{margin:0;color:var(--blue);font-size:18px}.ti-lead p{margin:5px 0 14px;color:var(--muted);font-size:11px;line-height:1.5;max-width:1200px}.ti-context{display:grid;grid-template-columns:minmax(180px,.45fr) minmax(180px,.45fr) minmax(0,2fr);gap:10px;margin-bottom:14px}.ti-context>div{border:1px solid var(--line);border-radius:11px;background:#F8FAFB;padding:11px 12px}.ti-context span,.ti-field span{display:block;font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em}.ti-context strong{display:block;margin-top:4px;font-size:11px;line-height:1.45}.ti-context .description strong{font-weight:500}.ti-controls{display:flex;gap:9px;flex-wrap:wrap;align-items:end;margin-bottom:10px}.ti-controls.assumptions{margin-bottom:14px}.ti-field{min-width:150px;flex:0 1 205px}.ti-field span{margin:0 0 5px 2px}.ti-field input,.ti-field select{width:100%}.ti-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}.ti-kpi{min-height:103px;position:relative;overflow:hidden;background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px}.ti-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--blue)}.ti-kpi.gold:before{background:var(--gold)}.ti-kpi.cyan:before{background:var(--cyan)}.ti-kpi.green:before{background:var(--green)}.ti-kpi-value{font-size:19px;font-weight:800;color:var(--blue);margin-top:7px}.ti-kpi.green .ti-kpi-value{color:#2F6B19}.ti-sub{font-size:9px;color:var(--muted);margin-top:4px;line-height:1.4}.ti-compare{border:1px solid var(--line);border-top:4px solid var(--gold);border-radius:12px;background:#FBFCFD;padding:13px;margin-bottom:14px}.ti-compare-head{display:flex;justify-content:space-between;gap:12px}.ti-compare-head strong{color:var(--blue);font-size:13px}.ti-compare-head span{font-size:9px;color:var(--muted);max-width:850px;text-align:right;line-height:1.45}.ti-compare-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:11px}.ti-compare-box{border:1px solid var(--line);border-radius:11px;background:#fff;padding:12px}.ti-compare-value{font-size:20px;color:var(--blue);font-weight:800;margin-top:5px}.ti-compare-box.current .ti-compare-value{color:#007FA0}.ti-compare-box.good .ti-compare-value{color:#2F6B19}.ti-chart-card,.ti-table-box{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;margin-bottom:12px}.ti-chart-card{padding:13px}.ti-chart-title{font-size:12px;font-weight:800}.ti-chart-sub{font-size:9px;color:var(--muted);margin-top:3px}.ti-chart{height:245px;display:flex;gap:7px;align-items:stretch;border-bottom:1px solid var(--line);padding:14px 8px 0;overflow-x:auto}.ti-chart-column{min-width:34px;flex:1;display:grid;grid-template-rows:1fr 20px;align-items:end;text-align:center}.ti-bars{height:100%;display:flex;gap:2px;align-items:end;justify-content:center}.ti-bars span{width:min(15px,42%);border-radius:3px 3px 0 0}.ti-bars .legacy,.ti-legend .legacy{background:var(--gold)}.ti-bars .current,.ti-legend .current{background:var(--blue)}.ti-chart-column small{font-size:8px;color:var(--muted);padding-top:5px}.ti-legend{font-size:9px;color:var(--muted);display:flex;gap:5px;align-items:center;justify-content:center;padding-top:8px}.ti-legend span{width:9px;height:9px;border-radius:2px;margin-left:8px}.ti-line-chart{width:100%;height:245px;margin-top:10px;background:linear-gradient(to bottom,#fff,#F8FAFB);overflow:visible}.ti-line-chart polyline{fill:none;stroke:var(--blue);stroke-width:1.3;vector-effect:non-scaling-stroke}.ti-line-chart .baseline{stroke:var(--green);stroke-width:1;stroke-dasharray:5 4;vector-effect:non-scaling-stroke}.ti-table-head{padding:11px 13px;background:#F8FAFB;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}.ti-table-head strong{font-size:12px;color:var(--blue)}.ti-table-head span{font-size:9px;color:var(--muted)}.ti-table-wrap{overflow:auto;max-height:340px}.ti-dashboard table{width:100%;border-collapse:collapse;font-size:9px}.ti-dashboard th{position:sticky;top:0;background:#F4F7F9;color:#51616D;padding:9px 10px;text-align:right;white-space:nowrap;z-index:1}.ti-dashboard th:first-child,.ti-dashboard td:first-child{text-align:left}.ti-dashboard td{padding:8px 10px;border-top:1px solid #EDF1F3;text-align:right;white-space:nowrap}.ti-total{font-weight:800;color:#2F6B19}.ti-activity{margin-top:0}.ti-method{margin-top:12px;padding:11px 13px;border-radius:10px;background:#F4F8FA;border:1px solid #DCE8EE;color:#586A76;font-size:10px;line-height:1.55}.ti-empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:11px}.ti-main footer{text-align:center;color:#7B8790;font-size:10px;margin-top:18px}@media(max-width:1250px){.ti-kpis{grid-template-columns:repeat(3,1fr)}.ti-portfolio-grid.four{grid-template-columns:repeat(2,1fr)}.ti-project>summary{grid-template-columns:minmax(260px,1fr) repeat(2,minmax(120px,.5fr)) 26px}.ti-project>summary .ti-summary-metric:nth-of-type(n+4){display:none}}@media(max-width:850px){.ti-header-inner,.ti-portfolio-head,.ti-compare-head,.ti-category-head{flex-direction:column;align-items:flex-start}.ti-header{position:static}.ti-context{grid-template-columns:1fr}.ti-portfolio-grid,.ti-kpis{grid-template-columns:1fr 1fr}.ti-project>summary{grid-template-columns:1fr 24px}.ti-project>summary .ti-summary-metric{display:none!important}.ti-compare-grid{grid-template-columns:1fr}.ti-main{padding:16px 12px 28px}.ti-header-inner{padding:14px 16px}.ti-compare-head span{text-align:left}}@media(max-width:560px){.ti-portfolio-grid,.ti-portfolio-grid.four,.ti-kpis{grid-template-columns:1fr}.ti-field{flex:1 1 100%}}
       `}</style>
     </div>
   );
