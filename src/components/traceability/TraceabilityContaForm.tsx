@@ -13,6 +13,7 @@ type TraceabilityContaRow = {
   subledger: string | null;
   voucher_number: string | null;
   payment_date: string | null;
+  office_name: string | null;
   sede: string | null;
   invoice_subledger: string | null;
   invoice_voucher_number: string | null;
@@ -58,6 +59,7 @@ const COLUMNS: Column[] = [
   { key: "subledger", label: "Subdiario", kind: "text", width: 105 },
   { key: "voucher_number", label: "N.º Voucher", kind: "text", width: 125 },
   { key: "payment_date", label: "F. Pago", kind: "date", width: 110 },
+  { key: "office_name", label: "Oficina", kind: "text", width: 110 },
   { key: "sede", label: "Sede", kind: "text", width: 110 },
   { key: "invoice_subledger", label: "Subdiario Factura", kind: "text", width: 140 },
   { key: "invoice_voucher_number", label: "N.º Voucher Factura", kind: "text", width: 155 },
