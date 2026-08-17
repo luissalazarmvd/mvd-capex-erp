@@ -2,8 +2,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { apiGet } from "@/src/lib/apiClient";
+import { logoutAndReturnToPortal } from "@/src/lib/logout";
 
 const ANALYSIS_START = new Date(2026, 0, 1);
 const CUT = {
@@ -1193,7 +1193,6 @@ function PortfolioSection({ title, subtitle, category, children, onExpand, onCol
 }
 
 export default function TiPage() {
-  const router = useRouter();
   const [lang, setLang] = useState<Lang>("en");
   const [year, setYear] = useState<PortfolioYear>(2026);
   const [data, setData] = useState<{ entries: EntriesRow[]; finance: FinanceRow[]; fcs: FcsRow[]; logistics: LogisticsRow[]; ml: MlRow[] }>({ entries: [], finance: [], fcs: [], logistics: [], ml: [] });
@@ -1296,9 +1295,7 @@ export default function TiPage() {
   const setProjectOpen = (key: string, value: boolean) =>
     setOpen((current) => ({ ...current, [key]: value }));
 
-  const logout = async () => {
-    try { await fetch("/api/auth/logout", { method: "POST" }); } finally { router.push("/"); router.refresh(); }
-  };
+  const logout = logoutAndReturnToPortal;
 
   return (
     <PortfolioYearContext.Provider value={year}>

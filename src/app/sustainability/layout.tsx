@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import LogoutLink from "../../components/auth/LogoutLink";
 
 export default function SustainabilityLayout({
   children,
@@ -28,9 +29,7 @@ export default function SustainabilityLayout({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <Link
-                href="/"
-                prefetch={false}
+              <LogoutLink
                 aria-label="Inicio"
                 title="Inicio"
                 style={{
@@ -49,7 +48,7 @@ export default function SustainabilityLayout({
                   style={{ objectFit: "contain" }}
                   sizes="130px"
                 />
-              </Link>
+              </LogoutLink>
 
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>
@@ -85,13 +84,11 @@ export default function SustainabilityLayout({
                 Proveedores
               </Link>
 
-              <Link
-                href="/"
-                prefetch={false}
+              <LogoutLink
                 className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
               >
                 Inicio
-              </Link>
+              </LogoutLink>
             </nav>
           </div>
         </div>

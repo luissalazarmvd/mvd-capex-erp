@@ -1,7 +1,7 @@
 // src/app/traceability/layout.tsx
 import Image from "next/image";
-import Link from "next/link";
 import TraceabilityTopNav from "../../components/traceability/TraceabilityTopNav";
+import LogoutLink from "../../components/auth/LogoutLink";
 
 export default function TraceabilityLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,9 +22,7 @@ export default function TraceabilityLayout({ children }: { children: React.React
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <Link
-                href="/"
-                prefetch={false}
+              <LogoutLink
                 aria-label="Inicio"
                 title="Inicio"
                 style={{
@@ -43,7 +41,7 @@ export default function TraceabilityLayout({ children }: { children: React.React
                   style={{ objectFit: "contain" }}
                   sizes="130px"
                 />
-              </Link>
+              </LogoutLink>
 
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – TRAZABILIDAD</div>
@@ -53,13 +51,11 @@ export default function TraceabilityLayout({ children }: { children: React.React
               </div>
             </div>
 
-            <Link
-              href="/"
-              prefetch={false}
+            <LogoutLink
               className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
             >
               Inicio
-            </Link>
+            </LogoutLink>
           </div>
 
           <div style={{ marginTop: 12 }}>

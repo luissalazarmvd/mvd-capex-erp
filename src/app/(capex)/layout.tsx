@@ -4,6 +4,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import LogoutLink from "../../components/auth/LogoutLink";
 
 const NAV = [
   { href: "/projects", label: "Proyectos" },
@@ -34,9 +35,7 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <Link
-                href="/"
-                prefetch={false}
+              <LogoutLink
                 aria-label="MVD"
                 title="MVD"
                 style={{
@@ -55,7 +54,7 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
                   style={{ objectFit: "contain" }}
                   sizes="130px"
                 />
-              </Link>
+              </LogoutLink>
 
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – CAPEX ERP</div>
@@ -65,13 +64,11 @@ export default function CapexLayout({ children }: { children: React.ReactNode })
               </div>
             </div>
 
-            <Link
-              href="/"
-              prefetch={false}
+            <LogoutLink
               className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
             >
               Inicio
-            </Link>
+            </LogoutLink>
           </div>
 
           <nav style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>

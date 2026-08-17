@@ -70,8 +70,33 @@ async function verifyToken(token: string, secret: string) {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Entrar al portal siempre termina la sesión anterior. Esto también cubre
+  // accesos manuales a "/" y evita que una cookie vieja permita volver a una
+  // ruta interna escribiendo su URL después de regresar al portal.
+  if (pathname === "/") {
+    const res = NextResponse.next();
+    res.cookies.set({
+      name: "mvd_auth",
+      value: "",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+    res.cookies.set({
+      name: "mvd_ti_session",
+      value: "",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+    return res;
+  }
+
   if (
-    pathname === "/" ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/favicon") ||

@@ -12,5 +12,14 @@ export async function POST() {
     path: "/",
     maxAge: 0,
   });
+  res.cookies.set({
+    name: "mvd_ti_session",
+    value: "",
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
   return res;
 }

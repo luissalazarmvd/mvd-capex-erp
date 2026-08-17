@@ -1,6 +1,6 @@
 // src/app/logistics/layout.tsx
 import Image from "next/image";
-import Link from "next/link";
+import LogoutLink from "../../components/auth/LogoutLink";
 
 export default function LogisticsLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,9 +21,7 @@ export default function LogisticsLayout({ children }: { children: React.ReactNod
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <Link
-                href="/"
-                prefetch={false}
+              <LogoutLink
                 aria-label="Inicio"
                 title="Inicio"
                 style={{
@@ -42,7 +40,7 @@ export default function LogisticsLayout({ children }: { children: React.ReactNod
                   style={{ objectFit: "contain" }}
                   sizes="130px"
                 />
-              </Link>
+              </LogoutLink>
 
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – LOGISTICA</div>
@@ -52,13 +50,11 @@ export default function LogisticsLayout({ children }: { children: React.ReactNod
               </div>
             </div>
 
-            <Link
-              href="/"
-              prefetch={false}
+            <LogoutLink
               className="nav-pill !text-white visited:!text-white text-lg font-extrabold"
             >
               Inicio
-            </Link>
+            </LogoutLink>
           </div>
         </div>
       </header>
