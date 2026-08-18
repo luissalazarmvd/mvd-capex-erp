@@ -126,6 +126,9 @@ const MONTH_NAMES = [
   "Noviembre",
   "Diciembre",
 ];
+const TARGET_NUMBER_FORMAT = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 6,
+});
 
 function currentTargetPeriod() {
   const today = new Date();
@@ -158,6 +161,15 @@ function parseTargetValue(value: string) {
 
   const parsed = Number(normalized);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function formatTargetNumber(value: number) {
+  return TARGET_NUMBER_FORMAT.format(value);
+}
+
+function formatTargetUsdInput(value: string) {
+  const parsed = parseTargetValue(value);
+  return parsed === null ? value : `$${formatTargetNumber(parsed)}`;
 }
 
 function normalizeDate(value: unknown) {
@@ -266,6 +278,7 @@ export default function TraceabilityContaForm() {
   const [targetMessageKind, setTargetMessageKind] = useState<"error" | "success">("error");
   const [targetHistory, setTargetHistory] = useState<TraceabilityTargetRow[]>([]);
   const [targetRows, setTargetRows] = useState<EditableTargetRow[]>([]);
+  const [focusedTargetLotUsdOffice, setFocusedTargetLotUsdOffice] = useState<string | null>(null);
   const [targetYear, setTargetYear] = useState(initialTargetPeriod.year);
   const [targetMonth, setTargetMonth] = useState(initialTargetPeriod.month);
 
@@ -382,6 +395,7 @@ export default function TraceabilityContaForm() {
     setTargetMonth(current.month);
     setTargetHistory([]);
     setTargetRows([]);
+    setFocusedTargetLotUsdOffice(null);
     setTargetMessage(null);
     setTargetPreviewOpen(true);
     void loadTargetHistory();
@@ -425,6 +439,26 @@ export default function TraceabilityContaForm() {
         parseTargetValue(row.target_tms) !== null &&
         parseTargetValue(row.target_lot_usd) !== null
     );
+
+  const targetTotals = useMemo(() => {
+    let targetTms = 0;
+    let targetLotUsd = 0;
+    let targetTmsValid = targetRows.length > 0;
+    let targetLotUsdValid = targetRows.length > 0;
+
+    targetRows.forEach((row) => {
+      const parsedTms = parseTargetValue(row.target_tms);
+      const parsedLotUsd = parseTargetValue(row.target_lot_usd);
+
+      if (parsedTms === null) targetTmsValid = false;
+      else targetTms += parsedTms;
+
+      if (parsedLotUsd === null) targetLotUsdValid = false;
+      else targetLotUsd += parsedLotUsd;
+    });
+
+    return { targetTms, targetLotUsd, targetTmsValid, targetLotUsdValid };
+  }, [targetRows]);
 
   async function saveTargets() {
     if (!targetsAreValid || targetSaving) return;
@@ -1045,7 +1079,13 @@ export default function TraceabilityContaForm() {
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={row.target_lot_usd}
+                            value={
+                              focusedTargetLotUsdOffice === row.office_name
+                                ? row.target_lot_usd
+                                : formatTargetUsdInput(row.target_lot_usd)
+                            }
+                            onFocus={() => setFocusedTargetLotUsdOffice(row.office_name)}
+                            onBlur={() => setFocusedTargetLotUsdOffice(null)}
                             onChange={(event) =>
                               editTarget(row.office_name, "target_lot_usd", event.target.value)
                             }
@@ -1083,6 +1123,61 @@ export default function TraceabilityContaForm() {
                     </tr>
                   ) : null}
                 </tbody>
+
+                {!targetLoading && targetRows.length > 0 ? (
+                  <tfoot>
+                    <tr>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellStyle,
+                          position: "sticky",
+                          bottom: 0,
+                          zIndex: 10,
+                          background: "rgb(6, 77, 121)",
+                          fontWeight: 900,
+                          borderTop: "2px solid rgba(216,238,255,.35)",
+                        }}
+                      >
+                        TOTAL
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellStyle,
+                          position: "sticky",
+                          bottom: 0,
+                          zIndex: 10,
+                          background: "rgb(6, 77, 121)",
+                          fontWeight: 900,
+                          borderTop: "2px solid rgba(216,238,255,.35)",
+                          textAlign: "right",
+                        }}
+                      >
+                        {targetTotals.targetTmsValid
+                          ? formatTargetNumber(targetTotals.targetTms)
+                          : "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellStyle,
+                          position: "sticky",
+                          bottom: 0,
+                          zIndex: 10,
+                          background: "rgb(6, 77, 121)",
+                          fontWeight: 900,
+                          borderTop: "2px solid rgba(216,238,255,.35)",
+                          textAlign: "right",
+                        }}
+                      >
+                        {targetTotals.targetLotUsdValid
+                          ? `$${formatTargetNumber(targetTotals.targetLotUsd)}`
+                          : "—"}
+                      </td>
+                    </tr>
+                  </tfoot>
+                ) : null}
               </Table>
             </div>
 
