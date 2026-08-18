@@ -3,8 +3,9 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { apiGet } from "../../lib/apiClient";
+import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
 
 type NumericValue = number | string | null;
@@ -43,6 +44,25 @@ type GetResp = {
   ok: boolean;
   rows?: TraceabilityContaRow[];
   error?: string;
+};
+
+type TraceabilityTargetRow = {
+  office_name: string | null;
+  target_tms: NumericValue;
+  target_lot_usd: NumericValue;
+  target_period: string | null;
+};
+
+type TargetGetResp = {
+  ok: boolean;
+  rows?: TraceabilityTargetRow[];
+  error?: string;
+};
+
+type EditableTargetRow = {
+  office_name: string;
+  target_tms: string;
+  target_lot_usd: string;
 };
 
 type Column = {
@@ -90,6 +110,55 @@ const SEARCHABLE_KEYS = COLUMNS.filter(
 ).map((column) => column.key);
 
 const PAGE_SIZE = 100;
+const FIRST_TARGET_YEAR = 2026;
+const FIRST_TARGET_MONTH = 8;
+const MONTH_NAMES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Setiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+function currentTargetPeriod() {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+
+  if (
+    currentYear < FIRST_TARGET_YEAR ||
+    (currentYear === FIRST_TARGET_YEAR && currentMonth < FIRST_TARGET_MONTH)
+  ) {
+    return { year: FIRST_TARGET_YEAR, month: FIRST_TARGET_MONTH };
+  }
+
+  return { year: currentYear, month: currentMonth };
+}
+
+function targetPeriodEnd(year: number, month: number) {
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+}
+
+function targetValueToInput(value: NumericValue) {
+  if (value === null || value === undefined || String(value).trim() === "") return "";
+  return String(value);
+}
+
+function parseTargetValue(value: string) {
+  const normalized = value.trim().replace(",", ".");
+  if (!/^\d{1,12}(?:\.\d{1,6})?$/.test(normalized)) return null;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
 
 function normalizeDate(value: unknown) {
   return String(value ?? "").trim().slice(0, 10);
@@ -180,6 +249,7 @@ function compareRowsByColumn(
 }
 
 export default function TraceabilityContaForm() {
+  const initialTargetPeriod = currentTargetPeriod();
   const [rows, setRows] = useState<TraceabilityContaRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -189,6 +259,15 @@ export default function TraceabilityContaForm() {
   const [sortKey, setSortKey] = useState<keyof TraceabilityContaRow>("payment_date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
+  const [targetPreviewOpen, setTargetPreviewOpen] = useState(false);
+  const [targetLoading, setTargetLoading] = useState(false);
+  const [targetSaving, setTargetSaving] = useState(false);
+  const [targetMessage, setTargetMessage] = useState<string | null>(null);
+  const [targetMessageKind, setTargetMessageKind] = useState<"error" | "success">("error");
+  const [targetHistory, setTargetHistory] = useState<TraceabilityTargetRow[]>([]);
+  const [targetRows, setTargetRows] = useState<EditableTargetRow[]>([]);
+  const [targetYear, setTargetYear] = useState(initialTargetPeriod.year);
+  const [targetMonth, setTargetMonth] = useState(initialTargetPeriod.month);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -212,6 +291,176 @@ export default function TraceabilityContaForm() {
   useEffect(() => {
     setPage(1);
   }, [dateFrom, dateTo, globalSearch, sortKey, sortDir]);
+
+  const selectableTargetPeriods = useMemo(() => {
+    const current = currentTargetPeriod();
+    const periods: Array<{ year: number; month: number }> = [];
+
+    for (let year = FIRST_TARGET_YEAR; year <= current.year; year += 1) {
+      const firstMonth = year === FIRST_TARGET_YEAR ? FIRST_TARGET_MONTH : 1;
+      const lastMonth = year === current.year ? current.month : 12;
+      for (let month = firstMonth; month <= lastMonth; month += 1) {
+        periods.push({ year, month });
+      }
+    }
+
+    return periods;
+  }, []);
+
+  const targetYearOptions = useMemo(
+    () =>
+      Array.from(new Set(selectableTargetPeriods.map((period) => period.year))).map((year) => ({
+        value: String(year),
+        label: String(year),
+      })),
+    [selectableTargetPeriods]
+  );
+
+  const targetMonthOptions = useMemo(
+    () =>
+      selectableTargetPeriods
+        .filter((period) => period.year === targetYear)
+        .map((period) => ({
+          value: String(period.month),
+          label: MONTH_NAMES[period.month - 1],
+        })),
+    [selectableTargetPeriods, targetYear]
+  );
+
+  const selectedTargetPeriod = targetPeriodEnd(targetYear, targetMonth);
+
+  useEffect(() => {
+    if (!targetPreviewOpen) return;
+
+    const offices = Array.from(
+      new Set(
+        targetHistory
+          .map((row) => String(row.office_name ?? "").trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+
+    const rowsByOffice = new Map<string, TraceabilityTargetRow>();
+    targetHistory.forEach((row) => {
+      const officeName = String(row.office_name ?? "").trim();
+      if (officeName && normalizeDate(row.target_period) === selectedTargetPeriod) {
+        rowsByOffice.set(officeName, row);
+      }
+    });
+
+    setTargetRows(
+      offices.map((officeName) => {
+        const row = rowsByOffice.get(officeName);
+        return {
+          office_name: officeName,
+          target_tms: targetValueToInput(row?.target_tms ?? null),
+          target_lot_usd: targetValueToInput(row?.target_lot_usd ?? null),
+        };
+      })
+    );
+  }, [selectedTargetPeriod, targetHistory, targetPreviewOpen]);
+
+  async function loadTargetHistory() {
+    setTargetLoading(true);
+    setTargetMessage(null);
+
+    try {
+      const response = (await apiGet("/api/traceability/conta/target")) as TargetGetResp;
+      setTargetHistory(Array.isArray(response.rows) ? response.rows : []);
+    } catch (error: unknown) {
+      setTargetHistory([]);
+      setTargetMessageKind("error");
+      setTargetMessage(`ERROR: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setTargetLoading(false);
+    }
+  }
+
+  function openTargetPreview() {
+    const current = currentTargetPeriod();
+    setTargetYear(current.year);
+    setTargetMonth(current.month);
+    setTargetHistory([]);
+    setTargetRows([]);
+    setTargetMessage(null);
+    setTargetPreviewOpen(true);
+    void loadTargetHistory();
+  }
+
+  function closeTargetPreview() {
+    if (targetSaving) return;
+    setTargetPreviewOpen(false);
+  }
+
+  function changeTargetYear(value: string) {
+    const year = Number(value);
+    const months = selectableTargetPeriods.filter((period) => period.year === year);
+    setTargetYear(year);
+    setTargetMonth(months[months.length - 1]?.month ?? FIRST_TARGET_MONTH);
+    setTargetMessage(null);
+  }
+
+  function changeTargetMonth(value: string) {
+    setTargetMonth(Number(value));
+    setTargetMessage(null);
+  }
+
+  function editTarget(
+    officeName: string,
+    field: "target_tms" | "target_lot_usd",
+    value: string
+  ) {
+    setTargetRows((current) =>
+      current.map((row) =>
+        row.office_name === officeName ? { ...row, [field]: value } : row
+      )
+    );
+    setTargetMessage(null);
+  }
+
+  const targetsAreValid =
+    targetRows.length > 0 &&
+    targetRows.every(
+      (row) =>
+        parseTargetValue(row.target_tms) !== null &&
+        parseTargetValue(row.target_lot_usd) !== null
+    );
+
+  async function saveTargets() {
+    if (!targetsAreValid || targetSaving) return;
+
+    setTargetSaving(true);
+    setTargetMessage(null);
+
+    try {
+      await Promise.all(
+        targetRows.map(async (row) => {
+          try {
+            await apiPost("/api/traceability/conta/target/insert", {
+              office_name: row.office_name,
+              target_tms: parseTargetValue(row.target_tms),
+              target_lot_usd: parseTargetValue(row.target_lot_usd),
+              target_period: selectedTargetPeriod,
+            });
+          } catch (error: unknown) {
+            throw new Error(
+              `${row.office_name}: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+        })
+      );
+
+      setTargetMessageKind("success");
+      setTargetMessage(
+        `Targets de ${MONTH_NAMES[targetMonth - 1]} ${targetYear} guardados para ${targetRows.length} oficinas.`
+      );
+    } catch (error: unknown) {
+      setTargetMessageKind("error");
+      setTargetMessage(`ERROR: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setTargetSaving(false);
+    }
+  }
 
   const paymentDateBounds = useMemo(() => {
     const dates = rows.map((row) => normalizeDate(row.payment_date)).filter(Boolean).sort();
@@ -394,6 +643,15 @@ export default function TraceabilityContaForm() {
             disabled={loading || filteredRows.length === 0}
           >
             Exportar Excel
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            onClick={openTargetPreview}
+          >
+            Actualizar Target
           </Button>
         </div>
       </div>
@@ -593,6 +851,282 @@ export default function TraceabilityContaForm() {
           </Button>
         </div>
       </div>
+
+      {targetPreviewOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="target-preview-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            className="panel-inner"
+            style={{
+              width: "min(900px, 96vw)",
+              height: "min(84vh, 760px)",
+              display: "grid",
+              gridTemplateRows: "auto auto auto 1fr auto",
+              gap: 12,
+              padding: 14,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div id="target-preview-title" style={{ fontSize: 18, fontWeight: 900 }}>
+                  Actualizar Target
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>
+                  Edita los targets de todas las oficinas para el periodo seleccionado.
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                onClick={closeTargetPreview}
+                disabled={targetSaving}
+              >
+                Cerrar
+              </Button>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ minWidth: 150 }}>
+                <Select
+                  label="Año"
+                  placeholder=""
+                  value={String(targetYear)}
+                  onChange={(event) => changeTargetYear(event.target.value)}
+                  options={targetYearOptions}
+                  disabled={targetLoading || targetSaving}
+                />
+              </div>
+
+              <div style={{ minWidth: 180 }}>
+                <Select
+                  label="Mes"
+                  placeholder=""
+                  value={String(targetMonth)}
+                  onChange={(event) => changeTargetMonth(event.target.value)}
+                  options={targetMonthOptions}
+                  disabled={targetLoading || targetSaving}
+                />
+              </div>
+
+              <div
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(27,147,227,.45)",
+                  background: "rgba(27,147,227,.10)",
+                  fontSize: 12,
+                  fontWeight: 900,
+                }}
+              >
+                Periodo target: {formatDate(selectedTargetPeriod)}
+              </div>
+            </div>
+
+            {targetMessage ? (
+              <div
+                role={targetMessageKind === "error" ? "alert" : "status"}
+                style={{
+                  padding: 10,
+                  borderRadius: 10,
+                  border:
+                    targetMessageKind === "error"
+                      ? "1px solid rgba(216,93,39,.45)"
+                      : "1px solid rgba(62,180,137,.45)",
+                  background:
+                    targetMessageKind === "error"
+                      ? "rgba(216,93,39,.10)"
+                      : "rgba(62,180,137,.10)",
+                  fontWeight: 800,
+                }}
+              >
+                {targetMessage}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.85 }}>
+                Se aceptan números positivos o cero, con hasta 6 decimales. Todos los campos son obligatorios.
+              </div>
+            )}
+
+            <div
+              style={{
+                minWidth: 0,
+                minHeight: 0,
+                overflow: "auto",
+                border: "1px solid rgba(216,238,255,.12)",
+                borderRadius: 12,
+              }}
+            >
+              <Table stickyHeader disableScrollWrapper>
+                <thead>
+                  <tr>
+                    <th
+                      className="capex-th"
+                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                    >
+                      Oficina
+                    </th>
+                    <th
+                      className="capex-th"
+                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                    >
+                      Target TMS
+                    </th>
+                    <th
+                      className="capex-th"
+                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                    >
+                      Target lote USD
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {targetRows.map((row, rowIndex) => {
+                    const tmsValid = parseTargetValue(row.target_tms) !== null;
+                    const lotUsdValid = parseTargetValue(row.target_lot_usd) !== null;
+                    const rowBackground =
+                      rowIndex % 2 === 0 ? "rgba(255,255,255,.035)" : "rgba(255,255,255,.07)";
+
+                    return (
+                      <tr className="capex-tr" key={row.office_name}>
+                        <td
+                          className="capex-td"
+                          style={{ ...cellStyle, background: rowBackground, fontWeight: 900 }}
+                        >
+                          {row.office_name}
+                        </td>
+                        <td className="capex-td" style={{ ...cellStyle, background: rowBackground }}>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={row.target_tms}
+                            onChange={(event) =>
+                              editTarget(row.office_name, "target_tms", event.target.value)
+                            }
+                            disabled={targetSaving}
+                            aria-invalid={!tmsValid}
+                            title={tmsValid ? "" : "Ingresa un número válido con hasta 6 decimales"}
+                            style={{
+                              ...inputStyle,
+                              minWidth: 180,
+                              width: "100%",
+                              borderColor: tmsValid
+                                ? "rgba(216,238,255,.18)"
+                                : "rgba(216,93,39,.85)",
+                              background: tmsValid ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.12)",
+                            }}
+                          />
+                        </td>
+                        <td className="capex-td" style={{ ...cellStyle, background: rowBackground }}>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={row.target_lot_usd}
+                            onChange={(event) =>
+                              editTarget(row.office_name, "target_lot_usd", event.target.value)
+                            }
+                            disabled={targetSaving}
+                            aria-invalid={!lotUsdValid}
+                            title={lotUsdValid ? "" : "Ingresa un número válido con hasta 6 decimales"}
+                            style={{
+                              ...inputStyle,
+                              minWidth: 180,
+                              width: "100%",
+                              borderColor: lotUsdValid
+                                ? "rgba(216,238,255,.18)"
+                                : "rgba(216,93,39,.85)",
+                              background: lotUsdValid ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.12)",
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {targetLoading ? (
+                    <tr className="capex-tr">
+                      <td className="capex-td" colSpan={3} style={{ ...cellStyle, fontWeight: 900 }}>
+                        Cargando targets…
+                      </td>
+                    </tr>
+                  ) : null}
+
+                  {!targetLoading && targetRows.length === 0 ? (
+                    <tr className="capex-tr">
+                      <td className="capex-td" colSpan={3} style={{ ...cellStyle, fontWeight: 900 }}>
+                        No se encontraron oficinas en el historial de targets.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </Table>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+                {!targetRows.length
+                  ? "Carga las oficinas para poder guardar."
+                  : targetsAreValid
+                    ? `Se guardarán ${targetRows.length} oficinas para ${formatDate(selectedTargetPeriod)}.`
+                    : "Completa o corrige los valores resaltados para habilitar Guardar."}
+              </div>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="default"
+                  onClick={closeTargetPreview}
+                  disabled={targetSaving}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  onClick={saveTargets}
+                  disabled={targetLoading || targetSaving || !targetsAreValid}
+                >
+                  {targetSaving ? "Guardando…" : "Guardar"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
