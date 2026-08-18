@@ -94,12 +94,37 @@ type PortfolioMetric = Pick<
 
 type ProjectKey = "cdm" | "fin" | "fcs" | "log" | "ro";
 
-const EXECUTED_PROJECT_NAMES: Record<ProjectKey, string> = {
-  cdm: "Lot Entries & Uploads",
-  fin: "Valuation & Payment Control",
-  fcs: "Lot Payment Forecast",
-  log: "Logistics Traceability",
-  ro: "RO",
+const EXECUTED_PROJECTS: Record<ProjectKey, { name: string; description: string; area: string; keyUser: string }> = {
+  cdm: {
+    name: "Lot Entries & Uploads",
+    description: "A weighing-scale automation that creates and inserts the lot file automatically, eliminating manual registration and its associated waiting time.",
+    area: "CDM",
+    keyUser: "Carlos Huamán",
+  },
+  fin: {
+    name: "Valuation & Payment Control",
+    description: "Integrated traceability of lot valuation and payment, comparing legacy workload with the automated process.",
+    area: "Finance, CDM & Commercial",
+    keyUser: "Carlos Huamán",
+  },
+  fcs: {
+    name: "Lot Payment Forecast",
+    description: "Automated weekly mineral-payment forecast using a representative stock volume and integrated payment and valuation logic.",
+    area: "Finance",
+    keyUser: "Daniel Pajuelo",
+  },
+  log: {
+    name: "Logistics Traceability",
+    description: "Integrated traceability from procurement requirements to purchase orders, with an automatically prepared view for each buyer.",
+    area: "Logistics",
+    keyUser: "Joel Morales",
+  },
+  ro: {
+    name: "RO",
+    description: "Automated generation of mineral Purchase and Sales RO reports, reducing manual-error risk and freeing review capacity.",
+    area: "Compliance",
+    keyUser: "Santiago Jacobo",
+  },
 };
 
 function has(value: unknown) {
@@ -945,6 +970,7 @@ type ProjectionMetric = {
   beforeMh: number;
   afterMh: number;
   optimization: number;
+  estimatedHourlyRate: number;
   monthlyMh: number;
   monthlyUsd: number;
   annualUsd: number;
@@ -1078,6 +1104,16 @@ const PROJECTED_PROJECTS: ProjectedDefinition[] = [
   },
 ];
 
+function projectedKeyUser(definition: ProjectedDefinition) {
+  if (definition.key === "collection") return "To be defined";
+  if (definition.key === "laboratory") return "Luis Jimenez";
+  if (definition.key === "settlement") return "Junior de La Cruz";
+  if (definition.key === "refinery-traceability") return "Richard Alcocer";
+  if (definition.areaEn === "Plant") return "Carlos Perez";
+  if (definition.areaEn.includes("CDM")) return "Carlos Huaman";
+  return "To be defined";
+}
+
 function AutodeskProject({ lang, open, onToggle }: { lang: Lang; open: boolean; onToggle: (open: boolean) => void }) {
   const year = useContext(PortfolioYearContext);
   const beforeLicenses = year === 2027 ? 22 : 35;
@@ -1149,10 +1185,11 @@ function ProjectedProject({ definition, lang, open, onToggle, onResult, averageL
     beforeMh: beforeMonthlyMh,
     afterMh: afterMonthlyMh,
     optimization,
+    estimatedHourlyRate: rate,
     monthlyMh,
     monthlyUsd,
     annualUsd: monthlyUsd * 12,
-  }), [afterMonthlyMh, beforeMonthlyMh, monthlyMh, monthlyUsd, optimization]);
+  }), [afterMonthlyMh, beforeMonthlyMh, monthlyMh, monthlyUsd, optimization, rate]);
   useEffect(() => onResult(definition.key, metric), [definition.key, metric, onResult]);
   const displayedBeforeMh = year === 2027 ? afterMonthlyMh : beforeMonthlyMh;
   const displayedAfterMh = afterMonthlyMh;
@@ -1340,13 +1377,23 @@ export default function TiPage() {
   const unifiedAnnual = displayedExecutedAnnual + displayedProjectedAnnual + displayedPotentialAnnual;
 
   const exportExcel = useCallback(() => {
-    const executedRows = (Object.keys(EXECUTED_PROJECT_NAMES) as ProjectKey[]).map((key) => {
+    const executedRows = (Object.keys(EXECUTED_PROJECTS) as ProjectKey[]).map((key) => {
       const metric = metrics[key];
+      const project = EXECUTED_PROJECTS[key];
+      const savedMh = metric && year === 2026 ? metric.avgSaved : 0;
+      const estimatedHourlyRate = metric && metric.avgSaved !== 0
+        ? metric.avgUsd / metric.avgSaved
+        : null;
       return {
         Tipo: "Ejecutado",
-        Proyecto: EXECUTED_PROJECT_NAMES[key],
+        Proyecto: project.name,
+        "Descripción": project.description,
+        "Área": project.area,
+        "Key user": project.keyUser,
         "HH antes (mes)": exportNumber(metric ? (year === 2027 ? metric.avgCurrent : metric.avgBefore) : null),
         "HH ahora (mes)": exportNumber(metric?.avgCurrent),
+        "HH ahorradas (mes)": exportNumber(savedMh),
+        "Costo por hora estimado (USD/HH)": exportNumber(estimatedHourlyRate),
         "USD antes al mes (potencial)": null,
         "USD después al mes (potencial)": null,
         "Optimización (%)": exportNumber(metric ? (year === 2027 ? 0 : metric.optimization) : null),
@@ -1357,8 +1404,13 @@ export default function TiPage() {
     const autodeskRow = {
       Tipo: "Ejecutado",
       Proyecto: "Autodesk License Optimization",
+      "Descripción": "Autodesk license use was analyzed against each user's responsibilities and license capabilities. The optimized allocation lowers cost without affecting operational needs.",
+      "Área": "Projects",
+      "Key user": "Axel Gallegos",
       "HH antes (mes)": null,
       "HH ahora (mes)": null,
+      "HH ahorradas (mes)": null,
+      "Costo por hora estimado (USD/HH)": null,
       "USD antes al mes (potencial)": null,
       "USD después al mes (potencial)": null,
       "Optimización (%)": year === 2026 ? 43.2 : 0,
@@ -1370,8 +1422,13 @@ export default function TiPage() {
       return {
         Tipo: "Proyectado",
         Proyecto: definition.titleEn,
+        "Descripción": definition.descriptionEn,
+        "Área": definition.areaEn,
+        "Key user": projectedKeyUser(definition),
         "HH antes (mes)": exportNumber(metric ? (year === 2027 ? metric.afterMh : metric.beforeMh) : null),
         "HH ahora (mes)": exportNumber(metric?.afterMh),
+        "HH ahorradas (mes)": exportNumber(metric ? (year === 2027 ? 0 : metric.monthlyMh) : null),
+        "Costo por hora estimado (USD/HH)": exportNumber(metric?.estimatedHourlyRate),
         "USD antes al mes (potencial)": null,
         "USD después al mes (potencial)": null,
         "Optimización (%)": exportNumber(metric ? (year === 2027 ? 0 : metric.optimization) : null),
@@ -1382,8 +1439,13 @@ export default function TiPage() {
     const potentialRow = {
       Tipo: "Potencial",
       Proyecto: "ML Refinery Consumption Optimization",
+      "Descripción": "A Machine Learning model estimates optimal input consumption for each refinery campaign, creating a data-driven benchmark to reduce material cost while preserving process requirements and operating performance.",
+      "Área": "Refinery",
+      "Key user": "Richard Alcocer",
       "HH antes (mes)": null,
       "HH ahora (mes)": null,
+      "HH ahorradas (mes)": null,
+      "Costo por hora estimado (USD/HH)": null,
       "USD antes al mes (potencial)": year === 2027 ? potentialMetric.afterUsd : potentialMetric.beforeUsd,
       "USD después al mes (potencial)": potentialMetric.afterUsd,
       "Optimización (%)": year === 2027 ? 0 : potentialMetric.optimization,
@@ -1399,26 +1461,31 @@ export default function TiPage() {
     detailSheet["!cols"] = [
       { wch: 13 },
       { wch: 48 },
+      { wch: 85 },
+      { wch: 28 },
+      { wch: 24 },
       { wch: 18 },
       { wch: 18 },
+      { wch: 21 },
+      { wch: 35 },
       { wch: 31 },
       { wch: 33 },
       { wch: 18 },
       { wch: 38 },
     ];
-    detailSheet["!autofilter"] = { ref: detailSheet["!ref"] || "A1:H1" };
+    detailSheet["!autofilter"] = { ref: detailSheet["!ref"] || "A1:M1" };
 
-    const detailRange = XLSX.utils.decode_range(detailSheet["!ref"] || "A1:H1");
+    const detailRange = XLSX.utils.decode_range(detailSheet["!ref"] || "A1:M1");
     for (let row = 1; row <= detailRange.e.r; row += 1) {
-      [2, 3].forEach((column) => {
+      [5, 6, 7].forEach((column) => {
         const cell = detailSheet[XLSX.utils.encode_cell({ r: row, c: column })];
         if (cell) cell.z = "0.00";
       });
-      [4, 5, 7].forEach((column) => {
+      [8, 9, 10, 12].forEach((column) => {
         const cell = detailSheet[XLSX.utils.encode_cell({ r: row, c: column })];
         if (cell) cell.z = "$#,##0.00";
       });
-      const optimizationCell = detailSheet[XLSX.utils.encode_cell({ r: row, c: 6 })];
+      const optimizationCell = detailSheet[XLSX.utils.encode_cell({ r: row, c: 11 })];
       if (optimizationCell) optimizationCell.z = "0.00";
     }
 
