@@ -2,6 +2,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import { apiGet } from "@/src/lib/apiClient";
 import { logoutAndReturnToPortal } from "@/src/lib/logout";
 
@@ -88,10 +89,18 @@ type ProjectResult = {
 
 type PortfolioMetric = Pick<
   ProjectResult,
-  "avgSaved" | "avgUsd" | "optimization" | "totalSaved" | "totalUsd"
+  "avgBefore" | "avgCurrent" | "avgSaved" | "avgUsd" | "optimization" | "totalSaved" | "totalUsd"
 >;
 
 type ProjectKey = "cdm" | "fin" | "fcs" | "log" | "ro";
+
+const EXECUTED_PROJECT_NAMES: Record<ProjectKey, string> = {
+  cdm: "Lot Entries & Uploads",
+  fin: "Valuation & Payment Control",
+  fcs: "Lot Payment Forecast",
+  log: "Logistics Traceability",
+  ro: "RO",
+};
 
 function has(value: unknown) {
   return (
@@ -178,6 +187,10 @@ function mean(values: number[]) {
 
 function sum(values: number[]) {
   return values.reduce((total, value) => total + value, 0);
+}
+
+function exportNumber(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function quantile(values: number[], q: number) {
@@ -334,6 +347,8 @@ function resultForYear(result: ProjectResult, year: PortfolioYear, lang: Lang): 
 
 function reportMetric(onResult: (metric: PortfolioMetric) => void, result: ProjectResult) {
   onResult({
+    avgBefore: result.avgBefore,
+    avgCurrent: result.avgCurrent,
     avgSaved: result.avgSaved,
     avgUsd: result.avgUsd,
     optimization: result.optimization,
@@ -926,8 +941,22 @@ function RoProject({ open, onToggle, onResult, lang }: { open: boolean; onToggle
   return <ProjectCard lang={lang} name="RO" icon="✓" area="Compliance" keyUser="Santiago Jacobo" implementation="01/04/2026" description={tr(lang, "Automated generation of mineral Purchase and Sales RO reports, reducing manual-error risk and freeing review capacity.", "Génération automatisée des rapports RO d’achats et de ventes de minerai, réduisant le risque d’erreur manuelle et libérant de la capacité de révision.")} solution={tr(lang, "Concar, SGM, GEOCATMIN and support tables were integrated to automate reporting and provide lot-level supplier-to-customer traceability.", "Concar, SGM, GEOCATMIN et les tables auxiliaires ont été intégrés afin d’automatiser les rapports et d’assurer une traçabilité par lot du fournisseur au client.")} source="Validated assumptions" rowCount={0} result={result} controls={<div className="ti-controls assumptions"><NumberField label={tr(lang, "Compliance labor cost · USD/MH", "Coût Compliance · USD/HP")} value={rate} onChange={setRate} /></div>} note={tr(lang, "Only report preparation and manual data assembly are in scope; final review remains with Compliance.", "Seules la préparation du rapport et l’assemblage manuel des données sont dans le périmètre ; la révision finale reste à la charge de Compliance.")} chartTitle={tr(lang, "RO · legacy vs. current MH by month", "RO · HP historiques vs. actuelles par mois")} method={tr(lang, "Validated in-scope preparation is 44→22 + 88→0 + 4→8 = 136→30 MH/month: 106 MH/month saved. Monthly USD savings equal 106 × hourly rate; annualized savings equal monthly savings × 12.", "La préparation validée dans le périmètre est 44→22 + 88→0 + 4→8 = 136→30 HP/mois : 106 HP/mois économisées. Les économies mensuelles en USD correspondent à 106 × coût horaire ; les économies annualisées au montant mensuel × 12.")} open={open} onToggle={onToggle} extra={activityTable} />;
 }
 
-type ProjectionMetric = { monthlyMh: number; monthlyUsd: number; annualUsd: number };
-type PotentialMetric = { monthlyUsd: number; annualUsd: number; totalUsd: number };
+type ProjectionMetric = {
+  beforeMh: number;
+  afterMh: number;
+  optimization: number;
+  monthlyMh: number;
+  monthlyUsd: number;
+  annualUsd: number;
+};
+type PotentialMetric = {
+  beforeUsd: number;
+  afterUsd: number;
+  optimization: number;
+  monthlyUsd: number;
+  annualUsd: number;
+  totalUsd: number;
+};
 
 type ProjectedDefinition = {
   key: string;
@@ -1116,7 +1145,14 @@ function ProjectedProject({ definition, lang, open, onToggle, onResult, averageL
   const afterMonthlyMh = after / 60 * volume;
   const monthlyMh = savedMinutes / 60 * volume;
   const monthlyUsd = monthlyMh * rate;
-  const metric = useMemo(() => ({ monthlyMh, monthlyUsd, annualUsd: monthlyUsd * 12 }), [monthlyMh, monthlyUsd]);
+  const metric = useMemo(() => ({
+    beforeMh: beforeMonthlyMh,
+    afterMh: afterMonthlyMh,
+    optimization,
+    monthlyMh,
+    monthlyUsd,
+    annualUsd: monthlyUsd * 12,
+  }), [afterMonthlyMh, beforeMonthlyMh, monthlyMh, monthlyUsd, optimization]);
   useEffect(() => onResult(definition.key, metric), [definition.key, metric, onResult]);
   const displayedBeforeMh = year === 2027 ? afterMonthlyMh : beforeMonthlyMh;
   const displayedAfterMh = afterMonthlyMh;
@@ -1166,8 +1202,15 @@ function MlProject({ rows, lang, open, onToggle, onResult }: { rows: MlRow[]; la
   const optimization = totalActual > 0 ? totalSaved / totalActual * 100 : Number.NaN;
   const metric = useMemo(() => {
     const monthlyUsd = Number.isFinite(avgSaved) ? avgSaved : 0;
-    return { monthlyUsd, annualUsd: monthlyUsd * 12, totalUsd: Number.isFinite(totalSaved) ? totalSaved : 0 };
-  }, [avgSaved, totalSaved]);
+    return {
+      beforeUsd: Number.isFinite(avgActual) ? avgActual : 0,
+      afterUsd: Number.isFinite(avgModel) ? avgModel : 0,
+      optimization: Number.isFinite(optimization) ? optimization : 0,
+      monthlyUsd,
+      annualUsd: monthlyUsd * 12,
+      totalUsd: Number.isFinite(totalSaved) ? totalSaved : 0,
+    };
+  }, [avgActual, avgModel, avgSaved, optimization, totalSaved]);
   useEffect(() => onResult(metric), [metric, onResult]);
   const displayedMonthly = useMemo(() => year === 2026 ? monthly : monthly.map((row) => ({ ...row, month: row.month.replace(/^\d{4}/, "2027"), actual: row.model, saved: 0 })), [monthly, year]);
   const displayedActual = year === 2027 ? avgModel : avgActual;
@@ -1202,7 +1245,14 @@ export default function TiPage() {
   const [open, setOpen] = useState<Record<string, boolean>>({ cdm: false, fin: false, fcs: false, log: false, ro: false, autodesk: false, ml: false });
   const [metrics, setMetrics] = useState<Partial<Record<ProjectKey, PortfolioMetric>>>({});
   const [projectionMetrics, setProjectionMetrics] = useState<Record<string, ProjectionMetric>>({});
-  const [potentialMetric, setPotentialMetric] = useState<PotentialMetric>({ monthlyUsd: 0, annualUsd: 0, totalUsd: 0 });
+  const [potentialMetric, setPotentialMetric] = useState<PotentialMetric>({
+    beforeUsd: 0,
+    afterUsd: 0,
+    optimization: 0,
+    monthlyUsd: 0,
+    annualUsd: 0,
+    totalUsd: 0,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1288,6 +1338,117 @@ export default function TiPage() {
   const displayedProjectedMh = year === 2026 ? projected.mh : 0;
   const displayedPotentialAnnual = year === 2026 ? potentialMetric.annualUsd : 0;
   const unifiedAnnual = displayedExecutedAnnual + displayedProjectedAnnual + displayedPotentialAnnual;
+
+  const exportExcel = useCallback(() => {
+    const executedRows = (Object.keys(EXECUTED_PROJECT_NAMES) as ProjectKey[]).map((key) => {
+      const metric = metrics[key];
+      return {
+        Tipo: "Ejecutado",
+        Proyecto: EXECUTED_PROJECT_NAMES[key],
+        "HH antes (mes)": exportNumber(metric ? (year === 2027 ? metric.avgCurrent : metric.avgBefore) : null),
+        "HH ahora (mes)": exportNumber(metric?.avgCurrent),
+        "USD antes al mes (potencial)": null,
+        "USD después al mes (potencial)": null,
+        "Optimización (%)": exportNumber(metric ? (year === 2027 ? 0 : metric.optimization) : null),
+        "Ahorro anualizado estimado (USD)": exportNumber(metric ? (year === 2027 ? 0 : metric.avgUsd * 12) : null),
+      };
+    });
+
+    const autodeskRow = {
+      Tipo: "Ejecutado",
+      Proyecto: "Autodesk License Optimization",
+      "HH antes (mes)": null,
+      "HH ahora (mes)": null,
+      "USD antes al mes (potencial)": null,
+      "USD después al mes (potencial)": null,
+      "Optimización (%)": year === 2026 ? 43.2 : 0,
+      "Ahorro anualizado estimado (USD)": year === 2026 ? 24941 : 0,
+    };
+
+    const projectedRows = PROJECTED_PROJECTS.map((definition) => {
+      const metric = projectionMetrics[definition.key];
+      return {
+        Tipo: "Proyectado",
+        Proyecto: definition.titleEn,
+        "HH antes (mes)": exportNumber(metric ? (year === 2027 ? metric.afterMh : metric.beforeMh) : null),
+        "HH ahora (mes)": exportNumber(metric?.afterMh),
+        "USD antes al mes (potencial)": null,
+        "USD después al mes (potencial)": null,
+        "Optimización (%)": exportNumber(metric ? (year === 2027 ? 0 : metric.optimization) : null),
+        "Ahorro anualizado estimado (USD)": exportNumber(metric ? (year === 2027 ? 0 : metric.annualUsd) : null),
+      };
+    });
+
+    const potentialRow = {
+      Tipo: "Potencial",
+      Proyecto: "ML Refinery Consumption Optimization",
+      "HH antes (mes)": null,
+      "HH ahora (mes)": null,
+      "USD antes al mes (potencial)": year === 2027 ? potentialMetric.afterUsd : potentialMetric.beforeUsd,
+      "USD después al mes (potencial)": potentialMetric.afterUsd,
+      "Optimización (%)": year === 2027 ? 0 : potentialMetric.optimization,
+      "Ahorro anualizado estimado (USD)": year === 2027 ? 0 : potentialMetric.annualUsd,
+    };
+
+    const detailSheet = XLSX.utils.json_to_sheet([
+      ...executedRows,
+      autodeskRow,
+      ...projectedRows,
+      potentialRow,
+    ]);
+    detailSheet["!cols"] = [
+      { wch: 13 },
+      { wch: 48 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 31 },
+      { wch: 33 },
+      { wch: 18 },
+      { wch: 38 },
+    ];
+    detailSheet["!autofilter"] = { ref: detailSheet["!ref"] || "A1:H1" };
+
+    const detailRange = XLSX.utils.decode_range(detailSheet["!ref"] || "A1:H1");
+    for (let row = 1; row <= detailRange.e.r; row += 1) {
+      [2, 3].forEach((column) => {
+        const cell = detailSheet[XLSX.utils.encode_cell({ r: row, c: column })];
+        if (cell) cell.z = "0.00";
+      });
+      [4, 5, 7].forEach((column) => {
+        const cell = detailSheet[XLSX.utils.encode_cell({ r: row, c: column })];
+        if (cell) cell.z = "$#,##0.00";
+      });
+      const optimizationCell = detailSheet[XLSX.utils.encode_cell({ r: row, c: 6 })];
+      if (optimizationCell) optimizationCell.z = "0.00";
+    }
+
+    const summarySheet = XLSX.utils.json_to_sheet([
+      { Indicador: "Executed savings year", "USD/año": displayedExecutedAnnual },
+      { Indicador: "Projected savings year", "USD/año": displayedProjectedAnnual },
+      { Indicador: "Potential savings year", "USD/año": displayedPotentialAnnual },
+      { Indicador: "Unified savings year", "USD/año": unifiedAnnual },
+    ]);
+    summarySheet["!cols"] = [{ wch: 30 }, { wch: 20 }];
+    for (let row = 1; row <= 4; row += 1) {
+      const cell = summarySheet[XLSX.utils.encode_cell({ r: row, c: 1 })];
+      if (cell) cell.z = "$#,##0.00";
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, detailSheet, "Detalle");
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "Resumen");
+    XLSX.writeFile(workbook, `ti_savings_${year}_${dateKey(new Date())}.xlsx`);
+  }, [
+    displayedExecutedAnnual,
+    displayedPotentialAnnual,
+    displayedProjectedAnnual,
+    metrics,
+    potentialMetric,
+    projectionMetrics,
+    unifiedAnnual,
+    year,
+  ]);
+
   const executedKeys = ["cdm", "fin", "fcs", "log", "ro", "autodesk"];
   const projectedKeys = PROJECTED_PROJECTS.map((project) => `projected-${project.key}`);
   const setCategoryOpen = (keys: string[], value: boolean) =>
@@ -1300,7 +1461,7 @@ export default function TiPage() {
   return (
     <PortfolioYearContext.Provider value={year}>
     <div className="ti-dashboard">
-      <header className="ti-header"><div className="ti-stripe"><span /><span /></div><div className="ti-header-inner"><div><div className="ti-eyebrow">Veta Dorada · {tr(lang, "Operational Excellence", "Excellence opérationnelle")}</div><h1>{tr(lang, "IT Operational Efficiency", "Efficacité opérationnelle IT")}</h1><p>{tr(lang, "Executed, projected and potential initiatives · standardized savings portfolio", "Initiatives exécutées, projetées et potentielles · portefeuille d’économies standardisé")}</p></div><div className="ti-actions"><span className={`ti-live ${errors.length ? "warning" : ""}`}>{loading ? tr(lang, "Refreshing data…", "Actualisation des données…") : errors.length ? `${errors.length} ${tr(lang, "source(s) with errors", "source(s) en erreur")}` : tr(lang, "API data refreshed", "Données API actualisées")}</span><button className="lang" onClick={() => setLang((current) => current === "en" ? "fr" : "en")}>{lang === "en" ? "FR" : "EN"}</button><button onClick={() => void load()} disabled={loading}>{tr(lang, "Refresh", "Actualiser")}</button><button className="primary" onClick={logout}>{tr(lang, "Sign out", "Quitter")}</button></div></div></header>
+      <header className="ti-header"><div className="ti-stripe"><span /><span /></div><div className="ti-header-inner"><div><div className="ti-eyebrow">Veta Dorada · {tr(lang, "Operational Excellence", "Excellence opérationnelle")}</div><h1>{tr(lang, "IT Operational Efficiency", "Efficacité opérationnelle IT")}</h1><p>{tr(lang, "Executed, projected and potential initiatives · standardized savings portfolio", "Initiatives exécutées, projetées et potentielles · portefeuille d’économies standardisé")}</p></div><div className="ti-actions"><span className={`ti-live ${errors.length ? "warning" : ""}`}>{loading ? tr(lang, "Refreshing data…", "Actualisation des données…") : errors.length ? `${errors.length} ${tr(lang, "source(s) with errors", "source(s) en erreur")}` : tr(lang, "API data refreshed", "Données API actualisées")}</span><button className="lang" onClick={() => setLang((current) => current === "en" ? "fr" : "en")}>{lang === "en" ? "FR" : "EN"}</button><button onClick={exportExcel} disabled={loading}>{tr(lang, "Export Excel", "Exporter Excel")}</button><button onClick={() => void load()} disabled={loading}>{tr(lang, "Refresh", "Actualiser")}</button><button className="primary" onClick={logout}>{tr(lang, "Sign out", "Quitter")}</button></div></div></header>
       <main className="ti-main">
         {errors.length ? <div className="ti-error"><strong>{tr(lang, "Some data sources could not be loaded.", "Certaines sources de données n’ont pas pu être chargées.")}</strong>{errors.map((error) => <div key={error}>{error}</div>)}</div> : null}
         <section className="ti-year-selector" aria-label={tr(lang, "Portfolio year", "Année du portefeuille")}>
