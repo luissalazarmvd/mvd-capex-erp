@@ -156,6 +156,8 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - Editables: `line_description`, `capex_code`, `pen_amount`, `exc_rate`.
 - Al abrir/cargar, el filtro usa año actual y mes actual tanto en “desde” como en “hasta”.
 - La vista se divide en Activos normales (`capex_code` original vacío) y Activos CAPEX (`capex_code` original con valor), conservando la misma lógica de alta.
+- En escritorio ambas tablas se muestran lado a lado dentro de la altura visible y el preview queda debajo, evitando scroll vertical de página. En pantallas angostas vuelven a apilarse.
+- La tabla Activos CAPEX se ordena ascendentemente por `capex_code`.
 - Mientras se escribe un COD, un preview inferior filtra en vivo los códigos ya usados del catálogo que empiezan con ese prefijo.
 - La columna COD es sticky.
 - Mapeo: `asset_code <- COD`, `origin_account_code <- account_code`, `capex_code <- capex_code`, `subjournal_code <- subjournal_code`, `voucher_number <- voucher_number`, `annex_code <- annex_code`, `annex_description <- annex_description`, `document_number <- document_number`, `asset_description <- line_description`, `acquisition_date <- document_date`, `exc_rate <- exc_rate`, `asset_ini_cost_pen <- pen_amount`. Campos “front” empiezan en `null`.
@@ -173,6 +175,8 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - Cada fila tiene checkbox de envío y por defecto ninguna está seleccionada. Editar cualquier celda marca automáticamente el check de esa fila; también se puede seleccionar manualmente una fila sin editar. El guardado envía todos los campos aceptados por el POST para cada fila seleccionada.
 - El checkbox del encabezado selecciona o desmarca todas las filas visibles según periodo y búsqueda.
 - Tiene un único buscador por COD o descripción. Check, COD y Descripción activo son sticky.
+- La vista compacta oculta por defecto las cuatro variaciones y tres ajustes de depreciación; “Mostrar ajustes” vuelve a exponer las siete columnas editables. La vista compacta conserva valores y cálculos de esas columnas.
+- Usar anchos/celdas compactos y el fondo azul petróleo del contenedor para reducir ruido visual y scroll horizontal.
 - Cambiar año/mes, refrescar o completar un guardado limpia la selección.
 - Editables: `applied_rate_pct`, cuatro `*_var_pen`, tres `*_depr_pen`, `depreciation_amount_pen`, `exc_rate`.
 - Fórmulas de preview:

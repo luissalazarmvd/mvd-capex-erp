@@ -40,25 +40,30 @@ const VAR_FIELDS = new Set<EditableKey>([
   "acquisition_var_pen", "disposal_var_pen", "reclass_var_pen", "adjustment_var_pen",
 ]);
 
+const ADJUSTMENT_COLUMNS = new Set<keyof DeprRow>([
+  "acquisition_var_pen", "disposal_var_pen", "reclass_var_pen", "adjustment_var_pen",
+  "reclass_depr_pen", "adjustment_depr_pen", "disposal_depr_pen",
+]);
+
 const COLUMNS: Array<{ key: keyof DeprRow; label: string; width: number }> = [
-  { key: "asset_code", label: "COD", width: 105 },
-  { key: "asset_description", label: "Descripción activo", width: 260 },
-  { key: "period_date", label: "Periodo", width: 115 },
-  { key: "asset_base_value", label: "Valor base", width: 135 },
-  { key: "depreciation_base_pen", label: "Deprec. base", width: 140 },
-  { key: "applied_rate_pct", label: "Tasa aplicada", width: 125 },
-  { key: "acquisition_var_pen", label: "Var. adquisición", width: 145 },
-  { key: "disposal_var_pen", label: "Var. baja", width: 125 },
-  { key: "reclass_var_pen", label: "Var. reclasificación", width: 155 },
-  { key: "adjustment_var_pen", label: "Var. ajuste", width: 130 },
-  { key: "asset_final_value", label: "Valor final", width: 135 },
-  { key: "reclass_depr_pen", label: "Deprec. reclasif.", width: 150 },
-  { key: "adjustment_depr_pen", label: "Deprec. ajuste", width: 145 },
-  { key: "disposal_depr_pen", label: "Deprec. baja", width: 135 },
-  { key: "depreciation_amount_pen", label: "Deprec. periodo", width: 150 },
-  { key: "depreciation_cum_amount_pen", label: "Deprec. acumulada", width: 165 },
-  { key: "asset_balance_pen", label: "Saldo activo", width: 140 },
-  { key: "exc_rate", label: "T.C.", width: 110 },
+  { key: "asset_code", label: "COD", width: 90 },
+  { key: "asset_description", label: "Descripción activo", width: 220 },
+  { key: "period_date", label: "Periodo", width: 90 },
+  { key: "asset_base_value", label: "Valor base", width: 105 },
+  { key: "depreciation_base_pen", label: "Deprec. base", width: 110 },
+  { key: "applied_rate_pct", label: "Tasa", width: 90 },
+  { key: "acquisition_var_pen", label: "Var. adquis.", width: 100 },
+  { key: "disposal_var_pen", label: "Var. baja", width: 92 },
+  { key: "reclass_var_pen", label: "Var. reclas.", width: 100 },
+  { key: "adjustment_var_pen", label: "Var. ajuste", width: 96 },
+  { key: "asset_final_value", label: "Valor final", width: 105 },
+  { key: "reclass_depr_pen", label: "Depr. reclas.", width: 100 },
+  { key: "adjustment_depr_pen", label: "Depr. ajuste", width: 100 },
+  { key: "disposal_depr_pen", label: "Depr. baja", width: 96 },
+  { key: "depreciation_amount_pen", label: "Depr. periodo", width: 105 },
+  { key: "depreciation_cum_amount_pen", label: "Depr. acum.", width: 115 },
+  { key: "asset_balance_pen", label: "Saldo", width: 110 },
+  { key: "exc_rate", label: "T.C.", width: 74 },
 ];
 
 const MONTHS = [
@@ -144,6 +149,7 @@ export default function FixAssetsDepr() {
   const [month, setMonth] = useState("");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
+  const [showAdjustments, setShowAdjustments] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -213,6 +219,10 @@ export default function FixAssetsDepr() {
   const invalidKeys = selectedIds.filter((key) => !drafts[key] || invalid(drafts[key]));
   const canSave = selectedIds.length > 0 && invalidKeys.length === 0 && !loading && !saving;
   const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selectedKeys.has(rowKey(row)));
+  const displayColumns = useMemo(
+    () => showAdjustments ? COLUMNS : COLUMNS.filter((column) => !ADJUSTMENT_COLUMNS.has(column.key)),
+    [showAdjustments]
+  );
 
   function toggleSelected(id: string, checked: boolean) {
     setSelectedKeys((current) => {
@@ -362,6 +372,7 @@ export default function FixAssetsDepr() {
           </label>
           <Select label="Año" value={year} onChange={(event) => clearSelectionAndSetPeriod(event.target.value, month)} options={years.map((value) => ({ value, label: value }))} placeholder="Selecciona" style={{ minWidth: 110 }} />
           <Select label="Mes" value={month} onChange={(event) => clearSelectionAndSetPeriod(year, event.target.value)} options={monthsForYear.map((value) => ({ value, label: MONTHS[Number(value) - 1] }))} placeholder="Selecciona" style={{ minWidth: 150 }} />
+          <Button size="sm" onClick={() => setShowAdjustments((current) => !current)} disabled={loading || saving}>{showAdjustments ? "Ocultar ajustes" : "Mostrar ajustes"}</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${selectedIds.length})`}</Button>
         </div>
@@ -370,13 +381,13 @@ export default function FixAssetsDepr() {
       {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
       {invalidKeys.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los valores numéricos de {invalidKeys.length} fila(s) antes de guardar.</div> : null}
 
-      <div className="panel-inner" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", padding: 0 }}>
+      <div className="panel-inner fixassets-depr-table" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
-            <colgroup><col style={{ width: 72, minWidth: 72 }} />{COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
-            <thead><tr><th className="capex-th" style={{ padding: "8px", fontSize: 12, textAlign: "center", left: 0, zIndex: 48 }}><input type="checkbox" checked={allVisibleSelected} disabled={!visibleRows.length || loading || saving} onChange={(event) => toggleAllVisible(event.target.checked)} aria-label="Seleccionar todas las filas visibles" title="Seleccionar todas las filas visibles" style={{ width: 18, height: 18, accentColor: "var(--brand-success)" }} /></th>{COLUMNS.map((column) => {
+            <colgroup><col style={{ width: 52, minWidth: 52 }} />{displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
+            <thead><tr><th className="capex-th" style={{ padding: "8px", fontSize: 12, textAlign: "center", left: 0, zIndex: 48 }}><input type="checkbox" checked={allVisibleSelected} disabled={!visibleRows.length || loading || saving} onChange={(event) => toggleAllVisible(event.target.checked)} aria-label="Seleccionar todas las filas visibles" title="Seleccionar todas las filas visibles" style={{ width: 18, height: 18, accentColor: "var(--brand-success)" }} /></th>{displayColumns.map((column) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
-              const left = column.key === "asset_code" ? 72 : column.key === "asset_description" ? 177 : undefined;
+              const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
               return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: sticky ? 47 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{column.label}</th>;
             })}</tr></thead>
             <tbody>
@@ -388,7 +399,7 @@ export default function FixAssetsDepr() {
                 const calculated = derived(row, draft);
                 const background = bad ? "rgba(216,93,39,.32)" : selected ? "rgba(94,128,25,.32)" : undefined;
                 return <tr key={id} className="capex-tr">
-                  <td className="capex-td" style={{ padding: 5, textAlign: "center", background: bad ? "#79453b" : selected ? "#416f43" : "var(--panel2)", position: "sticky", left: 0, zIndex: 22 }}>
+                  <td className="capex-td" style={{ padding: 5, textAlign: "center", background: bad ? "#713f38" : selected ? "#3d6948" : "#0b4d6b", position: "sticky", left: 0, zIndex: 22 }}>
                     <input
                       type="checkbox"
                       checked={selected}
@@ -398,15 +409,15 @@ export default function FixAssetsDepr() {
                       style={{ width: 18, height: 18, accentColor: "var(--brand-success)", cursor: saving ? "not-allowed" : "pointer" }}
                     />
                   </td>
-                  {COLUMNS.map((column) => {
+                  {displayColumns.map((column) => {
                     const editable = EDITABLE.includes(column.key as EditableKey);
                     const key = column.key as EditableKey;
                     const derivedValue = column.key === "asset_final_value" || column.key === "depreciation_cum_amount_pen" || column.key === "asset_balance_pen"
                       ? calculated[column.key]
                       : row[column.key];
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
-                    const left = column.key === "asset_code" ? 72 : column.key === "asset_description" ? 177 : undefined;
-                    const stickyBackground = bad ? "#79453b" : selected ? "#416f43" : "var(--panel2)";
+                    const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
+                    const stickyBackground = bad ? "#713f38" : selected ? "#3d6948" : "#0b4d6b";
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? stickyBackground : background, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 21 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? <FastCellInput
                         className="input"
@@ -415,20 +426,37 @@ export default function FixAssetsDepr() {
                         sanitize={numericDraft}
                         normalizeOnBlur={(next) => validOptionalNumber(next) ? twoDecimals(next) : next}
                         onCommit={(next) => update(row, key, next)}
-                        style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && !validOptionalNumber(draft[key]) ? "#ebb086" : undefined }}
+                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && !validOptionalNumber(draft[key]) ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${text(row.asset_code)}`}
                       /> : <span title={text(derivedValue)}>{column.key === "period_date" ? text(derivedValue).slice(0, 10) : column.key === "asset_code" || column.key === "asset_description" ? text(derivedValue) : displayNumber(derivedValue)}</span>}
                     </td>;
                   })}
                 </tr>;
               })}
-              {!loading && !visibleRows.length ? <tr><td className="capex-td" colSpan={COLUMNS.length + 1}>No hay depreciaciones para el periodo seleccionado.</td></tr> : null}
-              {loading ? <tr><td className="capex-td" colSpan={COLUMNS.length + 1}>Cargando depreciación...</td></tr> : null}
+              {!loading && !visibleRows.length ? <tr><td className="capex-td" colSpan={displayColumns.length + 1}>No hay depreciaciones para el periodo seleccionado.</td></tr> : null}
+              {loading ? <tr><td className="capex-td" colSpan={displayColumns.length + 1}>Cargando depreciación...</td></tr> : null}
             </tbody>
           </Table>
         </div>
       </div>
       <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · {visibleRows.length} activos · {selectedIds.length} seleccionados · {editedKeys.length} modificados.</div>
+      <style jsx global>{`
+        .fixassets-depr-table table {
+          font-size: 11px !important;
+        }
+        .fixassets-depr-table .capex-th {
+          padding: 6px !important;
+          font-size: 11px !important;
+          background: #163b49 !important;
+          white-space: normal !important;
+          line-height: 1.1;
+        }
+        .fixassets-depr-table .capex-td {
+          padding: 4px 6px !important;
+          line-height: 1.15;
+          border-bottom-color: rgba(147,211,230,.14) !important;
+        }
+      `}</style>
     </div>
   );
 }

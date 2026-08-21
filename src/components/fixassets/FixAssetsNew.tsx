@@ -158,12 +158,12 @@ const NewRowsTable = memo(function NewRowsTable({
   onCodeActivity,
 }: NewRowsTableProps) {
   return (
-    <section style={{ display: "grid", gap: 8 }}>
+    <section className="fixassets-new-table" style={{ display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", gap: 6, minWidth: 0, minHeight: 0 }}>
       <div>
         <h2 style={{ margin: 0, fontSize: 17 }}>{title} <span className="muted">({items.length})</span></h2>
         <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{subtitle}</div>
       </div>
-      <div className="panel-inner" style={{ overflow: "auto", maxHeight: "46vh", padding: 0 }}>
+      <div className="panel-inner" style={{ overflow: "auto", height: "100%", minHeight: 0, padding: 0 }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup>{COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
@@ -298,7 +298,9 @@ export default function FixAssetsNew() {
     }), [rows, year, monthFrom, monthTo]);
 
   const normalRows = useMemo(() => filteredRows.filter(({ row }) => !text(row.capex_code).trim()), [filteredRows]);
-  const capexRows = useMemo(() => filteredRows.filter(({ row }) => Boolean(text(row.capex_code).trim())), [filteredRows]);
+  const capexRows = useMemo(() => filteredRows
+    .filter(({ row }) => Boolean(text(row.capex_code).trim()))
+    .sort((a, b) => text(a.row.capex_code).localeCompare(text(b.row.capex_code), undefined, { numeric: true, sensitivity: "base" })), [filteredRows]);
   const selectedIndexes = useMemo(() => rows.map((_, index) => index).filter((index) => Boolean(drafts[index]?.asset_code.trim())), [rows, drafts]);
   const invalidCount = selectedIndexes.filter((index) => states[index] === "invalid").length;
   const canSave = selectedIndexes.length > 0 && invalidCount === 0 && !loading && !saving;
@@ -363,7 +365,7 @@ export default function FixAssetsNew() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div className="fixassets-new-root" style={{ display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto auto", gap: 10, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>Nuevos activos desde Veta</h1>
@@ -378,24 +380,42 @@ export default function FixAssetsNew() {
         </div>
       </div>
 
-      {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
-      {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>{invalidCount} fila(s) con COD duplicado/existente, formato inválido o monto incorrecto.</div> : null}
+      <div style={{ display: "grid", gap: 4 }}>
+        {message ? <div className="panel-inner" style={{ padding: 8, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
+        {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD duplicado/existente, formato inválido o monto incorrecto.</div> : null}
+      </div>
 
-      <NewRowsTable title="Activos normales" subtitle="Registros cuyo Código CAPEX original está vacío." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} />
-      <NewRowsTable title="Activos CAPEX" subtitle="Registros que ya tienen Código CAPEX en Veta." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} />
+      <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 10, minHeight: 0 }}>
+        <NewRowsTable title="Activos normales" subtitle="Código CAPEX original vacío." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} />
+        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} />
+      </div>
 
-      {activeCodePrefix ? <section className="panel-inner" style={{ padding: 12, display: "grid", gap: 8 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Preview del catálogo para “{activeCodePrefix}”</h2>
+      <section className="panel-inner" style={{ padding: 8, display: "grid", gap: 5, minHeight: 48, maxHeight: 165, overflow: "hidden" }}>
+        {activeCodePrefix ? <><div>
+          <h2 style={{ margin: 0, fontSize: 14 }}>Preview del catálogo para “{activeCodePrefix}”</h2>
           <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Estos códigos ya están usados. Se muestran hasta 50 coincidencias que empiezan con el prefijo ingresado.</div>
         </div>
-        {catalogueMatches.length ? <div style={{ overflow: "auto", maxHeight: 260 }}><Table disableScrollWrapper>
+        {catalogueMatches.length ? <div style={{ overflow: "auto", maxHeight: 112 }}><Table disableScrollWrapper>
           <thead><tr><th className="capex-th">COD usado</th><th className="capex-th">Descripción activo</th><th className="capex-th">Tipo</th><th className="capex-th">Cuenta origen</th><th className="capex-th">Código CAPEX</th><th className="capex-th">Costo inicial PEN</th></tr></thead>
           <tbody>{catalogueMatches.map((row) => <tr key={text(row.asset_code)} className="capex-tr"><td className="capex-td capex-td-strong">{text(row.asset_code)}</td><td className="capex-td">{text(row.asset_description)}</td><td className="capex-td">{text(row.asset_type)}</td><td className="capex-td">{text(row.origin_account_code)}</td><td className="capex-td">{text(row.capex_code)}</td><td className="capex-td">{twoDecimals(row.asset_ini_cost_pen)}</td></tr>)}</tbody>
-        </Table></div> : <div style={{ padding: 10, color: "#dff1bc", fontWeight: 800 }}>No hay códigos usados que empiecen con “{activeCodePrefix}”.</div>}
-      </section> : null}
+        </Table></div> : <div style={{ padding: 6, color: "#dff1bc", fontWeight: 800 }}>No hay códigos usados que empiecen con “{activeCodePrefix}”.</div>}</> : <div><strong>Preview de códigos usados</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>Empieza a escribir un COD en cualquiera de las dos tablas.</span></div>}
+      </section>
 
       <div className="muted" style={{ fontSize: 12 }}>Mostrando {filteredRows.length} de {rows.length} filas: {normalRows.length} normales y {capexRows.length} CAPEX.</div>
+      <style jsx global>{`
+        @media (max-width: 1100px) {
+          .fixassets-new-root {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .fixassets-new-tables {
+            grid-template-columns: 1fr !important;
+          }
+          .fixassets-new-table {
+            min-height: 320px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
