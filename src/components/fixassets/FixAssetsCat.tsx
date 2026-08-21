@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { FastCellInput } from "./FastCellInput";
 
 type CatalogueRow = {
   asset_code: string | null;
@@ -55,6 +56,7 @@ const NUMBER_FIELDS = new Set<EditableKey>(["exc_rate", "asset_ini_cost_pen"]);
 
 const COLUMNS: Array<{ key: keyof CatalogueRow; label: string; width: number }> = [
   { key: "asset_code", label: "COD", width: 105 },
+  { key: "asset_description", label: "Descripción activo", width: 260 },
   { key: "location_name", label: "Ubicación", width: 150 },
   { key: "origin_account_code", label: "Cuenta origen", width: 125 },
   { key: "origin_account_desc", label: "Descripción cuenta", width: 220 },
@@ -64,7 +66,6 @@ const COLUMNS: Array<{ key: keyof CatalogueRow; label: string; width: number }> 
   { key: "annex_code", label: "Código anexo", width: 120 },
   { key: "annex_description", label: "Descripción anexo", width: 220 },
   { key: "document_number", label: "Nro. documento", width: 145 },
-  { key: "asset_description", label: "Descripción activo", width: 260 },
   { key: "asset_type", label: "Tipo activo", width: 145 },
   { key: "deprec_acc_code_fir", label: "Cuenta deprec. 1", width: 140 },
   { key: "deprec_acc_desc_fir", label: "Descripción deprec. 1", width: 220 },
@@ -106,9 +107,22 @@ function validOptionalNumber(value: string) {
   return !clean || (/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(clean) && Number.isFinite(Number(clean)));
 }
 
+function twoDecimals(value: unknown) {
+  const clean = text(value).trim();
+  if (!clean) return "";
+  const parsed = Number(clean.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed.toFixed(2) : clean;
+}
+
 function toDraft(row: CatalogueRow): Draft {
   const draft = {} as Draft;
-  EDITABLE.forEach((key) => { draft[key] = DATE_FIELDS.has(key) ? dateOnly(row[key]) : text(row[key]); });
+  EDITABLE.forEach((key) => {
+    draft[key] = DATE_FIELDS.has(key)
+      ? dateOnly(row[key])
+      : NUMBER_FIELDS.has(key)
+      ? twoDecimals(row[key])
+      : text(row[key]);
+  });
   return draft;
 }
 
@@ -125,6 +139,7 @@ export default function FixAssetsCat() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -159,7 +174,7 @@ export default function FixAssetsCat() {
   const canSave = editedCodes.length > 0 && invalidCodes.length === 0 && !loading && !saving;
 
   const visibleRows = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("es");
+    const needle = deferredQuery.trim().toLocaleLowerCase("es");
     if (!needle) return rows;
     return rows.filter((row) => {
       const code = text(row.asset_code);
@@ -168,7 +183,7 @@ export default function FixAssetsCat() {
         EDITABLE.includes(column.key as EditableKey) ? draft?.[column.key as EditableKey] : row[column.key]
       ).toLocaleLowerCase("es").includes(needle));
     });
-  }, [rows, drafts, query]);
+  }, [rows, drafts, deferredQuery]);
 
   function update(code: string, key: EditableKey, value: string) {
     setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
@@ -247,7 +262,11 @@ export default function FixAssetsCat() {
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup>{COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
-            <thead><tr>{COLUMNS.map((column) => <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12 }}>{column.label}</th>)}</tr></thead>
+            <thead><tr>{COLUMNS.map((column) => {
+              const sticky = column.key === "asset_code" || column.key === "asset_description";
+              const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
+              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: sticky ? 45 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{column.label}</th>;
+            })}</tr></thead>
             <tbody>
               {visibleRows.map((row) => {
                 const code = text(row.asset_code);
@@ -260,16 +279,21 @@ export default function FixAssetsCat() {
                     const editable = EDITABLE.includes(column.key as EditableKey);
                     const key = column.key as EditableKey;
                     const value = editable ? draft[key] : row[column.key];
-                    return <td key={column.key} className="capex-td" style={{ padding: 5, background }}>
-                      {editable ? <input
+                    const sticky = column.key === "asset_code" || column.key === "asset_description";
+                    const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
+                    const stickyBackground = bad ? "#79453b" : edited ? "#416f43" : "var(--panel2)";
+                    return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? stickyBackground : background, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 20 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
+                      {editable ? <FastCellInput
                         className="input"
                         type={DATE_FIELDS.has(key) ? "date" : "text"}
                         inputMode={NUMBER_FIELDS.has(key) ? "decimal" : undefined}
                         value={text(value)}
-                        onChange={(event) => update(code, key, NUMBER_FIELDS.has(key) ? numericDraft(event.target.value) : event.target.value)}
+                        sanitize={NUMBER_FIELDS.has(key) ? numericDraft : undefined}
+                        normalizeOnBlur={NUMBER_FIELDS.has(key) ? (next) => validOptionalNumber(next) ? twoDecimals(next) : next : undefined}
+                        onCommit={(next) => update(code, key, next)}
                         style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key]) ? "#ebb086" : undefined }}
                         aria-label={`${column.label} ${code}`}
-                      /> : <span title={text(value)}>{column.key.endsWith("_date") ? dateOnly(value) : text(value)}</span>}
+                      /> : <span title={text(value)}>{column.key.endsWith("_date") ? dateOnly(value) : column.key === "deprec_rate_pct" ? twoDecimals(value) : text(value)}</span>}
                     </td>;
                   })}
                 </tr>;

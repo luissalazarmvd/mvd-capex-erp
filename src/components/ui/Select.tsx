@@ -26,7 +26,7 @@ export function Select({
         </div>
       ) : null}
 
-      <select {...props} className="select" style={{ ...style }}>
+      <select {...props} className="select" style={{ colorScheme: "dark", ...style }}>
         {placeholder ? (
           <option value="" disabled={false}>
             {placeholder}
@@ -59,6 +59,11 @@ export function Select({
           background-size: 6px 6px, 6px 6px;
           background-repeat: no-repeat;
           padding-right: 34px;
+        }
+
+        select.select option {
+          background: #064d79;
+          color: #ffffff;
         }
       `}</style>
     </div>

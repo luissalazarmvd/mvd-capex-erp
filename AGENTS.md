@@ -50,6 +50,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - Tablas anchas: contenedor con scroll, encabezado sticky, anchos explícitos y feedback de carga/vacío.
 - En pantallas de edición, conservar borrador y original separados; verde significa fila preparada/válida, rojo fila preparada con error.
 - Evitar letras en entradas numéricas, validar antes del POST y desactivar Guardar si el conjunto que será enviado contiene errores.
+- Para tablas editables grandes de Activos Fijos usar `FastCellInput.tsx`: la escritura queda en estado local y se confirma al salir de la celda, evitando rerenderizar toda la tabla por cada tecla.
 - Preservar cambios del usuario no relacionados y no hacer operaciones destructivas sobre el worktree.
 
 ## Módulo CAPEX
@@ -137,6 +138,8 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - Navegación: `/fixassets/new`, `/fixassets/catalogue`, `/fixassets/depreciation`, `/fixassets/export` (placeholder).
 - Todos sus POST envían `source_name: "WEB"`; el backend también lo fuerza en los `MERGE`.
 - Sus endpoints de inserción aceptan **una fila por solicitud**, no arrays.
+- Todos los montos/tasas se muestran con dos decimales. El valor numérico vigente del borrador es el que entra al payload.
+- Los selects usan fondo azul oscuro y texto blanco. Las columnas identificadoras permanecen sticky durante el scroll horizontal.
 
 ### Contratos del backend
 
@@ -151,26 +154,34 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - `FixAssetsNew.tsx` carga Veta y catálogo en paralelo.
 - COD: exactamente 7 dígitos, no existente en catálogo y no repetido entre borradores. Solo filas con COD entran al guardado.
 - Editables: `line_description`, `capex_code`, `pen_amount`, `exc_rate`.
+- Al abrir/cargar, el filtro usa año actual y mes actual tanto en “desde” como en “hasta”.
+- La vista se divide en Activos normales (`capex_code` original vacío) y Activos CAPEX (`capex_code` original con valor), conservando la misma lógica de alta.
+- Mientras se escribe un COD, un preview inferior filtra en vivo los códigos ya usados del catálogo que empiezan con ese prefijo.
+- La columna COD es sticky.
 - Mapeo: `asset_code <- COD`, `origin_account_code <- account_code`, `capex_code <- capex_code`, `subjournal_code <- subjournal_code`, `voucher_number <- voucher_number`, `annex_code <- annex_code`, `annex_description <- annex_description`, `document_number <- document_number`, `asset_description <- line_description`, `acquisition_date <- document_date`, `exc_rate <- exc_rate`, `asset_ini_cost_pen <- pen_amount`. Campos “front” empiezan en `null`.
 - Filtro inclusivo por año y rango de meses sobre `comp_date`.
 
 ### Catálogo
 
 - `FixAssetsCat.tsx` solo envía filas modificadas y tiene búsqueda global.
+- COD y Descripción activo son las dos primeras columnas y permanecen sticky.
 - Editables: `location_name`, `capex_code`, `asset_description`, `asset_type`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `color`, `cost_center_code`, `acquisition_date`, `operation_date`, `disposal_date`, `exc_rate`, `asset_ini_cost_pen`, `depreciation_method`, `asset_situation`, `asset_comment`.
 
 ### Depreciación
 
 - `FixAssetsDepr.tsx` filtra año/mes y ordena por `asset_code` ascendente.
 - Cada fila tiene checkbox de envío y por defecto ninguna está seleccionada. Editar cualquier celda marca automáticamente el check de esa fila; también se puede seleccionar manualmente una fila sin editar. El guardado envía todos los campos aceptados por el POST para cada fila seleccionada.
+- El checkbox del encabezado selecciona o desmarca todas las filas visibles según periodo y búsqueda.
+- Tiene un único buscador por COD o descripción. Check, COD y Descripción activo son sticky.
 - Cambiar año/mes, refrescar o completar un guardado limpia la selección.
 - Editables: `applied_rate_pct`, cuatro `*_var_pen`, tres `*_depr_pen`, `depreciation_amount_pen`, `exc_rate`.
 - Fórmulas de preview:
   - `asset_final_value = asset_base_value + acquisition_var_pen + disposal_var_pen + reclass_var_pen + adjustment_var_pen`.
   - `depreciation_cum_amount_pen = depreciation_base_pen + reclass_depr_pen + adjustment_depr_pen + disposal_depr_pen + depreciation_amount_pen`.
   - `asset_balance_pen = asset_final_value - depreciation_cum_amount_pen`.
-  - Tasa a monto: `asset_base_value * (applied_rate_pct / 12)`, limitada al saldo previo disponible.
-  - Monto a tasa: `depreciation_amount_pen * 12 / asset_base_value`.
+  - Tasa a monto: `asset_final_value * (applied_rate_pct / 12)`, limitada al saldo disponible antes de la depreciación del periodo.
+  - Monto a tasa: `depreciation_amount_pen * 12 / asset_final_value`.
+  - Cambiar cualquiera de los cuatro `*_var_pen` recalcula valor final y depreciación del periodo con la tasa vigente.
 - Si una fila seleccionada cambió `exc_rate`, además del POST de depreciación se actualiza ese `asset_code` mediante `/api/actfij/catalogue/insert`.
 
 ## Verificación y mantenimiento
