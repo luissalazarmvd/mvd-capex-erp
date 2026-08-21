@@ -305,13 +305,15 @@ export default function FixAssetsNew() {
   const invalidCount = selectedIndexes.filter((index) => states[index] === "invalid").length;
   const canSave = selectedIndexes.length > 0 && invalidCount === 0 && !loading && !saving;
 
-  const catalogueMatches = useMemo(() => {
+  const catalogueLastMatch = useMemo(() => {
     const prefix = activeCodePrefix.trim();
-    if (!prefix) return [];
-    return catalogueRows
-      .filter((row) => text(row.asset_code).startsWith(prefix))
-      .sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }))
-      .slice(0, 50);
+    if (!prefix) return null;
+    return catalogueRows.reduce<CatalogueRow | null>((latest, row) => {
+      const code = text(row.asset_code);
+      if (!code.startsWith(prefix)) return latest;
+      if (!latest) return row;
+      return code.localeCompare(text(latest.asset_code), undefined, { numeric: true }) > 0 ? row : latest;
+    }, null);
   }, [catalogueRows, activeCodePrefix]);
 
   const updateDraft = useCallback((index: number, field: keyof Draft, value: string) => {
@@ -385,20 +387,16 @@ export default function FixAssetsNew() {
         {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD duplicado/existente, formato inválido o monto incorrecto.</div> : null}
       </div>
 
-      <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 10, minHeight: 0 }}>
+      <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
         <NewRowsTable title="Activos normales" subtitle="Código CAPEX original vacío." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} />
         <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} />
       </div>
 
-      <section className="panel-inner" style={{ padding: 8, display: "grid", gap: 5, minHeight: 48, maxHeight: 165, overflow: "hidden" }}>
-        {activeCodePrefix ? <><div>
-          <h2 style={{ margin: 0, fontSize: 14 }}>Preview del catálogo para “{activeCodePrefix}”</h2>
-          <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Estos códigos ya están usados. Se muestran hasta 50 coincidencias que empiezan con el prefijo ingresado.</div>
-        </div>
-        {catalogueMatches.length ? <div style={{ overflow: "auto", maxHeight: 112 }}><Table disableScrollWrapper>
-          <thead><tr><th className="capex-th">COD usado</th><th className="capex-th">Descripción activo</th><th className="capex-th">Tipo</th><th className="capex-th">Cuenta origen</th><th className="capex-th">Código CAPEX</th><th className="capex-th">Costo inicial PEN</th></tr></thead>
-          <tbody>{catalogueMatches.map((row) => <tr key={text(row.asset_code)} className="capex-tr"><td className="capex-td capex-td-strong">{text(row.asset_code)}</td><td className="capex-td">{text(row.asset_description)}</td><td className="capex-td">{text(row.asset_type)}</td><td className="capex-td">{text(row.origin_account_code)}</td><td className="capex-td">{text(row.capex_code)}</td><td className="capex-td">{twoDecimals(row.asset_ini_cost_pen)}</td></tr>)}</tbody>
-        </Table></div> : <div style={{ padding: 6, color: "#dff1bc", fontWeight: 800 }}>No hay códigos usados que empiecen con “{activeCodePrefix}”.</div>}</> : <div><strong>Preview de códigos usados</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>Empieza a escribir un COD en cualquiera de las dos tablas.</span></div>}
+      <section className="panel-inner" style={{ padding: "8px 12px", minHeight: 42, display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
+        <strong>Referencia COD:</strong>
+        {!activeCodePrefix ? <span className="muted" style={{ fontSize: 12 }}>Empieza a escribir un COD en cualquiera de las dos tablas.</span>
+          : catalogueLastMatch ? <><span className="muted" style={{ fontSize: 12 }}>último usado con prefijo “{activeCodePrefix}”</span><span style={{ fontSize: 15, fontWeight: 900, color: "#dff1bc" }}>{text(catalogueLastMatch.asset_code)}</span><span style={{ fontSize: 13 }}>— {text(catalogueLastMatch.asset_description) || "Sin descripción"}</span></>
+          : <span style={{ color: "#dff1bc", fontWeight: 800 }}>No existe ningún COD usado que empiece con “{activeCodePrefix}”.</span>}
       </section>
 
       <div className="muted" style={{ fontSize: 12 }}>Mostrando {filteredRows.length} de {rows.length} filas: {normalRows.length} normales y {capexRows.length} CAPEX.</div>
@@ -407,9 +405,6 @@ export default function FixAssetsNew() {
           .fixassets-new-root {
             height: auto !important;
             overflow: visible !important;
-          }
-          .fixassets-new-tables {
-            grid-template-columns: 1fr !important;
           }
           .fixassets-new-table {
             min-height: 320px !important;

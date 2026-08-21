@@ -156,9 +156,9 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - Editables: `line_description`, `capex_code`, `pen_amount`, `exc_rate`.
 - Al abrir/cargar, el filtro usa año actual y mes actual tanto en “desde” como en “hasta”.
 - La vista se divide en Activos normales (`capex_code` original vacío) y Activos CAPEX (`capex_code` original con valor), conservando la misma lógica de alta.
-- En escritorio ambas tablas se muestran lado a lado dentro de la altura visible y el preview queda debajo, evitando scroll vertical de página. En pantallas angostas vuelven a apilarse.
+- Activos normales y Activos CAPEX se muestran uno encima del otro, compartiendo la altura disponible y usando scroll interno para evitar scroll vertical de página en escritorio.
 - La tabla Activos CAPEX se ordena ascendentemente por `capex_code`.
-- Mientras se escribe un COD, un preview inferior filtra en vivo los códigos ya usados del catálogo que empiezan con ese prefijo.
+- Mientras se escribe un COD, un hint inferior muestra solo el COD más alto/último del catálogo que empieza con ese prefijo y su `asset_description`; si no hay coincidencia, lo indica.
 - La columna COD es sticky.
 - Mapeo: `asset_code <- COD`, `origin_account_code <- account_code`, `capex_code <- capex_code`, `subjournal_code <- subjournal_code`, `voucher_number <- voucher_number`, `annex_code <- annex_code`, `annex_description <- annex_description`, `document_number <- document_number`, `asset_description <- line_description`, `acquisition_date <- document_date`, `exc_rate <- exc_rate`, `asset_ini_cost_pen <- pen_amount`. Campos “front” empiezan en `null`.
 - Filtro inclusivo por año y rango de meses sobre `comp_date`.
