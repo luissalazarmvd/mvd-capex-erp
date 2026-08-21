@@ -152,7 +152,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 ### Alta desde Veta
 
 - `FixAssetsNew.tsx` carga Veta y catálogo en paralelo.
-- COD: exactamente 7 dígitos, no existente en catálogo y no repetido entre borradores. Solo filas con COD entran al guardado.
+- COD: exactamente 7 dígitos, no existente en catálogo y no repetido entre borradores. Los primeros 4 dígitos son la clase y los últimos 3 el correlativo; para cada clase solo se acepta el siguiente correlativo después del máximo existente, sin saltos. Varias altas simultáneas de una clase deben formar una secuencia continua. Una clase sin registros empieza en `001`. Solo filas con COD entran al guardado.
 - Editables: `line_description`, `capex_code`, `pen_amount`, `exc_rate`.
 - Al abrir/cargar, el filtro usa año actual y mes actual tanto en “desde” como en “hasta”.
 - La vista se divide en Activos normales (`capex_code` original vacío) y Activos CAPEX (`capex_code` original con valor), conservando la misma lógica de alta.

@@ -136,6 +136,28 @@ function stickyRowBackground(state: RowState) {
   return "var(--panel2)";
 }
 
+function nextSequentialCode(
+  classCode: string,
+  classMaxSuffix: Map<string, number>,
+  drafts: Record<number, Draft>,
+  existingCodes: Set<string>,
+  excludeIndex: number | null
+) {
+  if (!/^\d{4}$/.test(classCode)) return null;
+  let nextSuffix = (classMaxSuffix.get(classCode) || 0) + 1;
+  const pendingSuffixes = new Set<number>();
+
+  Object.entries(drafts).forEach(([rawIndex, draft]) => {
+    if (Number(rawIndex) === excludeIndex) return;
+    const code = draft.asset_code.trim();
+    if (!/^\d{7}$/.test(code) || code.slice(0, 4) !== classCode || existingCodes.has(code)) return;
+    pendingSuffixes.add(Number(code.slice(4)));
+  });
+
+  while (pendingSuffixes.has(nextSuffix)) nextSuffix += 1;
+  return nextSuffix <= 999 ? `${classCode}${String(nextSuffix).padStart(3, "0")}` : null;
+}
+
 type NewRowsTableProps = {
   title: string;
   subtitle: string;
@@ -221,6 +243,7 @@ export default function FixAssetsNew() {
   const [monthFrom, setMonthFrom] = useState(initialPeriod.month);
   const [monthTo, setMonthTo] = useState(initialPeriod.month);
   const [activeCodePrefix, setActiveCodePrefix] = useState("");
+  const [activeCodeIndex, setActiveCodeIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -247,6 +270,7 @@ export default function FixAssetsNew() {
       setMonthFrom(now.month);
       setMonthTo(now.month);
       setActiveCodePrefix("");
+      setActiveCodeIndex(null);
       setIsError(false);
     } catch (error) {
       setIsError(true);
@@ -272,6 +296,17 @@ export default function FixAssetsNew() {
     return counts;
   }, [drafts]);
 
+  const classMaxSuffix = useMemo(() => {
+    const result = new Map<string, number>();
+    existingCodes.forEach((code) => {
+      if (!/^\d{7}$/.test(code)) return;
+      const classCode = code.slice(0, 4);
+      const suffix = Number(code.slice(4));
+      result.set(classCode, Math.max(result.get(classCode) || 0, suffix));
+    });
+    return result;
+  }, [existingCodes]);
+
   const states = useMemo(() => {
     const result: Record<number, RowState> = {};
     rows.forEach((_, index) => {
@@ -279,16 +314,20 @@ export default function FixAssetsNew() {
       if (!draft?.asset_code.trim()) result[index] = "idle";
       else {
         const code = draft.asset_code.trim();
+        const requiredCode = /^\d{7}$/.test(code)
+          ? nextSequentialCode(code.slice(0, 4), classMaxSuffix, drafts, existingCodes, index)
+          : null;
         result[index] = !/^\d{7}$/.test(code)
           || existingCodes.has(code)
           || (codeCounts.get(code) || 0) > 1
+          || code !== requiredCode
           || !validNumber(draft.pen_amount)
           || !validNumber(draft.exc_rate, true)
           ? "invalid" : "valid";
       }
     });
     return result;
-  }, [rows, drafts, existingCodes, codeCounts]);
+  }, [rows, drafts, existingCodes, codeCounts, classMaxSuffix]);
 
   const filteredRows = useMemo(() => rows
     .map((row, index) => ({ row, index }))
@@ -316,12 +355,24 @@ export default function FixAssetsNew() {
     }, null);
   }, [catalogueRows, activeCodePrefix]);
 
+  const activeRequiredCode = useMemo(() => {
+    if (activeCodePrefix.length < 4) return null;
+    return nextSequentialCode(
+      activeCodePrefix.slice(0, 4),
+      classMaxSuffix,
+      drafts,
+      existingCodes,
+      activeCodeIndex
+    );
+  }, [activeCodePrefix, activeCodeIndex, classMaxSuffix, drafts, existingCodes]);
+
   const updateDraft = useCallback((index: number, field: keyof Draft, value: string) => {
     setDrafts((current) => ({ ...current, [index]: { ...current[index], [field]: value } }));
     setMessage("");
   }, []);
 
-  const handleCodeActivity = useCallback((_index: number, value: string) => {
+  const handleCodeActivity = useCallback((index: number, value: string) => {
+    setActiveCodeIndex(index);
     setActiveCodePrefix(value.replace(/\D/g, "").slice(0, 7));
   }, []);
 
@@ -351,12 +402,22 @@ export default function FixAssetsNew() {
       }
       const savedCodes = selectedIndexes.map((index) => drafts[index].asset_code.trim());
       setExistingCodes((current) => new Set([...current, ...savedCodes]));
+      setCatalogueRows((current) => [
+        ...current,
+        ...selectedIndexes.map((index) => ({
+          asset_code: drafts[index].asset_code.trim(),
+          asset_description: drafts[index].line_description.trim() || null,
+          capex_code: drafts[index].capex_code.trim() || null,
+          asset_ini_cost_pen: numberOrNull(drafts[index].pen_amount),
+        })),
+      ]);
       setDrafts((current) => {
         const next = { ...current };
         selectedIndexes.forEach((index) => { next[index] = { ...next[index], asset_code: "" }; });
         return next;
       });
       setActiveCodePrefix("");
+      setActiveCodeIndex(null);
       setMessage(`${saved} activo${saved === 1 ? "" : "s"} guardado${saved === 1 ? "" : "s"} correctamente.`);
     } catch (error) {
       setIsError(true);
@@ -384,7 +445,7 @@ export default function FixAssetsNew() {
 
       <div style={{ display: "grid", gap: 4 }}>
         {message ? <div className="panel-inner" style={{ padding: 8, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
-        {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD duplicado/existente, formato inválido o monto incorrecto.</div> : null}
+        {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD existente/duplicado, correlativo saltado, formato inválido o monto incorrecto.</div> : null}
       </div>
 
       <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
@@ -395,8 +456,8 @@ export default function FixAssetsNew() {
       <section className="panel-inner" style={{ padding: "8px 12px", minHeight: 42, display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
         <strong>Referencia COD:</strong>
         {!activeCodePrefix ? <span className="muted" style={{ fontSize: 12 }}>Empieza a escribir un COD en cualquiera de las dos tablas.</span>
-          : catalogueLastMatch ? <><span className="muted" style={{ fontSize: 12 }}>último usado con prefijo “{activeCodePrefix}”</span><span style={{ fontSize: 15, fontWeight: 900, color: "#dff1bc" }}>{text(catalogueLastMatch.asset_code)}</span><span style={{ fontSize: 13 }}>— {text(catalogueLastMatch.asset_description) || "Sin descripción"}</span></>
-          : <span style={{ color: "#dff1bc", fontWeight: 800 }}>No existe ningún COD usado que empiece con “{activeCodePrefix}”.</span>}
+          : catalogueLastMatch ? <><span className="muted" style={{ fontSize: 12 }}>último usado con prefijo “{activeCodePrefix}”</span><span style={{ fontSize: 15, fontWeight: 900, color: "#dff1bc" }}>{text(catalogueLastMatch.asset_code)}</span><span style={{ fontSize: 13 }}>— {text(catalogueLastMatch.asset_description) || "Sin descripción"}</span>{activeRequiredCode ? <span style={{ marginLeft: "auto", color: "#ffd882", fontWeight: 900 }}>Siguiente obligatorio: {activeRequiredCode}</span> : null}</>
+          : <><span style={{ color: "#dff1bc", fontWeight: 800 }}>No existe ningún COD usado que empiece con “{activeCodePrefix}”.</span>{activeRequiredCode ? <span style={{ marginLeft: "auto", color: "#ffd882", fontWeight: 900 }}>Siguiente obligatorio: {activeRequiredCode}</span> : null}</>}
       </section>
 
       <div className="muted" style={{ fontSize: 12 }}>Mostrando {filteredRows.length} de {rows.length} filas: {normalRows.length} normales y {capexRows.length} CAPEX.</div>
