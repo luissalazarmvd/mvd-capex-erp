@@ -41,6 +41,7 @@ export async function POST(req: Request) {
         "compliance",
         "logistics",
         "sustainability",
+        "fixassets",
         "fleet",
         "ti",
       ].includes(area)
@@ -64,6 +65,7 @@ export async function POST(req: Request) {
     const COMPLIANCE_PASSWORD = process.env.COMPLIANCE_PASSWORD || "";
     const LOGISTICS_PASSWORD = process.env.LOGISTICS_PASSWORD || "";
     const SUSTAINABILITY_PASSWORD = process.env.SUSTAINABILITY_PASSWORD || "";
+    const FIXASSETS_PASSWORD = process.env.FIXASSETS_PASSWORD || "";
     const FLEET_PASSWORD_L1 = process.env.FLEET_PASSWORD_L1 || "";
     const FLEET_PASSWORD_L2 = process.env.FLEET_PASSWORD_L2 || "";
     const DTI_PASSWORD = process.env.DTI_PASSWORD || "";
@@ -79,6 +81,7 @@ export async function POST(req: Request) {
     if (area === "compliance" && password === COMPLIANCE_PASSWORD) ok = true;
     if (area === "logistics" && password === LOGISTICS_PASSWORD) ok = true;
     if (area === "sustainability" && password === SUSTAINABILITY_PASSWORD) ok = true;
+    if (area === "fixassets" && FIXASSETS_PASSWORD && password === FIXASSETS_PASSWORD) ok = true;
     if (area === "ti" && DTI_PASSWORD && password === DTI_PASSWORD) ok = true;
 
     if (area === "fleet" && password === FLEET_PASSWORD_L1) {

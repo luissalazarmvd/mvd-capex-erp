@@ -125,6 +125,8 @@ export async function middleware(req: NextRequest) {
 
   const need = pathname.startsWith("/planta")
     ? "planta"
+    : pathname.startsWith("/fixassets")
+    ? "fixassets"
     : pathname.startsWith("/ti")
     ? "ti"
     : pathname.startsWith("/refinery")

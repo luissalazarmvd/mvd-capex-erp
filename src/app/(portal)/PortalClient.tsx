@@ -14,6 +14,7 @@ type Area =
   | "compliance"
   | "logistics"
   | "sustainability"
+  | "fixassets"
   | "fleet";
 
 export default function PortalClient() {
@@ -110,6 +111,8 @@ export default function PortalClient() {
           ? "/logistics/downloads"
           : area === "sustainability"
           ? "/sustainability/igafom"
+          : area === "fixassets"
+          ? "/fixassets/new"
           : area === "fleet"
           ? j?.defaultPath || "/fleet/offices"
           : "/ti"
@@ -231,6 +234,16 @@ export default function PortalClient() {
               type="button"
               size="lg"
               variant="primary"
+              onClick={() => start("fixassets")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
+              Activos Fijos y Depreciación
+            </Button>
+
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
               onClick={() => start("sustainability")}
               disabled={checkingAccess || !hasInternalAccess}
             >
@@ -264,6 +277,8 @@ export default function PortalClient() {
                 ? "Clave Logistics"
                 : area === "fleet"
                 ? "Clave Flota"
+                : area === "fixassets"
+                ? "Clave Activos Fijos y Depreciación"
                 : area === "sustainability"
                 ? "Clave Sustainability"
                 : "Clave Eficiencia Operacional TI"}
