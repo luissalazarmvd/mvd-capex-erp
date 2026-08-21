@@ -143,19 +143,19 @@ function nextSequentialCode(
   existingCodes: Set<string>,
   excludeIndex: number | null
 ) {
-  if (!/^\d{4}$/.test(classCode)) return null;
+  if (!/^\d{3}$/.test(classCode)) return null;
   let nextSuffix = (classMaxSuffix.get(classCode) || 0) + 1;
   const pendingSuffixes = new Set<number>();
 
   Object.entries(drafts).forEach(([rawIndex, draft]) => {
     if (Number(rawIndex) === excludeIndex) return;
     const code = draft.asset_code.trim();
-    if (!/^\d{7}$/.test(code) || code.slice(0, 4) !== classCode || existingCodes.has(code)) return;
-    pendingSuffixes.add(Number(code.slice(4)));
+    if (!/^\d{7}$/.test(code) || code.slice(0, 3) !== classCode || existingCodes.has(code)) return;
+    pendingSuffixes.add(Number(code.slice(3)));
   });
 
   while (pendingSuffixes.has(nextSuffix)) nextSuffix += 1;
-  return nextSuffix <= 999 ? `${classCode}${String(nextSuffix).padStart(3, "0")}` : null;
+  return nextSuffix <= 9999 ? `${classCode}${String(nextSuffix).padStart(4, "0")}` : null;
 }
 
 type NewRowsTableProps = {
@@ -300,8 +300,8 @@ export default function FixAssetsNew() {
     const result = new Map<string, number>();
     existingCodes.forEach((code) => {
       if (!/^\d{7}$/.test(code)) return;
-      const classCode = code.slice(0, 4);
-      const suffix = Number(code.slice(4));
+      const classCode = code.slice(0, 3);
+      const suffix = Number(code.slice(3));
       result.set(classCode, Math.max(result.get(classCode) || 0, suffix));
     });
     return result;
@@ -315,7 +315,7 @@ export default function FixAssetsNew() {
       else {
         const code = draft.asset_code.trim();
         const requiredCode = /^\d{7}$/.test(code)
-          ? nextSequentialCode(code.slice(0, 4), classMaxSuffix, drafts, existingCodes, index)
+          ? nextSequentialCode(code.slice(0, 3), classMaxSuffix, drafts, existingCodes, index)
           : null;
         result[index] = !/^\d{7}$/.test(code)
           || existingCodes.has(code)
@@ -356,9 +356,9 @@ export default function FixAssetsNew() {
   }, [catalogueRows, activeCodePrefix]);
 
   const activeRequiredCode = useMemo(() => {
-    if (activeCodePrefix.length < 4) return null;
+    if (activeCodePrefix.length < 3) return null;
     return nextSequentialCode(
-      activeCodePrefix.slice(0, 4),
+      activeCodePrefix.slice(0, 3),
       classMaxSuffix,
       drafts,
       existingCodes,
