@@ -158,7 +158,7 @@ function currentPeriod() {
 function stickyRowBackground(state: RowState) {
   if (state === "valid") return "#416f43";
   if (state === "invalid") return "#79453b";
-  return "var(--panel2)";
+  return "#0b4d6b";
 }
 
 function nextAvailableCode(
@@ -200,6 +200,7 @@ type NewRowsTableProps = {
   onCommit: (index: number, field: keyof Draft, value: string) => void;
   onCodeActivity: (index: number, value: string) => void;
   onFocusDetails: (index: number) => void;
+  onOpenDetails: (index: number) => void;
   focusedDetailIndex: number | null;
 };
 
@@ -213,6 +214,7 @@ const NewRowsTable = memo(function NewRowsTable({
   onCommit,
   onCodeActivity,
   onFocusDetails,
+  onOpenDetails,
   focusedDetailIndex,
 }: NewRowsTableProps) {
   return (
@@ -221,13 +223,13 @@ const NewRowsTable = memo(function NewRowsTable({
         <h2 style={{ margin: 0, fontSize: 17 }}>{title} <span className="muted">({items.length})</span></h2>
         <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{subtitle}</div>
       </div>
-      <div className="panel-inner" style={{ overflow: "auto", height: "100%", minHeight: 0, padding: 0 }}>
+      <div className="panel-inner fixassets-new-table-grid" style={{ overflow: "auto", height: "100%", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup>{COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
             <thead><tr>{COLUMNS.map((column) => {
               const sticky = column.key === "asset_code";
-              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left: sticky ? 0 : undefined, zIndex: sticky ? 45 : undefined, boxShadow: sticky ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{column.label}</th>;
+              return <th key={column.key} className="capex-th" style={{ left: sticky ? 0 : undefined, zIndex: sticky ? 45 : undefined, boxShadow: sticky ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{column.label}</th>;
             })}</tr></thead>
             <tbody>
               {items.map(({ row, index }) => {
@@ -250,10 +252,13 @@ const NewRowsTable = memo(function NewRowsTable({
                         maxLength={column.key === "asset_code" ? 7 : undefined}
                         sanitize={column.key === "asset_code" ? (next) => next.replace(/\D/g, "").slice(0, 7) : numeric ? numericDraft : undefined}
                         normalizeOnBlur={numeric ? (next) => validNumber(next, true) ? twoDecimals(next) : next : undefined}
-                        onFocus={() => { if (column.key === "asset_code") onCodeActivity(index, draft.asset_code); }}
+                        onFocus={() => {
+                          onOpenDetails(index);
+                          if (column.key === "asset_code") onCodeActivity(index, draft.asset_code);
+                        }}
                         onLiveChange={column.key === "asset_code" ? (next) => onCodeActivity(index, next) : undefined}
                         onCommit={(next) => onCommit(index, field, next)}
-                        style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: state === "invalid" ? "#ebb086" : undefined }}
+                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: state === "invalid" ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} fila ${index + 1}`}
                       /> : <span title={text(value)}>{column.key.endsWith("date") ? dateOnly(value) : column.key === "usd_amount" ? twoDecimals(value) : text(value)}</span>}
                     </td>;
@@ -464,15 +469,18 @@ export default function FixAssetsNew() {
 
   const detailRow = detailIndex == null ? null : rows[detailIndex];
   const detailDraft = detailIndex == null ? null : drafts[detailIndex];
+  const openDetails = useCallback((index: number) => {
+    setDetailIndex(index);
+    setActiveCodeIndex(index);
+    setActiveCodePrefix((drafts[index]?.asset_code || "").replace(/\D/g, "").slice(0, 7));
+  }, [drafts]);
   const focusDetails = useCallback((index: number) => {
     if (detailIndex === index) {
       setDetailIndex(null);
       return;
     }
-    setDetailIndex(index);
-    setActiveCodeIndex(index);
-    setActiveCodePrefix((drafts[index]?.asset_code || "").replace(/\D/g, "").slice(0, 7));
-  }, [drafts, detailIndex]);
+    openDetails(index);
+  }, [detailIndex, openDetails]);
 
   useEffect(() => {
     if (detailIndex == null) return;
@@ -561,12 +569,27 @@ export default function FixAssetsNew() {
       </div>
 
       <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
-        <NewRowsTable title="Activos normales" subtitle="Haz clic en una fila para completar su ficha opcional." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} focusedDetailIndex={detailIndex} />
-        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX. Haz clic en una fila para completar su ficha opcional." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} focusedDetailIndex={detailIndex} />
+        <NewRowsTable title="Activos normales" subtitle="Haz clic o edita una fila para completar su ficha opcional." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} onOpenDetails={openDetails} focusedDetailIndex={detailIndex} />
+        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX. Haz clic o edita una fila para completar su ficha opcional." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} onOpenDetails={openDetails} focusedDetailIndex={detailIndex} />
       </div>
 
       <div className="muted" style={{ fontSize: 12 }}>Mostrando {filteredRows.length} de {rows.length} filas: {normalRows.length} normales y {capexRows.length} CAPEX.</div>
       <style jsx global>{`
+        .fixassets-new-table-grid table {
+          font-size: 11px !important;
+        }
+        .fixassets-new-table-grid .capex-th {
+          padding: 6px !important;
+          font-size: 11px !important;
+          background: #163b49 !important;
+          white-space: normal !important;
+          line-height: 1.1;
+        }
+        .fixassets-new-table-grid .capex-td {
+          padding: 4px 6px !important;
+          line-height: 1.15;
+          border-bottom-color: rgba(147,211,230,.14) !important;
+        }
         @media (max-width: 1100px) {
           .fixassets-new-shell {
             height: auto !important;

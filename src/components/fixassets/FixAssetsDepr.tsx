@@ -313,6 +313,11 @@ export default function FixAssetsDepr() {
     setHistoryRowId(id);
   }
 
+  function focusHistory(row: DeprRow) {
+    setHistoryAssetCode(text(row.asset_code).trim() || null);
+    setHistoryRowId(rowKey(row));
+  }
+
   useEffect(() => {
     if (!historyAssetCode) return;
     historyPreviewRef.current?.focus({ preventScroll: true });
@@ -514,6 +519,7 @@ export default function FixAssetsDepr() {
                         value={draft[key]}
                         sanitize={numericDraft}
                         normalizeOnBlur={(next) => validOptionalNumber(next) ? twoDecimals(next) : next}
+                        onFocus={() => focusHistory(row)}
                         onCommit={(next) => update(row, key, next)}
                         style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && !validOptionalNumber(draft[key]) ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${text(row.asset_code)}`}
