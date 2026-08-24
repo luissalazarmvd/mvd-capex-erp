@@ -141,6 +141,10 @@ function period(value: unknown) {
   return match ? { year: match[1], month: match[2] } : null;
 }
 
+function hasViewDepreciation(row: DeprRow) {
+  return num(row.applied_rate_pct) !== 0 || num(row.depreciation_amount_pen) !== 0;
+}
+
 export default function FixAssetsDepr() {
   const [rows, setRows] = useState<DeprRow[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -223,6 +227,15 @@ export default function FixAssetsDepr() {
     () => showAdjustments ? COLUMNS : COLUMNS.filter((column) => !ADJUSTMENT_COLUMNS.has(column.key)),
     [showAdjustments]
   );
+  const suggestedVisibleRows = useMemo(() => visibleRows.filter(hasViewDepreciation), [visibleRows]);
+  const editedVisibleRows = useMemo(() => visibleRows.filter((row) => {
+    const id = rowKey(row);
+    return drafts[id] && originals[id] && changed(drafts[id], originals[id]);
+  }), [visibleRows, drafts, originals]);
+  const manualSelectedCount = useMemo(() => selectedIds.filter((id) => {
+    const row = rows.find((candidate) => rowKey(candidate) === id);
+    return Boolean(row && drafts[id] && originals[id] && changed(drafts[id], originals[id]));
+  }).length, [selectedIds, rows, drafts, originals]);
 
   function toggleSelected(id: string, checked: boolean) {
     setSelectedKeys((current) => {
@@ -248,6 +261,15 @@ export default function FixAssetsDepr() {
         if (checked) next.add(id);
         else next.delete(id);
       });
+      return next;
+    });
+    setMessage("");
+  }
+
+  function selectRows(nextRows: DeprRow[]) {
+    setSelectedKeys((current) => {
+      const next = new Set(current);
+      nextRows.forEach((row) => next.add(rowKey(row)));
       return next;
     });
     setMessage("");
@@ -299,7 +321,24 @@ export default function FixAssetsDepr() {
     setSaving(true);
     setMessage("");
     setIsError(false);
-    let saved = 0;
+    const savedIds: string[] = [];
+    const catalogueRateErrors: string[] = [];
+    const applySavedRows = () => {
+      if (!savedIds.length) return;
+      const savedSet = new Set(savedIds);
+      setOriginals((current) => {
+        const next = { ...current };
+        savedIds.forEach((id) => { next[id] = { ...drafts[id] }; });
+        return next;
+      });
+      setRows((current) => current.map((row) => {
+        const id = rowKey(row);
+        if (!savedSet.has(id)) return row;
+        const draft = drafts[id];
+        return { ...row, ...draft, ...derived(row, draft) };
+      }));
+      setSelectedKeys((current) => new Set([...current].filter((id) => !savedSet.has(id))));
+    };
     try {
       for (const id of selectedIds) {
         const row = rows.find((candidate) => rowKey(candidate) === id);
@@ -328,31 +367,30 @@ export default function FixAssetsDepr() {
           exc_rate: draft.exc_rate.trim() ? Number(draft.exc_rate) : null,
         };
         await apiPost("/api/actfij/deprec/insert", payload);
+        savedIds.push(id);
         if (draft.exc_rate !== originals[id].exc_rate) {
-          await apiPost("/api/actfij/catalogue/insert", {
-            asset_code: text(row.asset_code).trim(),
-            source_name: "WEB",
-            exc_rate: draft.exc_rate.trim() ? Number(draft.exc_rate) : null,
-          });
+          try {
+            await apiPost("/api/actfij/catalogue/insert", {
+              asset_code: text(row.asset_code).trim(),
+              source_name: "WEB",
+              exc_rate: draft.exc_rate.trim() ? Number(draft.exc_rate) : null,
+            });
+          } catch {
+            catalogueRateErrors.push(text(row.asset_code).trim());
+          }
         }
-        saved += 1;
       }
-      setOriginals((current) => {
-        const next = { ...current };
-        selectedIds.forEach((id) => { next[id] = { ...drafts[id] }; });
-        return next;
-      });
-      setRows((current) => current.map((row) => {
-        const id = rowKey(row);
-        if (!selectedKeys.has(id)) return row;
-        const draft = drafts[id];
-        return { ...row, ...draft, ...derived(row, draft) };
-      }));
-      setSelectedKeys(new Set());
-      setMessage(`${saved} fila${saved === 1 ? "" : "s"} de depreciación guardada${saved === 1 ? "" : "s"} correctamente.`);
+      applySavedRows();
+      if (catalogueRateErrors.length) {
+        setIsError(true);
+        setMessage(`${savedIds.length} fila(s) de depreciación guardada(s). No se pudo sincronizar el T.C. en Catálogo para: ${catalogueRateErrors.join(", ")}.`);
+      } else {
+        setMessage(`${savedIds.length} fila${savedIds.length === 1 ? "" : "s"} de depreciación guardada${savedIds.length === 1 ? "" : "s"} correctamente.`);
+      }
     } catch (error) {
+      applySavedRows();
       setIsError(true);
-      setMessage(`Se guardaron ${saved} de ${selectedIds.length} filas. ${error instanceof Error ? error.message : "Error al guardar"}`);
+      setMessage(`Se guardaron ${savedIds.length} de ${selectedIds.length} filas. ${error instanceof Error ? error.message : "Error al guardar"}`);
     } finally {
       setSaving(false);
     }
@@ -372,6 +410,9 @@ export default function FixAssetsDepr() {
           </label>
           <Select label="Año" value={year} onChange={(event) => clearSelectionAndSetPeriod(event.target.value, month)} options={years.map((value) => ({ value, label: value }))} placeholder="Selecciona" style={{ minWidth: 110 }} />
           <Select label="Mes" value={month} onChange={(event) => clearSelectionAndSetPeriod(year, event.target.value)} options={monthsForYear.map((value) => ({ value, label: MONTHS[Number(value) - 1] }))} placeholder="Selecciona" style={{ minWidth: 150 }} />
+          <Button size="sm" onClick={() => selectRows(suggestedVisibleRows)} disabled={!suggestedVisibleRows.length || loading || saving}>Usar datos de vista ({suggestedVisibleRows.length})</Button>
+          <Button size="sm" onClick={() => selectRows(editedVisibleRows)} disabled={!editedVisibleRows.length || loading || saving}>Seleccionar manuales ({editedVisibleRows.length})</Button>
+          <Button size="sm" onClick={() => setSelectedKeys(new Set())} disabled={!selectedIds.length || loading || saving}>Limpiar selección</Button>
           <Button size="sm" onClick={() => setShowAdjustments((current) => !current)} disabled={loading || saving}>{showAdjustments ? "Ocultar ajustes" : "Mostrar ajustes"}</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${selectedIds.length})`}</Button>
@@ -439,7 +480,7 @@ export default function FixAssetsDepr() {
           </Table>
         </div>
       </div>
-      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · {visibleRows.length} activos · {selectedIds.length} seleccionados · {editedKeys.length} modificados.</div>
+      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados.</div>
       <style jsx global>{`
         .fixassets-depr-table table {
           font-size: 11px !important;

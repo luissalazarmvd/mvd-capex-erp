@@ -152,6 +152,8 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 ### Alta desde Veta
 
 - `FixAssetsNew.tsx` carga Veta y catálogo en paralelo.
+- Además de los datos heredados de Veta, el usuario puede abrir la `Ficha complementaria` de cada fila antes de guardarla. Sus campos opcionales son: `location_name`, `asset_type`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `cost_center_code`, `operation_date`, `depreciation_method`, `asset_situation` y `asset_comment`; se envían en el mismo POST individual de alta a `/api/actfij/catalogue/insert`.
+- Para acelerar altas de una misma clase, se ingresa una clase de 3 dígitos y `Asignar siguientes` completa los COD vacíos de las filas visibles con correlativos consecutivos. La validación acepta varias altas simultáneas si, como conjunto, forman la secuencia continua después del máximo existente.
 - COD: exactamente 7 dígitos, no existente en catálogo y no repetido entre borradores. Los primeros 3 dígitos son la clase y los últimos 4 el correlativo; para cada clase solo se acepta el siguiente correlativo después del máximo existente, sin saltos. Varias altas simultáneas de una clase deben formar una secuencia continua. Una clase sin registros empieza en `0001`. Solo filas con COD entran al guardado.
 - Editables: `line_description`, `capex_code`, `pen_amount`, `exc_rate`.
 - Al abrir/cargar, el filtro usa año actual y mes actual tanto en “desde” como en “hasta”.
@@ -173,6 +175,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 
 - `FixAssetsDepr.tsx` filtra año/mes y ordena por `asset_code` ascendente.
 - Cada fila tiene checkbox de envío y por defecto ninguna está seleccionada. Editar cualquier celda marca automáticamente el check de esa fila; también se puede seleccionar manualmente una fila sin editar. El guardado envía todos los campos aceptados por el POST para cada fila seleccionada.
+- Los botones `Usar datos de vista` y `Seleccionar manuales` ayudan a armar el lote visible: el primero selecciona filas cuyo origen trae tasa o monto de depreciación distinto de cero; el segundo selecciona los borradores modificados por el usuario. Ninguno cambia por sí mismo los valores calculados.
 - El checkbox del encabezado selecciona o desmarca todas las filas visibles según periodo y búsqueda.
 - Tiene un único buscador por COD o descripción. Check, COD y Descripción activo son sticky.
 - La vista compacta oculta por defecto las cuatro variaciones y tres ajustes de depreciación; “Mostrar ajustes” vuelve a exponer las siete columnas editables. La vista compacta conserva valores y cálculos de esas columnas.
@@ -187,9 +190,11 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
   - Monto a tasa: `depreciation_amount_pen * 12 / asset_final_value`.
   - Cambiar cualquiera de los cuatro `*_var_pen` recalcula valor final y depreciación del periodo con la tasa vigente.
 - Si una fila seleccionada cambió `exc_rate`, además del POST de depreciación se actualiza ese `asset_code` mediante `/api/actfij/catalogue/insert`.
+- Si el guardado por filas falla parcialmente, las depreciaciones ya confirmadas se conservan como guardadas y salen de la selección; las pendientes permanecen seleccionadas. Si solo falla la sincronización de `exc_rate` al catálogo, se informa el COD afectado sin revertir la depreciación ya guardada.
 
 ## Verificación y mantenimiento
 
+- Al terminar una implementación solicitada, incluir los cambios relacionados en un commit y hacer `git push` a la rama activa, salvo que el usuario indique expresamente que no se publique todavía. Antes de ello, verificar el estado y no incluir cambios ajenos.
 - Ejecutar `npx eslint <archivos tocados>` y `npm run build` después de cambios relevantes; ejecutar `npm run lint` cuando se necesite auditar el repositorio completo.
 - El build puede advertir sobre múltiples `package-lock.json` y root inferido por Next.js; es una advertencia conocida, no un error de compilación.
 - No asumir contratos de backend, formatos de fecha, capacidad batch ni semántica de borrado; revisar código/contrato antes de cambiar.
