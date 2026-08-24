@@ -201,6 +201,9 @@ type NewRowsTableProps = {
   onCommit: (index: number, field: keyof Draft, value: string) => void;
   onCodeActivity: (index: number, value: string) => void;
   onEditDetails: (index: number) => void;
+  selectedDetailIndexes: Set<number>;
+  onToggleDetailSelection: (index: number, checked: boolean) => void;
+  onToggleAllDetailSelection: (indexes: number[], checked: boolean) => void;
 };
 
 const NewRowsTable = memo(function NewRowsTable({
@@ -213,7 +216,12 @@ const NewRowsTable = memo(function NewRowsTable({
   onCommit,
   onCodeActivity,
   onEditDetails,
+  selectedDetailIndexes,
+  onToggleDetailSelection,
+  onToggleAllDetailSelection,
 }: NewRowsTableProps) {
+  const allDetailsSelected = items.length > 0 && items.every(({ index }) => selectedDetailIndexes.has(index));
+
   return (
     <section className="fixassets-new-table" style={{ display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", gap: 6, minWidth: 0, minHeight: 0 }}>
       <div>
@@ -227,7 +235,9 @@ const NewRowsTable = memo(function NewRowsTable({
             <thead><tr>{COLUMNS.map((column) => {
               const sticky = column.key === "asset_code" || column.key === "details";
               const left = column.key === "asset_code" ? 0 : column.key === "details" ? 105 : undefined;
-              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: sticky ? 45 : undefined, boxShadow: column.key === "details" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{column.label}</th>;
+              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: sticky ? 45 : undefined, boxShadow: column.key === "details" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
+                {column.key === "details" ? <input type="checkbox" checked={allDetailsSelected} disabled={!items.length || loading} onChange={(event) => onToggleAllDetailSelection(items.map(({ index }) => index), event.target.checked)} aria-label={`Seleccionar fichas de ${title}`} title="Seleccionar fichas de las filas visibles" style={{ width: 15, height: 15, accentColor: "var(--brand-success)", verticalAlign: "middle" }} /> : column.label}
+              </th>;
             })}</tr></thead>
             <tbody>
               {items.map(({ row, index }) => {
@@ -237,8 +247,12 @@ const NewRowsTable = memo(function NewRowsTable({
                 return <tr key={index} className="capex-tr">
                   {COLUMNS.map((column) => {
                     if (column.key === "details") {
+                      const detailSelected = selectedDetailIndexes.has(index);
                       return <td key={column.key} className="capex-td" style={{ padding: 5, background: stickyRowBackground(state), position: "sticky", left: 105, zIndex: 20, boxShadow: "2px 0 rgba(216,238,255,.12)" }}>
-                        <Button size="sm" onClick={() => onEditDetails(index)} disabled={loading} style={{ minWidth: 64, height: 28, padding: "3px 7px", fontSize: 11 }}>Completar</Button>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          <input type="checkbox" checked={detailSelected} disabled={loading} onChange={(event) => onToggleDetailSelection(index, event.target.checked)} aria-label={`Seleccionar ficha de fila ${index + 1}`} title="Marcar para completar ficha" style={{ width: 16, height: 16, accentColor: "var(--brand-success)", cursor: loading ? "not-allowed" : "pointer" }} />
+                          <Button size="sm" onClick={() => onEditDetails(index)} disabled={loading} style={{ minWidth: 50, height: 28, padding: "3px 6px", fontSize: 11 }}>{detailSelected ? "Abrir" : "Ficha"}</Button>
+                        </div>
                       </td>;
                     }
                     const editable = column.key === "asset_code" || column.key === "line_description" || column.key === "capex_code" || column.key === "pen_amount" || column.key === "exc_rate";
@@ -287,6 +301,7 @@ export default function FixAssetsNew() {
   const [activeCodeIndex, setActiveCodeIndex] = useState<number | null>(null);
   const [codeClass, setCodeClass] = useState("");
   const [detailIndex, setDetailIndex] = useState<number | null>(null);
+  const [detailSelectedIndexes, setDetailSelectedIndexes] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -315,6 +330,7 @@ export default function FixAssetsNew() {
       setActiveCodePrefix("");
       setActiveCodeIndex(null);
       setDetailIndex(null);
+      setDetailSelectedIndexes(new Set());
       setIsError(false);
     } catch (error) {
       setIsError(true);
@@ -467,6 +483,33 @@ export default function FixAssetsNew() {
 
   const detailRow = detailIndex == null ? null : rows[detailIndex];
   const detailDraft = detailIndex == null ? null : drafts[detailIndex];
+  const selectedDetailRows = useMemo(() => Array.from(detailSelectedIndexes)
+    .sort((a, b) => a - b)
+    .map((index) => ({ index, row: rows[index], draft: drafts[index] }))
+    .filter((item): item is { index: number; row: VetaRow; draft: Draft } => Boolean(item.row && item.draft)), [detailSelectedIndexes, rows, drafts]);
+  const activeDetailPosition = detailIndex == null ? -1 : selectedDetailRows.findIndex((item) => item.index === detailIndex);
+
+  function openDetails(index: number) {
+    setDetailSelectedIndexes((current) => new Set([...current, index]));
+    setDetailIndex(index);
+  }
+
+  function toggleDetailSelection(index: number, checked: boolean) {
+    const next = new Set(detailSelectedIndexes);
+    if (checked) next.add(index);
+    else next.delete(index);
+    setDetailSelectedIndexes(next);
+    if (checked) setDetailIndex(index);
+    else if (detailIndex === index) setDetailIndex([...next].sort((a, b) => a - b)[0] ?? null);
+  }
+
+  function toggleAllDetailSelection(indexes: number[], checked: boolean) {
+    const next = new Set(detailSelectedIndexes);
+    indexes.forEach((index) => checked ? next.add(index) : next.delete(index));
+    setDetailSelectedIndexes(next);
+    if (checked && indexes.length) setDetailIndex(indexes[0]);
+    else if (detailIndex != null && !next.has(detailIndex)) setDetailIndex([...next].sort((a, b) => a - b)[0] ?? null);
+  }
 
   async function save() {
     if (!canSave) return;
@@ -513,6 +556,7 @@ export default function FixAssetsNew() {
       setActiveCodePrefix("");
       setActiveCodeIndex(null);
       setDetailIndex(null);
+      setDetailSelectedIndexes(new Set());
       setMessage(`${saved} activo${saved === 1 ? "" : "s"} guardado${saved === 1 ? "" : "s"} correctamente.`);
     } catch (error) {
       setIsError(true);
@@ -550,8 +594,8 @@ export default function FixAssetsNew() {
       </div>
 
       <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
-        <NewRowsTable title="Activos normales" subtitle="Código CAPEX original vacío." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onEditDetails={setDetailIndex} />
-        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onEditDetails={setDetailIndex} />
+        <NewRowsTable title="Activos normales" subtitle="Código CAPEX original vacío." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onEditDetails={openDetails} selectedDetailIndexes={detailSelectedIndexes} onToggleDetailSelection={toggleDetailSelection} onToggleAllDetailSelection={toggleAllDetailSelection} />
+        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onEditDetails={openDetails} selectedDetailIndexes={detailSelectedIndexes} onToggleDetailSelection={toggleDetailSelection} onToggleAllDetailSelection={toggleAllDetailSelection} />
       </div>
 
       <section className="panel-inner" style={{ padding: "8px 12px", minHeight: 42, display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
@@ -575,11 +619,17 @@ export default function FixAssetsNew() {
       `}</style>
       </div>
 
-      {detailRow && detailDraft && detailIndex != null ? <section className="panel-inner" style={{ padding: 10 }}>
+      {detailRow && detailDraft && detailIndex != null && detailSelectedIndexes.has(detailIndex) ? <section className="panel-inner" style={{ padding: 10 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-          <div><strong>Ficha complementaria</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{detailDraft.asset_code || "Sin COD"} · {detailDraft.line_description || text(detailRow.line_description) || "Sin descripción"}</span></div>
+          <div><strong>Ficha complementaria</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{selectedDetailRows.length} fila(s) marcada(s) · {detailDraft.asset_code || "Sin COD"} · {detailDraft.line_description || text(detailRow.line_description) || "Sin descripción"}</span></div>
           <Button size="sm" onClick={() => setDetailIndex(null)}>Cerrar ficha</Button>
         </div>
+        {selectedDetailRows.length > 1 ? <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+          <Button size="sm" onClick={() => setDetailIndex(selectedDetailRows[activeDetailPosition - 1]?.index ?? detailIndex)} disabled={activeDetailPosition <= 0}>Anterior</Button>
+          <span className="muted" style={{ fontSize: 12 }}>{activeDetailPosition + 1} de {selectedDetailRows.length}</span>
+          <Button size="sm" onClick={() => setDetailIndex(selectedDetailRows[activeDetailPosition + 1]?.index ?? detailIndex)} disabled={activeDetailPosition < 0 || activeDetailPosition >= selectedDetailRows.length - 1}>Siguiente</Button>
+          {selectedDetailRows.map(({ index, draft }) => <Button key={index} size="sm" variant={index === detailIndex ? "primary" : "default"} onClick={() => setDetailIndex(index)} style={{ height: 28, padding: "3px 7px", fontSize: 11 }}>{draft.asset_code || `Fila ${index + 1}`}</Button>)}
+        </div> : null}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
           {EXTRA_FIELDS.map(([field, label]) => <label key={field} style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 800 }}>
             {label}
