@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
@@ -156,6 +156,8 @@ export default function FixAssetsDepr() {
   const [month, setMonth] = useState("");
   const [assetType, setAssetType] = useState<DepreciableAssetType>("LR");
   const [historyAssetCode, setHistoryAssetCode] = useState<string | null>(null);
+  const [historyRowId, setHistoryRowId] = useState<string | null>(null);
+  const historyPreviewRef = useRef<HTMLElement | null>(null);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [showAdjustments, setShowAdjustments] = useState(false);
@@ -183,6 +185,7 @@ export default function FixAssetsDepr() {
       setOriginals(nextDrafts);
       setSelectedKeys(new Set());
       setHistoryAssetCode(null);
+      setHistoryRowId(null);
       const latest = nextRows.map((row) => text(row.period_date).slice(0, 7)).filter(Boolean).sort().at(-1) || "";
       if (latest) {
         setYear(latest.slice(0, 4));
@@ -264,6 +267,7 @@ export default function FixAssetsDepr() {
   function clearSelectionAndSetPeriod(nextYear: string, nextMonth: string) {
     setSelectedKeys(new Set());
     setHistoryAssetCode(null);
+    setHistoryRowId(null);
     setYear(nextYear);
     setMonth(nextMonth);
   }
@@ -271,6 +275,7 @@ export default function FixAssetsDepr() {
   function changeAssetType(nextAssetType: DepreciableAssetType) {
     setSelectedKeys(new Set());
     setHistoryAssetCode(null);
+    setHistoryRowId(null);
     setAssetType(nextAssetType);
     setMessage("");
   }
@@ -298,8 +303,20 @@ export default function FixAssetsDepr() {
   }
 
   function openHistory(row: DeprRow) {
+    const id = rowKey(row);
+    if (historyRowId === id) {
+      setHistoryAssetCode(null);
+      setHistoryRowId(null);
+      return;
+    }
     setHistoryAssetCode(text(row.asset_code).trim() || null);
+    setHistoryRowId(id);
   }
+
+  useEffect(() => {
+    if (!historyAssetCode) return;
+    historyPreviewRef.current?.focus({ preventScroll: true });
+  }, [historyAssetCode, historyRowId]);
 
   function update(row: DeprRow, key: EditableKey, raw: string) {
     const id = rowKey(row);
@@ -423,7 +440,7 @@ export default function FixAssetsDepr() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div className="fixassets-depr-root" style={{ position: "relative", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto", gap: 12, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>Depreciación de activos</h1>
@@ -446,10 +463,12 @@ export default function FixAssetsDepr() {
         </div>
       </div>
 
-      {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
-      {invalidKeys.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los valores numéricos de {invalidKeys.length} fila(s) antes de guardar.</div> : null}
+      <div style={{ display: "grid", gap: 4 }}>
+        {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
+        {invalidKeys.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los valores numéricos de {invalidKeys.length} fila(s) antes de guardar.</div> : null}
+      </div>
 
-      <div className="panel-inner fixassets-depr-table" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
+      <div className="panel-inner fixassets-depr-table" style={{ overflow: "auto", height: "100%", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup><col style={{ width: 52, minWidth: 52 }} />{displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
@@ -508,10 +527,10 @@ export default function FixAssetsDepr() {
           </Table>
         </div>
       </div>
-      {historyAssetCode ? <section className="panel-inner" style={{ padding: 10, display: "grid", gap: 8 }}>
+      {historyAssetCode ? <section ref={historyPreviewRef} tabIndex={-1} className="panel-inner fixassets-depr-table fixassets-depr-history" style={{ position: "absolute", zIndex: 30, left: 0, right: 0, bottom: 30, maxHeight: 280, padding: 10, display: "grid", gap: 8, overflow: "hidden", background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 -12px 30px rgba(0,0,0,.38)", outline: "none" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div><strong>Histórico de depreciación · {historyAssetCode}</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>Periodos anteriores a {month && year ? `${MONTHS[Number(month) - 1]} ${year}` : "la selección"}</span></div>
-          <Button size="sm" onClick={() => setHistoryAssetCode(null)}>Cerrar histórico</Button>
+          <Button size="sm" onClick={() => { setHistoryAssetCode(null); setHistoryRowId(null); }}>Cerrar histórico</Button>
         </div>
         {historyRows.length ? <div style={{ overflow: "auto", maxHeight: 260 }}>
           <Table disableScrollWrapper stickyHeader>
@@ -540,6 +559,16 @@ export default function FixAssetsDepr() {
           padding: 4px 6px !important;
           line-height: 1.15;
           border-bottom-color: rgba(147,211,230,.14) !important;
+        }
+        @media (max-width: 1100px) {
+          .fixassets-depr-root {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .fixassets-depr-history {
+            position: static !important;
+            max-height: 320px !important;
+          }
         }
       `}</style>
     </div>
