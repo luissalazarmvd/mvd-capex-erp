@@ -26,6 +26,7 @@ type DeprRow = {
   depreciation_cum_amount_pen: number | string | null;
   asset_balance_pen: number | string | null;
   exc_rate: number | string | null;
+  asset_type: string | null;
 };
 
 const EDITABLE = [
@@ -70,6 +71,8 @@ const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
+const DEPRECIABLE_ASSET_TYPES = ["LR", "DUP"] as const;
+type DepreciableAssetType = (typeof DEPRECIABLE_ASSET_TYPES)[number];
 
 function text(value: unknown) {
   return value == null ? "" : String(value);
@@ -151,6 +154,7 @@ export default function FixAssetsDepr() {
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
+  const [assetType, setAssetType] = useState<DepreciableAssetType>("LR");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [showAdjustments, setShowAdjustments] = useState(false);
@@ -210,11 +214,12 @@ export default function FixAssetsDepr() {
     return rows.filter((row) => {
       const value = period(row.period_date);
       const matchesPeriod = value?.year === year && value.month === month;
+      const matchesAssetType = text(row.asset_type).trim().toUpperCase() === assetType;
       const matchesQuery = !needle || text(row.asset_code).toLocaleLowerCase("es").includes(needle)
         || text(row.asset_description).toLocaleLowerCase("es").includes(needle);
-      return matchesPeriod && matchesQuery;
+      return matchesPeriod && matchesAssetType && matchesQuery;
     }).sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }));
-  }, [rows, year, month, deferredQuery]);
+  }, [rows, year, month, assetType, deferredQuery]);
 
   const editedKeys = useMemo(() => rows
     .map(rowKey)
@@ -251,6 +256,12 @@ export default function FixAssetsDepr() {
     setSelectedKeys(new Set());
     setYear(nextYear);
     setMonth(nextMonth);
+  }
+
+  function changeAssetType(nextAssetType: DepreciableAssetType) {
+    setSelectedKeys(new Set());
+    setAssetType(nextAssetType);
+    setMessage("");
   }
 
   function toggleAllVisible(checked: boolean) {
@@ -410,6 +421,7 @@ export default function FixAssetsDepr() {
           </label>
           <Select label="Año" value={year} onChange={(event) => clearSelectionAndSetPeriod(event.target.value, month)} options={years.map((value) => ({ value, label: value }))} placeholder="Selecciona" style={{ minWidth: 110 }} />
           <Select label="Mes" value={month} onChange={(event) => clearSelectionAndSetPeriod(year, event.target.value)} options={monthsForYear.map((value) => ({ value, label: MONTHS[Number(value) - 1] }))} placeholder="Selecciona" style={{ minWidth: 150 }} />
+          <Select label="Tipo de activo" value={assetType} onChange={(event) => changeAssetType(event.target.value as DepreciableAssetType)} options={DEPRECIABLE_ASSET_TYPES.map((value) => ({ value, label: value }))} placeholder="" style={{ minWidth: 130 }} />
           <Button size="sm" onClick={() => selectRows(suggestedVisibleRows)} disabled={!suggestedVisibleRows.length || loading || saving}>Usar datos de vista ({suggestedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => selectRows(editedVisibleRows)} disabled={!editedVisibleRows.length || loading || saving}>Seleccionar manuales ({editedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => setSelectedKeys(new Set())} disabled={!selectedIds.length || loading || saving}>Limpiar selección</Button>
@@ -480,7 +492,7 @@ export default function FixAssetsDepr() {
           </Table>
         </div>
       </div>
-      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados.</div>
+      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · Tipo {assetType} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados.</div>
       <style jsx global>{`
         .fixassets-depr-table table {
           font-size: 11px !important;

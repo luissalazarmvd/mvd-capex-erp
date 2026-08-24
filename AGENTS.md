@@ -149,6 +149,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - `POST /api/actfij/catalogue/insert`: `MERGE` por `asset_code`; requiere ese campo. En update usa `COALESCE`, por lo que `null` no borra un valor almacenado.
 - `GET /api/actfij/deprec`: filas por activo/periodo.
 - `POST /api/actfij/deprec/insert`: `MERGE` por `asset_code` + fin de mes de `period_date`; requiere ambos.
+- `GET /api/actfij/mapping`: `origin_account_code`, grupo/denominación de cuenta, cuentas de depreciación, `deprec_rate_pct` y `asset_type`. `POST /api/actfij/mapping/insert` hace `MERGE` por `origin_account_code`; para mantenimiento web del mapping solo se edita `deprec_rate_pct`, enviando los demás campos originales.
 
 ### Alta desde Veta
 
@@ -176,6 +177,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 ### Depreciación
 
 - `FixAssetsDepr.tsx` filtra año/mes y ordena por `asset_code` ascendente.
+- El GET de depreciación incluye `asset_type`, pero la columna no se muestra. La tabla excluye `No deprecia` y trabaja en modos mutuamente excluyentes `LR` o `DUP`; `LR` está seleccionado por defecto y cambiar de tipo limpia la selección, para que cálculo y guardado nunca mezclen ambos tipos.
 - Cada fila tiene checkbox de envío y por defecto ninguna está seleccionada. Editar cualquier celda marca automáticamente el check de esa fila; también se puede seleccionar manualmente una fila sin editar. El guardado envía todos los campos aceptados por el POST para cada fila seleccionada.
 - Los botones `Usar datos de vista` y `Seleccionar manuales` ayudan a armar el lote visible: el primero selecciona filas cuyo origen trae tasa o monto de depreciación distinto de cero; el segundo selecciona los borradores modificados por el usuario. Ninguno cambia por sí mismo los valores calculados.
 - El checkbox del encabezado selecciona o desmarca todas las filas visibles según periodo y búsqueda.
@@ -193,6 +195,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
   - Cambiar cualquiera de los cuatro `*_var_pen` recalcula valor final y depreciación del periodo con la tasa vigente.
 - Si una fila seleccionada cambió `exc_rate`, además del POST de depreciación se actualiza ese `asset_code` mediante `/api/actfij/catalogue/insert`.
 - Si el guardado por filas falla parcialmente, las depreciaciones ya confirmadas se conservan como guardadas y salen de la selección; las pendientes permanecen seleccionadas. Si solo falla la sincronización de `exc_rate` al catálogo, se informa el COD afectado sin revertir la depreciación ya guardada.
+- `FixAssetsCat.tsx` incorpora una ventana de preview `Actualizar mapping`: carga `/api/actfij/mapping`, no muestra `updated_at` y permite cambiar/guardar únicamente la tasa de depreciación de cada cuenta origen.
 
 ## Verificación y mantenimiento
 

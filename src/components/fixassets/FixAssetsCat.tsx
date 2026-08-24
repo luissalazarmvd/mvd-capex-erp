@@ -42,6 +42,18 @@ type CatalogueRow = {
   asset_comment: string | null;
 };
 
+type MappingRow = {
+  origin_account_code: string | null;
+  account_group: string | null;
+  account_denom: string | null;
+  deprec_acc_code_fir: string | null;
+  deprec_acc_code_sec: string | null;
+  deprec_rate_pct: number | string | null;
+  asset_type: string | null;
+};
+
+type MappingDraft = { deprec_rate_pct: string };
+
 const EDITABLE = [
   "location_name", "capex_code", "asset_description", "asset_type", "assigned_to",
   "area_name", "brand", "model", "serial_number", "color", "cost_center_code",
@@ -90,6 +102,16 @@ const COLUMNS: Array<{ key: keyof CatalogueRow; label: string; width: number }> 
   { key: "asset_comment", label: "Comentario", width: 260 },
 ];
 
+const MAPPING_COLUMNS: Array<{ key: keyof MappingRow; label: string; width: number }> = [
+  { key: "origin_account_code", label: "Cuenta origen", width: 135 },
+  { key: "account_group", label: "Grupo", width: 110 },
+  { key: "account_denom", label: "Denominación", width: 180 },
+  { key: "deprec_acc_code_fir", label: "Cuenta deprec. 1", width: 145 },
+  { key: "deprec_acc_code_sec", label: "Cuenta deprec. 2", width: 145 },
+  { key: "deprec_rate_pct", label: "Tasa deprec.", width: 125 },
+  { key: "asset_type", label: "Tipo activo", width: 115 },
+];
+
 function text(value: unknown) {
   return value == null ? "" : String(value);
 }
@@ -134,6 +156,19 @@ function invalid(draft: Draft) {
   return !validOptionalNumber(draft.exc_rate) || !validOptionalNumber(draft.asset_ini_cost_pen);
 }
 
+function toMappingDraft(row: MappingRow): MappingDraft {
+  return { deprec_rate_pct: text(row.deprec_rate_pct) };
+}
+
+function mappingChanged(draft: MappingDraft, original: MappingDraft) {
+  return draft.deprec_rate_pct !== original.deprec_rate_pct;
+}
+
+function validMappingRate(value: string) {
+  const clean = value.trim();
+  return /^\d{1,3}(?:\.\d{1,6})?$/.test(clean) && Number.isFinite(Number(clean));
+}
+
 export default function FixAssetsCat() {
   const [rows, setRows] = useState<CatalogueRow[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -144,6 +179,14 @@ export default function FixAssetsCat() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+  const [mappingOpen, setMappingOpen] = useState(false);
+  const [mappingRows, setMappingRows] = useState<MappingRow[]>([]);
+  const [mappingDrafts, setMappingDrafts] = useState<Record<string, MappingDraft>>({});
+  const [mappingOriginals, setMappingOriginals] = useState<Record<string, MappingDraft>>({});
+  const [mappingLoading, setMappingLoading] = useState(false);
+  const [mappingSaving, setMappingSaving] = useState(false);
+  const [mappingMessage, setMappingMessage] = useState("");
+  const [mappingError, setMappingError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -188,6 +231,76 @@ export default function FixAssetsCat() {
   function update(code: string, key: EditableKey, value: string) {
     setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
     setMessage("");
+  }
+
+  async function openMappingPreview() {
+    setMappingOpen(true);
+    setMappingLoading(true);
+    setMappingMessage("");
+    try {
+      const response = await apiGet("/api/actfij/mapping");
+      const nextRows = Array.isArray(response?.rows) ? response.rows as MappingRow[] : [];
+      const nextDrafts: Record<string, MappingDraft> = {};
+      nextRows.forEach((row) => { nextDrafts[text(row.origin_account_code)] = toMappingDraft(row); });
+      setMappingRows(nextRows);
+      setMappingDrafts(nextDrafts);
+      setMappingOriginals(nextDrafts);
+      setMappingError(false);
+    } catch (error) {
+      setMappingRows([]);
+      setMappingDrafts({});
+      setMappingOriginals({});
+      setMappingError(true);
+      setMappingMessage(error instanceof Error ? error.message : "No se pudo cargar el mapping");
+    } finally {
+      setMappingLoading(false);
+    }
+  }
+
+  const editedMappingCodes = useMemo(() => mappingRows
+    .map((row) => text(row.origin_account_code))
+    .filter((code) => mappingDrafts[code] && mappingOriginals[code] && mappingChanged(mappingDrafts[code], mappingOriginals[code])), [mappingRows, mappingDrafts, mappingOriginals]);
+  const invalidMappingCodes = editedMappingCodes.filter((code) => !validMappingRate(mappingDrafts[code].deprec_rate_pct));
+  const canSaveMapping = editedMappingCodes.length > 0 && invalidMappingCodes.length === 0 && !mappingLoading && !mappingSaving;
+
+  function updateMappingRate(code: string, value: string) {
+    setMappingDrafts((current) => ({ ...current, [code]: { deprec_rate_pct: value } }));
+    setMappingMessage("");
+  }
+
+  async function saveMapping() {
+    if (!canSaveMapping) return;
+    setMappingSaving(true);
+    setMappingMessage("");
+    setMappingError(false);
+    let saved = 0;
+    try {
+      for (const code of editedMappingCodes) {
+        const row = mappingRows.find((item) => text(item.origin_account_code) === code);
+        if (!row) continue;
+        await apiPost("/api/actfij/mapping/insert", {
+          origin_account_code: code,
+          account_group: row.account_group,
+          account_denom: row.account_denom,
+          deprec_acc_code_fir: row.deprec_acc_code_fir,
+          deprec_acc_code_sec: row.deprec_acc_code_sec,
+          deprec_rate_pct: Number(mappingDrafts[code].deprec_rate_pct),
+          asset_type: row.asset_type,
+        });
+        saved += 1;
+      }
+      setMappingOriginals((current) => {
+        const next = { ...current };
+        editedMappingCodes.forEach((code) => { next[code] = { ...mappingDrafts[code] }; });
+        return next;
+      });
+      setMappingMessage(`${saved} tasa${saved === 1 ? "" : "s"} de depreciación actualizada${saved === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setMappingError(true);
+      setMappingMessage(`Se actualizaron ${saved} de ${editedMappingCodes.length} filas. ${error instanceof Error ? error.message : "Error al guardar"}`);
+    } finally {
+      setMappingSaving(false);
+    }
   }
 
   async function save() {
@@ -250,6 +363,7 @@ export default function FixAssetsCat() {
             Buscar en toda la tabla
             <input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="COD, descripción, área..." style={{ width: 270, height: 34, padding: "6px 10px" }} />
           </label>
+          <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving}>Actualizar mapping</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${editedCodes.length})`}</Button>
         </div>
@@ -305,6 +419,49 @@ export default function FixAssetsCat() {
         </div>
       </div>
       <div className="muted" style={{ fontSize: 12 }}>Mostrando {visibleRows.length} de {rows.length} activos · {editedCodes.length} modificados.</div>
+
+      {mappingOpen ? <div role="dialog" aria-modal="true" aria-labelledby="mapping-preview-title" style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(0,0,0,.58)" }}>
+        <section className="panel-inner" style={{ width: "min(1180px, 96vw)", height: "min(82vh, 760px)", padding: 14, display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto", gap: 10, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <h2 id="mapping-preview-title" style={{ margin: 0, fontSize: 19 }}>Mapping de depreciación</h2>
+              <div className="muted" style={{ marginTop: 3, fontSize: 12 }}>Preview de `/api/actfij/mapping`. Solo la tasa de depreciación es editable.</div>
+            </div>
+            <Button size="sm" onClick={() => setMappingOpen(false)} disabled={mappingSaving}>Cerrar</Button>
+          </div>
+
+          {mappingMessage ? <div style={{ padding: 9, borderRadius: 9, border: mappingError ? "1px solid rgba(216,93,39,.75)" : "1px solid rgba(94,128,25,.85)", background: mappingError ? "rgba(216,93,39,.16)" : "rgba(94,128,25,.18)", fontWeight: 800, fontSize: 13 }}>{mappingMessage}</div> : invalidMappingCodes.length ? <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 13 }}>Corrige la tasa de depreciación en {invalidMappingCodes.length} fila(s) antes de guardar.</div> : <div className="muted" style={{ fontSize: 12 }}>Las demás columnas son de referencia y no se pueden editar.</div>}
+
+          <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(216,238,255,.14)" }}>
+            <div style={{ minWidth: "max-content" }}>
+              <Table disableScrollWrapper stickyHeader>
+                <colgroup>{MAPPING_COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
+                <thead><tr>{MAPPING_COLUMNS.map((column) => <th key={column.key} className="capex-th" style={{ top: 0, zIndex: 20, padding: 8, fontSize: 12 }}>{column.label}</th>)}</tr></thead>
+                <tbody>
+                  {mappingRows.map((row) => {
+                    const code = text(row.origin_account_code);
+                    const draft = mappingDrafts[code] || toMappingDraft(row);
+                    const edited = mappingOriginals[code] ? mappingChanged(draft, mappingOriginals[code]) : false;
+                    const bad = edited && !validMappingRate(draft.deprec_rate_pct);
+                    return <tr key={code} className="capex-tr">
+                      {MAPPING_COLUMNS.map((column) => <td key={column.key} className="capex-td" style={{ padding: 5, background: bad ? "rgba(216,93,39,.25)" : edited ? "rgba(94,128,25,.25)" : undefined }}>
+                        {column.key === "deprec_rate_pct" ? <FastCellInput className="input" inputMode="decimal" value={draft.deprec_rate_pct} sanitize={numericDraft} onCommit={(next) => updateMappingRate(code, next)} disabled={mappingLoading || mappingSaving} aria-label={`Tasa de depreciación ${code}`} style={{ minWidth: column.width - 10, padding: "5px 7px", borderColor: bad ? "#ebb086" : undefined }} /> : <span title={text(row[column.key])}>{text(row[column.key]) || "—"}</span>}
+                      </td>)}
+                    </tr>;
+                  })}
+                  {mappingLoading ? <tr><td className="capex-td" colSpan={MAPPING_COLUMNS.length}>Cargando mapping...</td></tr> : null}
+                  {!mappingLoading && !mappingRows.length ? <tr><td className="capex-td" colSpan={MAPPING_COLUMNS.length}>No hay filas de mapping para mostrar.</td></tr> : null}
+                </tbody>
+              </Table>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <span className="muted" style={{ fontSize: 12 }}>{mappingRows.length} cuentas · {editedMappingCodes.length} tasas modificadas.</span>
+            <Button size="sm" variant="primary" onClick={() => void saveMapping()} disabled={!canSaveMapping}>{mappingSaving ? "Guardando..." : `Guardar tasas (${editedMappingCodes.length})`}</Button>
+          </div>
+        </section>
+      </div> : null}
     </div>
   );
 }
