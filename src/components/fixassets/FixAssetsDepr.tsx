@@ -482,11 +482,12 @@ export default function FixAssetsDepr() {
                 const id = rowKey(row);
                 const draft = drafts[id] || toDraft(row);
                 const selected = selectedKeys.has(id);
+                const focused = historyRowId === id;
                 const bad = selected && invalid(draft);
                 const calculated = derived(row, draft);
-                const background = bad ? "rgba(216,93,39,.32)" : selected ? "rgba(94,128,25,.32)" : undefined;
+                const background = bad ? "rgba(216,93,39,.32)" : focused ? "rgba(27,147,227,.34)" : selected ? "rgba(94,128,25,.32)" : undefined;
                 return <tr key={id} className="capex-tr" onClick={() => openHistory(row)} style={{ cursor: "pointer" }}>
-                  <td className="capex-td" style={{ padding: 5, textAlign: "center", background: bad ? "#713f38" : selected ? "#3d6948" : "#0b4d6b", position: "sticky", left: 0, zIndex: 22 }}>
+                  <td className="capex-td" style={{ padding: 5, textAlign: "center", background: bad ? "#713f38" : focused ? "#155a78" : selected ? "#3d6948" : "#0b4d6b", position: "sticky", left: 0, zIndex: 22 }}>
                     <input
                       type="checkbox"
                       checked={selected}
@@ -505,7 +506,7 @@ export default function FixAssetsDepr() {
                       : row[column.key];
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
-                    const stickyBackground = bad ? "#713f38" : selected ? "#3d6948" : "#0b4d6b";
+                    const stickyBackground = bad ? "#713f38" : focused ? "#155a78" : selected ? "#3d6948" : "#0b4d6b";
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? stickyBackground : background, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 21 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? <FastCellInput
                         className="input"
