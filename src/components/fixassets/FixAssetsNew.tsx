@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
@@ -288,7 +288,6 @@ export default function FixAssetsNew() {
   const [activeCodeIndex, setActiveCodeIndex] = useState<number | null>(null);
   const [codeClass, setCodeClass] = useState("");
   const [detailIndex, setDetailIndex] = useState<number | null>(null);
-  const detailPreviewRef = useRef<HTMLElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -482,11 +481,6 @@ export default function FixAssetsNew() {
     openDetails(index);
   }, [detailIndex, openDetails]);
 
-  useEffect(() => {
-    if (detailIndex == null) return;
-    detailPreviewRef.current?.focus({ preventScroll: true });
-  }, [detailIndex]);
-
   async function save() {
     if (!canSave) return;
     setSaving(true);
@@ -610,7 +604,7 @@ export default function FixAssetsNew() {
       `}</style>
       </div>
 
-      {detailRow && detailDraft && detailIndex != null ? <section ref={detailPreviewRef} tabIndex={-1} className="panel-inner fixassets-new-preview" style={{ position: "absolute", zIndex: 30, left: 0, right: 0, bottom: 0, maxHeight: "min(62vh, 370px)", padding: 10, overflow: "auto", background: "var(--panel2)", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 -12px 30px rgba(0,0,0,.38)", outline: "none" }}>
+      {detailRow && detailDraft && detailIndex != null ? <section className="panel-inner fixassets-new-preview" style={{ position: "absolute", zIndex: 30, left: 0, right: 0, bottom: 0, maxHeight: "min(62vh, 370px)", padding: 10, overflow: "auto", background: "var(--panel2)", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 -12px 30px rgba(0,0,0,.38)", outline: "none" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
           <div><strong>Ficha complementaria</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{detailDraft.asset_code || "Sin COD"} · {detailDraft.line_description || text(detailRow.line_description) || "Sin descripción"}</span></div>
           <Button size="sm" onClick={() => setDetailIndex(null)}>Cerrar ficha</Button>

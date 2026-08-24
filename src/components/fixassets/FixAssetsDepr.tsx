@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
@@ -157,7 +157,6 @@ export default function FixAssetsDepr() {
   const [assetType, setAssetType] = useState<DepreciableAssetType>("LR");
   const [historyAssetCode, setHistoryAssetCode] = useState<string | null>(null);
   const [historyRowId, setHistoryRowId] = useState<string | null>(null);
-  const historyPreviewRef = useRef<HTMLElement | null>(null);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [showAdjustments, setShowAdjustments] = useState(false);
@@ -317,11 +316,6 @@ export default function FixAssetsDepr() {
     setHistoryAssetCode(text(row.asset_code).trim() || null);
     setHistoryRowId(rowKey(row));
   }
-
-  useEffect(() => {
-    if (!historyAssetCode) return;
-    historyPreviewRef.current?.focus({ preventScroll: true });
-  }, [historyAssetCode, historyRowId]);
 
   function update(row: DeprRow, key: EditableKey, raw: string) {
     const id = rowKey(row);
@@ -534,7 +528,7 @@ export default function FixAssetsDepr() {
           </Table>
         </div>
       </div>
-      {historyAssetCode ? <section ref={historyPreviewRef} tabIndex={-1} className="panel-inner fixassets-depr-table fixassets-depr-history" style={{ position: "absolute", zIndex: 30, left: 0, right: 0, bottom: 30, maxHeight: 280, padding: 10, display: "grid", gap: 8, overflow: "hidden", background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 -12px 30px rgba(0,0,0,.38)", outline: "none" }}>
+      {historyAssetCode ? <section className="panel-inner fixassets-depr-table fixassets-depr-history" style={{ position: "absolute", zIndex: 30, left: 0, right: 0, bottom: 30, maxHeight: 280, padding: 10, display: "grid", gap: 8, overflow: "hidden", background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 -12px 30px rgba(0,0,0,.38)", outline: "none" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div><strong>Histórico de depreciación · {historyAssetCode}</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>Periodos anteriores a {month && year ? `${MONTHS[Number(month) - 1]} ${year}` : "la selección"}</span></div>
           <Button size="sm" onClick={() => { setHistoryAssetCode(null); setHistoryRowId(null); }}>Cerrar histórico</Button>
