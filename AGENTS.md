@@ -92,6 +92,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - `/traceability/status`: Mineral No Disponible (`TraceabilityStatusForm`).
 - `/traceability/conta`: Lotes Pagados (`TraceabilityContaForm`).
 - Endpoints principales: `/api/traceability`, `/api/traceability/web/insert`, `/api/traceability/status`, `/api/traceability/status/web/insert`, `/api/traceability/conta`, `/api/traceability/conta/target` y `/target/insert`. Aunque el GET pueda entregar campos adicionales, Lotes Pagados muestra y exporta únicamente las columnas definidas en su componente.
+- `TraceabilityContaForm` alterna entre `Por lote` (`GET /api/traceability/conta`) y `Pagos` (`GET /api/traceability/conta/payments`). Cada modo conserva su propio conjunto de columnas y datos; filtros, ordenamiento, paginación y el Excel se calculan exclusivamente desde la vista activa. El Excel de Pagos se llama `pagos_<desde>_<hasta>.xlsx` y contiene `pay_usd` como `Pago USD`.
 - Los formularios manejan tablas grandes, borradores, selección/edición y guardado por filas; conservar las claves de negocio usadas por cada vista.
 
 ## Módulo Compliance

@@ -40,9 +40,38 @@ type TraceabilityContaRow = {
   transport_guide_number: string | null;
 };
 
-type GetResp = {
+type TraceabilityPaymentRow = {
+  source_year: NumericValue;
+  provision_subledger: string | null;
+  provision_voucher_number: string | null;
+  provision_date: string | null;
+  office_name: string | null;
+  sede: string | null;
+  document_type: string | null;
+  document_number: string | null;
+  document_date: string | null;
+  ruc: string | null;
+  supplier: string | null;
+  provision_currency: string | null;
+  provision_amount: NumericValue;
+  account_code: string | null;
+  description: string | null;
+  payment_subledger: string | null;
+  payment_voucher_number: string | null;
+  payment_date: string | null;
+  payment_currency: string | null;
+  payment_document_type: string | null;
+  payment_document_number: string | null;
+  payment_ruc: string | null;
+  pay_usd: NumericValue;
+};
+
+type DataRow = TraceabilityContaRow | TraceabilityPaymentRow;
+type ContaView = "lot" | "payments";
+
+type GetResp<T> = {
   ok: boolean;
-  rows?: TraceabilityContaRow[];
+  rows?: T[];
   error?: string;
 };
 
@@ -66,7 +95,7 @@ type EditableTargetRow = {
 };
 
 type Column = {
-  key: keyof TraceabilityContaRow;
+  key: string;
   label: string;
   kind: "text" | "date" | "number";
   width: number;
@@ -105,9 +134,31 @@ const COLUMNS: Column[] = [
   { key: "transport_guide_number", label: "Guía Transportista", kind: "text", width: 155 },
 ];
 
-const SEARCHABLE_KEYS = COLUMNS.filter(
-  (column) => column.kind !== "number" && column.key !== "payment_date"
-).map((column) => column.key);
+const PAYMENT_COLUMNS: Column[] = [
+  { key: "source_year", label: "Año fuente", kind: "number", width: 95 },
+  { key: "provision_subledger", label: "Subdiario provisión", kind: "text", width: 145 },
+  { key: "provision_voucher_number", label: "Voucher provisión", kind: "text", width: 145 },
+  { key: "provision_date", label: "F. provisión", kind: "date", width: 110 },
+  { key: "office_name", label: "Oficina", kind: "text", width: 110 },
+  { key: "sede", label: "Sede", kind: "text", width: 110 },
+  { key: "document_type", label: "Tipo documento", kind: "text", width: 125 },
+  { key: "document_number", label: "N.º documento", kind: "text", width: 135 },
+  { key: "document_date", label: "F. documento", kind: "date", width: 110 },
+  { key: "ruc", label: "RUC proveedor", kind: "text", width: 120 },
+  { key: "supplier", label: "Proveedor", kind: "text", width: 220 },
+  { key: "provision_currency", label: "Moneda provisión", kind: "text", width: 130 },
+  { key: "provision_amount", label: "Monto provisión", kind: "number", width: 125 },
+  { key: "account_code", label: "Cuenta", kind: "text", width: 115 },
+  { key: "description", label: "Descripción", kind: "text", width: 260 },
+  { key: "payment_subledger", label: "Subdiario pago", kind: "text", width: 125 },
+  { key: "payment_voucher_number", label: "Voucher pago", kind: "text", width: 125 },
+  { key: "payment_date", label: "F. pago", kind: "date", width: 110 },
+  { key: "payment_currency", label: "Moneda pago", kind: "text", width: 115 },
+  { key: "payment_document_type", label: "Tipo doc. pago", kind: "text", width: 125 },
+  { key: "payment_document_number", label: "N.º doc. pago", kind: "text", width: 135 },
+  { key: "payment_ruc", label: "RUC pago", kind: "text", width: 120 },
+  { key: "pay_usd", label: "Pago USD", kind: "number", width: 110 },
+];
 
 const PAGE_SIZE = 100;
 const FIRST_TARGET_YEAR = 2026;
@@ -189,8 +240,12 @@ function formatNumber(value: unknown) {
   return new Intl.NumberFormat("es-PE", { maximumFractionDigits: 6 }).format(parsed);
 }
 
-function formatCell(row: TraceabilityContaRow, column: Column) {
-  const value = row[column.key];
+function cellValue(row: DataRow, key: string) {
+  return (row as Record<string, unknown>)[key];
+}
+
+function formatCell(row: DataRow, column: Column) {
+  const value = cellValue(row, column.key);
   if (column.kind === "date") return formatDate(value);
   if (column.kind === "number") return formatNumber(value);
   return value === null || value === undefined || String(value).trim() === "" ? "—" : String(value);
@@ -203,7 +258,7 @@ function excelValue(value: unknown, kind: Column["kind"]) {
   return Number.isFinite(parsed) ? parsed : String(value);
 }
 
-function isInPaymentDateRange(row: TraceabilityContaRow, from: string, to: string) {
+function isInPaymentDateRange(row: DataRow, from: string, to: string) {
   const paymentDate = normalizeDate(row.payment_date);
   if (!from && !to) return true;
   if (!paymentDate) return false;
@@ -212,23 +267,23 @@ function isInPaymentDateRange(row: TraceabilityContaRow, from: string, to: strin
   return true;
 }
 
-function matchesGlobalSearch(row: TraceabilityContaRow, search: string) {
+function matchesGlobalSearch(row: DataRow, columns: Column[], search: string) {
   const term = search.trim().toLocaleLowerCase("es");
   if (!term) return true;
 
-  return SEARCHABLE_KEYS.some((key) =>
-    String(row[key] ?? "").toLocaleLowerCase("es").includes(term)
+  return columns.some((column) => column.kind !== "number" && column.key !== "payment_date" &&
+    String(cellValue(row, column.key) ?? "").toLocaleLowerCase("es").includes(term)
   );
 }
 
 function compareRowsByColumn(
-  a: TraceabilityContaRow,
-  b: TraceabilityContaRow,
+  a: DataRow,
+  b: DataRow,
   column: Column,
   direction: SortDir
 ) {
-  const aValue = a[column.key];
-  const bValue = b[column.key];
+  const aValue = cellValue(a, column.key);
+  const bValue = cellValue(b, column.key);
   const aBlank = aValue === null || aValue === undefined || String(aValue).trim() === "";
   const bBlank = bValue === null || bValue === undefined || String(bValue).trim() === "";
 
@@ -263,12 +318,14 @@ function compareRowsByColumn(
 export default function TraceabilityContaForm() {
   const initialTargetPeriod = currentTargetPeriod();
   const [rows, setRows] = useState<TraceabilityContaRow[]>([]);
+  const [paymentRows, setPaymentRows] = useState<TraceabilityPaymentRow[]>([]);
+  const [view, setView] = useState<ContaView>("lot");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
-  const [sortKey, setSortKey] = useState<keyof TraceabilityContaRow>("payment_date");
+  const [sortKey, setSortKey] = useState("payment_date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [targetPreviewOpen, setTargetPreviewOpen] = useState(false);
@@ -282,15 +339,21 @@ export default function TraceabilityContaForm() {
   const [targetYear, setTargetYear] = useState(initialTargetPeriod.year);
   const [targetMonth, setTargetMonth] = useState(initialTargetPeriod.month);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (nextView: ContaView) => {
     setLoading(true);
     setMessage(null);
 
     try {
-      const response = (await apiGet("/api/traceability/conta")) as GetResp;
-      setRows(Array.isArray(response.rows) ? response.rows : []);
+      if (nextView === "lot") {
+        const response = (await apiGet("/api/traceability/conta")) as GetResp<TraceabilityContaRow>;
+        setRows(Array.isArray(response.rows) ? response.rows : []);
+      } else {
+        const response = (await apiGet("/api/traceability/conta/payments")) as GetResp<TraceabilityPaymentRow>;
+        setPaymentRows(Array.isArray(response.rows) ? response.rows : []);
+      }
     } catch (error: unknown) {
-      setRows([]);
+      if (nextView === "lot") setRows([]);
+      else setPaymentRows([]);
       setMessage(`ERROR: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
@@ -298,12 +361,12 @@ export default function TraceabilityContaForm() {
   }, []);
 
   useEffect(() => {
-    void loadData();
+    void loadData("lot");
   }, [loadData]);
 
   useEffect(() => {
     setPage(1);
-  }, [dateFrom, dateTo, globalSearch, sortKey, sortDir]);
+  }, [view, dateFrom, dateTo, globalSearch, sortKey, sortDir]);
 
   const selectableTargetPeriods = useMemo(() => {
     const current = currentTargetPeriod();
@@ -496,26 +559,30 @@ export default function TraceabilityContaForm() {
     }
   }
 
+  const activeRows = view === "lot" ? rows : paymentRows;
+  const activeColumns = view === "lot" ? COLUMNS : PAYMENT_COLUMNS;
+  const activeLabel = view === "lot" ? "Por lote" : "Pagos";
+
   const paymentDateBounds = useMemo(() => {
-    const dates = rows.map((row) => normalizeDate(row.payment_date)).filter(Boolean).sort();
+    const dates = activeRows.map((row) => normalizeDate(row.payment_date)).filter(Boolean).sort();
     return {
       min: dates[0] ?? "",
       max: dates[dates.length - 1] ?? "",
     };
-  }, [rows]);
+  }, [activeRows]);
 
   useEffect(() => {
-    if (!rows.length) return;
+    if (!activeRows.length) return;
     setDateFrom((current) => current || paymentDateBounds.min);
     setDateTo((current) => current || paymentDateBounds.max);
-  }, [rows, paymentDateBounds.min, paymentDateBounds.max]);
+  }, [view, activeRows, paymentDateBounds.min, paymentDateBounds.max]);
 
   const filteredRows = useMemo(() => {
-    const column = COLUMNS.find((item) => item.key === sortKey) ?? COLUMNS[0];
-    const matchingRows = rows.filter(
+    const column = activeColumns.find((item) => item.key === sortKey) ?? activeColumns[0];
+    const matchingRows = activeRows.filter(
         (row) =>
           isInPaymentDateRange(row, dateFrom, dateTo) &&
-          matchesGlobalSearch(row, globalSearch)
+          matchesGlobalSearch(row, activeColumns, globalSearch)
       );
 
     return matchingRows
@@ -525,14 +592,14 @@ export default function TraceabilityContaForm() {
         return result || a.originalIndex - b.originalIndex;
       })
       .map(({ row }) => row);
-  }, [rows, dateFrom, dateTo, globalSearch, sortKey, sortDir]);
+  }, [activeRows, activeColumns, dateFrom, dateTo, globalSearch, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const visibleRows = filteredRows.slice(pageStart, pageStart + PAGE_SIZE);
 
-  function onSortClick(key: keyof TraceabilityContaRow) {
+  function onSortClick(key: string) {
     if (sortKey === key) {
       setSortDir((current) => (current === "asc" ? "desc" : "asc"));
       return;
@@ -542,7 +609,7 @@ export default function TraceabilityContaForm() {
     setSortDir("asc");
   }
 
-  function getSortIndicator(key: keyof TraceabilityContaRow) {
+  function getSortIndicator(key: string) {
     if (sortKey !== key) return "";
     return sortDir === "asc" ? " ▲" : " ▼";
   }
@@ -554,22 +621,34 @@ export default function TraceabilityContaForm() {
     }
 
     const data = [
-      COLUMNS.map((column) => column.label),
+      activeColumns.map((column) => column.label),
       ...filteredRows.map((row) =>
-        COLUMNS.map((column) => excelValue(row[column.key], column.kind))
+        activeColumns.map((column) => excelValue(cellValue(row, column.key), column.kind))
       ),
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(data);
-    worksheet["!cols"] = COLUMNS.map((column) => ({
+    worksheet["!cols"] = activeColumns.map((column) => ({
       wch: Math.max(12, Math.min(32, Math.round(column.width / 8))),
     }));
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Lotes Pagados");
+    XLSX.utils.book_append_sheet(workbook, worksheet, activeLabel);
     XLSX.writeFile(
       workbook,
-      `lotes_pagados_${dateFrom || "inicio"}_${dateTo || "fin"}.xlsx`
+      `${view === "lot" ? "lotes_pagados" : "pagos"}_${dateFrom || "inicio"}_${dateTo || "fin"}.xlsx`
     );
+  }
+
+  function changeView(nextView: ContaView) {
+    if (nextView === view) return;
+    setView(nextView);
+    setDateFrom("");
+    setDateTo("");
+    setGlobalSearch("");
+    setSortKey("payment_date");
+    setSortDir("desc");
+    setMessage(null);
+    if (nextView === "payments" && !paymentRows.length) void loadData(nextView);
   }
 
   const inputStyle: React.CSSProperties = {
@@ -620,7 +699,12 @@ export default function TraceabilityContaForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>Trazabilidad · Lotes Pagados</div>
+        <div style={{ fontWeight: 900 }}>Trazabilidad · Lotes Pagados · {activeLabel}</div>
+
+        <div style={{ display: "flex", gap: 6 }}>
+          <Button type="button" size="sm" variant={view === "lot" ? "primary" : "default"} onClick={() => changeView("lot")} disabled={loading}>Por lote</Button>
+          <Button type="button" size="sm" variant={view === "payments" ? "primary" : "default"} onClick={() => changeView("payments")} disabled={loading}>Pagos</Button>
+        </div>
 
         <div
           style={{
@@ -661,12 +745,12 @@ export default function TraceabilityContaForm() {
               type="search"
               value={globalSearch}
               onChange={(event) => setGlobalSearch(event.target.value)}
-              placeholder="Lote, documento, sede, RUC, concesión..."
+              placeholder={view === "lot" ? "Lote, documento, sede, RUC, concesión..." : "Proveedor, documento, voucher, cuenta..."}
               style={{ ...inputStyle, minWidth: 290 }}
             />
           </label>
 
-          <Button type="button" size="sm" onClick={loadData} disabled={loading}>
+          <Button type="button" size="sm" onClick={() => void loadData(view)} disabled={loading}>
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
 
@@ -679,14 +763,14 @@ export default function TraceabilityContaForm() {
             Exportar Excel
           </Button>
 
-          <Button
+          {view === "lot" ? <Button
             type="button"
             size="sm"
             variant="primary"
             onClick={openTargetPreview}
           >
             Actualizar Target
-          </Button>
+          </Button> : null}
         </div>
       </div>
 
@@ -721,7 +805,7 @@ export default function TraceabilityContaForm() {
         <div style={{ minWidth: "max-content" }}>
           <Table stickyHeader disableScrollWrapper>
             <colgroup>
-              {COLUMNS.map((column) => (
+              {activeColumns.map((column) => (
                 <col
                   key={column.key}
                   style={{
@@ -735,7 +819,7 @@ export default function TraceabilityContaForm() {
 
             <thead>
               <tr>
-                {COLUMNS.map((column) => (
+                {activeColumns.map((column) => (
                   <th
                     key={column.key}
                     className="capex-th"
@@ -784,9 +868,9 @@ export default function TraceabilityContaForm() {
               {visibleRows.map((row, rowIndex) => (
                 <tr
                   className="capex-tr"
-                  key={`${row.lot ?? "lote"}-${row.doc_number ?? "documento"}-${row.invoice_voucher_number ?? "voucher"}-${pageStart + rowIndex}`}
+                  key={`${view}-${pageStart + rowIndex}`}
                 >
-                  {COLUMNS.map((column) => {
+                  {activeColumns.map((column) => {
                     const displayValue = formatCell(row, column);
                     return (
                       <td
@@ -814,16 +898,16 @@ export default function TraceabilityContaForm() {
 
               {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" colSpan={COLUMNS.length} style={{ ...cellStyle, fontWeight: 900 }}>
-                    No hay lotes pagados para los filtros seleccionados.
+                  <td className="capex-td" colSpan={activeColumns.length} style={{ ...cellStyle, fontWeight: 900 }}>
+                    No hay {view === "lot" ? "lotes pagados" : "pagos"} para los filtros seleccionados.
                   </td>
                 </tr>
               ) : null}
 
               {loading ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" colSpan={COLUMNS.length} style={{ ...cellStyle, fontWeight: 900 }}>
-                    Cargando lotes pagados…
+                  <td className="capex-td" colSpan={activeColumns.length} style={{ ...cellStyle, fontWeight: 900 }}>
+                    Cargando {view === "lot" ? "lotes pagados" : "pagos"}…
                   </td>
                 </tr>
               ) : null}
