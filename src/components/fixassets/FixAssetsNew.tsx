@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
@@ -200,6 +200,7 @@ type NewRowsTableProps = {
   onCommit: (index: number, field: keyof Draft, value: string) => void;
   onCodeActivity: (index: number, value: string) => void;
   onFocusDetails: (index: number) => void;
+  focusedDetailIndex: number | null;
 };
 
 const NewRowsTable = memo(function NewRowsTable({
@@ -212,6 +213,7 @@ const NewRowsTable = memo(function NewRowsTable({
   onCommit,
   onCodeActivity,
   onFocusDetails,
+  focusedDetailIndex,
 }: NewRowsTableProps) {
   return (
     <section className="fixassets-new-table" style={{ display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", gap: 6, minWidth: 0, minHeight: 0 }}>
@@ -231,7 +233,8 @@ const NewRowsTable = memo(function NewRowsTable({
               {items.map(({ row, index }) => {
                 const draft = drafts[index] || draftFrom(row);
                 const state = states[index] || "idle";
-                const background = state === "valid" ? "rgba(94,128,25,.32)" : state === "invalid" ? "rgba(216,93,39,.32)" : undefined;
+                const focused = focusedDetailIndex === index;
+                const background = state === "invalid" ? "rgba(216,93,39,.32)" : focused ? "rgba(27,147,227,.34)" : state === "valid" ? "rgba(94,128,25,.32)" : undefined;
                 return <tr key={index} className="capex-tr" onClick={() => onFocusDetails(index)} style={{ cursor: "pointer" }}>
                   {COLUMNS.map((column) => {
                     const editable = column.key === "asset_code" || column.key === "line_description" || column.key === "capex_code" || column.key === "pen_amount" || column.key === "exc_rate";
@@ -239,7 +242,7 @@ const NewRowsTable = memo(function NewRowsTable({
                     const value = column.key === "asset_code" ? draft.asset_code : editable ? draft[field] : row[column.key as keyof VetaRow];
                     const numeric = column.key === "pen_amount" || column.key === "exc_rate";
                     const sticky = column.key === "asset_code";
-                    return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? stickyRowBackground(state) : background, position: sticky ? "sticky" : undefined, left: sticky ? 0 : undefined, zIndex: sticky ? 20 : undefined, boxShadow: sticky ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
+                    return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? state === "invalid" ? "#79453b" : focused ? "#155a78" : stickyRowBackground(state) : background, position: sticky ? "sticky" : undefined, left: sticky ? 0 : undefined, zIndex: sticky ? 20 : undefined, boxShadow: sticky ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? <FastCellInput
                         className="input"
                         value={text(value)}
@@ -280,6 +283,7 @@ export default function FixAssetsNew() {
   const [activeCodeIndex, setActiveCodeIndex] = useState<number | null>(null);
   const [codeClass, setCodeClass] = useState("");
   const [detailIndex, setDetailIndex] = useState<number | null>(null);
+  const detailPreviewRef = useRef<HTMLElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -461,10 +465,19 @@ export default function FixAssetsNew() {
   const detailRow = detailIndex == null ? null : rows[detailIndex];
   const detailDraft = detailIndex == null ? null : drafts[detailIndex];
   const focusDetails = useCallback((index: number) => {
+    if (detailIndex === index) {
+      setDetailIndex(null);
+      return;
+    }
     setDetailIndex(index);
     setActiveCodeIndex(index);
     setActiveCodePrefix((drafts[index]?.asset_code || "").replace(/\D/g, "").slice(0, 7));
-  }, [drafts]);
+  }, [drafts, detailIndex]);
+
+  useEffect(() => {
+    if (detailIndex == null) return;
+    detailPreviewRef.current?.focus({ preventScroll: true });
+  }, [detailIndex]);
 
   async function save() {
     if (!canSave) return;
@@ -521,8 +534,8 @@ export default function FixAssetsNew() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <div className="fixassets-new-root" style={{ display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto auto", gap: 10, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
+    <div className="fixassets-new-shell" style={{ position: "relative", display: "grid", gap: 10, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
+      <div className="fixassets-new-root" style={{ position: "relative", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto auto", gap: 10, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>Nuevos activos desde Veta</h1>
@@ -548,16 +561,24 @@ export default function FixAssetsNew() {
       </div>
 
       <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
-        <NewRowsTable title="Activos normales" subtitle="Haz clic en una fila para completar su ficha opcional." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} />
-        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX. Haz clic en una fila para completar su ficha opcional." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} />
+        <NewRowsTable title="Activos normales" subtitle="Haz clic en una fila para completar su ficha opcional." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} focusedDetailIndex={detailIndex} />
+        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX. Haz clic en una fila para completar su ficha opcional." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} focusedDetailIndex={detailIndex} />
       </div>
 
       <div className="muted" style={{ fontSize: 12 }}>Mostrando {filteredRows.length} de {rows.length} filas: {normalRows.length} normales y {capexRows.length} CAPEX.</div>
       <style jsx global>{`
         @media (max-width: 1100px) {
+          .fixassets-new-shell {
+            height: auto !important;
+            overflow: visible !important;
+          }
           .fixassets-new-root {
             height: auto !important;
             overflow: visible !important;
+          }
+          .fixassets-new-preview {
+            position: static !important;
+            max-height: none !important;
           }
           .fixassets-new-table {
             min-height: 320px !important;
@@ -566,7 +587,7 @@ export default function FixAssetsNew() {
       `}</style>
       </div>
 
-      {detailRow && detailDraft && detailIndex != null ? <section className="panel-inner" style={{ padding: 10 }}>
+      {detailRow && detailDraft && detailIndex != null ? <section ref={detailPreviewRef} tabIndex={-1} className="panel-inner fixassets-new-preview" style={{ position: "absolute", zIndex: 30, left: 0, right: 0, bottom: 0, maxHeight: "min(62vh, 370px)", padding: 10, overflow: "auto", background: "var(--panel2)", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 -12px 30px rgba(0,0,0,.38)", outline: "none" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
           <div><strong>Ficha complementaria</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{detailDraft.asset_code || "Sin COD"} · {detailDraft.line_description || text(detailRow.line_description) || "Sin descripción"}</span></div>
           <Button size="sm" onClick={() => setDetailIndex(null)}>Cerrar ficha</Button>
