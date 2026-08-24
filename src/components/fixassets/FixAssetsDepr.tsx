@@ -153,11 +153,23 @@ function period(value: unknown) {
   return match ? { year: match[1], month: match[2] } : null;
 }
 
+function currentAccountingPeriod() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+  return `${year}-${month}`;
+}
+
 function hasViewDepreciation(row: DeprRow) {
   return num(row.applied_rate_pct) !== 0 || num(row.depreciation_amount_pen) !== 0;
 }
 
 export default function FixAssetsDepr() {
+  const editablePeriod = useMemo(currentAccountingPeriod, []);
   const [rows, setRows] = useState<DeprRow[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
@@ -270,6 +282,11 @@ export default function FixAssetsDepr() {
     return totals;
   }, [visibleRows, drafts]);
 
+  const editableVisibleRows = useMemo(
+    () => visibleRows.filter((row) => text(row.period_date).slice(0, 7) === editablePeriod),
+    [visibleRows, editablePeriod]
+  );
+
   const historyRows = useMemo(() => {
     if (!historyAssetCode || !year || !month) return [];
     const selectedPeriod = `${year}-${month}`;
@@ -280,19 +297,23 @@ export default function FixAssetsDepr() {
   const editedKeys = useMemo(() => rows
     .map(rowKey)
     .filter((key) => drafts[key] && originals[key] && changed(drafts[key], originals[key])), [rows, drafts, originals]);
-  const selectedIds = useMemo(() => Array.from(selectedKeys), [selectedKeys]);
+  const editableRowIds = useMemo(
+    () => new Set(rows.filter((row) => text(row.period_date).slice(0, 7) === editablePeriod).map(rowKey)),
+    [rows, editablePeriod]
+  );
+  const selectedIds = useMemo(() => Array.from(selectedKeys).filter((id) => editableRowIds.has(id)), [selectedKeys, editableRowIds]);
   const invalidKeys = selectedIds.filter((key) => !drafts[key] || invalid(drafts[key]));
   const canSave = selectedIds.length > 0 && invalidKeys.length === 0 && !loading && !saving;
-  const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selectedKeys.has(rowKey(row)));
+  const allVisibleSelected = editableVisibleRows.length > 0 && editableVisibleRows.every((row) => selectedKeys.has(rowKey(row)));
   const displayColumns = useMemo(
     () => showAdjustments ? COLUMNS : COLUMNS.filter((column) => !ADJUSTMENT_COLUMNS.has(column.key)),
     [showAdjustments]
   );
-  const suggestedVisibleRows = useMemo(() => visibleRows.filter(hasViewDepreciation), [visibleRows]);
-  const editedVisibleRows = useMemo(() => visibleRows.filter((row) => {
+  const suggestedVisibleRows = useMemo(() => editableVisibleRows.filter(hasViewDepreciation), [editableVisibleRows]);
+  const editedVisibleRows = useMemo(() => editableVisibleRows.filter((row) => {
     const id = rowKey(row);
     return drafts[id] && originals[id] && changed(drafts[id], originals[id]);
-  }), [visibleRows, drafts, originals]);
+  }), [editableVisibleRows, drafts, originals]);
   const manualSelectedCount = useMemo(() => selectedIds.filter((id) => {
     const row = rows.find((candidate) => rowKey(candidate) === id);
     return Boolean(row && drafts[id] && originals[id] && changed(drafts[id], originals[id]));
@@ -327,7 +348,7 @@ export default function FixAssetsDepr() {
   function toggleAllVisible(checked: boolean) {
     setSelectedKeys((current) => {
       const next = new Set(current);
-      visibleRows.forEach((row) => {
+      editableVisibleRows.forEach((row) => {
         const id = rowKey(row);
         if (checked) next.add(id);
         else next.delete(id);
@@ -516,7 +537,7 @@ export default function FixAssetsDepr() {
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup><col style={{ width: 52, minWidth: 52 }} />{displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
-            <thead><tr><th className="capex-th" style={{ padding: "8px", fontSize: 12, textAlign: "center", left: 0, zIndex: 48 }}><input type="checkbox" checked={allVisibleSelected} disabled={!visibleRows.length || loading || saving} onChange={(event) => toggleAllVisible(event.target.checked)} aria-label="Seleccionar todas las filas visibles" title="Seleccionar todas las filas visibles" style={{ width: 18, height: 18, accentColor: "var(--brand-success)" }} /></th>{displayColumns.map((column) => {
+            <thead><tr><th className="capex-th" style={{ padding: "8px", fontSize: 12, textAlign: "center", left: 0, zIndex: 48 }}><input type="checkbox" checked={allVisibleSelected} disabled={!editableVisibleRows.length || loading || saving} onChange={(event) => toggleAllVisible(event.target.checked)} aria-label="Seleccionar todas las filas editables" title="Seleccionar todas las filas editables" style={{ width: 18, height: 18, accentColor: "var(--brand-success)" }} /></th>{displayColumns.map((column) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
               const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
               return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: sticky ? 47 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{column.label}</th>;
@@ -525,7 +546,8 @@ export default function FixAssetsDepr() {
               {visibleRows.map((row) => {
                 const id = rowKey(row);
                 const draft = drafts[id] || toDraft(row);
-                const selected = selectedKeys.has(id);
+                const currentPeriodRow = text(row.period_date).slice(0, 7) === editablePeriod;
+                const selected = currentPeriodRow && selectedKeys.has(id);
                 const focused = historyRowId === id;
                 const bad = selected && invalid(draft);
                 const calculated = derived(row, draft);
@@ -535,7 +557,7 @@ export default function FixAssetsDepr() {
                     <input
                       type="checkbox"
                       checked={selected}
-                      disabled={loading || saving}
+                      disabled={!currentPeriodRow || loading || saving}
                       onClick={(event) => event.stopPropagation()}
                       onChange={(event) => toggleSelected(id, event.target.checked)}
                       aria-label={`Enviar depreciación de ${text(row.asset_code)}`}
@@ -543,7 +565,7 @@ export default function FixAssetsDepr() {
                     />
                   </td>
                   {displayColumns.map((column) => {
-                    const editable = EDITABLE.includes(column.key as EditableKey);
+                    const editable = currentPeriodRow && EDITABLE.includes(column.key as EditableKey);
                     const key = column.key as EditableKey;
                     const derivedValue = column.key === "asset_final_value" || column.key === "depreciation_cum_amount_pen" || column.key === "asset_balance_pen"
                       ? calculated[column.key]
@@ -606,7 +628,7 @@ export default function FixAssetsDepr() {
           </Table>
         </div> : <div className="muted" style={{ fontSize: 13 }}>No hay periodos de depreciación anteriores para este COD.</div>}
       </section> : null}
-      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · Tipo {assetType} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados.</div>
+      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · Tipo {assetType} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados. {`${year}-${month}` === editablePeriod ? "Edición habilitada para este periodo." : `Modo consulta: solo se puede editar ${editablePeriod}.`}</div>
       <style jsx global>{`
         .fixassets-depr-table table {
           font-size: 11px !important;
