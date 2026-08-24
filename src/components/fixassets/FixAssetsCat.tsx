@@ -259,7 +259,10 @@ export default function FixAssetsCat() {
 
   const editedMappingCodes = useMemo(() => mappingRows
     .map((row) => text(row.origin_account_code))
-    .filter((code) => mappingDrafts[code] && mappingOriginals[code] && mappingChanged(mappingDrafts[code], mappingOriginals[code])), [mappingRows, mappingDrafts, mappingOriginals]);
+    .filter((code) => {
+      const row = mappingRows.find((item) => text(item.origin_account_code) === code);
+      return Boolean(row && text(row.asset_type).trim().toLocaleLowerCase("es") !== "no deprecia" && mappingDrafts[code] && mappingOriginals[code] && mappingChanged(mappingDrafts[code], mappingOriginals[code]));
+    }), [mappingRows, mappingDrafts, mappingOriginals]);
   const invalidMappingCodes = editedMappingCodes.filter((code) => !validMappingRate(mappingDrafts[code].deprec_rate_pct));
   const canSaveMapping = editedMappingCodes.length > 0 && invalidMappingCodes.length === 0 && !mappingLoading && !mappingSaving;
 
@@ -443,9 +446,10 @@ export default function FixAssetsCat() {
                     const draft = mappingDrafts[code] || toMappingDraft(row);
                     const edited = mappingOriginals[code] ? mappingChanged(draft, mappingOriginals[code]) : false;
                     const bad = edited && !validMappingRate(draft.deprec_rate_pct);
+                    const noDepreciates = text(row.asset_type).trim().toLocaleLowerCase("es") === "no deprecia";
                     return <tr key={code} className="capex-tr">
                       {MAPPING_COLUMNS.map((column) => <td key={column.key} className="capex-td" style={{ padding: 5, background: bad ? "rgba(216,93,39,.25)" : edited ? "rgba(94,128,25,.25)" : undefined }}>
-                        {column.key === "deprec_rate_pct" ? <FastCellInput className="input" inputMode="decimal" value={draft.deprec_rate_pct} sanitize={numericDraft} onCommit={(next) => updateMappingRate(code, next)} disabled={mappingLoading || mappingSaving} aria-label={`Tasa de depreciación ${code}`} style={{ minWidth: column.width - 10, padding: "5px 7px", borderColor: bad ? "#ebb086" : undefined }} /> : <span title={text(row[column.key])}>{text(row[column.key]) || "—"}</span>}
+                        {column.key === "deprec_rate_pct" ? <FastCellInput className="input" inputMode="decimal" value={draft.deprec_rate_pct} sanitize={numericDraft} onCommit={(next) => updateMappingRate(code, next)} disabled={mappingLoading || mappingSaving || noDepreciates} aria-label={`Tasa de depreciación ${code}`} title={noDepreciates ? "No deprecia: la tasa no se puede modificar" : undefined} style={{ minWidth: column.width - 10, padding: "5px 7px", borderColor: bad ? "#ebb086" : undefined, opacity: noDepreciates ? 0.5 : 1, cursor: noDepreciates ? "not-allowed" : undefined }} /> : <span title={text(row[column.key])}>{text(row[column.key]) || "—"}</span>}
                       </td>)}
                     </tr>;
                   })}

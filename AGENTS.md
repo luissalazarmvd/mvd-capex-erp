@@ -149,7 +149,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - `POST /api/actfij/catalogue/insert`: `MERGE` por `asset_code`; requiere ese campo. En update usa `COALESCE`, por lo que `null` no borra un valor almacenado.
 - `GET /api/actfij/deprec`: filas por activo/periodo.
 - `POST /api/actfij/deprec/insert`: `MERGE` por `asset_code` + fin de mes de `period_date`; requiere ambos.
-- `GET /api/actfij/mapping`: `origin_account_code`, grupo/denominación de cuenta, cuentas de depreciación, `deprec_rate_pct` y `asset_type`. `POST /api/actfij/mapping/insert` hace `MERGE` por `origin_account_code`; para mantenimiento web del mapping solo se edita `deprec_rate_pct`, enviando los demás campos originales.
+- `GET /api/actfij/mapping`: `origin_account_code`, grupo/denominación de cuenta, cuentas de depreciación, `deprec_rate_pct` y `asset_type`. `POST /api/actfij/mapping/insert` hace `MERGE` por `origin_account_code`; para mantenimiento web del mapping solo se edita `deprec_rate_pct`, enviando los demás campos originales. Las cuentas con `asset_type` `No deprecia` muestran la tasa bloqueada y nunca se incluyen en el guardado.
 
 ### Alta desde Veta
 
@@ -178,6 +178,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 
 - `FixAssetsDepr.tsx` filtra año/mes y ordena por `asset_code` ascendente.
 - El GET de depreciación incluye `asset_type`, pero la columna no se muestra. La tabla excluye `No deprecia` y trabaja en modos mutuamente excluyentes `LR` o `DUP`; `LR` está seleccionado por defecto y cambiar de tipo limpia la selección, para que cálculo y guardado nunca mezclen ambos tipos.
+- Al hacer clic en una fila de depreciación fuera de su checkbox, se abre debajo un preview del histórico de ese COD: todos los periodos anteriores al año/mes seleccionado, con tasa, valores y saldos calculados.
 - Cada fila tiene checkbox de envío y por defecto ninguna está seleccionada. Editar cualquier celda marca automáticamente el check de esa fila; también se puede seleccionar manualmente una fila sin editar. El guardado envía todos los campos aceptados por el POST para cada fila seleccionada.
 - Los botones `Usar datos de vista` y `Seleccionar manuales` ayudan a armar el lote visible: el primero selecciona filas cuyo origen trae tasa o monto de depreciación distinto de cero; el segundo selecciona los borradores modificados por el usuario. Ninguno cambia por sí mismo los valores calculados.
 - El checkbox del encabezado selecciona o desmarca todas las filas visibles según periodo y búsqueda.

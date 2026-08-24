@@ -155,6 +155,7 @@ export default function FixAssetsDepr() {
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
   const [assetType, setAssetType] = useState<DepreciableAssetType>("LR");
+  const [historyAssetCode, setHistoryAssetCode] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [showAdjustments, setShowAdjustments] = useState(false);
@@ -181,6 +182,7 @@ export default function FixAssetsDepr() {
       setDrafts(nextDrafts);
       setOriginals(nextDrafts);
       setSelectedKeys(new Set());
+      setHistoryAssetCode(null);
       const latest = nextRows.map((row) => text(row.period_date).slice(0, 7)).filter(Boolean).sort().at(-1) || "";
       if (latest) {
         setYear(latest.slice(0, 4));
@@ -221,6 +223,13 @@ export default function FixAssetsDepr() {
     }).sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }));
   }, [rows, year, month, assetType, deferredQuery]);
 
+  const historyRows = useMemo(() => {
+    if (!historyAssetCode || !year || !month) return [];
+    const selectedPeriod = `${year}-${month}`;
+    return rows.filter((row) => text(row.asset_code).trim() === historyAssetCode && text(row.period_date).slice(0, 7) < selectedPeriod)
+      .sort((a, b) => text(a.period_date).localeCompare(text(b.period_date)));
+  }, [rows, historyAssetCode, year, month]);
+
   const editedKeys = useMemo(() => rows
     .map(rowKey)
     .filter((key) => drafts[key] && originals[key] && changed(drafts[key], originals[key])), [rows, drafts, originals]);
@@ -254,12 +263,14 @@ export default function FixAssetsDepr() {
 
   function clearSelectionAndSetPeriod(nextYear: string, nextMonth: string) {
     setSelectedKeys(new Set());
+    setHistoryAssetCode(null);
     setYear(nextYear);
     setMonth(nextMonth);
   }
 
   function changeAssetType(nextAssetType: DepreciableAssetType) {
     setSelectedKeys(new Set());
+    setHistoryAssetCode(null);
     setAssetType(nextAssetType);
     setMessage("");
   }
@@ -284,6 +295,10 @@ export default function FixAssetsDepr() {
       return next;
     });
     setMessage("");
+  }
+
+  function openHistory(row: DeprRow) {
+    setHistoryAssetCode(text(row.asset_code).trim() || null);
   }
 
   function update(row: DeprRow, key: EditableKey, raw: string) {
@@ -451,12 +466,13 @@ export default function FixAssetsDepr() {
                 const bad = selected && invalid(draft);
                 const calculated = derived(row, draft);
                 const background = bad ? "rgba(216,93,39,.32)" : selected ? "rgba(94,128,25,.32)" : undefined;
-                return <tr key={id} className="capex-tr">
+                return <tr key={id} className="capex-tr" onClick={() => openHistory(row)} style={{ cursor: "pointer" }}>
                   <td className="capex-td" style={{ padding: 5, textAlign: "center", background: bad ? "#713f38" : selected ? "#3d6948" : "#0b4d6b", position: "sticky", left: 0, zIndex: 22 }}>
                     <input
                       type="checkbox"
                       checked={selected}
                       disabled={loading || saving}
+                      onClick={(event) => event.stopPropagation()}
                       onChange={(event) => toggleSelected(id, event.target.checked)}
                       aria-label={`Enviar depreciación de ${text(row.asset_code)}`}
                       style={{ width: 18, height: 18, accentColor: "var(--brand-success)", cursor: saving ? "not-allowed" : "pointer" }}
@@ -492,6 +508,22 @@ export default function FixAssetsDepr() {
           </Table>
         </div>
       </div>
+      {historyAssetCode ? <section className="panel-inner" style={{ padding: 10, display: "grid", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div><strong>Histórico de depreciación · {historyAssetCode}</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>Periodos anteriores a {month && year ? `${MONTHS[Number(month) - 1]} ${year}` : "la selección"}</span></div>
+          <Button size="sm" onClick={() => setHistoryAssetCode(null)}>Cerrar histórico</Button>
+        </div>
+        {historyRows.length ? <div style={{ overflow: "auto", maxHeight: 260 }}>
+          <Table disableScrollWrapper stickyHeader>
+            <thead><tr>{["Periodo", "Tasa", "Valor final", "Deprec. periodo", "Deprec. acum.", "Saldo", "T.C."].map((label) => <th key={label} className="capex-th" style={{ top: 0, zIndex: 20, padding: 7, fontSize: 12 }}>{label}</th>)}</tr></thead>
+            <tbody>{historyRows.map((historyRow) => {
+              const historyDraft = drafts[rowKey(historyRow)] || toDraft(historyRow);
+              const calculated = derived(historyRow, historyDraft);
+              return <tr key={rowKey(historyRow)} className="capex-tr"><td className="capex-td">{text(historyRow.period_date).slice(0, 10)}</td><td className="capex-td">{displayNumber(historyDraft.applied_rate_pct)}</td><td className="capex-td">{displayNumber(calculated.asset_final_value)}</td><td className="capex-td">{displayNumber(historyDraft.depreciation_amount_pen)}</td><td className="capex-td">{displayNumber(calculated.depreciation_cum_amount_pen)}</td><td className="capex-td">{displayNumber(calculated.asset_balance_pen)}</td><td className="capex-td">{displayNumber(historyDraft.exc_rate)}</td></tr>;
+            })}</tbody>
+          </Table>
+        </div> : <div className="muted" style={{ fontSize: 13 }}>No hay periodos de depreciación anteriores para este COD.</div>}
+      </section> : null}
       <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · Tipo {assetType} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados.</div>
       <style jsx global>{`
         .fixassets-depr-table table {
