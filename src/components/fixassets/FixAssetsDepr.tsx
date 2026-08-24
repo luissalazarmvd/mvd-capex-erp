@@ -33,6 +33,7 @@ type MappingRow = {
   origin_account_code: string | null;
   account_group: string | null;
   account_denom: string | null;
+  asset_type: string | null;
 };
 
 type CatalogueReferenceRow = {
@@ -266,15 +267,19 @@ export default function FixAssetsDepr() {
   const mappingByOrigin = useMemo(() => new Map(
     mappingRows.map((row) => [text(row.origin_account_code).trim(), row] as const).filter(([code]) => Boolean(code))
   ), [mappingRows]);
+  const depreciableMappingRows = useMemo(
+    () => mappingRows.filter((row) => text(row.asset_type).trim().toLocaleLowerCase("es") !== "no deprecia"),
+    [mappingRows]
+  );
   const mappingGroups = useMemo(() => Array.from(new Set(
-    mappingRows.map((row) => text(row.account_group).trim()).filter(Boolean)
-  )).sort((a, b) => a.localeCompare(b, "es")), [mappingRows]);
+    depreciableMappingRows.map((row) => text(row.account_group).trim()).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, "es")), [depreciableMappingRows]);
   const mappingDenoms = useMemo(() => Array.from(new Set(
-    mappingRows
+    depreciableMappingRows
       .filter((row) => !mappingGroup || text(row.account_group).trim() === mappingGroup)
       .map((row) => text(row.account_denom).trim())
       .filter(Boolean)
-  )).sort((a, b) => a.localeCompare(b, "es")), [mappingRows, mappingGroup]);
+  )).sort((a, b) => a.localeCompare(b, "es")), [depreciableMappingRows, mappingGroup]);
 
   const visibleRows = useMemo(() => {
     const needle = deferredQuery.trim().toLocaleLowerCase("es");
