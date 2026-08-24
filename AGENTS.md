@@ -185,6 +185,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - El checkbox del encabezado selecciona o desmarca todas las filas visibles según periodo y búsqueda.
 - Tiene un único buscador por COD o descripción. Check, COD y Descripción activo son sticky.
 - La vista compacta oculta por defecto las cuatro variaciones y tres ajustes de depreciación; “Mostrar ajustes” vuelve a exponer las siete columnas editables. La vista compacta conserva valores y cálculos de esas columnas.
+- Al pie de la grilla visible hay una fila de totales para Valor base, Deprec. base, Valor final, Depr. periodo, Depr. acum. y Saldo; al mostrar ajustes incluye también las cuatro variaciones y los tres ajustes de depreciación. Los totales respetan periodo, tipo LR/DUP, búsqueda y borradores confirmados.
 - Usar anchos/celdas compactos y el fondo azul petróleo del contenedor para reducir ruido visual y scroll horizontal.
 - Cambiar año/mes, refrescar o completar un guardado limpia la selección.
 - Editables: `applied_rate_pct`, cuatro `*_var_pen`, tres `*_depr_pen`, `depreciation_amount_pen`, `exc_rate`.

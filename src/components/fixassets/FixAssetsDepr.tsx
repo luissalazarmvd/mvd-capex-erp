@@ -46,6 +46,15 @@ const ADJUSTMENT_COLUMNS = new Set<keyof DeprRow>([
   "reclass_depr_pen", "adjustment_depr_pen", "disposal_depr_pen",
 ]);
 
+const TOTAL_COLUMN_KEYS = [
+  "asset_base_value", "depreciation_base_pen", "acquisition_var_pen", "disposal_var_pen",
+  "reclass_var_pen", "adjustment_var_pen", "asset_final_value", "reclass_depr_pen",
+  "adjustment_depr_pen", "disposal_depr_pen", "depreciation_amount_pen",
+  "depreciation_cum_amount_pen", "asset_balance_pen",
+] as const satisfies readonly (keyof DeprRow)[];
+type TotalColumnKey = (typeof TOTAL_COLUMN_KEYS)[number];
+const TOTAL_COLUMN_KEY_SET = new Set<keyof DeprRow>(TOTAL_COLUMN_KEYS);
+
 const COLUMNS: Array<{ key: keyof DeprRow; label: string; width: number }> = [
   { key: "asset_code", label: "COD", width: 90 },
   { key: "asset_description", label: "Descripción activo", width: 220 },
@@ -224,6 +233,42 @@ export default function FixAssetsDepr() {
       return matchesPeriod && matchesAssetType && matchesQuery;
     }).sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }));
   }, [rows, year, month, assetType, deferredQuery]);
+
+  const tableTotals = useMemo(() => {
+    const totals: Record<TotalColumnKey, number> = {
+      asset_base_value: 0,
+      depreciation_base_pen: 0,
+      acquisition_var_pen: 0,
+      disposal_var_pen: 0,
+      reclass_var_pen: 0,
+      adjustment_var_pen: 0,
+      asset_final_value: 0,
+      reclass_depr_pen: 0,
+      adjustment_depr_pen: 0,
+      disposal_depr_pen: 0,
+      depreciation_amount_pen: 0,
+      depreciation_cum_amount_pen: 0,
+      asset_balance_pen: 0,
+    };
+    visibleRows.forEach((row) => {
+      const draft = drafts[rowKey(row)] || toDraft(row);
+      const calculated = derived(row, draft);
+      totals.asset_base_value += num(row.asset_base_value);
+      totals.depreciation_base_pen += num(row.depreciation_base_pen);
+      totals.acquisition_var_pen += num(draft.acquisition_var_pen);
+      totals.disposal_var_pen += num(draft.disposal_var_pen);
+      totals.reclass_var_pen += num(draft.reclass_var_pen);
+      totals.adjustment_var_pen += num(draft.adjustment_var_pen);
+      totals.asset_final_value += calculated.asset_final_value;
+      totals.reclass_depr_pen += num(draft.reclass_depr_pen);
+      totals.adjustment_depr_pen += num(draft.adjustment_depr_pen);
+      totals.disposal_depr_pen += num(draft.disposal_depr_pen);
+      totals.depreciation_amount_pen += num(draft.depreciation_amount_pen);
+      totals.depreciation_cum_amount_pen += calculated.depreciation_cum_amount_pen;
+      totals.asset_balance_pen += calculated.asset_balance_pen;
+    });
+    return totals;
+  }, [visibleRows, drafts]);
 
   const historyRows = useMemo(() => {
     if (!historyAssetCode || !year || !month) return [];
@@ -529,6 +574,19 @@ export default function FixAssetsDepr() {
               {!loading && !visibleRows.length ? <tr><td className="capex-td" colSpan={displayColumns.length + 1}>No hay depreciaciones para el periodo seleccionado.</td></tr> : null}
               {loading ? <tr><td className="capex-td" colSpan={displayColumns.length + 1}>Cargando depreciación...</td></tr> : null}
             </tbody>
+            {!loading && visibleRows.length ? <tfoot>
+              <tr>
+                <td className="capex-td" style={{ position: "sticky", left: 0, bottom: 0, zIndex: 24, background: "#163b49", color: "#e4f7ff", fontWeight: 900, textAlign: "center", borderTop: "1px solid rgba(147,211,230,.45)" }}>Σ</td>
+                {displayColumns.map((column) => {
+                  const sticky = column.key === "asset_code" || column.key === "asset_description";
+                  const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
+                  const total = TOTAL_COLUMN_KEY_SET.has(column.key) ? tableTotals[column.key as TotalColumnKey] : null;
+                  return <td key={column.key} className="capex-td" style={{ position: "sticky", bottom: 0, left, zIndex: sticky ? 23 : 4, background: "#163b49", color: "#e4f7ff", fontWeight: 900, textAlign: total == null ? "left" : "right", borderTop: "1px solid rgba(147,211,230,.45)", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
+                    {column.key === "asset_code" ? "Totales" : total == null ? "" : displayNumber(total)}
+                  </td>;
+                })}
+              </tr>
+            </tfoot> : null}
           </Table>
         </div>
       </div>
