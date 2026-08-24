@@ -568,6 +568,7 @@ export default function FixAssetsNew() {
       </div>
 
       <div className="muted" style={{ fontSize: 12 }}>Mostrando {filteredRows.length} de {rows.length} filas: {normalRows.length} normales y {capexRows.length} CAPEX.</div>
+
       <style jsx global>{`
         .fixassets-new-table-grid table {
           font-size: 11px !important;
