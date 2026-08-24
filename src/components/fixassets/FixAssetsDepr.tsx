@@ -514,6 +514,10 @@ export default function FixAssetsDepr() {
                         sanitize={numericDraft}
                         normalizeOnBlur={(next) => validOptionalNumber(next) ? twoDecimals(next) : next}
                         onFocus={() => focusHistory(row)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          focusHistory(row);
+                        }}
                         onCommit={(next) => update(row, key, next)}
                         style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && !validOptionalNumber(draft[key]) ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${text(row.asset_code)}`}

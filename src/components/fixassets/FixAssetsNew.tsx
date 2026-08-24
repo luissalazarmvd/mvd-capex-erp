@@ -256,6 +256,11 @@ const NewRowsTable = memo(function NewRowsTable({
                           onOpenDetails(index);
                           if (column.key === "asset_code") onCodeActivity(index, draft.asset_code);
                         }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenDetails(index);
+                          if (column.key === "asset_code") onCodeActivity(index, draft.asset_code);
+                        }}
                         onLiveChange={column.key === "asset_code" ? (next) => onCodeActivity(index, next) : undefined}
                         onCommit={(next) => onCommit(index, field, next)}
                         style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: state === "invalid" ? "#ebb086" : "rgba(147,211,230,.30)" }}
