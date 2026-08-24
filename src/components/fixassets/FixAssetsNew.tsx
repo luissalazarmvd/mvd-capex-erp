@@ -523,7 +523,8 @@ export default function FixAssetsNew() {
   }
 
   return (
-    <div className="fixassets-new-root" style={{ display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto auto auto", gap: 10, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
+    <div style={{ display: "grid", gap: 10 }}>
+      <div className="fixassets-new-root" style={{ display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto auto", gap: 10, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>Nuevos activos desde Veta</h1>
@@ -553,19 +554,6 @@ export default function FixAssetsNew() {
         <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onEditDetails={setDetailIndex} />
       </div>
 
-      {detailRow && detailDraft && detailIndex != null ? <section className="panel-inner" style={{ padding: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-          <div><strong>Ficha complementaria</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{detailDraft.asset_code || "Sin COD"} · {detailDraft.line_description || text(detailRow.line_description) || "Sin descripción"}</span></div>
-          <Button size="sm" onClick={() => setDetailIndex(null)}>Cerrar ficha</Button>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
-          {EXTRA_FIELDS.map(([field, label]) => <label key={field} style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 800 }}>
-            {label}
-            <input className="input" type={field === "operation_date" ? "date" : "text"} value={detailDraft[field]} onChange={(event) => updateDraft(detailIndex, field, event.target.value)} style={{ height: 32, padding: "5px 8px" }} />
-          </label>)}
-        </div>
-      </section> : null}
-
       <section className="panel-inner" style={{ padding: "8px 12px", minHeight: 42, display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
         <strong>Referencia COD:</strong>
         {!activeCodePrefix ? <span className="muted" style={{ fontSize: 12 }}>Empieza a escribir un COD en cualquiera de las dos tablas.</span>
@@ -585,6 +573,20 @@ export default function FixAssetsNew() {
           }
         }
       `}</style>
+      </div>
+
+      {detailRow && detailDraft && detailIndex != null ? <section className="panel-inner" style={{ padding: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+          <div><strong>Ficha complementaria</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{detailDraft.asset_code || "Sin COD"} · {detailDraft.line_description || text(detailRow.line_description) || "Sin descripción"}</span></div>
+          <Button size="sm" onClick={() => setDetailIndex(null)}>Cerrar ficha</Button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+          {EXTRA_FIELDS.map(([field, label]) => <label key={field} style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 800 }}>
+            {label}
+            <input className="input" type={field === "operation_date" ? "date" : "text"} value={detailDraft[field]} onChange={(event) => updateDraft(detailIndex, field, event.target.value)} style={{ height: 32, padding: "5px 8px" }} />
+          </label>)}
+        </div>
+      </section> : null}
     </div>
   );
 }
