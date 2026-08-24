@@ -91,7 +91,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - `/traceability/entries`: Validar Datos (`TraceabilityEntryForm`).
 - `/traceability/status`: Mineral No Disponible (`TraceabilityStatusForm`).
 - `/traceability/conta`: Lotes Pagados (`TraceabilityContaForm`).
-- Endpoints principales: `/api/traceability`, `/api/traceability/web/insert`, `/api/traceability/status`, `/api/traceability/status/web/insert`, `/api/traceability/conta`, `/api/traceability/conta/target` y `/target/insert`. La vista `/api/traceability/conta` incluye `pay_usd`, mostrado y exportado en Lotes Pagados como `Pago USD`, inmediatamente después de `Lote USD`.
+- Endpoints principales: `/api/traceability`, `/api/traceability/web/insert`, `/api/traceability/status`, `/api/traceability/status/web/insert`, `/api/traceability/conta`, `/api/traceability/conta/target` y `/target/insert`. Aunque el GET pueda entregar campos adicionales, Lotes Pagados muestra y exporta únicamente las columnas definidas en su componente.
 - Los formularios manejan tablas grandes, borradores, selección/edición y guardado por filas; conservar las claves de negocio usadas por cada vista.
 
 ## Módulo Compliance

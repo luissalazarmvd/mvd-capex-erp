@@ -28,7 +28,6 @@ type TraceabilityContaRow = {
   tms: NumericValue;
   currency: string | null;
   lot_usd: NumericValue;
-  pay_usd: NumericValue;
   au_grade_oztc: NumericValue;
   entry_date: string | null;
   concession_name: string | null;
@@ -94,7 +93,6 @@ const COLUMNS: Column[] = [
   { key: "tms", label: "TMS", kind: "number", width: 90 },
   { key: "currency", label: "Moneda", kind: "text", width: 90 },
   { key: "lot_usd", label: "Lote USD", kind: "number", width: 110 },
-  { key: "pay_usd", label: "Pago USD", kind: "number", width: 110 },
   { key: "au_grade_oztc", label: "Au (Oz/TC)", kind: "number", width: 105 },
   { key: "entry_date", label: "F. Ingreso", kind: "date", width: 110 },
   { key: "concession_name", label: "Concesión", kind: "text", width: 180 },
