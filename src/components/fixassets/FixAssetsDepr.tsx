@@ -9,6 +9,7 @@ import { FastCellInput } from "./FastCellInput";
 
 type DeprRow = {
   asset_code: string | null;
+  source_name: string | null;
   asset_description: string | null;
   period_date: string | null;
   asset_base_value: number | string | null;
@@ -93,8 +94,8 @@ const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
-const DEPRECIABLE_ASSET_TYPES = ["LR", "DUP"] as const;
-type DepreciableAssetType = (typeof DEPRECIABLE_ASSET_TYPES)[number];
+const ASSET_TYPES = ["LR", "DUP", "No deprecia"] as const;
+type AssetType = (typeof ASSET_TYPES)[number];
 
 function text(value: unknown) {
   return value == null ? "" : String(value);
@@ -202,10 +203,10 @@ export default function FixAssetsDepr() {
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
-  const [assetType, setAssetType] = useState<DepreciableAssetType>("LR");
-  const [mappingGroup, setMappingGroup] = useState("");
-  const [mappingDenom, setMappingDenom] = useState("");
-  const [situationFilter, setSituationFilter] = useState("");
+  const [assetTypes, setAssetTypes] = useState<Set<AssetType>>(() => new Set<AssetType>(["LR", "DUP"]));
+  const [mappingGroupsSelected, setMappingGroupsSelected] = useState<Set<string>>(new Set());
+  const [mappingDenomsSelected, setMappingDenomsSelected] = useState<Set<string>>(new Set());
+  const [situationsSelected, setSituationsSelected] = useState<Set<string>>(new Set());
   const [historyAssetCode, setHistoryAssetCode] = useState<string | null>(null);
   const [historyRowId, setHistoryRowId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -295,19 +296,15 @@ export default function FixAssetsDepr() {
   const mappingByOrigin = useMemo(() => new Map(
     mappingRows.map((row) => [text(row.origin_account_code).trim(), row] as const).filter(([code]) => Boolean(code))
   ), [mappingRows]);
-  const depreciableMappingRows = useMemo(
-    () => mappingRows.filter((row) => text(row.asset_type).trim().toLocaleLowerCase("es") !== "no deprecia"),
-    [mappingRows]
-  );
   const mappingGroups = useMemo(() => Array.from(new Set(
-    depreciableMappingRows.map((row) => text(row.account_group).trim()).filter(Boolean)
-  )).sort((a, b) => a.localeCompare(b, "es")), [depreciableMappingRows]);
+    mappingRows.map((row) => text(row.account_group).trim()).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, "es")), [mappingRows]);
+
   const mappingDenoms = useMemo(() => Array.from(new Set(
-    depreciableMappingRows
-      .filter((row) => !mappingGroup || text(row.account_group).trim() === mappingGroup)
+    mappingRows
       .map((row) => text(row.account_denom).trim())
       .filter(Boolean)
-  )).sort((a, b) => a.localeCompare(b, "es")), [depreciableMappingRows, mappingGroup]);
+  )).sort((a, b) => a.localeCompare(b, "es")), [mappingRows]);
 
   const visibleRows = useMemo(() => {
     const needle = deferredQuery.trim().toLocaleLowerCase("es");
@@ -315,16 +312,22 @@ export default function FixAssetsDepr() {
       const value = period(row.period_date);
       const assetCode = text(row.asset_code).trim();
       const matchesPeriod = value?.year === year && value.month === month;
-      const matchesAssetType = text(row.asset_type).trim().toUpperCase() === assetType;
+      const rowAssetType = text(row.asset_type).trim().toLocaleLowerCase("es");
+      const matchesAssetType = Array.from(assetTypes).some(
+        (selectedType) => selectedType.toLocaleLowerCase("es") === rowAssetType
+      );
       const mapping = mappingByOrigin.get(assetOrigins[assetCode]);
-      const matchesGroup = !mappingGroup || text(mapping?.account_group).trim() === mappingGroup;
-      const matchesDenom = !mappingDenom || text(mapping?.account_denom).trim() === mappingDenom;
-      const matchesSituation = !situationFilter || assetSituations[assetCode] === situationFilter;
+      const rowGroup = text(mapping?.account_group).trim();
+      const rowDenom = text(mapping?.account_denom).trim();
+      const rowSituation = assetSituations[assetCode] || "";
+      const matchesGroup = mappingGroupsSelected.size === 0 || mappingGroupsSelected.has(rowGroup);
+      const matchesDenom = mappingDenomsSelected.size === 0 || mappingDenomsSelected.has(rowDenom);
+      const matchesSituation = situationsSelected.size === 0 || situationsSelected.has(rowSituation);
       const matchesQuery = !needle || assetCode.toLocaleLowerCase("es").includes(needle)
         || text(row.asset_description).toLocaleLowerCase("es").includes(needle);
       return matchesPeriod && matchesAssetType && matchesGroup && matchesDenom && matchesSituation && matchesQuery;
     }).sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }));
-  }, [rows, year, month, assetType, mappingGroup, mappingDenom, situationFilter, mappingByOrigin, assetOrigins, assetSituations, deferredQuery]);
+  }, [rows, year, month, assetTypes, mappingGroupsSelected, mappingDenomsSelected, situationsSelected, mappingByOrigin, assetOrigins, assetSituations, deferredQuery]);
 
   const tableTotals = useMemo(() => {
     const totals: Record<TotalColumnKey, number> = {
@@ -363,7 +366,11 @@ export default function FixAssetsDepr() {
   }, [visibleRows, drafts]);
 
   const editableVisibleRows = useMemo(
-    () => visibleRows.filter((row) => text(row.period_date).slice(0, 7) === editablePeriod),
+    () => visibleRows.filter(
+      (row) =>
+        text(row.period_date).slice(0, 7) === editablePeriod
+        && text(row.asset_type).trim().toLocaleLowerCase("es") !== "no deprecia"
+    ),
     [visibleRows, editablePeriod]
   );
 
@@ -378,7 +385,15 @@ export default function FixAssetsDepr() {
     .map(rowKey)
     .filter((key) => drafts[key] && originals[key] && changed(drafts[key], originals[key])), [rows, drafts, originals]);
   const editableRowIds = useMemo(
-    () => new Set(rows.filter((row) => text(row.period_date).slice(0, 7) === editablePeriod).map(rowKey)),
+    () => new Set(
+      rows
+        .filter(
+          (row) =>
+            text(row.period_date).slice(0, 7) === editablePeriod
+            && text(row.asset_type).trim().toLocaleLowerCase("es") !== "no deprecia"
+        )
+        .map(rowKey)
+    ),
     [rows, editablePeriod]
   );
   const selectedIds = useMemo(() => Array.from(selectedKeys).filter((id) => editableRowIds.has(id)), [selectedKeys, editableRowIds]);
@@ -417,28 +432,55 @@ export default function FixAssetsDepr() {
     setMonth(nextMonth);
   }
 
-  function changeAssetType(nextAssetType: DepreciableAssetType) {
+  function toggleAssetType(nextAssetType: AssetType) {
     setSelectedKeys(new Set());
     setHistoryAssetCode(null);
     setHistoryRowId(null);
-    setAssetType(nextAssetType);
+    setAssetTypes((current) => {
+      const next = new Set(current);
+      if (next.has(nextAssetType)) next.delete(nextAssetType);
+      else next.add(nextAssetType);
+      return next;
+    });
     setMessage("");
   }
 
-  function changeMappingGroup(nextGroup: string) {
+  function toggleMappingGroup(value: string) {
     setSelectedKeys(new Set());
     setHistoryAssetCode(null);
     setHistoryRowId(null);
-    setMappingGroup(nextGroup);
-    setMappingDenom("");
+    setMappingGroupsSelected((current) => {
+      const next = new Set(current);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
     setMessage("");
   }
 
-  function changeMappingDenom(nextDenom: string) {
+  function toggleMappingDenom(value: string) {
     setSelectedKeys(new Set());
     setHistoryAssetCode(null);
     setHistoryRowId(null);
-    setMappingDenom(nextDenom);
+    setMappingDenomsSelected((current) => {
+      const next = new Set(current);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+    setMessage("");
+  }
+
+  function toggleSituation(value: string) {
+    setSelectedKeys(new Set());
+    setHistoryAssetCode(null);
+    setHistoryRowId(null);
+    setSituationsSelected((current) => {
+      const next = new Set(current);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
     setMessage("");
   }
 
@@ -547,7 +589,7 @@ export default function FixAssetsDepr() {
     try {
       for (const id of selectedIds) {
         const row = rows.find((candidate) => rowKey(candidate) === id);
-        if (!row) continue;
+        if (!row || text(row.asset_type).trim().toLocaleLowerCase("es") === "no deprecia") continue;
         const draft = drafts[id];
         const calculated = derived(row, draft);
         const payload = {
@@ -615,10 +657,72 @@ export default function FixAssetsDepr() {
           </label>
           <Select label="Año" value={year} onChange={(event) => clearSelectionAndSetPeriod(event.target.value, month)} options={years.map((value) => ({ value, label: value }))} placeholder="Selecciona" style={{ minWidth: 110 }} />
           <Select label="Mes" value={month} onChange={(event) => clearSelectionAndSetPeriod(year, event.target.value)} options={monthsForYear.map((value) => ({ value, label: MONTHS[Number(value) - 1] }))} placeholder="Selecciona" style={{ minWidth: 150 }} />
-          <Select label="Tipo de activo" value={assetType} onChange={(event) => changeAssetType(event.target.value as DepreciableAssetType)} options={DEPRECIABLE_ASSET_TYPES.map((value) => ({ value, label: value }))} placeholder="" style={{ minWidth: 130 }} />
-          <Select label="Grupo" value={mappingGroup} onChange={(event) => changeMappingGroup(event.target.value)} options={mappingGroups.map((value) => ({ value, label: value }))} placeholder="Todos los grupos" disabled={loading} style={{ minWidth: 170 }} />
-          <Select label="Denominación" value={mappingDenom} onChange={(event) => changeMappingDenom(event.target.value)} options={mappingDenoms.map((value) => ({ value, label: value }))} placeholder="Todas las denominaciones" disabled={loading} style={{ minWidth: 210 }} />
-          <Select label="Situación" value={situationFilter} onChange={(event) => setSituationFilter(event.target.value)} options={[{ value: "OPERATIVO", label: "OPERATIVO" }, { value: "DEPRECIADO", label: "DEPRECIADO" }]} placeholder="Todas" disabled={loading} style={{ minWidth: 145 }} />
+          <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+            <span>Tipo de activo</span>
+            <div className="input" style={{ minWidth: 280, height: 34, display: "flex", alignItems: "center", gap: 12, padding: "5px 10px" }}>
+              {ASSET_TYPES.map((value) => (
+                <label key={value} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input
+                    type="checkbox"
+                    checked={assetTypes.has(value)}
+                    onChange={() => toggleAssetType(value)}
+                    disabled={loading || saving}
+                  />
+                  {value}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+            <span>Grupo</span>
+            <div className="input" style={{ minWidth: 190, minHeight: 34, display: "flex", alignItems: "center", gap: 10, padding: "5px 10px", flexWrap: "wrap" }}>
+              {mappingGroups.map((value) => (
+                <label key={value} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input
+                    type="checkbox"
+                    checked={mappingGroupsSelected.has(value)}
+                    onChange={() => toggleMappingGroup(value)}
+                    disabled={loading || saving}
+                  />
+                  {value}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+            <span>Denominación</span>
+            <div className="input" style={{ minWidth: 230, minHeight: 34, display: "flex", alignItems: "center", gap: 10, padding: "5px 10px", flexWrap: "wrap" }}>
+              {mappingDenoms.map((value) => (
+                <label key={value} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input
+                    type="checkbox"
+                    checked={mappingDenomsSelected.has(value)}
+                    onChange={() => toggleMappingDenom(value)}
+                    disabled={loading || saving}
+                  />
+                  {value}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+            <span>Situación</span>
+            <div className="input" style={{ minWidth: 180, height: 34, display: "flex", alignItems: "center", gap: 10, padding: "5px 10px" }}>
+              {["OPERATIVO", "DEPRECIADO"].map((value) => (
+                <label key={value} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input
+                    type="checkbox"
+                    checked={situationsSelected.has(value)}
+                    onChange={() => toggleSituation(value)}
+                    disabled={loading || saving}
+                  />
+                  {value}
+                </label>
+              ))}
+            </div>
+          </div>
           <Button size="sm" onClick={() => selectRows(suggestedVisibleRows)} disabled={!suggestedVisibleRows.length || loading || saving}>Usar datos de vista ({suggestedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => selectRows(editedVisibleRows)} disabled={!editedVisibleRows.length || loading || saving}>Seleccionar manuales ({editedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => setSelectedKeys(new Set())} disabled={!selectedIds.length || loading || saving}>Limpiar selección</Button>
@@ -647,32 +751,43 @@ export default function FixAssetsDepr() {
                 const id = rowKey(row);
                 const draft = drafts[id] || toDraft(row);
                 const currentPeriodRow = text(row.period_date).slice(0, 7) === editablePeriod;
-                const selected = currentPeriodRow && selectedKeys.has(id);
+                const viewOnly = text(row.asset_type).trim().toLocaleLowerCase("es") === "no deprecia";
+                const sourceWeb = text(row.source_name).trim().toUpperCase() === "WEB";
+                const selectableRow = currentPeriodRow && !viewOnly;
+                const selected = selectableRow && selectedKeys.has(id);
                 const focused = historyRowId === id;
                 const bad = selected && invalid(draft);
                 const calculated = derived(row, draft);
-                const background = bad ? "rgba(216,93,39,.32)" : focused ? "rgba(27,147,227,.34)" : selected ? "rgba(94,128,25,.32)" : undefined;
+                const background = bad
+                  ? "rgba(216,93,39,.32)"
+                  : focused
+                    ? "rgba(27,147,227,.34)"
+                    : selected
+                      ? "rgba(94,128,25,.32)"
+                      : sourceWeb
+                        ? "rgba(2,35,52,.72)"
+                        : undefined;
                 return <tr key={id} className="capex-tr" onClick={() => openHistory(row)} style={{ cursor: "pointer" }}>
-                  <td className="capex-td" style={{ padding: 5, textAlign: "center", background: bad ? "#713f38" : focused ? "#155a78" : selected ? "#3d6948" : "#0b4d6b", position: "sticky", left: 0, zIndex: 22 }}>
-                    <input
+                  <td className="capex-td" style={{ padding: 5, textAlign: "center", background: bad ? "#713f38" : focused ? "#155a78" : selected ? "#3d6948" : sourceWeb ? "#062f43" : "#0b4d6b", position: "sticky", left: 0, zIndex: 22 }}>
+                    {viewOnly ? null : <input
                       type="checkbox"
                       checked={selected}
-                      disabled={!currentPeriodRow || loading || saving}
+                      disabled={!selectableRow || loading || saving}
                       onClick={(event) => event.stopPropagation()}
                       onChange={(event) => toggleSelected(id, event.target.checked)}
                       aria-label={`Enviar depreciación de ${text(row.asset_code)}`}
                       style={{ width: 18, height: 18, accentColor: "var(--brand-success)", cursor: saving ? "not-allowed" : "pointer" }}
-                    />
+                    />}
                   </td>
                   {displayColumns.map((column) => {
-                    const editable = currentPeriodRow && EDITABLE.includes(column.key as EditableKey);
+                    const editable = selectableRow && EDITABLE.includes(column.key as EditableKey);
                     const key = column.key as EditableKey;
                     const derivedValue = column.key === "asset_final_value" || column.key === "depreciation_cum_amount_pen" || column.key === "asset_balance_pen"
                       ? calculated[column.key]
                       : row[column.key];
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
-                    const stickyBackground = bad ? "#713f38" : focused ? "#155a78" : selected ? "#3d6948" : "#0b4d6b";
+                    const stickyBackground = bad ? "#713f38" : focused ? "#155a78" : selected ? "#3d6948" : sourceWeb ? "#062f43" : "#0b4d6b";
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? stickyBackground : background, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 21 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? <FastCellInput
                         className="input"
@@ -728,7 +843,7 @@ export default function FixAssetsDepr() {
           </Table>
         </div> : <div className="muted" style={{ fontSize: 13 }}>No hay periodos de depreciación anteriores para este COD.</div>}
       </section> : null}
-      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · Tipo {assetType} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados. {`${year}-${month}` === editablePeriod ? "Edición habilitada para este periodo." : `Modo consulta: solo se puede editar ${editablePeriod}.`}</div>
+      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · Tipo {Array.from(assetTypes).join(", ") || "ninguno"} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados. {`${year}-${month}` === editablePeriod ? "Edición habilitada para este periodo." : `Modo consulta: solo se puede editar ${editablePeriod}.`}</div>
       <style jsx global>{`
         .fixassets-depr-table table {
           font-size: 11px !important;

@@ -51,6 +51,7 @@ type TraceabilityRow = {
   lot_usd: number | null;
   doc_date: string | null;
   doc_number: string | null;
+  payment_date: string | null;
   updated_at?: string | null;
 };
 
@@ -177,6 +178,7 @@ const COLUMNS: {
   { key: "lot_usd", label: "Factura (USD)", editable: false, kind: "readonly", width: 110 },
   { key: "doc_date", label: "F. Factura", editable: false, kind: "readonly", width: 105, sortable: true },
   { key: "doc_number", label: "Factura", editable: false, kind: "readonly", width: 110, sortable: true },
+  { key: "payment_date", label: "F. Pago", editable: false, kind: "readonly", width: 105 },
   { key: "sack_qty", label: "Sacos", editable: false, kind: "readonly", width: 78 },
   { key: "miner_name", label: "Minero", editable: false, kind: "readonly", width: 96, sortable: true },
   { key: "plate", label: "Placa", editable: false, kind: "readonly", width: 92 },
@@ -1381,6 +1383,7 @@ useEffect(() => {
         "Forma de pago": row.pay_type ?? "",
         "Monto Calc.": "",
         "Factura USD": row.lot_usd ?? "",
+        "Fecha pago": row.payment_date ?? "",
       };
     });
 
