@@ -396,7 +396,7 @@ export default function FixAssetsCat() {
                 const background = bad ? "rgba(216,93,39,.32)" : edited ? "rgba(94,128,25,.32)" : undefined;
                 return <tr key={code} className="capex-tr">
                   {COLUMNS.map((column) => {
-                    const editable = EDITABLE.includes(column.key as EditableKey);
+                    const editable = EDITABLE.includes(column.key as EditableKey) && column.key !== "asset_type";
                     const key = column.key as EditableKey;
                     const value = editable ? draft[key] : row[column.key];
                     const sticky = column.key === "asset_code" || column.key === "asset_description";

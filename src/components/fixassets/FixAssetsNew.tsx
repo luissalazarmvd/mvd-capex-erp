@@ -133,7 +133,7 @@ function draftFrom(row: VetaRow): Draft {
     cost_center_code: "",
     operation_date: "",
     depreciation_method: "",
-    asset_situation: "",
+    asset_situation: "OPERATIVO",
     asset_comment: "",
   };
 }
@@ -187,7 +187,7 @@ const EXTRA_FIELDS = [
   ["location_name", "Ubicación"], ["asset_type", "Tipo de activo"], ["assigned_to", "Asignado a"],
   ["area_name", "Área"], ["brand", "Marca"], ["model", "Modelo"], ["serial_number", "Serie"],
   ["cost_center_code", "Centro de costo"], ["operation_date", "Fecha de operación"],
-  ["depreciation_method", "Método de depreciación"], ["asset_situation", "Situación"], ["asset_comment", "Comentario"],
+  ["depreciation_method", "Método de depreciación"], ["asset_comment", "Comentario"],
 ] as const satisfies ReadonlyArray<readonly [Exclude<keyof Draft, "asset_code" | "line_description" | "capex_code" | "pen_amount" | "exc_rate">, string]>;
 
 type NewRowsTableProps = {
@@ -512,7 +512,7 @@ export default function FixAssetsNew() {
           color: null, cost_center_code: draft.cost_center_code.trim() || null,
           acquisition_date: dateOnly(row.document_date) || null, operation_date: draft.operation_date || null, disposal_date: null,
           exc_rate: numberOrNull(draft.exc_rate), asset_ini_cost_pen: numberOrNull(draft.pen_amount),
-          depreciation_method: draft.depreciation_method.trim() || null, asset_situation: draft.asset_situation.trim() || null,
+          depreciation_method: draft.depreciation_method.trim() || null, asset_situation: "OPERATIVO",
           asset_comment: draft.asset_comment.trim() || null,
         });
         saved += 1;
@@ -629,11 +629,7 @@ export default function FixAssetsNew() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
           {EXTRA_FIELDS.map(([field, label]) => <label key={field} style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 800 }}>
             {label}
-            {field === "asset_situation" ? <select className="input" value={detailDraft[field]} onChange={(event) => updateDraft(detailIndex, field, event.target.value)} style={{ height: 32, padding: "5px 8px" }}>
-              <option value=""></option>
-              <option value="OPERATIVO">OPERATIVO</option>
-              <option value="DEPRECIADO">DEPRECIADO</option>
-            </select> : <input className="input" type={field === "operation_date" ? "date" : "text"} value={detailDraft[field]} onChange={(event) => updateDraft(detailIndex, field, event.target.value)} style={{ height: 32, padding: "5px 8px" }} />}
+            <input className="input" type={field === "operation_date" ? "date" : "text"} value={detailDraft[field]} onChange={(event) => updateDraft(detailIndex, field, event.target.value)} style={{ height: 32, padding: "5px 8px" }} />
           </label>)}
         </div>
       </section> : null}

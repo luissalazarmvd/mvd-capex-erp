@@ -96,6 +96,7 @@ const MONTHS = [
 ];
 const ASSET_TYPES = ["LR", "DUP", "No deprecia"] as const;
 type AssetType = (typeof ASSET_TYPES)[number];
+const SITUATIONS = ["OPERATIVO", "DEPRECIADO"] as const;
 
 function text(value: unknown) {
   return value == null ? "" : String(value);
@@ -191,6 +192,69 @@ function currentAccountingPeriod() {
 
 function hasViewDepreciation(row: DeprRow) {
   return num(row.applied_rate_pct) !== 0 || num(row.depreciation_amount_pen) !== 0;
+}
+
+type MultiSelectFilterProps = {
+  label: string;
+  options: readonly string[];
+  selected: ReadonlySet<string>;
+  onToggle: (value: string) => void;
+  onSelectAll: () => void;
+  disabled?: boolean;
+  minWidth?: number;
+};
+
+function MultiSelectFilter({
+  label,
+  options,
+  selected,
+  onToggle,
+  onSelectAll,
+  disabled = false,
+  minWidth = 180,
+}: MultiSelectFilterProps) {
+  const allSelected = options.length > 0 && options.every((value) => selected.has(value));
+  const summary = allSelected ? "Todos" : selected.size ? `${selected.size} seleccionados` : "Ninguno";
+
+  return (
+    <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+      <span>{label}</span>
+      <details style={{ position: "relative", minWidth, zIndex: 80 }}>
+        <summary
+          className="input"
+          onClick={(event) => { if (disabled) event.preventDefault(); }}
+          style={{ height: 34, padding: "6px 10px", cursor: disabled ? "not-allowed" : "pointer", listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, userSelect: "none" }}
+        >
+          <span>{summary}</span>
+          <span aria-hidden="true">▾</span>
+        </summary>
+        <div className="panel-inner" style={{ position: "absolute", top: 38, left: 0, minWidth: "100%", width: "max-content", maxWidth: 360, maxHeight: 280, overflow: "auto", zIndex: 90, padding: 8, background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 28px rgba(0,0,0,.38)" }}>
+          <button
+            type="button"
+            className="input"
+            onClick={(event) => { event.preventDefault(); onSelectAll(); }}
+            disabled={disabled || !options.length}
+            style={{ width: "100%", height: 30, padding: "4px 8px", marginBottom: 6, cursor: disabled ? "not-allowed" : "pointer", fontWeight: 800 }}
+          >
+            Seleccionar todos
+          </button>
+          <div style={{ display: "grid", gap: 4 }}>
+            {options.map((value) => (
+              <label key={value} style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 3px", cursor: disabled ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+                <input
+                  type="checkbox"
+                  checked={selected.has(value)}
+                  onChange={() => onToggle(value)}
+                  disabled={disabled}
+                />
+                {value}
+              </label>
+            ))}
+          </div>
+        </div>
+      </details>
+    </div>
+  );
 }
 
 export default function FixAssetsDepr() {
@@ -445,16 +509,32 @@ export default function FixAssetsDepr() {
     setMessage("");
   }
 
+  function selectAllAssetTypes() {
+    setSelectedKeys(new Set());
+    setHistoryAssetCode(null);
+    setHistoryRowId(null);
+    setAssetTypes(new Set(ASSET_TYPES));
+    setMessage("");
+  }
+
   function toggleMappingGroup(value: string) {
     setSelectedKeys(new Set());
     setHistoryAssetCode(null);
     setHistoryRowId(null);
     setMappingGroupsSelected((current) => {
-      const next = new Set(current);
+      const next = current.size === 0 ? new Set(mappingGroups) : new Set(current);
       if (next.has(value)) next.delete(value);
       else next.add(value);
-      return next;
+      return next.size === mappingGroups.length ? new Set() : next;
     });
+    setMessage("");
+  }
+
+  function selectAllMappingGroups() {
+    setSelectedKeys(new Set());
+    setHistoryAssetCode(null);
+    setHistoryRowId(null);
+    setMappingGroupsSelected(new Set());
     setMessage("");
   }
 
@@ -463,11 +543,19 @@ export default function FixAssetsDepr() {
     setHistoryAssetCode(null);
     setHistoryRowId(null);
     setMappingDenomsSelected((current) => {
-      const next = new Set(current);
+      const next = current.size === 0 ? new Set(mappingDenoms) : new Set(current);
       if (next.has(value)) next.delete(value);
       else next.add(value);
-      return next;
+      return next.size === mappingDenoms.length ? new Set() : next;
     });
+    setMessage("");
+  }
+
+  function selectAllMappingDenoms() {
+    setSelectedKeys(new Set());
+    setHistoryAssetCode(null);
+    setHistoryRowId(null);
+    setMappingDenomsSelected(new Set());
     setMessage("");
   }
 
@@ -476,11 +564,19 @@ export default function FixAssetsDepr() {
     setHistoryAssetCode(null);
     setHistoryRowId(null);
     setSituationsSelected((current) => {
-      const next = new Set(current);
+      const next = current.size === 0 ? new Set<string>(SITUATIONS) : new Set(current);
       if (next.has(value)) next.delete(value);
       else next.add(value);
-      return next;
+      return next.size === SITUATIONS.length ? new Set() : next;
     });
+    setMessage("");
+  }
+
+  function selectAllSituations() {
+    setSelectedKeys(new Set());
+    setHistoryAssetCode(null);
+    setHistoryRowId(null);
+    setSituationsSelected(new Set());
     setMessage("");
   }
 
@@ -657,72 +753,42 @@ export default function FixAssetsDepr() {
           </label>
           <Select label="Año" value={year} onChange={(event) => clearSelectionAndSetPeriod(event.target.value, month)} options={years.map((value) => ({ value, label: value }))} placeholder="Selecciona" style={{ minWidth: 110 }} />
           <Select label="Mes" value={month} onChange={(event) => clearSelectionAndSetPeriod(year, event.target.value)} options={monthsForYear.map((value) => ({ value, label: MONTHS[Number(value) - 1] }))} placeholder="Selecciona" style={{ minWidth: 150 }} />
-          <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
-            <span>Tipo de activo</span>
-            <div className="input" style={{ minWidth: 280, height: 34, display: "flex", alignItems: "center", gap: 12, padding: "5px 10px" }}>
-              {ASSET_TYPES.map((value) => (
-                <label key={value} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
-                  <input
-                    type="checkbox"
-                    checked={assetTypes.has(value)}
-                    onChange={() => toggleAssetType(value)}
-                    disabled={loading || saving}
-                  />
-                  {value}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
-            <span>Grupo</span>
-            <div className="input" style={{ minWidth: 190, minHeight: 34, display: "flex", alignItems: "center", gap: 10, padding: "5px 10px", flexWrap: "wrap" }}>
-              {mappingGroups.map((value) => (
-                <label key={value} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
-                  <input
-                    type="checkbox"
-                    checked={mappingGroupsSelected.has(value)}
-                    onChange={() => toggleMappingGroup(value)}
-                    disabled={loading || saving}
-                  />
-                  {value}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
-            <span>Denominación</span>
-            <div className="input" style={{ minWidth: 230, minHeight: 34, display: "flex", alignItems: "center", gap: 10, padding: "5px 10px", flexWrap: "wrap" }}>
-              {mappingDenoms.map((value) => (
-                <label key={value} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
-                  <input
-                    type="checkbox"
-                    checked={mappingDenomsSelected.has(value)}
-                    onChange={() => toggleMappingDenom(value)}
-                    disabled={loading || saving}
-                  />
-                  {value}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
-            <span>Situación</span>
-            <div className="input" style={{ minWidth: 180, height: 34, display: "flex", alignItems: "center", gap: 10, padding: "5px 10px" }}>
-              {["OPERATIVO", "DEPRECIADO"].map((value) => (
-                <label key={value} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", whiteSpace: "nowrap" }}>
-                  <input
-                    type="checkbox"
-                    checked={situationsSelected.has(value)}
-                    onChange={() => toggleSituation(value)}
-                    disabled={loading || saving}
-                  />
-                  {value}
-                </label>
-              ))}
-            </div>
-          </div>
+          <MultiSelectFilter
+            label="Tipo de activo"
+            options={ASSET_TYPES}
+            selected={assetTypes}
+            onToggle={(value) => toggleAssetType(value as AssetType)}
+            onSelectAll={selectAllAssetTypes}
+            disabled={loading || saving}
+            minWidth={180}
+          />
+          <MultiSelectFilter
+            label="Grupo"
+            options={mappingGroups}
+            selected={mappingGroupsSelected.size ? mappingGroupsSelected : new Set(mappingGroups)}
+            onToggle={toggleMappingGroup}
+            onSelectAll={selectAllMappingGroups}
+            disabled={loading || saving}
+            minWidth={190}
+          />
+          <MultiSelectFilter
+            label="Denominación"
+            options={mappingDenoms}
+            selected={mappingDenomsSelected.size ? mappingDenomsSelected : new Set(mappingDenoms)}
+            onToggle={toggleMappingDenom}
+            onSelectAll={selectAllMappingDenoms}
+            disabled={loading || saving}
+            minWidth={220}
+          />
+          <MultiSelectFilter
+            label="Situación"
+            options={SITUATIONS}
+            selected={situationsSelected.size ? situationsSelected : new Set<string>(SITUATIONS)}
+            onToggle={toggleSituation}
+            onSelectAll={selectAllSituations}
+            disabled={loading || saving}
+            minWidth={170}
+          />
           <Button size="sm" onClick={() => selectRows(suggestedVisibleRows)} disabled={!suggestedVisibleRows.length || loading || saving}>Usar datos de vista ({suggestedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => selectRows(editedVisibleRows)} disabled={!editedVisibleRows.length || loading || saving}>Seleccionar manuales ({editedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => setSelectedKeys(new Set())} disabled={!selectedIds.length || loading || saving}>Limpiar selección</Button>
@@ -780,11 +846,16 @@ export default function FixAssetsDepr() {
                     />}
                   </td>
                   {displayColumns.map((column) => {
-                    const editable = selectableRow && EDITABLE.includes(column.key as EditableKey);
+                    const editable = selectableRow
+                      && EDITABLE.includes(column.key as EditableKey)
+                      && column.key !== "depreciation_amount_pen"
+                      && column.key !== "exc_rate";
                     const key = column.key as EditableKey;
                     const derivedValue = column.key === "asset_final_value" || column.key === "depreciation_cum_amount_pen" || column.key === "asset_balance_pen"
                       ? calculated[column.key]
-                      : row[column.key];
+                      : column.key === "depreciation_amount_pen"
+                        ? draft.depreciation_amount_pen
+                        : row[column.key];
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
                     const stickyBackground = bad ? "#713f38" : focused ? "#155a78" : selected ? "#3d6948" : sourceWeb ? "#062f43" : "#0b4d6b";
