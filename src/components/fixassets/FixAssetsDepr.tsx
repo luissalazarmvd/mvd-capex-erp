@@ -116,7 +116,7 @@ function facetSelectionMatches<T extends string>(selection: ReadonlySet<T> | nul
 }
 
 function syncSelection<T extends string>(current: Set<T> | null, options: readonly T[]) {
-  if (current === null || current.size === 0) return current;
+  if (options.length === 0 || current === null || current.size === 0) return current;
   const allowed = new Set(options);
   const next = new Set(Array.from(current).filter((value) => allowed.has(value)));
   if (next.size === current.size) return current;
@@ -299,10 +299,10 @@ export default function FixAssetsDepr() {
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
-  const [assetTypes, setAssetTypes] = useState<Set<AssetType> | null>(() => new Set<AssetType>(["LR", "DUP"]));
+  const [assetTypes, setAssetTypes] = useState<Set<AssetType> | null>(() => new Set<AssetType>(["LR"]));
   const [mappingGroupsSelected, setMappingGroupsSelected] = useState<Set<string> | null>(null);
   const [mappingDenomsSelected, setMappingDenomsSelected] = useState<Set<string> | null>(null);
-  const [situationsSelected, setSituationsSelected] = useState<Set<string> | null>(null);
+  const [situationsSelected, setSituationsSelected] = useState<Set<string> | null>(() => new Set<string>(["OPERATIVO"]));
   const [historyAssetCode, setHistoryAssetCode] = useState<string | null>(null);
   const [historyRowId, setHistoryRowId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
