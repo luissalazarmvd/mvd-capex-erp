@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
@@ -102,6 +102,27 @@ function text(value: unknown) {
   return value == null ? "" : String(value);
 }
 
+function canonicalAssetType(value: unknown): AssetType | null {
+  const normalized = text(value).trim().toLocaleLowerCase("es");
+  return ASSET_TYPES.find((item) => item.toLocaleLowerCase("es") === normalized) || null;
+}
+
+function selectionMatches<T extends string>(selection: ReadonlySet<T> | null, value: T) {
+  return selection === null || selection.has(value);
+}
+
+function facetSelectionMatches<T extends string>(selection: ReadonlySet<T> | null, value: T) {
+  return selection === null || selection.size === 0 || selection.has(value);
+}
+
+function syncSelection<T extends string>(current: Set<T> | null, options: readonly T[]) {
+  if (current === null || current.size === 0) return current;
+  const allowed = new Set(options);
+  const next = new Set(Array.from(current).filter((value) => allowed.has(value)));
+  if (next.size === current.size) return current;
+  return next.size ? next : new Set(options);
+}
+
 function num(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -194,32 +215,43 @@ function hasViewDepreciation(row: DeprRow) {
   return num(row.applied_rate_pct) !== 0 || num(row.depreciation_amount_pen) !== 0;
 }
 
-type MultiSelectFilterProps = {
+type MultiSelectFilterProps<T extends string> = {
   label: string;
-  options: readonly string[];
-  selected: ReadonlySet<string>;
-  onToggle: (value: string) => void;
-  onSelectAll: () => void;
+  options: readonly T[];
+  selected: ReadonlySet<T> | null;
+  onToggle: (value: T) => void;
+  onToggleAll: (selectAll: boolean) => void;
   disabled?: boolean;
   minWidth?: number;
 };
 
-function MultiSelectFilter({
+function MultiSelectFilter<T extends string>({
   label,
   options,
   selected,
   onToggle,
-  onSelectAll,
+  onToggleAll,
   disabled = false,
   minWidth = 180,
-}: MultiSelectFilterProps) {
-  const allSelected = options.length > 0 && options.every((value) => selected.has(value));
-  const summary = allSelected ? "Todos" : selected.size ? `${selected.size} seleccionados` : "Ninguno";
+}: MultiSelectFilterProps<T>) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const allSelected = options.length > 0 && (selected === null || options.every((value) => selected.has(value)));
+  const selectedCount = selected === null ? options.length : selected.size;
+  const summary = allSelected ? "Todos" : selectedCount ? `${selectedCount} seleccionados` : "Ninguno";
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const details = detailsRef.current;
+      if (details && !details.contains(event.target as Node)) details.open = false;
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
 
   return (
     <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
       <span>{label}</span>
-      <details style={{ position: "relative", minWidth, zIndex: 80 }}>
+      <details ref={detailsRef} style={{ position: "relative", minWidth, zIndex: 80 }}>
         <summary
           className="input"
           onClick={(event) => { if (disabled) event.preventDefault(); }}
@@ -232,18 +264,18 @@ function MultiSelectFilter({
           <button
             type="button"
             className="input"
-            onClick={(event) => { event.preventDefault(); onSelectAll(); }}
+            onClick={(event) => { event.preventDefault(); onToggleAll(!allSelected); }}
             disabled={disabled || !options.length}
             style={{ width: "100%", height: 30, padding: "4px 8px", marginBottom: 6, cursor: disabled ? "not-allowed" : "pointer", fontWeight: 800 }}
           >
-            Seleccionar todos
+            {allSelected ? "Deseleccionar todos" : "Seleccionar todos"}
           </button>
           <div style={{ display: "grid", gap: 4 }}>
             {options.map((value) => (
               <label key={value} style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 3px", cursor: disabled ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
                 <input
                   type="checkbox"
-                  checked={selected.has(value)}
+                  checked={selected === null || selected.has(value)}
                   onChange={() => onToggle(value)}
                   disabled={disabled}
                 />
@@ -267,10 +299,10 @@ export default function FixAssetsDepr() {
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
-  const [assetTypes, setAssetTypes] = useState<Set<AssetType>>(() => new Set<AssetType>(["LR", "DUP"]));
-  const [mappingGroupsSelected, setMappingGroupsSelected] = useState<Set<string>>(new Set());
-  const [mappingDenomsSelected, setMappingDenomsSelected] = useState<Set<string>>(new Set());
-  const [situationsSelected, setSituationsSelected] = useState<Set<string>>(new Set());
+  const [assetTypes, setAssetTypes] = useState<Set<AssetType> | null>(() => new Set<AssetType>(["LR", "DUP"]));
+  const [mappingGroupsSelected, setMappingGroupsSelected] = useState<Set<string> | null>(null);
+  const [mappingDenomsSelected, setMappingDenomsSelected] = useState<Set<string> | null>(null);
+  const [situationsSelected, setSituationsSelected] = useState<Set<string> | null>(null);
   const [historyAssetCode, setHistoryAssetCode] = useState<string | null>(null);
   const [historyRowId, setHistoryRowId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -360,38 +392,128 @@ export default function FixAssetsDepr() {
   const mappingByOrigin = useMemo(() => new Map(
     mappingRows.map((row) => [text(row.origin_account_code).trim(), row] as const).filter(([code]) => Boolean(code))
   ), [mappingRows]);
-  const mappingGroups = useMemo(() => Array.from(new Set(
-    mappingRows.map((row) => text(row.account_group).trim()).filter(Boolean)
-  )).sort((a, b) => a.localeCompare(b, "es")), [mappingRows]);
 
-  const mappingDenoms = useMemo(() => Array.from(new Set(
-    mappingRows
-      .map((row) => text(row.account_denom).trim())
-      .filter(Boolean)
-  )).sort((a, b) => a.localeCompare(b, "es")), [mappingRows]);
-
-  const visibleRows = useMemo(() => {
+  const filterBaseRows = useMemo(() => {
     const needle = deferredQuery.trim().toLocaleLowerCase("es");
     return rows.filter((row) => {
       const value = period(row.period_date);
       const assetCode = text(row.asset_code).trim();
       const matchesPeriod = value?.year === year && value.month === month;
-      const rowAssetType = text(row.asset_type).trim().toLocaleLowerCase("es");
-      const matchesAssetType = Array.from(assetTypes).some(
-        (selectedType) => selectedType.toLocaleLowerCase("es") === rowAssetType
-      );
+      const matchesQuery = !needle || assetCode.toLocaleLowerCase("es").includes(needle)
+        || text(row.asset_description).toLocaleLowerCase("es").includes(needle);
+      return matchesPeriod && matchesQuery;
+    });
+  }, [rows, year, month, deferredQuery]);
+
+  const availableAssetTypes = useMemo(() => {
+    const values = new Set<AssetType>();
+    filterBaseRows.forEach((row) => {
+      const assetCode = text(row.asset_code).trim();
       const mapping = mappingByOrigin.get(assetOrigins[assetCode]);
       const rowGroup = text(mapping?.account_group).trim();
       const rowDenom = text(mapping?.account_denom).trim();
       const rowSituation = assetSituations[assetCode] || "";
-      const matchesGroup = mappingGroupsSelected.size === 0 || mappingGroupsSelected.has(rowGroup);
-      const matchesDenom = mappingDenomsSelected.size === 0 || mappingDenomsSelected.has(rowDenom);
-      const matchesSituation = situationsSelected.size === 0 || situationsSelected.has(rowSituation);
-      const matchesQuery = !needle || assetCode.toLocaleLowerCase("es").includes(needle)
-        || text(row.asset_description).toLocaleLowerCase("es").includes(needle);
-      return matchesPeriod && matchesAssetType && matchesGroup && matchesDenom && matchesSituation && matchesQuery;
-    }).sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }));
-  }, [rows, year, month, assetTypes, mappingGroupsSelected, mappingDenomsSelected, situationsSelected, mappingByOrigin, assetOrigins, assetSituations, deferredQuery]);
+      const rowAssetType = canonicalAssetType(row.asset_type);
+      if (
+        rowAssetType
+        && facetSelectionMatches(mappingGroupsSelected, rowGroup)
+        && facetSelectionMatches(mappingDenomsSelected, rowDenom)
+        && facetSelectionMatches(situationsSelected, rowSituation)
+      ) values.add(rowAssetType);
+    });
+    return ASSET_TYPES.filter((value) => values.has(value));
+  }, [filterBaseRows, mappingByOrigin, assetOrigins, assetSituations, mappingGroupsSelected, mappingDenomsSelected, situationsSelected]);
+
+  const mappingGroups = useMemo(() => {
+    const values = new Set<string>();
+    filterBaseRows.forEach((row) => {
+      const assetCode = text(row.asset_code).trim();
+      const mapping = mappingByOrigin.get(assetOrigins[assetCode]);
+      const rowAssetType = canonicalAssetType(row.asset_type);
+      const rowDenom = text(mapping?.account_denom).trim();
+      const rowSituation = assetSituations[assetCode] || "";
+      const rowGroup = text(mapping?.account_group).trim();
+      if (
+        rowAssetType
+        && rowGroup
+        && facetSelectionMatches(assetTypes, rowAssetType)
+        && facetSelectionMatches(mappingDenomsSelected, rowDenom)
+        && facetSelectionMatches(situationsSelected, rowSituation)
+      ) values.add(rowGroup);
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "es"));
+  }, [filterBaseRows, mappingByOrigin, assetOrigins, assetSituations, assetTypes, mappingDenomsSelected, situationsSelected]);
+
+  const mappingDenoms = useMemo(() => {
+    const values = new Set<string>();
+    filterBaseRows.forEach((row) => {
+      const assetCode = text(row.asset_code).trim();
+      const mapping = mappingByOrigin.get(assetOrigins[assetCode]);
+      const rowAssetType = canonicalAssetType(row.asset_type);
+      const rowGroup = text(mapping?.account_group).trim();
+      const rowSituation = assetSituations[assetCode] || "";
+      const rowDenom = text(mapping?.account_denom).trim();
+      if (
+        rowAssetType
+        && rowDenom
+        && facetSelectionMatches(assetTypes, rowAssetType)
+        && facetSelectionMatches(mappingGroupsSelected, rowGroup)
+        && facetSelectionMatches(situationsSelected, rowSituation)
+      ) values.add(rowDenom);
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "es"));
+  }, [filterBaseRows, mappingByOrigin, assetOrigins, assetSituations, assetTypes, mappingGroupsSelected, situationsSelected]);
+
+  const availableSituations = useMemo(() => {
+    const values = new Set<string>();
+    filterBaseRows.forEach((row) => {
+      const assetCode = text(row.asset_code).trim();
+      const mapping = mappingByOrigin.get(assetOrigins[assetCode]);
+      const rowAssetType = canonicalAssetType(row.asset_type);
+      const rowGroup = text(mapping?.account_group).trim();
+      const rowDenom = text(mapping?.account_denom).trim();
+      const rowSituation = assetSituations[assetCode] || "";
+      if (
+        rowAssetType
+        && rowSituation
+        && facetSelectionMatches(assetTypes, rowAssetType)
+        && facetSelectionMatches(mappingGroupsSelected, rowGroup)
+        && facetSelectionMatches(mappingDenomsSelected, rowDenom)
+      ) values.add(rowSituation);
+    });
+    return SITUATIONS.filter((value) => values.has(value));
+  }, [filterBaseRows, mappingByOrigin, assetOrigins, assetSituations, assetTypes, mappingGroupsSelected, mappingDenomsSelected]);
+
+  useEffect(() => {
+    setAssetTypes((current) => syncSelection(current, availableAssetTypes));
+  }, [availableAssetTypes]);
+
+  useEffect(() => {
+    setMappingGroupsSelected((current) => syncSelection(current, mappingGroups));
+  }, [mappingGroups]);
+
+  useEffect(() => {
+    setMappingDenomsSelected((current) => syncSelection(current, mappingDenoms));
+  }, [mappingDenoms]);
+
+  useEffect(() => {
+    setSituationsSelected((current) => syncSelection(current, availableSituations));
+  }, [availableSituations]);
+
+  const visibleRows = useMemo(() => filterBaseRows.filter((row) => {
+    const assetCode = text(row.asset_code).trim();
+    const mapping = mappingByOrigin.get(assetOrigins[assetCode]);
+    const rowAssetType = canonicalAssetType(row.asset_type);
+    if (!rowAssetType) return false;
+    const rowGroup = text(mapping?.account_group).trim();
+    const rowDenom = text(mapping?.account_denom).trim();
+    const rowSituation = assetSituations[assetCode] || "";
+    return selectionMatches(assetTypes, rowAssetType)
+      && selectionMatches(mappingGroupsSelected, rowGroup)
+      && selectionMatches(mappingDenomsSelected, rowDenom)
+      && selectionMatches(situationsSelected, rowSituation);
+  }).sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true })),
+  [filterBaseRows, mappingByOrigin, assetOrigins, assetSituations, assetTypes, mappingGroupsSelected, mappingDenomsSelected, situationsSelected]);
 
   const tableTotals = useMemo(() => {
     const totals: Record<TotalColumnKey, number> = {
@@ -496,88 +618,71 @@ export default function FixAssetsDepr() {
     setMonth(nextMonth);
   }
 
-  function toggleAssetType(nextAssetType: AssetType) {
+  function clearFilterContext() {
     setSelectedKeys(new Set());
     setHistoryAssetCode(null);
     setHistoryRowId(null);
-    setAssetTypes((current) => {
-      const next = new Set(current);
-      if (next.has(nextAssetType)) next.delete(nextAssetType);
-      else next.add(nextAssetType);
-      return next;
-    });
     setMessage("");
   }
 
-  function selectAllAssetTypes() {
-    setSelectedKeys(new Set());
-    setHistoryAssetCode(null);
-    setHistoryRowId(null);
-    setAssetTypes(new Set(ASSET_TYPES));
-    setMessage("");
+  function toggleAssetType(nextAssetType: AssetType) {
+    clearFilterContext();
+    setAssetTypes((current) => {
+      const next = current === null ? new Set<AssetType>(availableAssetTypes) : new Set(current);
+      if (next.has(nextAssetType)) next.delete(nextAssetType);
+      else next.add(nextAssetType);
+      return availableAssetTypes.length > 0 && availableAssetTypes.every((value) => next.has(value)) ? null : next;
+    });
+  }
+
+  function toggleAllAssetTypes(selectAll: boolean) {
+    clearFilterContext();
+    setAssetTypes(selectAll ? null : new Set<AssetType>());
   }
 
   function toggleMappingGroup(value: string) {
-    setSelectedKeys(new Set());
-    setHistoryAssetCode(null);
-    setHistoryRowId(null);
+    clearFilterContext();
     setMappingGroupsSelected((current) => {
-      const next = current.size === 0 ? new Set(mappingGroups) : new Set(current);
+      const next = current === null ? new Set(mappingGroups) : new Set(current);
       if (next.has(value)) next.delete(value);
       else next.add(value);
-      return next.size === mappingGroups.length ? new Set() : next;
+      return mappingGroups.length > 0 && mappingGroups.every((item) => next.has(item)) ? null : next;
     });
-    setMessage("");
   }
 
-  function selectAllMappingGroups() {
-    setSelectedKeys(new Set());
-    setHistoryAssetCode(null);
-    setHistoryRowId(null);
-    setMappingGroupsSelected(new Set());
-    setMessage("");
+  function toggleAllMappingGroups(selectAll: boolean) {
+    clearFilterContext();
+    setMappingGroupsSelected(selectAll ? null : new Set<string>());
   }
 
   function toggleMappingDenom(value: string) {
-    setSelectedKeys(new Set());
-    setHistoryAssetCode(null);
-    setHistoryRowId(null);
+    clearFilterContext();
     setMappingDenomsSelected((current) => {
-      const next = current.size === 0 ? new Set(mappingDenoms) : new Set(current);
+      const next = current === null ? new Set(mappingDenoms) : new Set(current);
       if (next.has(value)) next.delete(value);
       else next.add(value);
-      return next.size === mappingDenoms.length ? new Set() : next;
+      return mappingDenoms.length > 0 && mappingDenoms.every((item) => next.has(item)) ? null : next;
     });
-    setMessage("");
   }
 
-  function selectAllMappingDenoms() {
-    setSelectedKeys(new Set());
-    setHistoryAssetCode(null);
-    setHistoryRowId(null);
-    setMappingDenomsSelected(new Set());
-    setMessage("");
+  function toggleAllMappingDenoms(selectAll: boolean) {
+    clearFilterContext();
+    setMappingDenomsSelected(selectAll ? null : new Set<string>());
   }
 
   function toggleSituation(value: string) {
-    setSelectedKeys(new Set());
-    setHistoryAssetCode(null);
-    setHistoryRowId(null);
+    clearFilterContext();
     setSituationsSelected((current) => {
-      const next = current.size === 0 ? new Set<string>(SITUATIONS) : new Set(current);
+      const next = current === null ? new Set<string>(availableSituations) : new Set(current);
       if (next.has(value)) next.delete(value);
       else next.add(value);
-      return next.size === SITUATIONS.length ? new Set() : next;
+      return availableSituations.length > 0 && availableSituations.every((item) => next.has(item)) ? null : next;
     });
-    setMessage("");
   }
 
-  function selectAllSituations() {
-    setSelectedKeys(new Set());
-    setHistoryAssetCode(null);
-    setHistoryRowId(null);
-    setSituationsSelected(new Set());
-    setMessage("");
+  function toggleAllSituations(selectAll: boolean) {
+    clearFilterContext();
+    setSituationsSelected(selectAll ? null : new Set<string>());
   }
 
   function toggleAllVisible(checked: boolean) {
@@ -755,37 +860,37 @@ export default function FixAssetsDepr() {
           <Select label="Mes" value={month} onChange={(event) => clearSelectionAndSetPeriod(year, event.target.value)} options={monthsForYear.map((value) => ({ value, label: MONTHS[Number(value) - 1] }))} placeholder="Selecciona" style={{ minWidth: 150 }} />
           <MultiSelectFilter
             label="Tipo de activo"
-            options={ASSET_TYPES}
+            options={availableAssetTypes}
             selected={assetTypes}
-            onToggle={(value) => toggleAssetType(value as AssetType)}
-            onSelectAll={selectAllAssetTypes}
+            onToggle={toggleAssetType}
+            onToggleAll={toggleAllAssetTypes}
             disabled={loading || saving}
             minWidth={180}
           />
           <MultiSelectFilter
             label="Grupo"
             options={mappingGroups}
-            selected={mappingGroupsSelected.size ? mappingGroupsSelected : new Set(mappingGroups)}
+            selected={mappingGroupsSelected}
             onToggle={toggleMappingGroup}
-            onSelectAll={selectAllMappingGroups}
+            onToggleAll={toggleAllMappingGroups}
             disabled={loading || saving}
             minWidth={190}
           />
           <MultiSelectFilter
             label="Denominación"
             options={mappingDenoms}
-            selected={mappingDenomsSelected.size ? mappingDenomsSelected : new Set(mappingDenoms)}
+            selected={mappingDenomsSelected}
             onToggle={toggleMappingDenom}
-            onSelectAll={selectAllMappingDenoms}
+            onToggleAll={toggleAllMappingDenoms}
             disabled={loading || saving}
             minWidth={220}
           />
           <MultiSelectFilter
             label="Situación"
-            options={SITUATIONS}
-            selected={situationsSelected.size ? situationsSelected : new Set<string>(SITUATIONS)}
+            options={availableSituations}
+            selected={situationsSelected}
             onToggle={toggleSituation}
-            onSelectAll={selectAllSituations}
+            onToggleAll={toggleAllSituations}
             disabled={loading || saving}
             minWidth={170}
           />
@@ -914,7 +1019,7 @@ export default function FixAssetsDepr() {
           </Table>
         </div> : <div className="muted" style={{ fontSize: 13 }}>No hay periodos de depreciación anteriores para este COD.</div>}
       </section> : null}
-      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · Tipo {Array.from(assetTypes).join(", ") || "ninguno"} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados. {`${year}-${month}` === editablePeriod ? "Edición habilitada para este periodo." : `Modo consulta: solo se puede editar ${editablePeriod}.`}</div>
+      <div className="muted" style={{ fontSize: 12 }}>Periodo {year && month ? `${MONTHS[Number(month) - 1]} ${year}` : "sin seleccionar"} · Tipo {assetTypes === null ? "Todos" : Array.from(assetTypes).join(", ") || "ninguno"} · {visibleRows.length} activos · {suggestedVisibleRows.length} con tasa/monto de vista · {selectedIds.length} seleccionados · {manualSelectedCount} con cálculo manual · {editedKeys.length} modificados. {`${year}-${month}` === editablePeriod ? "Edición habilitada para este periodo." : `Modo consulta: solo se puede editar ${editablePeriod}.`}</div>
       <style jsx global>{`
         .fixassets-depr-table table {
           font-size: 11px !important;

@@ -42,6 +42,11 @@ type CatalogueRow = {
   asset_comment: string | null;
 };
 
+type CecoRow = {
+  cost_center_code: string | null;
+  cost_center_description: string | null;
+};
+
 type MappingRow = {
   origin_account_code: string | null;
   account_group: string | null;
@@ -174,6 +179,7 @@ function validMappingRate(value: string) {
 
 export default function FixAssetsCat() {
   const [rows, setRows] = useState<CatalogueRow[]>([]);
+  const [cecoByCode, setCecoByCode] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [query, setQuery] = useState("");
@@ -195,11 +201,21 @@ export default function FixAssetsCat() {
     setLoading(true);
     setMessage("");
     try {
-      const response = await apiGet("/api/actfij/catalogue");
+      const [response, cecoResponse] = await Promise.all([
+        apiGet("/api/actfij/catalogue"),
+        apiGet("/api/actfij/ceco"),
+      ]);
       const nextRows = Array.isArray(response?.rows) ? (response.rows as CatalogueRow[]) : [];
+      const nextCecoByCode = (Array.isArray(cecoResponse?.rows) ? cecoResponse.rows as CecoRow[] : [])
+        .reduce<Record<string, string>>((current, row) => {
+          const code = text(row.cost_center_code).trim();
+          if (code) current[code] = text(row.cost_center_description).trim();
+          return current;
+        }, {});
       const nextDrafts: Record<string, Draft> = {};
       nextRows.forEach((row) => { nextDrafts[text(row.asset_code)] = toDraft(row); });
       setRows(nextRows);
+      setCecoByCode(nextCecoByCode);
       setDrafts(nextDrafts);
       setOriginals(nextDrafts);
       setIsError(false);
@@ -398,7 +414,8 @@ export default function FixAssetsCat() {
                   {COLUMNS.map((column) => {
                     const editable = EDITABLE.includes(column.key as EditableKey) && column.key !== "asset_type";
                     const key = column.key as EditableKey;
-                    const value = editable ? draft[key] : row[column.key];
+                    const mappedCostCenterDesc = cecoByCode[draft.cost_center_code.trim()] || "";
+                    const value = column.key === "cost_center_desc" ? mappedCostCenterDesc : editable ? draft[key] : row[column.key];
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
                     const stickyBackground = bad ? "#79453b" : edited ? "#416f43" : "var(--panel2)";
@@ -421,6 +438,7 @@ export default function FixAssetsCat() {
                         value={text(value)}
                         sanitize={key === "cost_center_code" ? (next) => next.replace(/\D/g, "").slice(0, 6) : NUMBER_FIELDS.has(key) ? numericDraft : undefined}
                         normalizeOnBlur={NUMBER_FIELDS.has(key) ? (next) => validOptionalNumber(next) ? twoDecimals(next) : next : undefined}
+                        onLiveChange={key === "cost_center_code" ? (next) => update(code, key, next) : undefined}
                         onCommit={(next) => update(code, key, next)}
                         style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && ((NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key])) || (key === "cost_center_code" && Boolean(draft.cost_center_code.trim()) && !/^\d{6}$/.test(draft.cost_center_code.trim()))) ? "#ebb086" : undefined }}
                         aria-label={`${column.label} ${code}`}
