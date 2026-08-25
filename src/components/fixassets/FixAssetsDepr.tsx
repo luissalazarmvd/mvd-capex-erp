@@ -39,6 +39,7 @@ type MappingRow = {
 type CatalogueReferenceRow = {
   asset_code: string | null;
   origin_account_code: string | null;
+  asset_situation: string | null;
 };
 
 const EDITABLE = [
@@ -196,6 +197,7 @@ export default function FixAssetsDepr() {
   const [rows, setRows] = useState<DeprRow[]>([]);
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([]);
   const [assetOrigins, setAssetOrigins] = useState<Record<string, string>>({});
+  const [assetSituations, setAssetSituations] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [year, setYear] = useState("");
@@ -203,6 +205,7 @@ export default function FixAssetsDepr() {
   const [assetType, setAssetType] = useState<DepreciableAssetType>("LR");
   const [mappingGroup, setMappingGroup] = useState("");
   const [mappingDenom, setMappingDenom] = useState("");
+  const [situationFilter, setSituationFilter] = useState("");
   const [historyAssetCode, setHistoryAssetCode] = useState<string | null>(null);
   const [historyRowId, setHistoryRowId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -230,18 +233,24 @@ export default function FixAssetsDepr() {
       const nextRows = (Array.isArray(response?.rows) ? response.rows as DeprRow[] : [])
         .sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }));
       const nextMappingRows = Array.isArray(mappingResponse?.rows) ? mappingResponse.rows as MappingRow[] : [];
-      const nextAssetOrigins = (Array.isArray(catalogueResponse?.rows) ? catalogueResponse.rows as CatalogueReferenceRow[] : [])
-        .reduce<Record<string, string>>((current, row) => {
-          const assetCode = text(row.asset_code).trim();
-          const originAccount = text(row.origin_account_code).trim();
-          if (assetCode && originAccount) current[assetCode] = originAccount;
-          return current;
-        }, {});
+      const catalogueRows = Array.isArray(catalogueResponse?.rows) ? catalogueResponse.rows as CatalogueReferenceRow[] : [];
+      const nextAssetOrigins = catalogueRows.reduce<Record<string, string>>((current, row) => {
+        const assetCode = text(row.asset_code).trim();
+        const originAccount = text(row.origin_account_code).trim();
+        if (assetCode && originAccount) current[assetCode] = originAccount;
+        return current;
+      }, {});
+      const nextAssetSituations = catalogueRows.reduce<Record<string, string>>((current, row) => {
+        const assetCode = text(row.asset_code).trim();
+        if (assetCode) current[assetCode] = text(row.asset_situation).trim().toUpperCase();
+        return current;
+      }, {});
       const nextDrafts: Record<string, Draft> = {};
       nextRows.forEach((row) => { nextDrafts[rowKey(row)] = toDraft(row); });
       setRows(nextRows);
       setMappingRows(nextMappingRows);
       setAssetOrigins(nextAssetOrigins);
+      setAssetSituations(nextAssetSituations);
       setDrafts(nextDrafts);
       setOriginals(nextDrafts);
       setSelectedKeys(new Set());
@@ -304,16 +313,18 @@ export default function FixAssetsDepr() {
     const needle = deferredQuery.trim().toLocaleLowerCase("es");
     return rows.filter((row) => {
       const value = period(row.period_date);
+      const assetCode = text(row.asset_code).trim();
       const matchesPeriod = value?.year === year && value.month === month;
       const matchesAssetType = text(row.asset_type).trim().toUpperCase() === assetType;
-      const mapping = mappingByOrigin.get(assetOrigins[text(row.asset_code).trim()]);
+      const mapping = mappingByOrigin.get(assetOrigins[assetCode]);
       const matchesGroup = !mappingGroup || text(mapping?.account_group).trim() === mappingGroup;
       const matchesDenom = !mappingDenom || text(mapping?.account_denom).trim() === mappingDenom;
-      const matchesQuery = !needle || text(row.asset_code).toLocaleLowerCase("es").includes(needle)
+      const matchesSituation = !situationFilter || assetSituations[assetCode] === situationFilter;
+      const matchesQuery = !needle || assetCode.toLocaleLowerCase("es").includes(needle)
         || text(row.asset_description).toLocaleLowerCase("es").includes(needle);
-      return matchesPeriod && matchesAssetType && matchesGroup && matchesDenom && matchesQuery;
+      return matchesPeriod && matchesAssetType && matchesGroup && matchesDenom && matchesSituation && matchesQuery;
     }).sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }));
-  }, [rows, year, month, assetType, mappingGroup, mappingDenom, mappingByOrigin, assetOrigins, deferredQuery]);
+  }, [rows, year, month, assetType, mappingGroup, mappingDenom, situationFilter, mappingByOrigin, assetOrigins, assetSituations, deferredQuery]);
 
   const tableTotals = useMemo(() => {
     const totals: Record<TotalColumnKey, number> = {
@@ -607,6 +618,7 @@ export default function FixAssetsDepr() {
           <Select label="Tipo de activo" value={assetType} onChange={(event) => changeAssetType(event.target.value as DepreciableAssetType)} options={DEPRECIABLE_ASSET_TYPES.map((value) => ({ value, label: value }))} placeholder="" style={{ minWidth: 130 }} />
           <Select label="Grupo" value={mappingGroup} onChange={(event) => changeMappingGroup(event.target.value)} options={mappingGroups.map((value) => ({ value, label: value }))} placeholder="Todos los grupos" disabled={loading} style={{ minWidth: 170 }} />
           <Select label="Denominación" value={mappingDenom} onChange={(event) => changeMappingDenom(event.target.value)} options={mappingDenoms.map((value) => ({ value, label: value }))} placeholder="Todas las denominaciones" disabled={loading} style={{ minWidth: 210 }} />
+          <Select label="Situación" value={situationFilter} onChange={(event) => setSituationFilter(event.target.value)} options={[{ value: "OPERATIVO", label: "OPERATIVO" }, { value: "DEPRECIADO", label: "DEPRECIADO" }]} placeholder="Todas" disabled={loading} style={{ minWidth: 145 }} />
           <Button size="sm" onClick={() => selectRows(suggestedVisibleRows)} disabled={!suggestedVisibleRows.length || loading || saving}>Usar datos de vista ({suggestedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => selectRows(editedVisibleRows)} disabled={!editedVisibleRows.length || loading || saving}>Seleccionar manuales ({editedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => setSelectedKeys(new Set())} disabled={!selectedIds.length || loading || saving}>Limpiar selección</Button>

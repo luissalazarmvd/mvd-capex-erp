@@ -178,7 +178,6 @@ export default function FixAssetsCat() {
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const [situationFilter, setSituationFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -222,18 +221,15 @@ export default function FixAssetsCat() {
 
   const visibleRows = useMemo(() => {
     const needle = deferredQuery.trim().toLocaleLowerCase("es");
-    const situation = situationFilter.trim().toLocaleUpperCase("es");
+    if (!needle) return rows;
     return rows.filter((row) => {
       const code = text(row.asset_code);
       const draft = drafts[code];
-      const rowSituation = text(draft?.asset_situation ?? row.asset_situation).trim().toLocaleUpperCase("es");
-      if (situation && rowSituation !== situation) return false;
-      if (!needle) return true;
       return COLUMNS.some((column) => text(
         EDITABLE.includes(column.key as EditableKey) ? draft?.[column.key as EditableKey] : row[column.key]
       ).toLocaleLowerCase("es").includes(needle));
     });
-  }, [rows, drafts, deferredQuery, situationFilter]);
+  }, [rows, drafts, deferredQuery]);
 
   function update(code: string, key: EditableKey, value: string) {
     setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
@@ -372,14 +368,6 @@ export default function FixAssetsCat() {
           <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
             Buscar en toda la tabla
             <input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="COD, descripción, área..." style={{ width: 270, height: 34, padding: "6px 10px" }} />
-          </label>
-          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
-            Situación
-            <select className="input" value={situationFilter} onChange={(event) => setSituationFilter(event.target.value)} style={{ minWidth: 150, height: 34, padding: "6px 10px" }}>
-              <option value="">Todas</option>
-              <option value="OPERATIVO">OPERATIVO</option>
-              <option value="DEPRECIADO">DEPRECIADO</option>
-            </select>
           </label>
           <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving}>Actualizar mapping</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
