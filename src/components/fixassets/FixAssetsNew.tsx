@@ -335,7 +335,12 @@ export default function FixAssetsNew() {
   const years = useMemo(() => Array.from(new Set([
     initialPeriod.year,
     ...rows.map((row) => monthOf(row.comp_date)?.year).filter((value): value is string => Boolean(value)),
-  ].filter(Boolean))).sort().reverse(), [rows, initialPeriod.year]);
+  ].filter((value): value is string => Boolean(value) && value <= initialPeriod.year))).sort().reverse(), [rows, initialPeriod.year]);
+
+  const monthOptions = useMemo(() => MONTHS
+    .map((label, index) => ({ value: String(index + 1).padStart(2, "0"), label }))
+    .filter((option) => year < initialPeriod.year || (year === initialPeriod.year && option.value <= initialPeriod.month)),
+  [year, initialPeriod.year, initialPeriod.month]);
 
   const codeCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -549,9 +554,9 @@ export default function FixAssetsNew() {
           <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>Asigna un COD único de 7 dígitos. El periodo inicia siempre en el mes actual.</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}>
-          <Select label="Año" value={year} onChange={(event) => setYear(event.target.value)} options={years.map((value) => ({ value, label: value }))} placeholder="Todos" style={{ minWidth: 110 }} />
-          <Select label="Mes desde" value={monthFrom} onChange={(event) => { const value = event.target.value; setMonthFrom(value); if (value > monthTo) setMonthTo(value); }} options={MONTHS.map((label, index) => ({ value: String(index + 1).padStart(2, "0"), label }))} placeholder="" style={{ minWidth: 145 }} />
-          <Select label="Mes hasta" value={monthTo} onChange={(event) => { const value = event.target.value; setMonthTo(value); if (value < monthFrom) setMonthFrom(value); }} options={MONTHS.map((label, index) => ({ value: String(index + 1).padStart(2, "0"), label }))} placeholder="" style={{ minWidth: 145 }} />
+          <Select label="Año" value={year} onChange={(event) => { const value = event.target.value; setYear(value); if (value === initialPeriod.year) { if (monthFrom > initialPeriod.month) setMonthFrom(initialPeriod.month); if (monthTo > initialPeriod.month) setMonthTo(initialPeriod.month); } }} options={years.map((value) => ({ value, label: value }))} placeholder="Todos" style={{ minWidth: 110 }} />
+          <Select label="Mes desde" value={monthFrom} onChange={(event) => { const value = event.target.value; setMonthFrom(value); if (value > monthTo) setMonthTo(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
+          <Select label="Mes hasta" value={monthTo} onChange={(event) => { const value = event.target.value; setMonthTo(value); if (value < monthFrom) setMonthFrom(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
           <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
             Clase para COD
             <input className="input" value={codeClass} onChange={(event) => setCodeClass(event.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" maxLength={3} placeholder="Ej. 110" style={{ width: 105, height: 34, padding: "6px 10px" }} />
@@ -624,7 +629,11 @@ export default function FixAssetsNew() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
           {EXTRA_FIELDS.map(([field, label]) => <label key={field} style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 800 }}>
             {label}
-            <input className="input" type={field === "operation_date" ? "date" : "text"} value={detailDraft[field]} onChange={(event) => updateDraft(detailIndex, field, event.target.value)} style={{ height: 32, padding: "5px 8px" }} />
+            {field === "asset_situation" ? <select className="input" value={detailDraft[field]} onChange={(event) => updateDraft(detailIndex, field, event.target.value)} style={{ height: 32, padding: "5px 8px" }}>
+              <option value=""></option>
+              <option value="OPERATIVO">OPERATIVO</option>
+              <option value="DEPRECIADO">DEPRECIADO</option>
+            </select> : <input className="input" type={field === "operation_date" ? "date" : "text"} value={detailDraft[field]} onChange={(event) => updateDraft(detailIndex, field, event.target.value)} style={{ height: 32, padding: "5px 8px" }} />}
           </label>)}
         </div>
       </section> : null}

@@ -153,7 +153,10 @@ function changed(draft: Draft, original: Draft) {
 }
 
 function invalid(draft: Draft) {
-  return !validOptionalNumber(draft.exc_rate) || !validOptionalNumber(draft.asset_ini_cost_pen);
+  const costCenter = draft.cost_center_code.trim();
+  return !validOptionalNumber(draft.exc_rate)
+    || !validOptionalNumber(draft.asset_ini_cost_pen)
+    || Boolean(costCenter && !/^\d{6}$/.test(costCenter));
 }
 
 function toMappingDraft(row: MappingRow): MappingDraft {
@@ -175,6 +178,7 @@ export default function FixAssetsCat() {
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
+  const [situationFilter, setSituationFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -218,15 +222,18 @@ export default function FixAssetsCat() {
 
   const visibleRows = useMemo(() => {
     const needle = deferredQuery.trim().toLocaleLowerCase("es");
-    if (!needle) return rows;
+    const situation = situationFilter.trim().toLocaleUpperCase("es");
     return rows.filter((row) => {
       const code = text(row.asset_code);
       const draft = drafts[code];
+      const rowSituation = text(draft?.asset_situation ?? row.asset_situation).trim().toLocaleUpperCase("es");
+      if (situation && rowSituation !== situation) return false;
+      if (!needle) return true;
       return COLUMNS.some((column) => text(
         EDITABLE.includes(column.key as EditableKey) ? draft?.[column.key as EditableKey] : row[column.key]
       ).toLocaleLowerCase("es").includes(needle));
     });
-  }, [rows, drafts, deferredQuery]);
+  }, [rows, drafts, deferredQuery, situationFilter]);
 
   function update(code: string, key: EditableKey, value: string) {
     setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
@@ -366,6 +373,14 @@ export default function FixAssetsCat() {
             Buscar en toda la tabla
             <input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="COD, descripción, área..." style={{ width: 270, height: 34, padding: "6px 10px" }} />
           </label>
+          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+            Situación
+            <select className="input" value={situationFilter} onChange={(event) => setSituationFilter(event.target.value)} style={{ minWidth: 150, height: 34, padding: "6px 10px" }}>
+              <option value="">Todas</option>
+              <option value="OPERATIVO">OPERATIVO</option>
+              <option value="DEPRECIADO">DEPRECIADO</option>
+            </select>
+          </label>
           <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving}>Actualizar mapping</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${editedCodes.length})`}</Button>
@@ -373,7 +388,7 @@ export default function FixAssetsCat() {
       </div>
 
       {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
-      {invalidCodes.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los campos numéricos de {invalidCodes.length} fila(s) antes de guardar.</div> : null}
+      {invalidCodes.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los campos numéricos o Centro costo (6 dígitos) de {invalidCodes.length} fila(s) antes de guardar.</div> : null}
 
       <div className="panel-inner" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", padding: 0 }}>
         <div style={{ minWidth: "max-content" }}>
@@ -400,15 +415,26 @@ export default function FixAssetsCat() {
                     const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
                     const stickyBackground = bad ? "#79453b" : edited ? "#416f43" : "var(--panel2)";
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? stickyBackground : background, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 20 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
-                      {editable ? <FastCellInput
+                      {editable ? key === "asset_situation" ? <select
+                        className="input"
+                        value={text(value)}
+                        onChange={(event) => update(code, key, event.target.value)}
+                        style={{ minWidth: column.width - 12, padding: "6px 7px" }}
+                        aria-label={`${column.label} ${code}`}
+                      >
+                        <option value=""></option>
+                        <option value="OPERATIVO">OPERATIVO</option>
+                        <option value="DEPRECIADO">DEPRECIADO</option>
+                      </select> : <FastCellInput
                         className="input"
                         type={DATE_FIELDS.has(key) ? "date" : "text"}
-                        inputMode={NUMBER_FIELDS.has(key) ? "decimal" : undefined}
+                        inputMode={key === "cost_center_code" ? "numeric" : NUMBER_FIELDS.has(key) ? "decimal" : undefined}
+                        maxLength={key === "cost_center_code" ? 6 : undefined}
                         value={text(value)}
-                        sanitize={NUMBER_FIELDS.has(key) ? numericDraft : undefined}
+                        sanitize={key === "cost_center_code" ? (next) => next.replace(/\D/g, "").slice(0, 6) : NUMBER_FIELDS.has(key) ? numericDraft : undefined}
                         normalizeOnBlur={NUMBER_FIELDS.has(key) ? (next) => validOptionalNumber(next) ? twoDecimals(next) : next : undefined}
                         onCommit={(next) => update(code, key, next)}
-                        style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key]) ? "#ebb086" : undefined }}
+                        style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && ((NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key])) || (key === "cost_center_code" && Boolean(draft.cost_center_code.trim()) && !/^\d{6}$/.test(draft.cost_center_code.trim()))) ? "#ebb086" : undefined }}
                         aria-label={`${column.label} ${code}`}
                       /> : <span title={text(value)}>{column.key.endsWith("_date") ? dateOnly(value) : column.key === "deprec_rate_pct" ? twoDecimals(value) : text(value)}</span>}
                     </td>;

@@ -170,10 +170,21 @@ function currentAccountingPeriod() {
     timeZone: "America/Lima",
     year: "numeric",
     month: "2-digit",
+    day: "2-digit",
   }).formatToParts(new Date());
-  const year = parts.find((part) => part.type === "year")?.value || "";
-  const month = parts.find((part) => part.type === "month")?.value || "";
-  return `${year}-${month}`;
+  let year = Number(parts.find((part) => part.type === "year")?.value || "0");
+  let month = Number(parts.find((part) => part.type === "month")?.value || "1");
+  const day = Number(parts.find((part) => part.type === "day")?.value || "1");
+
+  if (day <= 10) {
+    month -= 1;
+    if (month === 0) {
+      month = 12;
+      year -= 1;
+    }
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}`;
 }
 
 function hasViewDepreciation(row: DeprRow) {
@@ -236,7 +247,12 @@ export default function FixAssetsDepr() {
       setSelectedKeys(new Set());
       setHistoryAssetCode(null);
       setHistoryRowId(null);
-      const latest = nextRows.map((row) => text(row.period_date).slice(0, 7)).filter(Boolean).sort().at(-1) || "";
+      const currentPeriod = currentAccountingPeriod();
+      const latest = nextRows
+        .map((row) => text(row.period_date).slice(0, 7))
+        .filter((value) => Boolean(value) && value <= currentPeriod)
+        .sort()
+        .at(-1) || "";
       if (latest) {
         setYear(latest.slice(0, 4));
         setMonth(latest.slice(5, 7));
@@ -257,8 +273,11 @@ export default function FixAssetsDepr() {
   )).sort().reverse(), [rows]);
 
   const monthsForYear = useMemo(() => Array.from(new Set(
-    rows.map((row) => period(row.period_date)).filter((value) => value?.year === year).map((value) => value!.month)
-  )).sort(), [rows, year]);
+    rows
+      .map((row) => period(row.period_date))
+      .filter((value) => value?.year === year && `${value.year}-${value.month}` <= editablePeriod)
+      .map((value) => value!.month)
+  )).sort(), [rows, year, editablePeriod]);
 
   useEffect(() => {
     if (monthsForYear.length && !monthsForYear.includes(month)) setMonth(monthsForYear.at(-1) || "");
