@@ -41,6 +41,7 @@ type CatalogueReferenceRow = {
   asset_code: string | null;
   origin_account_code: string | null;
   asset_situation: string | null;
+  cost_center_code: string | null;
   exc_rate: number | string | null;
 };
 
@@ -329,6 +330,7 @@ export default function FixAssetsDepr() {
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([]);
   const [assetOrigins, setAssetOrigins] = useState<Record<string, string>>({});
   const [assetSituations, setAssetSituations] = useState<Record<string, string>>({});
+  const [assetCostCenters, setAssetCostCenters] = useState<Record<string, string>>({});
   const [assetExcRates, setAssetExcRates] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
@@ -379,6 +381,11 @@ export default function FixAssetsDepr() {
         if (assetCode) current[assetCode] = text(row.asset_situation).trim().toUpperCase();
         return current;
       }, {});
+      const nextAssetCostCenters = catalogueRows.reduce<Record<string, string>>((current, row) => {
+        const assetCode = text(row.asset_code).trim();
+        if (assetCode) current[assetCode] = text(row.cost_center_code).trim();
+        return current;
+      }, {});
       const nextAssetExcRates = catalogueRows.reduce<Record<string, string>>((current, row) => {
         const assetCode = text(row.asset_code).trim();
         if (assetCode) current[assetCode] = text(row.exc_rate).trim();
@@ -390,6 +397,7 @@ export default function FixAssetsDepr() {
       setMappingRows(nextMappingRows);
       setAssetOrigins(nextAssetOrigins);
       setAssetSituations(nextAssetSituations);
+      setAssetCostCenters(nextAssetCostCenters);
       setAssetExcRates(nextAssetExcRates);
       setDrafts(nextDrafts);
       setOriginals(nextDrafts);
@@ -442,12 +450,15 @@ export default function FixAssetsDepr() {
     return rows.filter((row) => {
       const value = period(row.period_date);
       const assetCode = text(row.asset_code).trim();
+      const costCenter = assetCostCenters[assetCode] || "";
       const matchesPeriod = value?.year === year && value.month === month;
-      const matchesQuery = !needle || assetCode.toLocaleLowerCase("es").includes(needle)
-        || text(row.asset_description).toLocaleLowerCase("es").includes(needle);
+      const matchesQuery = !needle
+        || assetCode.toLocaleLowerCase("es").includes(needle)
+        || text(row.asset_description).toLocaleLowerCase("es").includes(needle)
+        || costCenter.toLocaleLowerCase("es").includes(needle);
       return matchesPeriod && matchesQuery;
     });
-  }, [rows, year, month, deferredQuery]);
+  }, [rows, year, month, deferredQuery, assetCostCenters]);
 
   const availableAssetTypes = useMemo(() => {
     const values = new Set<AssetType>();
@@ -929,8 +940,8 @@ export default function FixAssetsDepr() {
         </div>
         <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
           <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
-            Buscar COD o descripción
-            <FastCellInput className="input" value={query} onCommit={setQuery} onLiveChange={setQuery} placeholder="Ej. 110 o equipo" style={{ width: 230, height: 34, padding: "6px 10px" }} />
+            Buscar COD, descripción o CECO
+            <FastCellInput className="input" value={query} onCommit={setQuery} onLiveChange={setQuery} placeholder="COD, equipo o centro de costo" style={{ width: 250, height: 34, padding: "6px 10px" }} />
           </label>
           <Select label="Año" value={year} onChange={(event) => clearSelectionAndSetPeriod(event.target.value, month)} options={years.map((value) => ({ value, label: value }))} placeholder="Selecciona" style={{ minWidth: 110 }} />
           <Select label="Mes" value={month} onChange={(event) => clearSelectionAndSetPeriod(year, event.target.value)} options={monthsForYear.map((value) => ({ value, label: MONTHS[Number(value) - 1] }))} placeholder="Selecciona" style={{ minWidth: 150 }} />
