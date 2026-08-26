@@ -1,26 +1,14 @@
 # Contexto operativo de MVD CAPEX ERP
 
-Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de implementar cambios, revisarlo y después abrir únicamente los archivos directamente relacionados con la solicitud. Actualizarlo cuando cambien arquitectura, rutas, autenticación, contratos del backend o reglas de negocio importantes.
+Aplica a todo el repositorio. Leer este archivo una vez y después abrir solo los archivos relacionados. Mantener aquí únicamente arquitectura, contratos y reglas de negocio vigentes.
 
-## Stack y estructura
+## Stack y datos
 
-- Next.js 16.1 con App Router, React 19 y TypeScript estricto; alias `@/*` apunta a la raíz del repositorio.
-- Código de rutas en `src/app`, componentes de negocio en `src/components`, utilidades/tipos/validaciones en `src/lib`, recursos estáticos en `public` y scripts en `scripts`.
-- Fuentes Exo locales configuradas en `src/app/layout.tsx`; paleta y estilos globales en `src/app/globals.css`.
-- UI base compartida: `src/components/ui/Button.tsx`, `Input.tsx`, `Select.tsx` y `Table.tsx`.
-- Dependencias relevantes: `mssql`, `xlsx`, `exceljs`, `react-pdf`, `jspdf`, `jspdf-autotable` y `html2canvas`.
-- Comandos: `npm run dev`, `npm run build`, `npm run start`, `npm run lint`.
-- Existe deuda técnica previa de ESLint, principalmente `no-explicit-any` y algunos hooks, en módulos históricos. No introducir errores nuevos y ejecutar al menos lint dirigido a los archivos tocados más build.
-
-## Comunicación con datos y backend
-
-- El frontend consume el backend externo mediante `src/lib/apiClient.ts`.
-- Variables requeridas: `NEXT_PUBLIC_API_BASE_URL` y `NEXT_PUBLIC_API_KEY`; la clave se envía como `x-api-key`.
-- `apiGet`, `apiPost` y `apiDownload` normalizan errores cuando HTTP falla o el JSON trae `ok: false`.
-- Varios módulos llaman directamente al backend desde componentes cliente. No inventar rutas proxy locales salvo que la arquitectura del módulo ya las use.
-- `src/lib/db/sql.ts`, `queries.ts` y `upserts.ts` contienen acceso SQL/utilidades históricas del dominio CAPEX.
-- `src/lib/domain`, `src/lib/types/capex.ts` y `src/lib/validation` contienen periodos, reglas, tipos y validaciones de proyectos/WBS, budget, forecast y progress.
-- Antes de cambiar payloads, revisar el endpoint consumido: algunos aceptan `{ rows: [...] }`, mientras Activos Fijos acepta una fila por POST.
+- Next.js 16.1 App Router + React 19 + TypeScript estricto. Rutas `src/app`, componentes `src/components`, lógica/tipos/validación `src/lib`, estáticos `public`, scripts `scripts`; alias `@/*` a raíz.
+- UI compartida: `Button`, `Input`, `Select`, `Table`; estilos globales en `src/app/globals.css`.
+- Frontend → backend externo mediante `src/lib/apiClient.ts`; usa `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_API_KEY` y `x-api-key`.
+- No inventar rutas, payloads, fechas, batch ni semántica de borrado: revisar siempre el endpoint/código existente. Algunos endpoints aceptan `{ rows: [...] }`; Activos Fijos inserta una fila por POST.
+- Comandos: `npm run dev|build|start|lint`. No agregar nuevos errores ESLint.
 
 ## Autenticación, portal y seguridad de rutas
 
@@ -44,28 +32,24 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 
 ## Convenciones de interfaz
 
-- Mantener la identidad azul Veta Dorada, paneles `panel`/`panel-inner`, tablas `Table`, encabezados `capex-th`, celdas `capex-td` y controles UI compartidos.
-- Logística aplica el override oscuro `logistics-theme`.
-- Las áreas usan `layout.tsx` con logo, navegación interna e `Inicio` mediante `LogoutLink`.
-- Tablas anchas: contenedor con scroll, encabezado sticky, anchos explícitos y feedback de carga/vacío.
-- En pantallas de edición, conservar borrador y original separados; verde significa fila preparada/válida, rojo fila preparada con error.
-- Evitar letras en entradas numéricas, validar antes del POST y desactivar Guardar si el conjunto que será enviado contiene errores.
-- Para tablas editables grandes de Activos Fijos usar `FastCellInput.tsx`: la escritura queda en estado local y se confirma al salir de la celda, evitando rerenderizar toda la tabla por cada tecla. Cuando un input necesite reflejar cambios en vivo —por ejemplo buscadores— usar `onLiveChange`; `FastCellInput` lo ejecuta dentro de `startTransition` para que la actualización pesada del componente no bloquee la escritura.
-- Preservar cambios del usuario no relacionados y no hacer operaciones destructivas sobre el worktree.
-- Cuando se cambie el comportamiento de un control o patrón reutilizado —por ejemplo multiselects, `Seleccionar todos`/`Deseleccionar todos`, cierre al hacer clic fuera, filtros dependientes o selección de filas— aplicar el mismo comportamiento de forma consistente en los demás componentes donde exista el mismo patrón, salvo que el usuario indique expresamente lo contrario.
+- Mantener identidad azul Veta Dorada, `panel`/`panel-inner`, `Table`, `capex-th`/`capex-td`, headers/identificadores sticky y scroll interno en tablas anchas.
+- Edición: original y borrador separados; verde=válida/preparada, rojo=inválida; validar antes del POST.
+- En tablas editables grandes usar `FastCellInput`: estado local al escribir y commit al blur; `onLiveChange` solo cuando se necesite respuesta inmediata y diferida con `startTransition`.
+- Aplicar consistentemente cambios de patrones reutilizados (multiselect, seleccionar/deseleccionar todo, click fuera, filtros dependientes, selección de filas) en componentes equivalentes.
+- Preservar cambios ajenos del worktree.
 
-## Módulo CAPEX
+## Otros módulos
 
-- Grupo de rutas `src/app/(capex)` y componentes `src/components/capex`; layout/nav: Proyectos, Budget, Forecast, EV y Reportes.
+- **CAPEX** (`src/app/(capex)`, `src/components/capex`): Proyectos, Budget, Forecast, EV y Reportes.
 - `/projects`: árbol de proyectos/WBS, metadatos y mantenimiento. Endpoints principales `/api/projects/meta`, `/api/projects/upsert`, `/api/wbs/upsert`, `/api/capex/mapping`.
 - `/budget`: matrices ORIG/SOC por periodos. Usa `/api/budget/latest`, `/api/budget/upsert`, `/api/export/budget-orig|budget-soc`.
 - `/forecast`: matriz forecast. Usa `/api/forecast/latest`, `/api/forecast/upsert`, `/api/forecast/reset`, `/api/export/forecast`.
 - `/progress`: earned value/progreso y carga de actuals Veta/detalle. Usa `/api/progress/latest`, `/api/ev/upsert`, `/api/export/ev`, `/api/capex/actual-veta` y `/api/capex/actual-det`.
 - `/reports`: Power BI embebido.
 - `MapImpExp.tsx` administra mapping WBS/detalle mediante `/api/capex/mapping/wbs`, `/api/capex/mapping-det` y `/api/capex/mapping/replace`.
-- Reglas centrales: códigos de proyecto/WBS, periodos desde `202601`, validaciones monetarias y porcentajes en `src/lib/domain` y `src/lib/validation`.
+- Reglas de códigos, periodos y validación en `src/lib/domain`, `src/lib/types/capex.ts` y `src/lib/validation`.
 
-## Módulo Planta
+### Planta
 
 - Rutas/componentes en `src/app/planta` y `src/components/planta`.
 - Navegación: `/planta/guardia`, `/planta/datos-guardia`, `/planta/leyes`, `/planta/carbon`, `/planta/reports`.
@@ -139,33 +123,29 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 
 ## Módulo Activos Fijos y Depreciación
 
-- Scope `fixassets`; rutas y páginas en `src/app/fixassets`; componentes en `src/components/fixassets`.
-- Navegación: `/fixassets/new`, `/fixassets/catalogue`, `/fixassets/depreciation`, `/fixassets/export` (placeholder).
-- Todos sus POST envían `source_name: "WEB"`; el backend también lo fuerza en los `MERGE`.
-- Sus endpoints de inserción aceptan **una fila por solicitud**, no arrays.
-- Todos los montos/tasas se muestran con dos decimales. El valor numérico vigente del borrador es el que entra al payload.
-- Los selects usan fondo azul oscuro y texto blanco. Las columnas identificadoras permanecen sticky durante el scroll horizontal.
+Scope `fixassets`; rutas `/fixassets/new|catalogue|depreciation|export`; componentes `src/components/fixassets`. POST con `source_name: "WEB"` y una fila por request. Montos/tasas a 2 decimales.
 
-### Contratos del backend
+### Contratos
 
-- `GET /api/actfij/veta`: `account_code`, `account_description`, `comp_date`, `subjournal_code`, `voucher_number`, `annex_code`, `annex_description`, `document_type`, `document_number`, `document_date`, `voucher_description`, `line_description`, `capex_code`, `debit_credit`, `usd_amount`, `pen_amount`, `exc_rate`.
-- `GET /api/actfij/catalogue`: catálogo completo con `asset_code` único.
-- `POST /api/actfij/catalogue/insert`: `MERGE` por `asset_code`; requiere ese campo. En update usa `COALESCE`, por lo que `null` no borra un valor almacenado.
-- `GET /api/actfij/deprec`: filas por activo/periodo.
-- `POST /api/actfij/deprec/insert`: `MERGE` por `asset_code` + fin de mes de `period_date`; requiere ambos.
-- `GET /api/actfij/mapping`: `origin_account_code`, grupo/denominación de cuenta, cuentas de depreciación, `deprec_rate_pct` y `asset_type`. `POST /api/actfij/mapping/insert` hace `MERGE` por `origin_account_code`; para mantenimiento web del mapping solo se edita `deprec_rate_pct`, enviando los demás campos originales. Las cuentas con `asset_type` `No deprecia` muestran la tasa bloqueada y nunca se incluyen en el guardado.
+- `/api/actfij/veta`: fuente de altas; incluye cuenta, `comp_date`, subdiario, comprobante, anexo, documento, descripción, CAPEX, montos y T.C.
+- `/api/actfij/catalogue` + `/catalogue/insert`: catálogo; `MERGE` por `asset_code`; `null` no borra por `COALESCE`.
+- `/api/actfij/deprec` + `/deprec/insert`: depreciación; `MERGE` por `asset_code + period_date(EOM)`.
+- `/api/actfij/mapping` + `/mapping/insert`: mapping por `origin_account_code`; desde UI solo se modifica `deprec_rate_pct`; `No deprecia` bloqueado.
+- `/api/actfij/ceco`: mapping `cost_center_code → descripción`. Mostrar `CODIGO - DESCRIPCION`; POST solo código.
 
 ### Alta desde Veta
 
-- `FixAssetsNew.tsx` carga Veta y catálogo en paralelo.
-- Además de los datos heredados de Veta, el usuario puede abrir la `Ficha complementaria` de cada fila antes de guardarla. Sus campos opcionales editables son: `location_name`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `cost_center_code`, `depreciation_method` y `asset_comment`; se envían en el mismo POST individual de alta a `/api/actfij/catalogue/insert`. `asset_type` y `operation_date` ya no se solicitan en esta ficha. `asset_situation` tampoco se solicita: todo activo nuevo se crea automáticamente con `asset_situation: "OPERATIVO"`.
-- `acquisition_date` se obtiene siempre de `comp_date` de Veta, es decir de la columna Fecha contable, no de `document_date`. `operation_date` se calcula automáticamente como el primer día del mes siguiente a `acquisition_date`; por ejemplo, una adquisición `2026-05-18` genera operación `2026-06-01`.
+- `FixAssetsNew.tsx` carga Veta, catálogo y CECO.
+- Ficha complementaria: `location_name`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `cost_center_code`, `depreciation_method`, `asset_comment`. No pedir `asset_type`, `operation_date` ni `asset_situation`; guardar `asset_situation="OPERATIVO"`.
+- `acquisition_date <- comp_date`; `operation_date` = primer día del mes siguiente.
+- Todo texto editable de grilla/ficha se normaliza a MAYÚSCULAS antes del POST.
+- CECO: autocomplete `CODIGO - DESCRIPCION`, hint inferior con descripción y payload solo `cost_center_code`.
 - La ficha complementaria se renderiza dentro del flujo vertical de la página, debajo de las tablas, en lugar de superponerse. Al abrirla la página puede aumentar su alto para mantener visible la fila seleccionada y evitar que el panel tape Activos normales o Activos CAPEX.
-- Los campos de texto reutilizables de la ficha (`location_name`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `cost_center_code`, `depreciation_method` y `asset_comment`) ofrecen autocompletado a partir de los valores distintos ya existentes en el catálogo y de los borradores vigentes. Escribir parte del texto muestra coincidencias seleccionables; si el valor ingresado no existe, se permite guardarlo y pasa a formar parte de las opciones disponibles.
+- Campos reutilizables de la ficha usan autocomplete con distinct existentes + borradores; se permiten valores nuevos.
 - La ficha complementaria corresponde a un único activo a la vez. Al hacer clic en cualquier parte vacía de una fila se focaliza/abre su ficha y la fila queda sombreada en azul; repetir el clic en la misma fila la cierra. Enfocar, editar o volver a hacer clic en cualquiera de sus celdas editables fuerza la apertura de la ficha, incluso si ya estaba focalizada; el clic de la celda no activa el toggle de la fila. El panel no toma el foco ni interrumpe la escritura. No usar checks ni selección múltiple. El hint de COD se muestra dentro de la ficha activa y refleja el COD de esa fila, incluyendo el último correlativo del catálogo y el siguiente obligatorio.
 - Para acelerar altas de una misma clase, se ingresa una clase de 3 dígitos y `Asignar siguientes` completa los COD vacíos de las filas visibles con correlativos consecutivos. La validación acepta varias altas simultáneas si, como conjunto, forman la secuencia continua después del máximo existente. Las filas que ya fueron dadas de alta no participan en esta asignación.
 - COD: exactamente 7 dígitos, no existente en catálogo y no repetido entre borradores. Los primeros 3 dígitos son la clase y los últimos 4 el correlativo; para cada clase solo se acepta el siguiente correlativo después del máximo existente, sin saltos. Varias altas simultáneas de una clase deben formar una secuencia continua. Una clase sin registros empieza en `0001`. Solo filas con COD que todavía no existen en catálogo entran al guardado.
-- Para reconocer una fila de Veta ya dada de alta, `FixAssetsNew.tsx` compara conjuntamente `subjournal_code`, `voucher_number`, `annex_code` y `document_number` contra el catálogo. Si esa combinación ya existe, la fila muestra el `asset_code`/COD previamente creado, queda bloqueada para edición y alta, y se distingue con un fondo azul más oscuro. Después de guardar un alta, el catálogo local se actualiza inmediatamente para que la fila pase a ese estado sin requerir refrescar la página.
+- Alta existente = `subjournal_code + voucher_number + annex_code + document_number`; mostrar COD, bloquear fila y oscurecerla. Tras guardar actualizar ese estado localmente.
 - Editables: `line_description`, `capex_code`, `pen_amount`, `exc_rate`.
 - Al abrir/cargar, el filtro usa año actual y mes actual tanto en “desde” como en “hasta”.
 - La vista se divide en Activos normales (`capex_code` original vacío) y Activos CAPEX (`capex_code` original con valor), conservando la misma lógica de alta.
@@ -183,7 +163,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - La vista permite filtrar por Fecha de adquisición mediante `Año adquisición`, `Mes desde` y `Mes hasta`; el rango de meses es inclusivo. Este filtro se combina con la búsqueda global.
 - COD y Descripción activo son las dos primeras columnas y permanecen sticky.
 - Editables: `location_name`, `capex_code`, `asset_description`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `color`, `cost_center_code`, `acquisition_date`, `operation_date`, `disposal_date`, `exc_rate`, `asset_ini_cost_pen`, `depreciation_method`, `asset_situation`, `asset_comment`. `asset_type` se muestra pero es de solo lectura. `asset_situation` se edita mediante un select con vacío, `OPERATIVO` y `DEPRECIADO`.
-- `location_name`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `cost_center_code`, `depreciation_method` y `asset_comment` ofrecen autocompletado usando los valores distintos existentes de cada campo en el catálogo y los borradores vigentes. Escribir parte del valor muestra coincidencias seleccionables y también se permiten valores nuevos.
+- Textos editables se normalizan a MAYÚSCULAS antes del POST. Ubicación, asignado, área, marca, modelo, serie, CECO, método y comentario usan autocomplete con distinct + borradores. CECO muestra `CODIGO - DESCRIPCION`, conserva solo código en draft/payload y toma descripción de `/api/actfij/ceco`.
 
 ### Depreciación
 
@@ -194,8 +174,7 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - Los activos `No deprecia` pueden mostrarse si entran en el filtro, pero son de solo lectura: no tienen checkbox de envío, no se pueden editar y nunca se guardan como depreciación.
 - Al hacer clic en una fila de depreciación fuera de su checkbox y de sus celdas editables, se abre debajo de la grilla principal el histórico de ese COD: todos los periodos anteriores al año/mes seleccionado, con tasa, las cuatro variaciones de valor, los tres ajustes de depreciación, valores y saldos calculados. El histórico ya no se superpone sobre la tabla: al abrirlo la página aumenta verticalmente y mantiene una altura suficiente para la grilla principal, evitando tapar la fila seleccionada. La fila enfocada queda sombreada en azul; repetir el clic en ella cierra el histórico. Enfocar, editar o volver a hacer clic en una celda editable fuerza su apertura, aun si ya corresponde a la fila activa, sin quitar el foco de la celda ni activar el toggle de la fila. El panel usa el mismo fondo, tamaño de letra y formato de tabla que la grilla principal.
 - Cada fila tiene checkbox de envío y por defecto ninguna está seleccionada. Editar cualquier celda marca automáticamente el check de esa fila; también se puede seleccionar manualmente una fila sin editar. El guardado envía todos los campos aceptados por el POST para cada fila seleccionada.
-- Encima de la grilla hay cuatro contadores interactivos: `Cargadas`, `Pendientes`, `Inválidas` y `Correctas para enviar`. `Cargadas` corresponde a filas cuyo `source_name` es `WEB`; `Pendientes` a las que todavía no tienen ese origen. `Inválidas` y `Correctas para enviar` se calculan sobre las filas actualmente seleccionadas para envío según la validación vigente del borrador. Hacer clic en cualquiera de los contadores filtra la tabla por ese estado; volver a hacer clic en el contador activo quita ese filtro.
-- Los contadores respetan primero los filtros de periodo, búsqueda, Tipo de activo, Grupo, Denominación y Situación. Después de guardar correctamente una depreciación, la fila se actualiza localmente con `source_name: "WEB"` para que pase inmediatamente de Pendiente a Cargada sin necesitar un refresco.
+- Contadores/filtros `Cargadas`, `Pendientes`, `Inválidas`, `Correctas para enviar`: usar estilo compacto de `TraceabilityEntryForm`; click filtra y segundo click limpia. `Cargadas`=`source_name==="WEB"`; `Pendientes`=resto; inválidas/correctas según selección+validación. Respetan todos los filtros y tras POST exitoso la fila pasa localmente a `source_name="WEB"`.
 - Solo el periodo contable habilitado según hora de Lima es editable y seleccionable para envío. Del día 1 al 10 de cada mes permanece habilitado el mes calendario anterior; desde el día 11 queda habilitado el mes calendario actual. Los demás periodos se muestran en modo consulta, sin inputs ni checks habilitados. Por ejemplo, el 24-08-2026 se puede editar y guardar `2026-08`, mientras que el 05-09-2026 todavía corresponde editar `2026-08`.
 - Los botones `Usar datos de vista` y `Seleccionar manuales` ayudan a armar el lote visible: el primero selecciona filas cuyo origen trae tasa o monto de depreciación distinto de cero; el segundo selecciona los borradores modificados por el usuario. Ninguno cambia por sí mismo los valores calculados.
 - El checkbox del encabezado selecciona o desmarca todas las filas editables visibles después de aplicar periodo, búsqueda, Tipo de activo, Grupo, Denominación y Situación; las filas `No deprecia` nunca entran en esa selección.
@@ -214,10 +193,9 @@ Este archivo cubre **todo el repositorio**, no solo un módulo. Antes de impleme
 - Si el guardado por filas falla parcialmente, las depreciaciones ya confirmadas se conservan como guardadas y salen de la selección; las pendientes permanecen seleccionadas. Si solo falla la sincronización de `exc_rate` al catálogo, se informa el COD afectado sin revertir la depreciación ya guardada.
 - `FixAssetsCat.tsx` incorpora una ventana de preview `Actualizar mapping`: carga `/api/actfij/mapping`, no muestra `updated_at` y permite cambiar/guardar únicamente la tasa de depreciación de cada cuenta origen.
 
-## Verificación y mantenimiento
+## Verificación
 
-- Al terminar una implementación solicitada, incluir los cambios relacionados en un commit y hacer `git push` a la rama activa, salvo que el usuario indique expresamente que no se publique todavía. Antes de ello, verificar el estado y no incluir cambios ajenos.
-- Ejecutar `npx eslint <archivos tocados>` y `npm run build` después de cambios relevantes; ejecutar `npm run lint` cuando se necesite auditar el repositorio completo.
-- El build puede advertir sobre múltiples `package-lock.json` y root inferido por Next.js; es una advertencia conocida, no un error de compilación.
-- No asumir contratos de backend, formatos de fecha, capacidad batch ni semántica de borrado; revisar código/contrato antes de cambiar.
-- Si se agrega una nueva área, actualizar portal, tipo `Area`, login, variables, scopes de middleware, layout, rutas y este archivo.
+- Cambios relevantes: `npx eslint <archivos tocados>` + `npm run build`; `npm run lint` solo para auditoría global.
+- No incluir cambios ajenos. Commit + push a rama activa salvo indicación contraria.
+- Warning de múltiples `package-lock.json`/root inferido de Next.js es conocido.
+- Actualizar este archivo solo si cambia arquitectura, auth, rutas, contratos o reglas durables.

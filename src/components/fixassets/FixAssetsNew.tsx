@@ -49,6 +49,11 @@ type CatalogueRow = {
   asset_ini_cost_pen?: number | string | null;
 };
 
+type CecoRow = {
+  cost_center_code: string | null;
+  cost_center_description: string | null;
+};
+
 type Draft = {
   asset_code: string;
   line_description: string;
@@ -141,6 +146,23 @@ function twoDecimals(value: unknown, blankAllowed = true) {
 
 function numberOrNull(value: string) {
   return value.trim() ? Number(value) : null;
+}
+
+function upperOrNull(value: string) {
+  const clean = value.trim();
+  return clean ? clean.toLocaleUpperCase("es") : null;
+}
+
+function costCenterCode(value: string) {
+  const clean = value.trim();
+  const match = clean.match(/^(\d{1,6})(?:\s*-\s*.*)?$/);
+  return match ? match[1] : clean.replace(/\D/g, "").slice(0, 6);
+}
+
+function costCenterDisplay(value: string, cecoByCode: Readonly<Record<string, string>>) {
+  const code = costCenterCode(value);
+  const description = cecoByCode[code];
+  return code && description ? `${code} - ${description}` : code;
 }
 
 function draftFrom(row: VetaRow): Draft {
@@ -315,6 +337,7 @@ export default function FixAssetsNew() {
   const initialPeriod = useMemo(currentPeriod, []);
   const [rows, setRows] = useState<VetaRow[]>([]);
   const [catalogueRows, setCatalogueRows] = useState<CatalogueRow[]>([]);
+  const [cecoByCode, setCecoByCode] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [existingCodes, setExistingCodes] = useState<Set<string>>(new Set());
   const [year, setYear] = useState(initialPeriod.year);
@@ -333,16 +356,24 @@ export default function FixAssetsNew() {
     setLoading(true);
     setMessage("");
     try {
-      const [veta, catalogue] = await Promise.all([
+      const [veta, catalogue, ceco] = await Promise.all([
         apiGet("/api/actfij/veta"),
         apiGet("/api/actfij/catalogue"),
+        apiGet("/api/actfij/ceco"),
       ]);
       const nextRows = Array.isArray(veta?.rows) ? (veta.rows as VetaRow[]) : [];
       const nextCatalogue = Array.isArray(catalogue?.rows) ? catalogue.rows as CatalogueRow[] : [];
+      const nextCecoByCode = (Array.isArray(ceco?.rows) ? ceco.rows as CecoRow[] : [])
+        .reduce<Record<string, string>>((current, row) => {
+          const code = text(row.cost_center_code).trim();
+          if (code) current[code] = text(row.cost_center_description).trim();
+          return current;
+        }, {});
       const nextDrafts: Record<number, Draft> = {};
       nextRows.forEach((row, index) => { nextDrafts[index] = draftFrom(row); });
       setRows(nextRows);
       setCatalogueRows(nextCatalogue);
+      setCecoByCode(nextCecoByCode);
       setDrafts(nextDrafts);
       setExistingCodes(new Set(nextCatalogue.map((row) => text(row.asset_code).trim()).filter(Boolean)));
       const now = currentPeriod();
@@ -564,18 +595,18 @@ export default function FixAssetsNew() {
         const row = rows[index];
         const draft = drafts[index];
         await apiPost("/api/actfij/catalogue/insert", {
-          asset_code: draft.asset_code.trim(), source_name: "WEB", location_name: draft.location_name.trim() || null,
-          origin_account_code: row.account_code, capex_code: draft.capex_code.trim() || null,
+          asset_code: draft.asset_code.trim(), source_name: "WEB", location_name: upperOrNull(draft.location_name),
+          origin_account_code: row.account_code, capex_code: upperOrNull(draft.capex_code),
           subjournal_code: row.subjournal_code, voucher_number: row.voucher_number,
           annex_code: row.annex_code, annex_description: row.annex_description,
-          document_number: row.document_number, asset_description: draft.line_description.trim() || null,
-          assigned_to: draft.assigned_to.trim() || null, area_name: draft.area_name.trim() || null,
-          brand: draft.brand.trim() || null, model: draft.model.trim() || null, serial_number: draft.serial_number.trim() || null,
-          color: null, cost_center_code: draft.cost_center_code.trim() || null,
+          document_number: row.document_number, asset_description: upperOrNull(draft.line_description),
+          assigned_to: upperOrNull(draft.assigned_to), area_name: upperOrNull(draft.area_name),
+          brand: upperOrNull(draft.brand), model: upperOrNull(draft.model), serial_number: upperOrNull(draft.serial_number),
+          color: null, cost_center_code: costCenterCode(draft.cost_center_code) || null,
           acquisition_date: dateOnly(row.comp_date) || null, operation_date: firstDayNextMonth(row.comp_date) || null, disposal_date: null,
           exc_rate: numberOrNull(draft.exc_rate), asset_ini_cost_pen: numberOrNull(draft.pen_amount),
-          depreciation_method: draft.depreciation_method.trim() || null, asset_situation: "OPERATIVO",
-          asset_comment: draft.asset_comment.trim() || null,
+          depreciation_method: upperOrNull(draft.depreciation_method), asset_situation: "OPERATIVO",
+          asset_comment: upperOrNull(draft.asset_comment),
         });
         saved += 1;
       }
@@ -655,7 +686,13 @@ export default function FixAssetsNew() {
 
       <div className="muted" style={{ fontSize: 12 }}>Mostrando {filteredRows.length} de {rows.length} filas: {normalRows.length} normales y {capexRows.length} CAPEX.</div>
 
-      {EXTRA_FIELDS.map(([field]) => <datalist key={field} id={`fixassets-new-${field}-options`}>{suggestionsByField[field].map((value) => <option key={value} value={value} />)}</datalist>)}
+      {EXTRA_FIELDS.map(([field]) => <datalist key={field} id={`fixassets-new-${field}-options`}>
+        {field === "cost_center_code"
+          ? Object.entries(cecoByCode)
+              .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+              .map(([code, description]) => <option key={code} value={`${code} - ${description}`} />)
+          : suggestionsByField[field].map((value) => <option key={value} value={value} />)}
+      </datalist>)}
 
       <style jsx global>{`
         .fixassets-new-table-grid table {
@@ -707,7 +744,18 @@ export default function FixAssetsNew() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
           {EXTRA_FIELDS.map(([field, label]) => <label key={field} style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 800 }}>
             {label}
-            <FastCellInput className="input" type="text" list={`fixassets-new-${field}-options`} value={detailDraft[field]} onCommit={(next) => updateDraft(detailIndex, field, next)} style={{ height: 32, padding: "5px 8px" }} />
+            <FastCellInput
+              className="input"
+              type="text"
+              list={`fixassets-new-${field}-options`}
+              value={field === "cost_center_code" ? costCenterDisplay(detailDraft[field], cecoByCode) : detailDraft[field]}
+              onLiveChange={field === "cost_center_code" ? (next) => updateDraft(detailIndex, field, costCenterCode(next)) : undefined}
+              onCommit={(next) => updateDraft(detailIndex, field, field === "cost_center_code" ? costCenterCode(next) : next)}
+              style={{ height: 32, padding: "5px 8px" }}
+            />
+            {field === "cost_center_code" && detailDraft.cost_center_code.trim() ? <span className="muted" style={{ minHeight: 15, fontSize: 11, fontWeight: 700 }}>
+              {cecoByCode[costCenterCode(detailDraft.cost_center_code)] || "Centro de costo no encontrado en el mapping"}
+            </span> : null}
           </label>)}
         </div>
       </section> : null}

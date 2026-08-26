@@ -157,6 +157,23 @@ function twoDecimals(value: unknown) {
   return Number.isFinite(parsed) ? parsed.toFixed(2) : clean;
 }
 
+function upperOrNull(value: string) {
+  const clean = value.trim();
+  return clean ? clean.toLocaleUpperCase("es") : null;
+}
+
+function costCenterCode(value: string) {
+  const clean = value.trim();
+  const match = clean.match(/^(\d{1,6})(?:\s*-\s*.*)?$/);
+  return match ? match[1] : clean.replace(/\D/g, "").slice(0, 6);
+}
+
+function costCenterDisplay(value: string, cecoByCode: Readonly<Record<string, string>>) {
+  const code = costCenterCode(value);
+  const description = cecoByCode[code];
+  return code && description ? `${code} - ${description}` : code;
+}
+
 function toDraft(row: CatalogueRow): Draft {
   const draft = {} as Draft;
   EDITABLE.forEach((key) => {
@@ -385,25 +402,25 @@ export default function FixAssetsCat() {
         await apiPost("/api/actfij/catalogue/insert", {
           asset_code: code,
           source_name: "WEB",
-          location_name: draft.location_name.trim() || null,
-          capex_code: draft.capex_code.trim() || null,
-          asset_description: draft.asset_description.trim() || null,
+          location_name: upperOrNull(draft.location_name),
+          capex_code: upperOrNull(draft.capex_code),
+          asset_description: upperOrNull(draft.asset_description),
           asset_type: draft.asset_type.trim() || null,
-          assigned_to: draft.assigned_to.trim() || null,
-          area_name: draft.area_name.trim() || null,
-          brand: draft.brand.trim() || null,
-          model: draft.model.trim() || null,
-          serial_number: draft.serial_number.trim() || null,
-          color: draft.color.trim() || null,
-          cost_center_code: draft.cost_center_code.trim() || null,
+          assigned_to: upperOrNull(draft.assigned_to),
+          area_name: upperOrNull(draft.area_name),
+          brand: upperOrNull(draft.brand),
+          model: upperOrNull(draft.model),
+          serial_number: upperOrNull(draft.serial_number),
+          color: upperOrNull(draft.color),
+          cost_center_code: costCenterCode(draft.cost_center_code) || null,
           acquisition_date: draft.acquisition_date || null,
           operation_date: draft.operation_date || null,
           disposal_date: draft.disposal_date || null,
           exc_rate: draft.exc_rate.trim() ? Number(draft.exc_rate) : null,
           asset_ini_cost_pen: draft.asset_ini_cost_pen.trim() ? Number(draft.asset_ini_cost_pen) : null,
-          depreciation_method: draft.depreciation_method.trim() || null,
-          asset_situation: draft.asset_situation.trim() || null,
-          asset_comment: draft.asset_comment.trim() || null,
+          depreciation_method: upperOrNull(draft.depreciation_method),
+          asset_situation: upperOrNull(draft.asset_situation),
+          asset_comment: upperOrNull(draft.asset_comment),
         });
         saved += 1;
       }
@@ -445,7 +462,13 @@ export default function FixAssetsCat() {
       {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
       {invalidCodes.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los campos numéricos o Centro costo (6 dígitos) de {invalidCodes.length} fila(s) antes de guardar.</div> : null}
 
-      {SUGGESTION_FIELDS.map((field) => <datalist key={field} id={`fixassets-cat-${field}-options`}>{suggestionsByField[field].map((value) => <option key={value} value={value} />)}</datalist>)}
+      {SUGGESTION_FIELDS.map((field) => <datalist key={field} id={`fixassets-cat-${field}-options`}>
+        {field === "cost_center_code"
+          ? Object.entries(cecoByCode)
+              .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+              .map(([code, description]) => <option key={code} value={`${code} - ${description}`} />)
+          : suggestionsByField[field].map((value) => <option key={value} value={value} />)}
+      </datalist>)}
 
       <div className="panel-inner" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", padding: 0 }}>
         <div style={{ minWidth: "max-content" }}>
@@ -467,8 +490,14 @@ export default function FixAssetsCat() {
                   {COLUMNS.map((column) => {
                     const editable = EDITABLE.includes(column.key as EditableKey) && column.key !== "asset_type";
                     const key = column.key as EditableKey;
-                    const mappedCostCenterDesc = cecoByCode[draft.cost_center_code.trim()] || "";
-                    const value = column.key === "cost_center_desc" ? mappedCostCenterDesc : editable ? draft[key] : row[column.key];
+                    const mappedCostCenterDesc = cecoByCode[costCenterCode(draft.cost_center_code)] || "";
+                    const value = column.key === "cost_center_desc"
+                      ? mappedCostCenterDesc
+                      : column.key === "cost_center_code"
+                        ? costCenterDisplay(draft.cost_center_code, cecoByCode)
+                        : editable
+                          ? draft[key]
+                          : row[column.key];
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
                     const stickyBackground = bad ? "#79453b" : edited ? "#416f43" : "var(--panel2)";
@@ -486,14 +515,14 @@ export default function FixAssetsCat() {
                       </select> : <FastCellInput
                         className="input"
                         type={DATE_FIELDS.has(key) ? "date" : "text"}
-                        inputMode={key === "cost_center_code" ? "numeric" : NUMBER_FIELDS.has(key) ? "decimal" : undefined}
-                        maxLength={key === "cost_center_code" ? 6 : undefined}
+                        inputMode={NUMBER_FIELDS.has(key) ? "decimal" : undefined}
+                        maxLength={undefined}
                         list={SUGGESTION_FIELD_SET.has(key) ? `fixassets-cat-${key}-options` : undefined}
                         value={text(value)}
-                        sanitize={key === "cost_center_code" ? (next) => next.replace(/\D/g, "").slice(0, 6) : NUMBER_FIELDS.has(key) ? numericDraft : undefined}
+                        sanitize={NUMBER_FIELDS.has(key) ? numericDraft : undefined}
                         normalizeOnBlur={NUMBER_FIELDS.has(key) ? (next) => validOptionalNumber(next) ? twoDecimals(next) : next : undefined}
-                        onLiveChange={key === "cost_center_code" ? (next) => update(code, key, next) : undefined}
-                        onCommit={(next) => update(code, key, next)}
+                        onLiveChange={key === "cost_center_code" ? (next) => update(code, key, costCenterCode(next)) : undefined}
+                        onCommit={(next) => update(code, key, key === "cost_center_code" ? costCenterCode(next) : next)}
                         style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && ((NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key])) || (key === "cost_center_code" && Boolean(draft.cost_center_code.trim()) && !/^\d{6}$/.test(draft.cost_center_code.trim()))) ? "#ebb086" : undefined }}
                         aria-label={`${column.label} ${code}`}
                       /> : <span title={text(value)}>{column.key.endsWith("_date") ? dateOnly(value) : column.key === "deprec_rate_pct" ? twoDecimals(value) : text(value)}</span>}

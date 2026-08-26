@@ -940,11 +940,94 @@ export default function FixAssetsDepr() {
         {invalidKeys.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los valores numéricos de {invalidKeys.length} fila(s) antes de guardar.</div> : null}
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" className="panel-inner" onClick={() => setStatusFilter((current) => current === "loaded" ? "all" : "loaded")} style={{ padding: "8px 12px", cursor: "pointer", fontWeight: 900, borderColor: statusFilter === "loaded" ? "rgba(147,211,230,.82)" : "rgba(147,211,230,.28)", background: statusFilter === "loaded" ? "#052b3d" : "rgba(2,35,52,.72)" }}>Cargadas: {statusCounts.loaded}</button>
-        <button type="button" className="panel-inner" onClick={() => setStatusFilter((current) => current === "pending" ? "all" : "pending")} style={{ padding: "8px 12px", cursor: "pointer", fontWeight: 900, borderColor: statusFilter === "pending" ? "rgba(147,211,230,.82)" : "rgba(147,211,230,.28)", background: statusFilter === "pending" ? "#155a78" : "rgba(11,77,107,.62)" }}>Pendientes: {statusCounts.pending}</button>
-        <button type="button" className="panel-inner" onClick={() => setStatusFilter((current) => current === "invalid" ? "all" : "invalid")} style={{ padding: "8px 12px", cursor: "pointer", fontWeight: 900, borderColor: statusFilter === "invalid" ? "#ebb086" : "rgba(216,93,39,.52)", background: statusFilter === "invalid" ? "#713f38" : "rgba(216,93,39,.20)" }}>Inválidas: {statusCounts.invalid}</button>
-        <button type="button" className="panel-inner" onClick={() => setStatusFilter((current) => current === "ready" ? "all" : "ready")} style={{ padding: "8px 12px", cursor: "pointer", fontWeight: 900, borderColor: statusFilter === "ready" ? "#dff1bc" : "rgba(94,128,25,.64)", background: statusFilter === "ready" ? "#3d6948" : "rgba(94,128,25,.22)" }}>Correctas para enviar: {statusCounts.ready}</button>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => setStatusFilter((current) => current === "loaded" ? "all" : "loaded")}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: statusFilter === "loaded"
+              ? "1px solid rgba(147, 211, 230, 0.95)"
+              : "1px solid rgba(147, 211, 230, 0.45)",
+            background: statusFilter === "loaded"
+              ? "rgba(27, 147, 227, 0.34)"
+              : "rgba(27, 147, 227, 0.16)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: "rgb(180, 225, 245)",
+            cursor: "pointer",
+          }}
+        >
+          Cargadas: {statusCounts.loaded}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter((current) => current === "pending" ? "all" : "pending")}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: statusFilter === "pending"
+              ? "1px solid rgba(255,255,255,0.30)"
+              : "1px solid rgba(255,255,255,0.12)",
+            background: statusFilter === "pending"
+              ? "rgba(255,255,255,0.14)"
+              : "rgba(255,255,255,0.06)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: "rgba(255,255,255,0.8)",
+            cursor: "pointer",
+          }}
+        >
+          Pendientes: {statusCounts.pending}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter((current) => current === "invalid" ? "all" : "invalid")}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: statusFilter === "invalid"
+              ? "1px solid rgba(216, 93, 39, 0.95)"
+              : statusCounts.invalid > 0
+                ? "1px solid rgba(216, 93, 39, 0.65)"
+                : "1px solid rgba(255,255,255,0.12)",
+            background: statusFilter === "invalid"
+              ? "rgba(216, 93, 39, 0.45)"
+              : statusCounts.invalid > 0
+                ? "rgba(216, 93, 39, 0.28)"
+                : "rgba(255,255,255,0.06)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: statusCounts.invalid > 0 ? "rgb(235, 176, 134)" : "rgba(255,255,255,0.8)",
+            cursor: "pointer",
+          }}
+        >
+          Inválidas: {statusCounts.invalid}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter((current) => current === "ready" ? "all" : "ready")}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: statusFilter === "ready"
+              ? "1px solid rgba(147, 178, 92, 0.95)"
+              : "1px solid rgba(147, 178, 92, 0.45)",
+            background: statusFilter === "ready"
+              ? "rgba(94, 128, 25, 0.40)"
+              : "rgba(94, 128, 25, 0.24)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: "rgb(174, 202, 125)",
+            cursor: "pointer",
+          }}
+        >
+          Correctas para enviar: {statusCounts.ready}
+        </button>
       </div>
 
       <div className="panel-inner fixassets-depr-table" style={{ overflow: "auto", height: historyAssetCode ? "min(62vh, 620px)" : "100%", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
