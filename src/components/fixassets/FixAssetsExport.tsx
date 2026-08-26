@@ -64,6 +64,11 @@ type DetailRow = {
   depreciation_amount_usd: number | string | null;
 };
 
+type CatalogueRateRow = {
+  asset_code: string | null;
+  exc_rate: number | string | null;
+};
+
 type ExportKey = Exclude<keyof ExportRow, "period_date">;
 type CellValue = string | number;
 
@@ -270,6 +275,7 @@ export default function FixAssetsExport() {
   const [detailRowKey, setDetailRowKey] = useState<string | null>(null);
   const [detailParent, setDetailParent] = useState<ExportRow | null>(null);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
+  const [assetExcRates, setAssetExcRates] = useState<Record<string, string>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
 
@@ -278,12 +284,24 @@ export default function FixAssetsExport() {
     setMessage("");
 
     try {
-      const response = await apiGet("/api/actfij/deprec/export");
+      const [response, catalogueResponse] = await Promise.all([
+        apiGet("/api/actfij/deprec/export"),
+        apiGet("/api/actfij/catalogue"),
+      ]);
       const nextRows = Array.isArray(response?.rows)
         ? response.rows as ExportRow[]
         : [];
+      const catalogueRows = Array.isArray(catalogueResponse?.rows)
+        ? catalogueResponse.rows as CatalogueRateRow[]
+        : [];
+      const nextAssetExcRates = catalogueRows.reduce<Record<string, string>>((current, row) => {
+        const assetCode = text(row.asset_code).trim();
+        if (assetCode) current[assetCode] = text(row.exc_rate).trim();
+        return current;
+      }, {});
 
       setRows(nextRows);
+      setAssetExcRates(nextAssetExcRates);
 
       const latestPeriod = nextRows
         .map((row) => text(row.period_date).slice(0, 7))
@@ -810,34 +828,43 @@ export default function FixAssetsExport() {
                 </thead>
 
                 <tbody>
-                  {detailRows.map((detail) => (
-                    <tr
-                      key={text(detail.asset_code)}
-                      className="capex-tr"
-                    >
-                      <td className="capex-td">{text(detail.asset_code)}</td>
-                      <td className="capex-td">{text(detail.asset_description)}</td>
-                      <td className="capex-td">{text(detail.origin_account_code)}</td>
-                      <td className="capex-td">{text(detail.account_group)}</td>
-                      <td className="capex-td">{text(detail.account_denom)}</td>
-                      <td className="capex-td">{text(detail.cuenta_depreciacion)}</td>
-                      <td className="capex-td">{text(detail.cost_center_code)}</td>
-                      <td className="capex-td" style={{ textAlign: "right" }}>
-                        {displayValue("importe_soles", detail.depreciation_amount_pen)}
-                      </td>
-                      <td className="capex-td" style={{ textAlign: "right" }}>
-                        {detail.exc_rate == null || detail.exc_rate === ""
-                          ? ""
-                          : Number(detail.exc_rate).toLocaleString("es-PE", {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 6,
-                            })}
-                      </td>
-                      <td className="capex-td" style={{ textAlign: "right" }}>
-                        {displayValue("importe_dolares", detail.depreciation_amount_usd)}
-                      </td>
-                    </tr>
-                  ))}
+                  {detailRows.map((detail) => {
+                    const catalogueRate = assetExcRates[text(detail.asset_code).trim()] ?? "";
+                    const rate = Number(catalogueRate);
+                    const pen = Number(detail.depreciation_amount_pen);
+                    const usd = Number.isFinite(rate) && rate > 0 && Number.isFinite(pen)
+                      ? pen / rate
+                      : null;
+
+                    return (
+                      <tr
+                        key={text(detail.asset_code)}
+                        className="capex-tr"
+                      >
+                        <td className="capex-td">{text(detail.asset_code)}</td>
+                        <td className="capex-td">{text(detail.asset_description)}</td>
+                        <td className="capex-td">{text(detail.origin_account_code)}</td>
+                        <td className="capex-td">{text(detail.account_group)}</td>
+                        <td className="capex-td">{text(detail.account_denom)}</td>
+                        <td className="capex-td">{text(detail.cuenta_depreciacion)}</td>
+                        <td className="capex-td">{text(detail.cost_center_code)}</td>
+                        <td className="capex-td" style={{ textAlign: "right" }}>
+                          {displayValue("importe_soles", detail.depreciation_amount_pen)}
+                        </td>
+                        <td className="capex-td" style={{ textAlign: "right" }}>
+                          {catalogueRate
+                            ? Number(catalogueRate).toLocaleString("es-PE", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 6,
+                              })
+                            : ""}
+                        </td>
+                        <td className="capex-td" style={{ textAlign: "right" }}>
+                          {usd == null ? "" : displayValue("importe_dolares", usd)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </Table>
             </div>

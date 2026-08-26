@@ -41,6 +41,7 @@ type CatalogueReferenceRow = {
   asset_code: string | null;
   origin_account_code: string | null;
   asset_situation: string | null;
+  exc_rate: number | string | null;
 };
 
 const EDITABLE = [
@@ -328,6 +329,7 @@ export default function FixAssetsDepr() {
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([]);
   const [assetOrigins, setAssetOrigins] = useState<Record<string, string>>({});
   const [assetSituations, setAssetSituations] = useState<Record<string, string>>({});
+  const [assetExcRates, setAssetExcRates] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [year, setYear] = useState("");
@@ -377,12 +379,18 @@ export default function FixAssetsDepr() {
         if (assetCode) current[assetCode] = text(row.asset_situation).trim().toUpperCase();
         return current;
       }, {});
+      const nextAssetExcRates = catalogueRows.reduce<Record<string, string>>((current, row) => {
+        const assetCode = text(row.asset_code).trim();
+        if (assetCode) current[assetCode] = text(row.exc_rate).trim();
+        return current;
+      }, {});
       const nextDrafts: Record<string, Draft> = {};
       nextRows.forEach((row) => { nextDrafts[rowKey(row)] = toDraft(row); });
       setRows(nextRows);
       setMappingRows(nextMappingRows);
       setAssetOrigins(nextAssetOrigins);
       setAssetSituations(nextAssetSituations);
+      setAssetExcRates(nextAssetExcRates);
       setDrafts(nextDrafts);
       setOriginals(nextDrafts);
       setSelectedKeys(new Set());
@@ -599,7 +607,8 @@ export default function FixAssetsDepr() {
     visibleRows.forEach((row) => {
       const draft = drafts[rowKey(row)] || toDraft(row);
       const calculated = derived(row, draft);
-      const money = (value: unknown) => currencyMoney(value, draft.exc_rate, currencyMode) ?? 0;
+      const conversionRate = assetExcRates[text(row.asset_code).trim()] ?? "";
+      const money = (value: unknown) => currencyMoney(value, conversionRate, currencyMode) ?? 0;
       totals.asset_base_value += money(row.asset_base_value);
       totals.depreciation_base_pen += money(row.depreciation_base_pen);
       totals.acquisition_var_pen += money(draft.acquisition_var_pen);
@@ -615,7 +624,7 @@ export default function FixAssetsDepr() {
       totals.asset_balance_pen += money(calculated.asset_balance_pen);
     });
     return totals;
-  }, [visibleRows, drafts, currencyMode]);
+  }, [visibleRows, drafts, currencyMode, assetExcRates]);
 
   const editableVisibleRows = useMemo(
     () => visibleRows.filter(
@@ -1115,11 +1124,14 @@ export default function FixAssetsDepr() {
                       && column.key !== "exc_rate"
                       && (currencyMode === "PEN" || column.key === "applied_rate_pct");
                     const key = column.key as EditableKey;
+                    const conversionRate = assetExcRates[text(row.asset_code).trim()] ?? "";
                     const derivedValue = column.key === "asset_final_value" || column.key === "depreciation_cum_amount_pen" || column.key === "asset_balance_pen"
                       ? calculated[column.key]
-                      : EDITABLE.includes(column.key as EditableKey)
-                        ? draft[column.key as EditableKey]
-                        : row[column.key];
+                      : column.key === "exc_rate"
+                        ? conversionRate
+                        : EDITABLE.includes(column.key as EditableKey)
+                          ? draft[column.key as EditableKey]
+                          : row[column.key];
                     const moneyColumn = TOTAL_COLUMN_KEY_SET.has(column.key);
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
@@ -1138,7 +1150,7 @@ export default function FixAssetsDepr() {
                         onCommit={(next) => update(row, key, next)}
                       style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && !validOptionalNumber(draft[key], key) ? "#ebb086" : "rgba(147,211,230,.30)" }}
                       aria-label={`${column.label} ${text(row.asset_code)}`}
-                      /> : <span title={moneyColumn ? displayMoney(derivedValue, draft.exc_rate, currencyMode) : text(derivedValue)}>{column.key === "period_date" ? text(derivedValue).slice(0, 10) : column.key === "asset_code" || column.key === "asset_description" ? text(derivedValue) : moneyColumn ? displayMoney(derivedValue, draft.exc_rate, currencyMode) : displayNumber(derivedValue)}</span>}
+                      /> : <span title={moneyColumn ? displayMoney(derivedValue, conversionRate, currencyMode) : text(derivedValue)}>{column.key === "period_date" ? text(derivedValue).slice(0, 10) : column.key === "asset_code" || column.key === "asset_description" ? text(derivedValue) : moneyColumn ? displayMoney(derivedValue, conversionRate, currencyMode) : displayNumber(derivedValue)}</span>}
                     </td>;
                   })}
                 </tr>;
@@ -1173,7 +1185,8 @@ export default function FixAssetsDepr() {
             <tbody>{historyRows.map((historyRow) => {
               const historyDraft = drafts[rowKey(historyRow)] || toDraft(historyRow);
               const calculated = derived(historyRow, historyDraft);
-              return <tr key={rowKey(historyRow)} className="capex-tr"><td className="capex-td">{text(historyRow.period_date).slice(0, 10)}</td><td className="capex-td">{displayNumber(historyDraft.applied_rate_pct)}</td><td className="capex-td">{displayMoney(historyDraft.acquisition_var_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.disposal_var_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.reclass_var_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.adjustment_var_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(calculated.asset_final_value, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.reclass_depr_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.adjustment_depr_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.disposal_depr_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.depreciation_amount_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(calculated.depreciation_cum_amount_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayMoney(calculated.asset_balance_pen, historyDraft.exc_rate, currencyMode)}</td><td className="capex-td">{displayNumber(historyDraft.exc_rate)}</td></tr>;
+              const historyRate = assetExcRates[text(historyRow.asset_code).trim()] ?? "";
+              return <tr key={rowKey(historyRow)} className="capex-tr"><td className="capex-td">{text(historyRow.period_date).slice(0, 10)}</td><td className="capex-td">{displayNumber(historyDraft.applied_rate_pct)}</td><td className="capex-td">{displayMoney(historyDraft.acquisition_var_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.disposal_var_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.reclass_var_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.adjustment_var_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(calculated.asset_final_value, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.reclass_depr_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.adjustment_depr_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.disposal_depr_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(historyDraft.depreciation_amount_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(calculated.depreciation_cum_amount_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayMoney(calculated.asset_balance_pen, historyRate, currencyMode)}</td><td className="capex-td">{displayNumber(historyRate)}</td></tr>;
             })}</tbody>
           </Table>
         </div> : <div className="muted" style={{ fontSize: 13 }}>No hay periodos de depreciación anteriores para este COD.</div>}
