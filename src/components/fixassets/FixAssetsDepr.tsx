@@ -97,6 +97,7 @@ const MONTHS = [
 const ASSET_TYPES = ["LR", "DUP", "No deprecia"] as const;
 type AssetType = (typeof ASSET_TYPES)[number];
 const SITUATIONS = ["OPERATIVO", "DEPRECIADO"] as const;
+type StatusFilter = "all" | "loaded" | "pending" | "invalid" | "ready";
 
 function text(value: unknown) {
   return value == null ? "" : String(value);
@@ -308,6 +309,7 @@ export default function FixAssetsDepr() {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [showAdjustments, setShowAdjustments] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -353,6 +355,7 @@ export default function FixAssetsDepr() {
       setSelectedKeys(new Set());
       setHistoryAssetCode(null);
       setHistoryRowId(null);
+      setStatusFilter("all");
       const currentPeriod = currentAccountingPeriod();
       const latest = nextRows
         .map((row) => text(row.period_date).slice(0, 7))
@@ -500,7 +503,7 @@ export default function FixAssetsDepr() {
     setSituationsSelected((current) => syncSelection(current, availableSituations));
   }, [availableSituations]);
 
-  const visibleRows = useMemo(() => filterBaseRows.filter((row) => {
+  const facetRows = useMemo(() => filterBaseRows.filter((row) => {
     const assetCode = text(row.asset_code).trim();
     const mapping = mappingByOrigin.get(assetOrigins[assetCode]);
     const rowAssetType = canonicalAssetType(row.asset_type);
@@ -514,6 +517,35 @@ export default function FixAssetsDepr() {
       && selectionMatches(situationsSelected, rowSituation);
   }).sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true })),
   [filterBaseRows, mappingByOrigin, assetOrigins, assetSituations, assetTypes, mappingGroupsSelected, mappingDenomsSelected, situationsSelected]);
+
+  const statusCounts = useMemo(() => {
+    let loaded = 0;
+    let pending = 0;
+    let invalidCount = 0;
+    let ready = 0;
+    facetRows.forEach((row) => {
+      const id = rowKey(row);
+      const sourceWeb = text(row.source_name).trim().toUpperCase() === "WEB";
+      if (sourceWeb) loaded += 1;
+      else pending += 1;
+      if (!selectedKeys.has(id)) return;
+      const draft = drafts[id] || toDraft(row);
+      if (invalid(draft)) invalidCount += 1;
+      else ready += 1;
+    });
+    return { loaded, pending, invalid: invalidCount, ready };
+  }, [facetRows, selectedKeys, drafts]);
+
+  const visibleRows = useMemo(() => facetRows.filter((row) => {
+    if (statusFilter === "all") return true;
+    const id = rowKey(row);
+    const sourceWeb = text(row.source_name).trim().toUpperCase() === "WEB";
+    if (statusFilter === "loaded") return sourceWeb;
+    if (statusFilter === "pending") return !sourceWeb;
+    if (!selectedKeys.has(id)) return false;
+    const draft = drafts[id] || toDraft(row);
+    return statusFilter === "invalid" ? invalid(draft) : !invalid(draft);
+  }), [facetRows, statusFilter, selectedKeys, drafts]);
 
   const tableTotals = useMemo(() => {
     const totals: Record<TotalColumnKey, number> = {
@@ -783,7 +815,7 @@ export default function FixAssetsDepr() {
         const id = rowKey(row);
         if (!savedSet.has(id)) return row;
         const draft = drafts[id];
-        return { ...row, ...draft, ...derived(row, draft) };
+        return { ...row, source_name: "WEB", ...draft, ...derived(row, draft) };
       }));
       setSelectedKeys((current) => new Set([...current].filter((id) => !savedSet.has(id))));
     };
@@ -845,7 +877,7 @@ export default function FixAssetsDepr() {
   }
 
   return (
-    <div className="fixassets-depr-root" style={{ position: "relative", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto", gap: 12, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
+    <div className="fixassets-depr-root" style={{ position: "relative", display: "grid", gridTemplateRows: historyAssetCode ? "auto auto auto minmax(420px, 62vh) auto auto" : "auto auto auto minmax(0, 1fr) auto", gap: 12, height: historyAssetCode ? "auto" : "calc(100vh - 205px)", minHeight: 0, overflow: historyAssetCode ? "visible" : "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>Depreciación de activos</h1>
@@ -854,7 +886,7 @@ export default function FixAssetsDepr() {
         <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
           <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
             Buscar COD o descripción
-            <input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ej. 110 o equipo" style={{ width: 230, height: 34, padding: "6px 10px" }} />
+            <FastCellInput className="input" value={query} onCommit={setQuery} onLiveChange={setQuery} placeholder="Ej. 110 o equipo" style={{ width: 230, height: 34, padding: "6px 10px" }} />
           </label>
           <Select label="Año" value={year} onChange={(event) => clearSelectionAndSetPeriod(event.target.value, month)} options={years.map((value) => ({ value, label: value }))} placeholder="Selecciona" style={{ minWidth: 110 }} />
           <Select label="Mes" value={month} onChange={(event) => clearSelectionAndSetPeriod(year, event.target.value)} options={monthsForYear.map((value) => ({ value, label: MONTHS[Number(value) - 1] }))} placeholder="Selecciona" style={{ minWidth: 150 }} />
@@ -908,7 +940,14 @@ export default function FixAssetsDepr() {
         {invalidKeys.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los valores numéricos de {invalidKeys.length} fila(s) antes de guardar.</div> : null}
       </div>
 
-      <div className="panel-inner fixassets-depr-table" style={{ overflow: "auto", height: "100%", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" className="panel-inner" onClick={() => setStatusFilter((current) => current === "loaded" ? "all" : "loaded")} style={{ padding: "8px 12px", cursor: "pointer", fontWeight: 900, borderColor: statusFilter === "loaded" ? "rgba(147,211,230,.82)" : "rgba(147,211,230,.28)", background: statusFilter === "loaded" ? "#052b3d" : "rgba(2,35,52,.72)" }}>Cargadas: {statusCounts.loaded}</button>
+        <button type="button" className="panel-inner" onClick={() => setStatusFilter((current) => current === "pending" ? "all" : "pending")} style={{ padding: "8px 12px", cursor: "pointer", fontWeight: 900, borderColor: statusFilter === "pending" ? "rgba(147,211,230,.82)" : "rgba(147,211,230,.28)", background: statusFilter === "pending" ? "#155a78" : "rgba(11,77,107,.62)" }}>Pendientes: {statusCounts.pending}</button>
+        <button type="button" className="panel-inner" onClick={() => setStatusFilter((current) => current === "invalid" ? "all" : "invalid")} style={{ padding: "8px 12px", cursor: "pointer", fontWeight: 900, borderColor: statusFilter === "invalid" ? "#ebb086" : "rgba(216,93,39,.52)", background: statusFilter === "invalid" ? "#713f38" : "rgba(216,93,39,.20)" }}>Inválidas: {statusCounts.invalid}</button>
+        <button type="button" className="panel-inner" onClick={() => setStatusFilter((current) => current === "ready" ? "all" : "ready")} style={{ padding: "8px 12px", cursor: "pointer", fontWeight: 900, borderColor: statusFilter === "ready" ? "#dff1bc" : "rgba(94,128,25,.64)", background: statusFilter === "ready" ? "#3d6948" : "rgba(94,128,25,.22)" }}>Correctas para enviar: {statusCounts.ready}</button>
+      </div>
+
+      <div className="panel-inner fixassets-depr-table" style={{ overflow: "auto", height: historyAssetCode ? "min(62vh, 620px)" : "100%", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup><col style={{ width: 52, minWidth: 52 }} />{displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
@@ -1003,7 +1042,7 @@ export default function FixAssetsDepr() {
           </Table>
         </div>
       </div>
-      {historyAssetCode ? <section className="panel-inner fixassets-depr-table fixassets-depr-history" style={{ position: "absolute", zIndex: 30, left: 0, right: 0, bottom: 30, maxHeight: 280, padding: 10, display: "grid", gap: 8, overflow: "hidden", background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 -12px 30px rgba(0,0,0,.38)", outline: "none" }}>
+      {historyAssetCode ? <section className="panel-inner fixassets-depr-table fixassets-depr-history" style={{ position: "static", maxHeight: 320, padding: 10, display: "grid", gap: 8, overflow: "hidden", background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 30px rgba(0,0,0,.24)", outline: "none" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div><strong>Histórico de depreciación · {historyAssetCode}</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>Periodos anteriores a {month && year ? `${MONTHS[Number(month) - 1]} ${year}` : "la selección"}</span></div>
           <Button size="sm" onClick={() => { setHistoryAssetCode(null); setHistoryRowId(null); }}>Cerrar histórico</Button>

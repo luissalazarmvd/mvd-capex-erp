@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useState } from "react";
+import React, { memo, startTransition, useState } from "react";
 
 type Props = Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
@@ -37,13 +37,13 @@ function FastCellInputBase({
       onChange={(event) => {
         const next = sanitize ? sanitize(event.target.value) : event.target.value;
         setLocalValue(next);
-        onLiveChange?.(next);
+        if (onLiveChange) startTransition(() => onLiveChange(next));
       }}
       onBlur={() => {
         setIsFocused(false);
         const next = normalizeOnBlur ? normalizeOnBlur(localValue) : localValue;
         setLocalValue(next);
-        onLiveChange?.(next);
+        if (onLiveChange) startTransition(() => onLiveChange(next));
         onCommit(next);
       }}
     />

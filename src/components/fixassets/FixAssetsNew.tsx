@@ -34,6 +34,18 @@ type CatalogueRow = {
   location_name?: string | null;
   origin_account_code?: string | null;
   capex_code?: string | null;
+  subjournal_code?: string | null;
+  voucher_number?: string | null;
+  annex_code?: string | null;
+  document_number?: string | null;
+  assigned_to?: string | null;
+  area_name?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  serial_number?: string | null;
+  cost_center_code?: string | null;
+  depreciation_method?: string | null;
+  asset_comment?: string | null;
   asset_ini_cost_pen?: number | string | null;
 };
 
@@ -93,6 +105,21 @@ function text(value: unknown) {
 
 function dateOnly(value: unknown) {
   return text(value).slice(0, 10);
+}
+
+function firstDayNextMonth(value: unknown) {
+  const match = dateOnly(value).match(/^(\d{4})-(\d{2})-\d{2}$/);
+  if (!match) return "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  return `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+}
+
+function sourceIdentity(row: Pick<VetaRow | CatalogueRow, "subjournal_code" | "voucher_number" | "annex_code" | "document_number">) {
+  const parts = [row.subjournal_code, row.voucher_number, row.annex_code, row.document_number].map((value) => text(value).trim());
+  return parts.some(Boolean) ? parts.join("\u001f") : "";
 }
 
 function numericDraft(value: string) {
@@ -184,11 +211,12 @@ function nextAvailableCode(
 }
 
 const EXTRA_FIELDS = [
-  ["location_name", "Ubicación"], ["asset_type", "Tipo de activo"], ["assigned_to", "Asignado a"],
-  ["area_name", "Área"], ["brand", "Marca"], ["model", "Modelo"], ["serial_number", "Serie"],
-  ["cost_center_code", "Centro de costo"], ["operation_date", "Fecha de operación"],
-  ["depreciation_method", "Método de depreciación"], ["asset_comment", "Comentario"],
-] as const satisfies ReadonlyArray<readonly [Exclude<keyof Draft, "asset_code" | "line_description" | "capex_code" | "pen_amount" | "exc_rate">, string]>;
+  ["location_name", "Ubicación"], ["assigned_to", "Asignado a"], ["area_name", "Área"],
+  ["brand", "Marca"], ["model", "Modelo"], ["serial_number", "Serie"],
+  ["cost_center_code", "Centro de costo"], ["depreciation_method", "Método de depreciación"],
+  ["asset_comment", "Comentario"],
+] as const satisfies ReadonlyArray<readonly [Exclude<keyof Draft, "asset_code" | "line_description" | "capex_code" | "pen_amount" | "exc_rate" | "asset_type" | "operation_date" | "asset_situation">, string]>;
+type ExtraField = (typeof EXTRA_FIELDS)[number][0];
 
 type NewRowsTableProps = {
   title: string;
@@ -202,6 +230,7 @@ type NewRowsTableProps = {
   onFocusDetails: (index: number) => void;
   onOpenDetails: (index: number) => void;
   focusedDetailIndex: number | null;
+  catalogueBySource: ReadonlyMap<string, CatalogueRow>;
 };
 
 const NewRowsTable = memo(function NewRowsTable({
@@ -216,6 +245,7 @@ const NewRowsTable = memo(function NewRowsTable({
   onFocusDetails,
   onOpenDetails,
   focusedDetailIndex,
+  catalogueBySource,
 }: NewRowsTableProps) {
   return (
     <section className="fixassets-new-table" style={{ display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", gap: 6, minWidth: 0, minHeight: 0 }}>
@@ -234,17 +264,18 @@ const NewRowsTable = memo(function NewRowsTable({
             <tbody>
               {items.map(({ row, index }) => {
                 const draft = drafts[index] || draftFrom(row);
+                const existing = catalogueBySource.get(sourceIdentity(row)) || null;
                 const state = states[index] || "idle";
-                const focused = focusedDetailIndex === index;
-                const background = state === "invalid" ? "rgba(216,93,39,.32)" : focused ? "rgba(27,147,227,.34)" : state === "valid" ? "rgba(94,128,25,.32)" : undefined;
-                return <tr key={index} className="capex-tr" onClick={() => onFocusDetails(index)} style={{ cursor: "pointer" }}>
+                const focused = !existing && focusedDetailIndex === index;
+                const background = existing ? "rgba(2,35,52,.82)" : state === "invalid" ? "rgba(216,93,39,.32)" : focused ? "rgba(27,147,227,.34)" : state === "valid" ? "rgba(94,128,25,.32)" : undefined;
+                return <tr key={index} className="capex-tr" onClick={() => { if (!existing) onFocusDetails(index); }} title={existing ? `Ya existe en catálogo como ${text(existing.asset_code)}` : undefined} style={{ cursor: existing ? "default" : "pointer" }}>
                   {COLUMNS.map((column) => {
-                    const editable = column.key === "asset_code" || column.key === "line_description" || column.key === "capex_code" || column.key === "pen_amount" || column.key === "exc_rate";
+                    const editable = !existing && (column.key === "asset_code" || column.key === "line_description" || column.key === "capex_code" || column.key === "pen_amount" || column.key === "exc_rate");
                     const field = column.key as keyof Draft;
-                    const value = column.key === "asset_code" ? draft.asset_code : editable ? draft[field] : row[column.key as keyof VetaRow];
+                    const value = column.key === "asset_code" ? existing ? existing.asset_code : draft.asset_code : editable ? draft[field] : row[column.key as keyof VetaRow];
                     const numeric = column.key === "pen_amount" || column.key === "exc_rate";
                     const sticky = column.key === "asset_code";
-                    return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? state === "invalid" ? "#79453b" : focused ? "#155a78" : stickyRowBackground(state) : background, position: sticky ? "sticky" : undefined, left: sticky ? 0 : undefined, zIndex: sticky ? 20 : undefined, boxShadow: sticky ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
+                    return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? existing ? "#052b3d" : state === "invalid" ? "#79453b" : focused ? "#155a78" : stickyRowBackground(state) : background, position: sticky ? "sticky" : undefined, left: sticky ? 0 : undefined, zIndex: sticky ? 20 : undefined, boxShadow: sticky ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? <FastCellInput
                         className="input"
                         value={text(value)}
@@ -362,6 +393,37 @@ export default function FixAssetsNew() {
     return result;
   }, [existingCodes]);
 
+  const catalogueBySource = useMemo(() => {
+    const result = new Map<string, CatalogueRow>();
+    catalogueRows.forEach((row) => {
+      const key = sourceIdentity(row);
+      if (key) result.set(key, row);
+    });
+    return result;
+  }, [catalogueRows]);
+
+  const suggestionsByField = useMemo(() => {
+    const sets = {} as Record<ExtraField, Set<string>>;
+    EXTRA_FIELDS.forEach(([field]) => { sets[field] = new Set<string>(); });
+    catalogueRows.forEach((row) => {
+      EXTRA_FIELDS.forEach(([field]) => {
+        const value = text(row[field as keyof CatalogueRow]).trim();
+        if (value) sets[field].add(value);
+      });
+    });
+    Object.values(drafts).forEach((draft) => {
+      EXTRA_FIELDS.forEach(([field]) => {
+        const value = draft[field].trim();
+        if (value) sets[field].add(value);
+      });
+    });
+    const result = {} as Record<ExtraField, string[]>;
+    EXTRA_FIELDS.forEach(([field]) => {
+      result[field] = Array.from(sets[field]).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+    });
+    return result;
+  }, [catalogueRows, drafts]);
+
   const sequentialCodes = useMemo(() => {
     const suffixesByClass = new Map<string, Array<{ code: string; suffix: number }>>();
     Object.values(drafts).forEach((draft) => {
@@ -415,7 +477,7 @@ export default function FixAssetsNew() {
   const capexRows = useMemo(() => filteredRows
     .filter(({ row }) => Boolean(text(row.capex_code).trim()))
     .sort((a, b) => text(a.row.capex_code).localeCompare(text(b.row.capex_code), undefined, { numeric: true, sensitivity: "base" })), [filteredRows]);
-  const selectedIndexes = useMemo(() => rows.map((_, index) => index).filter((index) => Boolean(drafts[index]?.asset_code.trim())), [rows, drafts]);
+  const selectedIndexes = useMemo(() => rows.map((row, index) => ({ row, index })).filter(({ row, index }) => Boolean(drafts[index]?.asset_code.trim()) && !catalogueBySource.has(sourceIdentity(row))).map(({ index }) => index), [rows, drafts, catalogueBySource]);
   const invalidCount = selectedIndexes.filter((index) => states[index] === "invalid").length;
   const canSave = selectedIndexes.length > 0 && invalidCount === 0 && !loading && !saving;
 
@@ -453,7 +515,7 @@ export default function FixAssetsNew() {
 
   const assignNextCodes = useCallback(() => {
     const classCode = codeClass.replace(/\D/g, "").slice(0, 3);
-    const emptyIndexes = filteredRows.map(({ index }) => index).filter((index) => !drafts[index]?.asset_code.trim());
+    const emptyIndexes = filteredRows.map(({ row, index }) => ({ row, index })).filter(({ row, index }) => !catalogueBySource.has(sourceIdentity(row)) && !drafts[index]?.asset_code.trim()).map(({ index }) => index);
     if (!/^\d{3}$/.test(classCode)) {
       setIsError(true);
       setMessage("Indica una clase de 3 dígitos para generar los COD.");
@@ -474,7 +536,7 @@ export default function FixAssetsNew() {
     });
     setIsError(false);
     setMessage(`${emptyIndexes.length} COD${emptyIndexes.length === 1 ? " fue asignado" : " fueron asignados"} en secuencia para la clase ${classCode}.`);
-  }, [codeClass, filteredRows, drafts, classMaxSuffix, existingCodes]);
+  }, [codeClass, filteredRows, drafts, classMaxSuffix, existingCodes, catalogueBySource]);
 
   const detailRow = detailIndex == null ? null : rows[detailIndex];
   const detailDraft = detailIndex == null ? null : drafts[detailIndex];
@@ -507,10 +569,10 @@ export default function FixAssetsNew() {
           subjournal_code: row.subjournal_code, voucher_number: row.voucher_number,
           annex_code: row.annex_code, annex_description: row.annex_description,
           document_number: row.document_number, asset_description: draft.line_description.trim() || null,
-          asset_type: draft.asset_type.trim() || null, assigned_to: draft.assigned_to.trim() || null, area_name: draft.area_name.trim() || null,
+          assigned_to: draft.assigned_to.trim() || null, area_name: draft.area_name.trim() || null,
           brand: draft.brand.trim() || null, model: draft.model.trim() || null, serial_number: draft.serial_number.trim() || null,
           color: null, cost_center_code: draft.cost_center_code.trim() || null,
-          acquisition_date: dateOnly(row.document_date) || null, operation_date: draft.operation_date || null, disposal_date: null,
+          acquisition_date: dateOnly(row.comp_date) || null, operation_date: firstDayNextMonth(row.comp_date) || null, disposal_date: null,
           exc_rate: numberOrNull(draft.exc_rate), asset_ini_cost_pen: numberOrNull(draft.pen_amount),
           depreciation_method: draft.depreciation_method.trim() || null, asset_situation: "OPERATIVO",
           asset_comment: draft.asset_comment.trim() || null,
@@ -524,7 +586,21 @@ export default function FixAssetsNew() {
         ...selectedIndexes.map((index) => ({
           asset_code: drafts[index].asset_code.trim(),
           asset_description: drafts[index].line_description.trim() || null,
+          origin_account_code: rows[index].account_code,
           capex_code: drafts[index].capex_code.trim() || null,
+          subjournal_code: rows[index].subjournal_code,
+          voucher_number: rows[index].voucher_number,
+          annex_code: rows[index].annex_code,
+          document_number: rows[index].document_number,
+          location_name: drafts[index].location_name.trim() || null,
+          assigned_to: drafts[index].assigned_to.trim() || null,
+          area_name: drafts[index].area_name.trim() || null,
+          brand: drafts[index].brand.trim() || null,
+          model: drafts[index].model.trim() || null,
+          serial_number: drafts[index].serial_number.trim() || null,
+          cost_center_code: drafts[index].cost_center_code.trim() || null,
+          depreciation_method: drafts[index].depreciation_method.trim() || null,
+          asset_comment: drafts[index].asset_comment.trim() || null,
           asset_ini_cost_pen: numberOrNull(drafts[index].pen_amount),
         })),
       ]);
@@ -546,7 +622,7 @@ export default function FixAssetsNew() {
   }
 
   return (
-    <div className="fixassets-new-shell" style={{ position: "relative", display: "grid", gap: 10, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
+    <div className="fixassets-new-shell" style={{ position: "relative", display: "grid", gap: 10, height: detailIndex == null ? "calc(100vh - 205px)" : "auto", minHeight: 0, overflow: detailIndex == null ? "hidden" : "visible" }}>
       <div className="fixassets-new-root" style={{ position: "relative", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto auto", gap: 10, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
         <div>
@@ -559,7 +635,7 @@ export default function FixAssetsNew() {
           <Select label="Mes hasta" value={monthTo} onChange={(event) => { const value = event.target.value; setMonthTo(value); if (value < monthFrom) setMonthFrom(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
           <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
             Clase para COD
-            <input className="input" value={codeClass} onChange={(event) => setCodeClass(event.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" maxLength={3} placeholder="Ej. 110" style={{ width: 105, height: 34, padding: "6px 10px" }} />
+            <FastCellInput className="input" value={codeClass} onCommit={setCodeClass} onLiveChange={setCodeClass} sanitize={(next) => next.replace(/\D/g, "").slice(0, 3)} inputMode="numeric" maxLength={3} placeholder="Ej. 110" style={{ width: 105, height: 34, padding: "6px 10px" }} />
           </label>
           <Button size="sm" onClick={assignNextCodes} disabled={loading || saving}>Asignar siguientes</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
@@ -573,11 +649,13 @@ export default function FixAssetsNew() {
       </div>
 
       <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
-        <NewRowsTable title="Activos normales" subtitle="Haz clic o edita una fila para completar su ficha opcional." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} onOpenDetails={openDetails} focusedDetailIndex={detailIndex} />
-        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX. Haz clic o edita una fila para completar su ficha opcional." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} onOpenDetails={openDetails} focusedDetailIndex={detailIndex} />
+        <NewRowsTable title="Activos normales" subtitle="Haz clic o edita una fila para completar su ficha opcional." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} onOpenDetails={openDetails} focusedDetailIndex={detailIndex} catalogueBySource={catalogueBySource} />
+        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX. Haz clic o edita una fila para completar su ficha opcional." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} onOpenDetails={openDetails} focusedDetailIndex={detailIndex} catalogueBySource={catalogueBySource} />
       </div>
 
       <div className="muted" style={{ fontSize: 12 }}>Mostrando {filteredRows.length} de {rows.length} filas: {normalRows.length} normales y {capexRows.length} CAPEX.</div>
+
+      {EXTRA_FIELDS.map(([field]) => <datalist key={field} id={`fixassets-new-${field}-options`}>{suggestionsByField[field].map((value) => <option key={value} value={value} />)}</datalist>)}
 
       <style jsx global>{`
         .fixassets-new-table-grid table {
@@ -615,7 +693,7 @@ export default function FixAssetsNew() {
       `}</style>
       </div>
 
-      {detailRow && detailDraft && detailIndex != null ? <section className="panel-inner fixassets-new-preview" style={{ position: "absolute", zIndex: 30, left: 0, right: 0, bottom: 0, maxHeight: "min(62vh, 370px)", padding: 10, overflow: "auto", background: "var(--panel2)", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 -12px 30px rgba(0,0,0,.38)", outline: "none" }}>
+      {detailRow && detailDraft && detailIndex != null ? <section className="panel-inner fixassets-new-preview" style={{ position: "static", maxHeight: "min(62vh, 370px)", padding: 10, overflow: "auto", background: "var(--panel2)", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 30px rgba(0,0,0,.24)", outline: "none" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
           <div><strong>Ficha complementaria</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{detailDraft.asset_code || "Sin COD"} · {detailDraft.line_description || text(detailRow.line_description) || "Sin descripción"}</span></div>
           <Button size="sm" onClick={() => setDetailIndex(null)}>Cerrar ficha</Button>
@@ -629,7 +707,7 @@ export default function FixAssetsNew() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
           {EXTRA_FIELDS.map(([field, label]) => <label key={field} style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 800 }}>
             {label}
-            <input className="input" type={field === "operation_date" ? "date" : "text"} value={detailDraft[field]} onChange={(event) => updateDraft(detailIndex, field, event.target.value)} style={{ height: 32, padding: "5px 8px" }} />
+            <FastCellInput className="input" type="text" list={`fixassets-new-${field}-options`} value={detailDraft[field]} onCommit={(next) => updateDraft(detailIndex, field, next)} style={{ height: 32, padding: "5px 8px" }} />
           </label>)}
         </div>
       </section> : null}

@@ -3,6 +3,7 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
 import { FastCellInput } from "./FastCellInput";
 
@@ -70,6 +71,16 @@ type Draft = Record<EditableKey, string>;
 
 const DATE_FIELDS = new Set<EditableKey>(["acquisition_date", "operation_date", "disposal_date"]);
 const NUMBER_FIELDS = new Set<EditableKey>(["exc_rate", "asset_ini_cost_pen"]);
+const SUGGESTION_FIELDS = [
+  "location_name", "assigned_to", "area_name", "brand", "model", "serial_number",
+  "cost_center_code", "depreciation_method", "asset_comment",
+] as const satisfies readonly EditableKey[];
+type SuggestionKey = (typeof SUGGESTION_FIELDS)[number];
+const SUGGESTION_FIELD_SET = new Set<EditableKey>(SUGGESTION_FIELDS);
+const MONTHS = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
 
 const COLUMNS: Array<{ key: keyof CatalogueRow; label: string; width: number }> = [
   { key: "asset_code", label: "COD", width: 105 },
@@ -123,6 +134,11 @@ function text(value: unknown) {
 
 function dateOnly(value: unknown) {
   return text(value).slice(0, 10);
+}
+
+function monthOf(value: unknown) {
+  const match = dateOnly(value).match(/^(\d{4})-(\d{2})/);
+  return match ? { year: match[1], month: match[2] } : null;
 }
 
 function numericDraft(value: string) {
@@ -184,6 +200,9 @@ export default function FixAssetsCat() {
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
+  const [acquisitionYear, setAcquisitionYear] = useState("");
+  const [acquisitionMonthFrom, setAcquisitionMonthFrom] = useState("01");
+  const [acquisitionMonthTo, setAcquisitionMonthTo] = useState("12");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -235,17 +254,46 @@ export default function FixAssetsCat() {
   const invalidCodes = editedCodes.filter((code) => invalid(drafts[code]));
   const canSave = editedCodes.length > 0 && invalidCodes.length === 0 && !loading && !saving;
 
+  const acquisitionYears = useMemo(() => Array.from(new Set(
+    rows.map((row) => monthOf(row.acquisition_date)?.year).filter((value): value is string => Boolean(value))
+  )).sort().reverse(), [rows]);
+
+  const suggestionsByField = useMemo(() => {
+    const sets = {} as Record<SuggestionKey, Set<string>>;
+    SUGGESTION_FIELDS.forEach((field) => { sets[field] = new Set<string>(); });
+    rows.forEach((row) => {
+      SUGGESTION_FIELDS.forEach((field) => {
+        const value = text(row[field]).trim();
+        if (value) sets[field].add(value);
+      });
+    });
+    Object.values(drafts).forEach((draft) => {
+      SUGGESTION_FIELDS.forEach((field) => {
+        const value = draft[field].trim();
+        if (value) sets[field].add(value);
+      });
+    });
+    const result = {} as Record<SuggestionKey, string[]>;
+    SUGGESTION_FIELDS.forEach((field) => {
+      result[field] = Array.from(sets[field]).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+    });
+    return result;
+  }, [rows, drafts]);
+
   const visibleRows = useMemo(() => {
     const needle = deferredQuery.trim().toLocaleLowerCase("es");
-    if (!needle) return rows;
     return rows.filter((row) => {
       const code = text(row.asset_code);
       const draft = drafts[code];
+      const acquisition = monthOf(draft?.acquisition_date || row.acquisition_date);
+      const matchesAcquisition = !acquisitionYear || Boolean(acquisition && acquisition.year === acquisitionYear && acquisition.month >= acquisitionMonthFrom && acquisition.month <= acquisitionMonthTo);
+      if (!matchesAcquisition) return false;
+      if (!needle) return true;
       return COLUMNS.some((column) => text(
         EDITABLE.includes(column.key as EditableKey) ? draft?.[column.key as EditableKey] : row[column.key]
       ).toLocaleLowerCase("es").includes(needle));
     });
-  }, [rows, drafts, deferredQuery]);
+  }, [rows, drafts, deferredQuery, acquisitionYear, acquisitionMonthFrom, acquisitionMonthTo]);
 
   function update(code: string, key: EditableKey, value: string) {
     setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
@@ -381,9 +429,12 @@ export default function FixAssetsCat() {
           <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>Edita los datos maestros; solo se enviarán las filas modificadas.</div>
         </div>
         <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
+          <Select label="Año adquisición" value={acquisitionYear} onChange={(event) => setAcquisitionYear(event.target.value)} options={acquisitionYears.map((value) => ({ value, label: value }))} placeholder="Todos" style={{ minWidth: 135 }} />
+          <Select label="Mes desde" value={acquisitionMonthFrom} onChange={(event) => { const value = event.target.value; setAcquisitionMonthFrom(value); if (value > acquisitionMonthTo) setAcquisitionMonthTo(value); }} options={MONTHS.map((label, index) => ({ value: String(index + 1).padStart(2, "0"), label }))} placeholder="" style={{ minWidth: 145 }} />
+          <Select label="Mes hasta" value={acquisitionMonthTo} onChange={(event) => { const value = event.target.value; setAcquisitionMonthTo(value); if (value < acquisitionMonthFrom) setAcquisitionMonthFrom(value); }} options={MONTHS.map((label, index) => ({ value: String(index + 1).padStart(2, "0"), label }))} placeholder="" style={{ minWidth: 145 }} />
           <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
             Buscar en toda la tabla
-            <input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="COD, descripción, área..." style={{ width: 270, height: 34, padding: "6px 10px" }} />
+            <FastCellInput className="input" value={query} onCommit={setQuery} onLiveChange={setQuery} placeholder="COD, descripción, área..." style={{ width: 270, height: 34, padding: "6px 10px" }} />
           </label>
           <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving}>Actualizar mapping</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
@@ -393,6 +444,8 @@ export default function FixAssetsCat() {
 
       {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
       {invalidCodes.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los campos numéricos o Centro costo (6 dígitos) de {invalidCodes.length} fila(s) antes de guardar.</div> : null}
+
+      {SUGGESTION_FIELDS.map((field) => <datalist key={field} id={`fixassets-cat-${field}-options`}>{suggestionsByField[field].map((value) => <option key={value} value={value} />)}</datalist>)}
 
       <div className="panel-inner" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", padding: 0 }}>
         <div style={{ minWidth: "max-content" }}>
@@ -435,6 +488,7 @@ export default function FixAssetsCat() {
                         type={DATE_FIELDS.has(key) ? "date" : "text"}
                         inputMode={key === "cost_center_code" ? "numeric" : NUMBER_FIELDS.has(key) ? "decimal" : undefined}
                         maxLength={key === "cost_center_code" ? 6 : undefined}
+                        list={SUGGESTION_FIELD_SET.has(key) ? `fixassets-cat-${key}-options` : undefined}
                         value={text(value)}
                         sanitize={key === "cost_center_code" ? (next) => next.replace(/\D/g, "").slice(0, 6) : NUMBER_FIELDS.has(key) ? numericDraft : undefined}
                         normalizeOnBlur={NUMBER_FIELDS.has(key) ? (next) => validOptionalNumber(next) ? twoDecimals(next) : next : undefined}
