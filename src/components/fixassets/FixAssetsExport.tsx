@@ -51,6 +51,19 @@ type ExportRow = {
   tasa_igv: number | string | null;
 };
 
+type DetailRow = {
+  asset_code: string | null;
+  asset_description: string | null;
+  origin_account_code: string | null;
+  account_group: string | null;
+  account_denom: string | null;
+  cuenta_depreciacion: string | null;
+  cost_center_code: string | null;
+  depreciation_amount_pen: number | string | null;
+  exc_rate: number | string | null;
+  depreciation_amount_usd: number | string | null;
+};
+
 type ExportKey = Exclude<keyof ExportRow, "period_date">;
 type CellValue = string | number;
 
@@ -254,6 +267,11 @@ export default function FixAssetsExport() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+  const [detailRowKey, setDetailRowKey] = useState<string | null>(null);
+  const [detailParent, setDetailParent] = useState<ExportRow | null>(null);
+  const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -347,6 +365,59 @@ export default function FixAssetsExport() {
       );
     }), [rows, year, month]);
 
+  function exportRowKey(row: ExportRow) {
+    return [
+      text(row.period_date).slice(0, 7),
+      text(row.debe_haber).trim(),
+      text(row.cuenta_contable).trim(),
+      text(row.codigo_centro_costo).trim(),
+      text(row.glosa_principal).trim(),
+    ].join("|");
+  }
+
+  function clearDetail() {
+    setDetailRowKey(null);
+    setDetailParent(null);
+    setDetailRows([]);
+    setDetailError("");
+  }
+
+  async function openDetail(row: ExportRow) {
+    const key = exportRowKey(row);
+
+    if (detailRowKey === key) {
+      clearDetail();
+      return;
+    }
+
+    const selectedPeriod = text(row.period_date).slice(0, 7);
+    const account = text(row.cuenta_contable).trim();
+    const debitCredit = text(row.debe_haber).trim().toUpperCase();
+    const ceco = debitCredit === "D" ? text(row.codigo_centro_costo).trim() : "";
+
+    setDetailRowKey(key);
+    setDetailParent(row);
+    setDetailRows([]);
+    setDetailError("");
+    setDetailLoading(true);
+
+    try {
+      const params = new URLSearchParams({
+        period: selectedPeriod,
+        account,
+        ceco,
+        debit_credit: debitCredit,
+      });
+
+      const response = await apiGet(`/api/actfij/deprec/export/detail?${params.toString()}`);
+      setDetailRows(Array.isArray(response?.rows) ? response.rows as DetailRow[] : []);
+    } catch (error) {
+      setDetailError(error instanceof Error ? error.message : "No se pudo cargar el detalle");
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
   function exportExcel() {
     if (!visibleRows.length || !year || !month) {
       setIsError(true);
@@ -409,10 +480,13 @@ export default function FixAssetsExport() {
       className="fixassets-export-root"
       style={{
         display: "grid",
-        gridTemplateRows: "auto auto minmax(0, 1fr) auto",
+        gridTemplateRows: detailRowKey
+          ? "auto auto minmax(420px, 62vh) auto auto"
+          : "auto auto minmax(0, 1fr) auto",
         gap: 12,
-        height: "calc(100vh - 205px)",
+        height: detailRowKey ? "auto" : "calc(100vh - 205px)",
         minHeight: 0,
+        overflow: detailRowKey ? "visible" : "hidden",
       }}
     >
       <div
@@ -447,7 +521,10 @@ export default function FixAssetsExport() {
           <Select
             label="Año"
             value={year}
-            onChange={(event) => setYear(event.target.value)}
+            onChange={(event) => {
+              clearDetail();
+              setYear(event.target.value);
+            }}
             options={years.map((value) => ({
               value,
               label: value,
@@ -459,7 +536,10 @@ export default function FixAssetsExport() {
           <Select
             label="Mes"
             value={month}
-            onChange={(event) => setMonth(event.target.value)}
+            onChange={(event) => {
+              clearDetail();
+              setMonth(event.target.value);
+            }}
             options={monthsForYear.map((value) => ({
               value,
               label: MONTHS[Number(value) - 1],
@@ -563,45 +643,57 @@ export default function FixAssetsExport() {
             </thead>
 
             <tbody>
-              {visibleRows.map((row, rowIndex) => (
-                <tr
-                  key={`${text(row.period_date)}|${text(row.debe_haber)}|${text(row.cuenta_contable)}|${text(row.codigo_centro_costo)}|${rowIndex}`}
-                  className="capex-tr"
-                >
-                  {COLUMNS.map((column, columnIndex) => {
-                    const sticky = columnIndex < 2;
-                    const left = columnIndex === 0
-                      ? 0
-                      : columnIndex === 1
-                        ? COLUMNS[0].width
-                        : undefined;
+              {visibleRows.map((row, rowIndex) => {
+                const key = exportRowKey(row);
+                const focused = detailRowKey === key;
 
-                    return (
-                      <td
-                        key={column.key}
-                        className="capex-td"
-                        style={{
-                          position: sticky ? "sticky" : undefined,
-                          left,
-                          zIndex: sticky ? 20 : undefined,
-                          background: sticky
-                            ? "#0b4d6b"
-                            : undefined,
-                          boxShadow: columnIndex === 1
-                            ? "2px 0 rgba(216,238,255,.12)"
-                            : undefined,
-                          textAlign: NUMERIC_KEYS.has(column.key)
-                            ? "right"
-                            : undefined,
-                        }}
-                        title={text(row[column.key])}
-                      >
-                        {displayValue(column.key, row[column.key])}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                return (
+                  <tr
+                    key={`${key}|${rowIndex}`}
+                    className="capex-tr"
+                    onClick={() => void openDetail(row)}
+                    style={{
+                      cursor: "pointer",
+                      background: focused ? "rgba(27,147,227,.34)" : undefined,
+                    }}
+                  >
+                    {COLUMNS.map((column, columnIndex) => {
+                      const sticky = columnIndex < 2;
+                      const left = columnIndex === 0
+                        ? 0
+                        : columnIndex === 1
+                          ? COLUMNS[0].width
+                          : undefined;
+
+                      return (
+                        <td
+                          key={column.key}
+                          className="capex-td"
+                          style={{
+                            position: sticky ? "sticky" : undefined,
+                            left,
+                            zIndex: sticky ? 20 : undefined,
+                            background: focused
+                              ? "#155a78"
+                              : sticky
+                                ? "#0b4d6b"
+                                : undefined,
+                            boxShadow: columnIndex === 1
+                              ? "2px 0 rgba(216,238,255,.12)"
+                              : undefined,
+                            textAlign: NUMERIC_KEYS.has(column.key)
+                              ? "right"
+                              : undefined,
+                          }}
+                          title={text(row[column.key])}
+                        >
+                          {displayValue(column.key, row[column.key])}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
 
               {!loading && !visibleRows.length ? (
                 <tr>
@@ -628,6 +720,137 @@ export default function FixAssetsExport() {
           </Table>
         </div>
       </div>
+
+      {detailRowKey && detailParent ? (
+        <section
+          className="panel-inner fixassets-export-table fixassets-export-detail"
+          style={{
+            position: "static",
+            maxHeight: 320,
+            padding: 10,
+            display: "grid",
+            gap: 8,
+            overflow: "hidden",
+            background: "#0b4d6b",
+            borderColor: "rgba(147,211,230,.52)",
+            boxShadow: "0 10px 30px rgba(0,0,0,.24)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <strong>
+                Detalle de activos · Cuenta {text(detailParent.cuenta_contable)}
+                {text(detailParent.codigo_centro_costo).trim()
+                  ? ` · CECO ${text(detailParent.codigo_centro_costo)}`
+                  : ""}
+              </strong>
+              <span
+                className="muted"
+                style={{ marginLeft: 8, fontSize: 12 }}
+              >
+                {text(detailParent.debe_haber) === "D"
+                  ? "Agrupación por cuenta + centro de costo"
+                  : "Agrupación por cuenta"}
+              </span>
+            </div>
+
+            <Button size="sm" onClick={clearDetail}>
+              Cerrar detalle
+            </Button>
+          </div>
+
+          {detailError ? (
+            <div
+              style={{
+                color: "#ffd0bf",
+                fontWeight: 800,
+                fontSize: 13,
+              }}
+            >
+              {detailError}
+            </div>
+          ) : detailLoading ? (
+            <div className="muted" style={{ fontSize: 13 }}>
+              Cargando detalle...
+            </div>
+          ) : detailRows.length ? (
+            <div style={{ overflow: "auto", maxHeight: 260 }}>
+              <Table disableScrollWrapper stickyHeader>
+                <thead>
+                  <tr>
+                    {[
+                      "COD",
+                      "Descripción activo",
+                      "Cuenta origen",
+                      "Grupo",
+                      "Denominación",
+                      "Cuenta depreciación",
+                      "Centro de costo",
+                      "Depreciación PEN",
+                      "T.C.",
+                      "Depreciación USD",
+                    ].map((label) => (
+                      <th
+                        key={label}
+                        className="capex-th"
+                        style={{ top: 0, zIndex: 20, padding: 7, fontSize: 12 }}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {detailRows.map((detail) => (
+                    <tr
+                      key={text(detail.asset_code)}
+                      className="capex-tr"
+                    >
+                      <td className="capex-td">{text(detail.asset_code)}</td>
+                      <td className="capex-td">{text(detail.asset_description)}</td>
+                      <td className="capex-td">{text(detail.origin_account_code)}</td>
+                      <td className="capex-td">{text(detail.account_group)}</td>
+                      <td className="capex-td">{text(detail.account_denom)}</td>
+                      <td className="capex-td">{text(detail.cuenta_depreciacion)}</td>
+                      <td className="capex-td">{text(detail.cost_center_code)}</td>
+                      <td className="capex-td" style={{ textAlign: "right" }}>
+                        {displayValue("importe_soles", detail.depreciation_amount_pen)}
+                      </td>
+                      <td className="capex-td" style={{ textAlign: "right" }}>
+                        {detail.exc_rate == null || detail.exc_rate === ""
+                          ? ""
+                          : Number(detail.exc_rate).toLocaleString("es-PE", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 6,
+                            })}
+                      </td>
+                      <td className="capex-td" style={{ textAlign: "right" }}>
+                        {displayValue("importe_dolares", detail.depreciation_amount_usd)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          ) : (
+            <div className="muted" style={{ fontSize: 13 }}>
+              No hay activos para esta cuenta
+              {text(detailParent.codigo_centro_costo).trim()
+                ? " y centro de costo"
+                : ""}.
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <div className="muted" style={{ fontSize: 12 }}>
         Periodo {year && month
@@ -662,6 +885,11 @@ export default function FixAssetsExport() {
 
           .fixassets-export-table {
             min-height: 520px !important;
+          }
+
+          .fixassets-export-detail {
+            min-height: 0 !important;
+            max-height: 320px !important;
           }
         }
       `}</style>
