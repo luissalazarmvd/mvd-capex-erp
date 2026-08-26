@@ -163,15 +163,8 @@ function upperOrNull(value: string) {
 }
 
 function costCenterCode(value: string) {
-  const clean = value.trim();
-  const match = clean.match(/^(\d{1,6})(?:\s*-\s*.*)?$/);
-  return match ? match[1] : clean.replace(/\D/g, "").slice(0, 6);
-}
-
-function costCenterDisplay(value: string, cecoByCode: Readonly<Record<string, string>>) {
-  const code = costCenterCode(value);
-  const description = cecoByCode[code];
-  return code && description ? `${code} - ${description}` : code;
+  const raw = value.trim().split(/\s+-\s+/, 1)[0] || "";
+  return raw.toLocaleUpperCase("es").replace(/[^0-9A-Z]/g, "").slice(0, 6);
 }
 
 function toDraft(row: CatalogueRow): Draft {
@@ -191,10 +184,8 @@ function changed(draft: Draft, original: Draft) {
 }
 
 function invalid(draft: Draft) {
-  const costCenter = draft.cost_center_code.trim();
   return !validOptionalNumber(draft.exc_rate)
-    || !validOptionalNumber(draft.asset_ini_cost_pen)
-    || Boolean(costCenter && !/^\d{6}$/.test(costCenter));
+    || !validOptionalNumber(draft.asset_ini_cost_pen);
 }
 
 function toMappingDraft(row: MappingRow): MappingDraft {
@@ -244,7 +235,7 @@ export default function FixAssetsCat() {
       const nextRows = Array.isArray(response?.rows) ? (response.rows as CatalogueRow[]) : [];
       const nextCecoByCode = (Array.isArray(cecoResponse?.rows) ? cecoResponse.rows as CecoRow[] : [])
         .reduce<Record<string, string>>((current, row) => {
-          const code = text(row.cost_center_code).trim();
+          const code = costCenterCode(text(row.cost_center_code));
           if (code) current[code] = text(row.cost_center_description).trim();
           return current;
         }, {});
@@ -274,6 +265,12 @@ export default function FixAssetsCat() {
   const acquisitionYears = useMemo(() => Array.from(new Set(
     rows.map((row) => monthOf(row.acquisition_date)?.year).filter((value): value is string => Boolean(value))
   )).sort().reverse(), [rows]);
+
+  const catalogueCecoCodes = useMemo(() => Array.from(new Set(
+    rows
+      .map((row) => costCenterCode(text(row.cost_center_code)))
+      .filter((code) => Boolean(code) && Object.prototype.hasOwnProperty.call(cecoByCode, code))
+  )).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [rows, cecoByCode]);
 
   const suggestionsByField = useMemo(() => {
     const sets = {} as Record<SuggestionKey, Set<string>>;
@@ -315,6 +312,22 @@ export default function FixAssetsCat() {
   function update(code: string, key: EditableKey, value: string) {
     setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
     setMessage("");
+  }
+
+  function commitCostCenter(assetCode: string, value: string) {
+    const code = costCenterCode(value);
+    if (!code) {
+      update(assetCode, "cost_center_code", "");
+      setIsError(false);
+      return;
+    }
+    if (!Object.prototype.hasOwnProperty.call(cecoByCode, code)) {
+      setIsError(true);
+      setMessage(`Centro de costo ${code} no existe.`);
+      return;
+    }
+    update(assetCode, "cost_center_code", code);
+    setIsError(false);
   }
 
   async function openMappingPreview() {
@@ -460,13 +473,17 @@ export default function FixAssetsCat() {
       </div>
 
       {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
-      {invalidCodes.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los campos numéricos o Centro costo (6 dígitos) de {invalidCodes.length} fila(s) antes de guardar.</div> : null}
+      {invalidCodes.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los campos numéricos de {invalidCodes.length} fila(s) antes de guardar.</div> : null}
 
       {SUGGESTION_FIELDS.map((field) => <datalist key={field} id={`fixassets-cat-${field}-options`}>
         {field === "cost_center_code"
-          ? Object.entries(cecoByCode)
-              .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-              .map(([code, description]) => <option key={code} value={`${code} - ${description}`} />)
+          ? catalogueCecoCodes.map((code) => (
+              <option
+                key={code}
+                value={code}
+                label={`${code} - ${cecoByCode[code]}`}
+              />
+            ))
           : suggestionsByField[field].map((value) => <option key={value} value={value} />)}
       </datalist>)}
 
@@ -490,11 +507,14 @@ export default function FixAssetsCat() {
                   {COLUMNS.map((column) => {
                     const editable = EDITABLE.includes(column.key as EditableKey) && column.key !== "asset_type";
                     const key = column.key as EditableKey;
-                    const mappedCostCenterDesc = cecoByCode[costCenterCode(draft.cost_center_code)] || "";
+                    const draftCostCenter = costCenterCode(draft.cost_center_code);
+                    const mappedCostCenterDesc = draftCostCenter
+                      ? cecoByCode[draftCostCenter] || "Centro de costo no existe"
+                      : "";
                     const value = column.key === "cost_center_desc"
                       ? mappedCostCenterDesc
                       : column.key === "cost_center_code"
-                        ? costCenterDisplay(draft.cost_center_code, cecoByCode)
+                        ? draftCostCenter
                         : editable
                           ? draft[key]
                           : row[column.key];
@@ -519,11 +539,18 @@ export default function FixAssetsCat() {
                         maxLength={undefined}
                         list={SUGGESTION_FIELD_SET.has(key) ? `fixassets-cat-${key}-options` : undefined}
                         value={text(value)}
-                        sanitize={NUMBER_FIELDS.has(key) ? numericDraft : undefined}
+                        sanitize={key === "cost_center_code" ? costCenterCode : NUMBER_FIELDS.has(key) ? numericDraft : undefined}
                         normalizeOnBlur={NUMBER_FIELDS.has(key) ? (next) => validOptionalNumber(next) ? twoDecimals(next) : next : undefined}
-                        onLiveChange={key === "cost_center_code" ? (next) => update(code, key, costCenterCode(next)) : undefined}
-                        onCommit={(next) => update(code, key, key === "cost_center_code" ? costCenterCode(next) : next)}
-                        style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && ((NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key])) || (key === "cost_center_code" && Boolean(draft.cost_center_code.trim()) && !/^\d{6}$/.test(draft.cost_center_code.trim()))) ? "#ebb086" : undefined }}
+                        onLiveChange={key === "cost_center_code" ? (next) => {
+                          const nextCode = costCenterCode(next);
+                          if (!nextCode || Object.prototype.hasOwnProperty.call(cecoByCode, nextCode)) {
+                            update(code, key, nextCode);
+                          }
+                        } : undefined}
+                        onCommit={(next) => key === "cost_center_code"
+                          ? commitCostCenter(code, next)
+                          : update(code, key, next)}
+                        style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key]) ? "#ebb086" : undefined }}
                         aria-label={`${column.label} ${code}`}
                       /> : <span title={text(value)}>{column.key.endsWith("_date") ? dateOnly(value) : column.key === "deprec_rate_pct" ? twoDecimals(value) : text(value)}</span>}
                     </td>;

@@ -154,15 +154,8 @@ function upperOrNull(value: string) {
 }
 
 function costCenterCode(value: string) {
-  const clean = value.trim();
-  const match = clean.match(/^(\d{1,6})(?:\s*-\s*.*)?$/);
-  return match ? match[1] : clean.replace(/\D/g, "").slice(0, 6);
-}
-
-function costCenterDisplay(value: string, cecoByCode: Readonly<Record<string, string>>) {
-  const code = costCenterCode(value);
-  const description = cecoByCode[code];
-  return code && description ? `${code} - ${description}` : code;
+  const raw = value.trim().split(/\s+-\s+/, 1)[0] || "";
+  return raw.toLocaleUpperCase("es").replace(/[^0-9A-Z]/g, "").slice(0, 6);
 }
 
 function draftFrom(row: VetaRow): Draft {
@@ -365,7 +358,7 @@ export default function FixAssetsNew() {
       const nextCatalogue = Array.isArray(catalogue?.rows) ? catalogue.rows as CatalogueRow[] : [];
       const nextCecoByCode = (Array.isArray(ceco?.rows) ? ceco.rows as CecoRow[] : [])
         .reduce<Record<string, string>>((current, row) => {
-          const code = text(row.cost_center_code).trim();
+          const code = costCenterCode(text(row.cost_center_code));
           if (code) current[code] = text(row.cost_center_description).trim();
           return current;
         }, {});
@@ -432,6 +425,12 @@ export default function FixAssetsNew() {
     });
     return result;
   }, [catalogueRows]);
+
+  const catalogueCecoCodes = useMemo(() => Array.from(new Set(
+    catalogueRows
+      .map((row) => costCenterCode(text(row.cost_center_code)))
+      .filter((code) => Boolean(code) && Object.prototype.hasOwnProperty.call(cecoByCode, code))
+  )).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [catalogueRows, cecoByCode]);
 
   const suggestionsByField = useMemo(() => {
     const sets = {} as Record<ExtraField, Set<string>>;
@@ -538,6 +537,22 @@ export default function FixAssetsNew() {
     setDrafts((current) => ({ ...current, [index]: { ...current[index], [field]: value } }));
     setMessage("");
   }, []);
+
+  const commitCostCenter = useCallback((index: number, value: string) => {
+    const code = costCenterCode(value);
+    if (!code) {
+      updateDraft(index, "cost_center_code", "");
+      setIsError(false);
+      return;
+    }
+    if (!Object.prototype.hasOwnProperty.call(cecoByCode, code)) {
+      setIsError(true);
+      setMessage(`Centro de costo ${code} no existe.`);
+      return;
+    }
+    updateDraft(index, "cost_center_code", code);
+    setIsError(false);
+  }, [cecoByCode, updateDraft]);
 
   const handleCodeActivity = useCallback((index: number, value: string) => {
     setActiveCodeIndex(index);
@@ -688,9 +703,13 @@ export default function FixAssetsNew() {
 
       {EXTRA_FIELDS.map(([field]) => <datalist key={field} id={`fixassets-new-${field}-options`}>
         {field === "cost_center_code"
-          ? Object.entries(cecoByCode)
-              .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-              .map(([code, description]) => <option key={code} value={`${code} - ${description}`} />)
+          ? catalogueCecoCodes.map((code) => (
+              <option
+                key={code}
+                value={code}
+                label={`${code} - ${cecoByCode[code]}`}
+              />
+            ))
           : suggestionsByField[field].map((value) => <option key={value} value={value} />)}
       </datalist>)}
 
@@ -748,13 +767,21 @@ export default function FixAssetsNew() {
               className="input"
               type="text"
               list={`fixassets-new-${field}-options`}
-              value={field === "cost_center_code" ? costCenterDisplay(detailDraft[field], cecoByCode) : detailDraft[field]}
-              onLiveChange={field === "cost_center_code" ? (next) => updateDraft(detailIndex, field, costCenterCode(next)) : undefined}
-              onCommit={(next) => updateDraft(detailIndex, field, field === "cost_center_code" ? costCenterCode(next) : next)}
+              value={detailDraft[field]}
+              sanitize={field === "cost_center_code" ? costCenterCode : undefined}
+              onLiveChange={field === "cost_center_code" ? (next) => {
+                const code = costCenterCode(next);
+                if (!code || Object.prototype.hasOwnProperty.call(cecoByCode, code)) {
+                  updateDraft(detailIndex, field, code);
+                }
+              } : undefined}
+              onCommit={(next) => field === "cost_center_code"
+                ? commitCostCenter(detailIndex, next)
+                : updateDraft(detailIndex, field, next)}
               style={{ height: 32, padding: "5px 8px" }}
             />
             {field === "cost_center_code" && detailDraft.cost_center_code.trim() ? <span className="muted" style={{ minHeight: 15, fontSize: 11, fontWeight: 700 }}>
-              {cecoByCode[costCenterCode(detailDraft.cost_center_code)] || "Centro de costo no encontrado en el mapping"}
+              {cecoByCode[costCenterCode(detailDraft.cost_center_code)] || "Centro de costo no existe"}
             </span> : null}
           </label>)}
         </div>
