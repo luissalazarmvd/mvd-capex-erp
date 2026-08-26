@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
+import { FastCellInput } from "./FastCellInput";
 
 type ExportRow = {
   period_date: string | null;
@@ -66,6 +67,9 @@ type DetailRow = {
 
 type CatalogueRateRow = {
   asset_code: string | null;
+  cost_center_code: string | null;
+  deprec_acc_code_fir: string | null;
+  deprec_acc_code_sec: string | null;
   exc_rate: number | string | null;
 };
 
@@ -267,6 +271,9 @@ function excelValue(key: ExportKey, value: unknown): CellValue {
 
 export default function FixAssetsExport() {
   const [rows, setRows] = useState<ExportRow[]>([]);
+  const [catalogueIndexRows, setCatalogueIndexRows] = useState<CatalogueRateRow[]>([]);
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
   const [loading, setLoading] = useState(true);
@@ -301,6 +308,7 @@ export default function FixAssetsExport() {
       }, {});
 
       setRows(nextRows);
+      setCatalogueIndexRows(catalogueRows);
       setAssetExcRates(nextAssetExcRates);
 
       const latestPeriod = nextRows
@@ -357,31 +365,58 @@ export default function FixAssetsExport() {
     }
   }, [monthsForYear, month]);
 
-  const visibleRows = useMemo(() => rows
-    .filter((row) => {
-      const value = period(row.period_date);
-      return value?.year === year && value.month === month;
-    })
-    .sort((a, b) => {
-      const typeA = text(a.debe_haber).trim().toUpperCase() === "D" ? 0 : 1;
-      const typeB = text(b.debe_haber).trim().toUpperCase() === "D" ? 0 : 1;
+  const visibleRows = useMemo(() => {
+    const needle = deferredQuery.trim().toLocaleLowerCase("es");
 
-      if (typeA !== typeB) return typeA - typeB;
+    return rows
+      .filter((row) => {
+        const value = period(row.period_date);
+        if (value?.year !== year || value.month !== month) return false;
+        if (!needle) return true;
 
-      const accountCompare = text(a.cuenta_contable).localeCompare(
-        text(b.cuenta_contable),
-        undefined,
-        { numeric: true }
-      );
+        const account = text(row.cuenta_contable).trim();
+        const costCenter = text(row.codigo_centro_costo).trim();
+        const debitCredit = text(row.debe_haber).trim().toUpperCase();
 
-      if (accountCompare !== 0) return accountCompare;
+        if (
+          account.toLocaleLowerCase("es").includes(needle)
+          || costCenter.toLocaleLowerCase("es").includes(needle)
+        ) {
+          return true;
+        }
 
-      return text(a.codigo_centro_costo).localeCompare(
-        text(b.codigo_centro_costo),
-        undefined,
-        { numeric: true }
-      );
-    }), [rows, year, month]);
+        return catalogueIndexRows.some((asset) => {
+          if (!text(asset.asset_code).toLocaleLowerCase("es").includes(needle)) return false;
+
+          if (debitCredit === "D") {
+            return text(asset.deprec_acc_code_fir).trim() === account
+              && text(asset.cost_center_code).trim() === costCenter;
+          }
+
+          return text(asset.deprec_acc_code_sec).trim() === account;
+        });
+      })
+      .sort((a, b) => {
+        const typeA = text(a.debe_haber).trim().toUpperCase() === "D" ? 0 : 1;
+        const typeB = text(b.debe_haber).trim().toUpperCase() === "D" ? 0 : 1;
+
+        if (typeA !== typeB) return typeA - typeB;
+
+        const accountCompare = text(a.cuenta_contable).localeCompare(
+          text(b.cuenta_contable),
+          undefined,
+          { numeric: true }
+        );
+
+        if (accountCompare !== 0) return accountCompare;
+
+        return text(a.codigo_centro_costo).localeCompare(
+          text(b.codigo_centro_costo),
+          undefined,
+          { numeric: true }
+        );
+      });
+  }, [rows, year, month, deferredQuery, catalogueIndexRows]);
 
   function exportRowKey(row: ExportRow) {
     return [
@@ -493,6 +528,87 @@ export default function FixAssetsExport() {
     setMessage(`Excel de ${MONTHS[Number(month) - 1]} ${year} exportado correctamente.`);
   }
 
+  function exportDetailExcel() {
+    if (!detailParent || !detailRows.length) return;
+
+    const detailHeaders = [
+      "COD",
+      "Descripción activo",
+      "Cuenta origen",
+      "Grupo",
+      "Denominación",
+      "Cuenta depreciación",
+      "Centro de costo",
+      "Depreciación PEN",
+      "T.C.",
+      "Depreciación USD",
+    ];
+
+    const detailData: CellValue[][] = detailRows.map((detail) => {
+      const catalogueRate = assetExcRates[text(detail.asset_code).trim()] ?? "";
+      const rate = Number(catalogueRate);
+      const pen = Number(detail.depreciation_amount_pen);
+      const usd = Number.isFinite(rate) && rate > 0 && Number.isFinite(pen)
+        ? pen / rate
+        : "";
+
+      return [
+        text(detail.asset_code),
+        text(detail.asset_description),
+        text(detail.origin_account_code),
+        text(detail.account_group),
+        text(detail.account_denom),
+        text(detail.cuenta_depreciacion),
+        text(detail.cost_center_code),
+        Number.isFinite(pen) ? pen : "",
+        Number.isFinite(rate) ? rate : "",
+        usd,
+      ];
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet([
+      detailHeaders,
+      ...detailData,
+    ]);
+
+    ws["!cols"] = [
+      { wch: 12 },
+      { wch: 40 },
+      { wch: 16 },
+      { wch: 20 },
+      { wch: 30 },
+      { wch: 20 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 14 },
+      { wch: 18 },
+    ];
+
+    for (let rowIndex = 0; rowIndex < detailRows.length; rowIndex += 1) {
+      const excelRow = rowIndex + 2;
+
+      const penCell = ws[`H${excelRow}`];
+      const rateCell = ws[`I${excelRow}`];
+      const usdCell = ws[`J${excelRow}`];
+
+      if (penCell?.t === "n") penCell.z = "0.00";
+      if (rateCell?.t === "n") rateCell.z = "0.000000";
+      if (usdCell?.t === "n") usdCell.z = "0.00";
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Detalle");
+
+    const detailPeriod = text(detailParent.period_date).slice(0, 7);
+    const account = text(detailParent.cuenta_contable).trim();
+    const ceco = text(detailParent.codigo_centro_costo).trim();
+
+    XLSX.writeFile(
+      wb,
+      `detalle_depreciacion_${detailPeriod}_${account}${ceco ? `_${ceco}` : ""}.xlsx`
+    );
+  }
+
   return (
     <div
       className="fixassets-export-root"
@@ -536,6 +652,21 @@ export default function FixAssetsExport() {
             flexWrap: "wrap",
           }}
         >
+          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+            Buscar cuenta, CECO o COD
+            <FastCellInput
+              className="input"
+              value={query}
+              onCommit={setQuery}
+              onLiveChange={(next) => {
+                clearDetail();
+                setQuery(next);
+              }}
+              placeholder="Cuenta, centro de costo o activo"
+              style={{ width: 260, height: 34, padding: "6px 10px" }}
+            />
+          </label>
+
           <Select
             label="Año"
             value={year}
@@ -780,9 +911,20 @@ export default function FixAssetsExport() {
               </span>
             </div>
 
-            <Button size="sm" onClick={clearDetail}>
-              Cerrar detalle
-            </Button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={exportDetailExcel}
+                disabled={detailLoading || !detailRows.length}
+              >
+                Exportar Excel ({detailRows.length})
+              </Button>
+
+              <Button size="sm" onClick={clearDetail}>
+                Cerrar detalle
+              </Button>
+            </div>
           </div>
 
           {detailError ? (
