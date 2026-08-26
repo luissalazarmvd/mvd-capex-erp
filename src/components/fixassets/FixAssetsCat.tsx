@@ -141,13 +141,27 @@ function monthOf(value: unknown) {
   return match ? { year: match[1], month: match[2] } : null;
 }
 
-function numericDraft(value: string) {
-  return value.replace(",", ".").replace(/[^0-9.-]/g, "");
+function decimalDraft(value: string, maxIntegerDigits: number, maxDecimals = 6) {
+  const normalized = value.replace(",", ".").replace(/[^0-9.-]/g, "");
+  const negative = normalized.startsWith("-");
+  const unsigned = normalized.replace(/-/g, "");
+  const dotIndex = unsigned.indexOf(".");
+  const integerPart = (dotIndex >= 0 ? unsigned.slice(0, dotIndex) : unsigned).slice(0, maxIntegerDigits);
+  const decimalPart = dotIndex >= 0
+    ? unsigned.slice(dotIndex + 1).replace(/\./g, "").slice(0, maxDecimals)
+    : "";
+  return `${negative ? "-" : ""}${integerPart}${dotIndex >= 0 ? "." : ""}${decimalPart}`;
 }
 
-function validOptionalNumber(value: string) {
+function validOptionalNumber(value: string, maxIntegerDigits: number) {
   const clean = value.trim();
-  return !clean || (/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(clean) && Number.isFinite(Number(clean)));
+  if (!clean) return true;
+  const pattern = new RegExp(`^-?(?:\\d{1,${maxIntegerDigits}}(?:\\.\\d{0,6})?|\\.\\d{1,6})$`);
+  return pattern.test(clean) && Number.isFinite(Number(clean));
+}
+
+function numericIntegerDigits(key: EditableKey) {
+  return key === "exc_rate" ? 12 : 14;
 }
 
 function twoDecimals(value: unknown) {
@@ -184,8 +198,8 @@ function changed(draft: Draft, original: Draft) {
 }
 
 function invalid(draft: Draft) {
-  return !validOptionalNumber(draft.exc_rate)
-    || !validOptionalNumber(draft.asset_ini_cost_pen);
+  return !validOptionalNumber(draft.exc_rate, 12)
+    || !validOptionalNumber(draft.asset_ini_cost_pen, 14);
 }
 
 function toMappingDraft(row: MappingRow): MappingDraft {
@@ -437,11 +451,7 @@ export default function FixAssetsCat() {
         });
         saved += 1;
       }
-      setOriginals((current) => {
-        const next = { ...current };
-        editedCodes.forEach((code) => { next[code] = { ...drafts[code] }; });
-        return next;
-      });
+      await load();
       setMessage(`${saved} fila${saved === 1 ? "" : "s"} actualizada${saved === 1 ? "" : "s"} correctamente.`);
     } catch (error) {
       setIsError(true);
@@ -539,8 +549,11 @@ export default function FixAssetsCat() {
                         maxLength={undefined}
                         list={SUGGESTION_FIELD_SET.has(key) ? `fixassets-cat-${key}-options` : undefined}
                         value={text(value)}
-                        sanitize={key === "cost_center_code" ? costCenterCode : NUMBER_FIELDS.has(key) ? numericDraft : undefined}
-                        normalizeOnBlur={NUMBER_FIELDS.has(key) ? (next) => validOptionalNumber(next) ? twoDecimals(next) : next : undefined}
+                        sanitize={key === "cost_center_code"
+                          ? costCenterCode
+                          : NUMBER_FIELDS.has(key)
+                            ? (next) => decimalDraft(next, numericIntegerDigits(key))
+                            : undefined}
                         onLiveChange={key === "cost_center_code" ? (next) => {
                           const nextCode = costCenterCode(next);
                           if (!nextCode || Object.prototype.hasOwnProperty.call(cecoByCode, nextCode)) {
@@ -550,7 +563,7 @@ export default function FixAssetsCat() {
                         onCommit={(next) => key === "cost_center_code"
                           ? commitCostCenter(code, next)
                           : update(code, key, next)}
-                        style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key]) ? "#ebb086" : undefined }}
+                        style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key], numericIntegerDigits(key)) ? "#ebb086" : undefined }}
                         aria-label={`${column.label} ${code}`}
                       /> : <span title={text(value)}>{column.key.endsWith("_date") ? dateOnly(value) : column.key === "deprec_rate_pct" ? twoDecimals(value) : text(value)}</span>}
                     </td>;
@@ -591,7 +604,7 @@ export default function FixAssetsCat() {
                     const noDepreciates = text(row.asset_type).trim().toLocaleLowerCase("es") === "no deprecia";
                     return <tr key={code} className="capex-tr">
                       {MAPPING_COLUMNS.map((column) => <td key={column.key} className="capex-td" style={{ padding: 5, background: bad ? "rgba(216,93,39,.25)" : edited ? "rgba(94,128,25,.25)" : undefined }}>
-                        {column.key === "deprec_rate_pct" ? <FastCellInput className="input" inputMode="decimal" value={draft.deprec_rate_pct} sanitize={numericDraft} onCommit={(next) => updateMappingRate(code, next)} disabled={mappingLoading || mappingSaving || noDepreciates} aria-label={`Tasa de depreciación ${code}`} title={noDepreciates ? "No deprecia: la tasa no se puede modificar" : undefined} style={{ minWidth: column.width - 10, padding: "5px 7px", borderColor: bad ? "#ebb086" : undefined, opacity: noDepreciates ? 0.5 : 1, cursor: noDepreciates ? "not-allowed" : undefined }} /> : <span title={text(row[column.key])}>{text(row[column.key]) || "—"}</span>}
+                        {column.key === "deprec_rate_pct" ? <FastCellInput className="input" inputMode="decimal" value={draft.deprec_rate_pct} sanitize={(next) => decimalDraft(next, 3)} onCommit={(next) => updateMappingRate(code, next)} disabled={mappingLoading || mappingSaving || noDepreciates} aria-label={`Tasa de depreciación ${code}`} title={noDepreciates ? "No deprecia: la tasa no se puede modificar" : undefined} style={{ minWidth: column.width - 10, padding: "5px 7px", borderColor: bad ? "#ebb086" : undefined, opacity: noDepreciates ? 0.5 : 1, cursor: noDepreciates ? "not-allowed" : undefined }} /> : <span title={text(row[column.key])}>{text(row[column.key]) || "—"}</span>}
                       </td>)}
                     </tr>;
                   })}

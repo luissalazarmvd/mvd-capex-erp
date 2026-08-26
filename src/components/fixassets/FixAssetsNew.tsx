@@ -127,14 +127,23 @@ function sourceIdentity(row: Pick<VetaRow | CatalogueRow, "subjournal_code" | "v
   return parts.some(Boolean) ? parts.join("\u001f") : "";
 }
 
-function numericDraft(value: string) {
-  return value.replace(",", ".").replace(/[^0-9.-]/g, "");
+function decimalDraft(value: string, maxIntegerDigits: number, maxDecimals = 6) {
+  const normalized = value.replace(",", ".").replace(/[^0-9.-]/g, "");
+  const negative = normalized.startsWith("-");
+  const unsigned = normalized.replace(/-/g, "");
+  const dotIndex = unsigned.indexOf(".");
+  const integerPart = (dotIndex >= 0 ? unsigned.slice(0, dotIndex) : unsigned).slice(0, maxIntegerDigits);
+  const decimalPart = dotIndex >= 0
+    ? unsigned.slice(dotIndex + 1).replace(/\./g, "").slice(0, maxDecimals)
+    : "";
+  return `${negative ? "-" : ""}${integerPart}${dotIndex >= 0 ? "." : ""}${decimalPart}`;
 }
 
-function validNumber(value: string, allowBlank = false) {
+function validNumber(value: string, maxIntegerDigits: number, allowBlank = false) {
   const clean = value.trim();
   if (!clean) return allowBlank;
-  return /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(clean) && Number.isFinite(Number(clean));
+  const pattern = new RegExp(`^-?(?:\\d{1,${maxIntegerDigits}}(?:\\.\\d{0,6})?|\\.\\d{1,6})$`);
+  return pattern.test(clean) && Number.isFinite(Number(clean));
 }
 
 function twoDecimals(value: unknown, blankAllowed = true) {
@@ -296,8 +305,13 @@ const NewRowsTable = memo(function NewRowsTable({
                         value={text(value)}
                         inputMode={column.key === "asset_code" ? "numeric" : numeric ? "decimal" : undefined}
                         maxLength={column.key === "asset_code" ? 7 : undefined}
-                        sanitize={column.key === "asset_code" ? (next) => next.replace(/\D/g, "").slice(0, 7) : numeric ? numericDraft : undefined}
-                        normalizeOnBlur={numeric ? (next) => validNumber(next, true) ? twoDecimals(next) : next : undefined}
+                        sanitize={column.key === "asset_code"
+                          ? (next) => next.replace(/\D/g, "").slice(0, 7)
+                          : column.key === "pen_amount"
+                            ? (next) => decimalDraft(next, 14)
+                            : column.key === "exc_rate"
+                              ? (next) => decimalDraft(next, 12)
+                              : undefined}
                         onFocus={() => {
                           onOpenDetails(index);
                           if (column.key === "asset_code") onCodeActivity(index, draft.asset_code);
@@ -488,8 +502,8 @@ export default function FixAssetsNew() {
           || existingCodes.has(code)
           || (codeCounts.get(code) || 0) > 1
           || !sequentialCodes.has(code)
-          || !validNumber(draft.pen_amount)
-          || !validNumber(draft.exc_rate, true)
+          || !validNumber(draft.pen_amount, 14)
+          || !validNumber(draft.exc_rate, 12, true)
           ? "invalid" : "valid";
       }
     });

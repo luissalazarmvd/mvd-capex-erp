@@ -130,18 +130,35 @@ function num(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function numericDraft(value: string) {
-  return value.replace(",", ".").replace(/[^0-9.-]/g, "");
+function decimalDraft(value: string, maxIntegerDigits: number, maxDecimals = 6) {
+  const normalized = value.replace(",", ".").replace(/[^0-9.-]/g, "");
+  const negative = normalized.startsWith("-");
+  const unsigned = normalized.replace(/-/g, "");
+  const dotIndex = unsigned.indexOf(".");
+  const integerPart = (dotIndex >= 0 ? unsigned.slice(0, dotIndex) : unsigned).slice(0, maxIntegerDigits);
+  const decimalPart = dotIndex >= 0
+    ? unsigned.slice(dotIndex + 1).replace(/\./g, "").slice(0, maxDecimals)
+    : "";
+  return `${negative ? "-" : ""}${integerPart}${dotIndex >= 0 ? "." : ""}${decimalPart}`;
 }
 
-function validOptionalNumber(value: string) {
+function editableIntegerDigits(key: EditableKey) {
+  if (key === "applied_rate_pct") return 3;
+  if (key === "exc_rate") return 12;
+  return 14;
+}
+
+function validOptionalNumber(value: string, key: EditableKey) {
   const clean = value.trim();
-  return !clean || (/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(clean) && Number.isFinite(Number(clean)));
+  if (!clean) return true;
+  const maxIntegerDigits = editableIntegerDigits(key);
+  const pattern = new RegExp(`^-?(?:\\d{1,${maxIntegerDigits}}(?:\\.\\d{0,6})?|\\.\\d{1,6})$`);
+  return pattern.test(clean) && Number.isFinite(Number(clean));
 }
 
 function precise(value: number) {
   if (!Number.isFinite(value)) return "";
-  return value.toFixed(2);
+  return value.toFixed(6);
 }
 
 function displayNumber(value: unknown) {
@@ -183,7 +200,7 @@ function changed(draft: Draft, original: Draft) {
 }
 
 function invalid(draft: Draft) {
-  return EDITABLE.some((key) => !validOptionalNumber(draft[key]));
+  return EDITABLE.some((key) => !validOptionalNumber(draft[key], key));
 }
 
 function derived(row: DeprRow, draft: Draft) {
@@ -774,7 +791,7 @@ export default function FixAssetsDepr() {
 
   function update(row: DeprRow, key: EditableKey, raw: string) {
     const id = rowKey(row);
-    const value = numericDraft(raw);
+    const value = decimalDraft(raw, editableIntegerDigits(key));
     setSelectedKeys((current) => {
       if (current.has(id)) return current;
       const next = new Set(current);
@@ -785,7 +802,7 @@ export default function FixAssetsDepr() {
       const next = { ...current[id], [key]: value };
       if (key === "applied_rate_pct" || VAR_FIELDS.has(key)) {
         const rate = next.applied_rate_pct;
-        if (!rate.trim() || !validOptionalNumber(rate)) {
+        if (!rate.trim() || !validOptionalNumber(rate, "applied_rate_pct")) {
           if (key === "applied_rate_pct" && !rate.trim()) next.depreciation_amount_pen = "";
         } else {
           const finalValue = derived(row, next).asset_final_value;
@@ -801,7 +818,7 @@ export default function FixAssetsDepr() {
         }
       }
       if (key === "depreciation_amount_pen") {
-        if (!value.trim() || !validOptionalNumber(value)) {
+        if (!value.trim() || !validOptionalNumber(value, "depreciation_amount_pen")) {
           next.applied_rate_pct = value.trim() ? next.applied_rate_pct : "";
         } else {
           const finalValue = derived(row, next).asset_final_value;
@@ -878,6 +895,7 @@ export default function FixAssetsDepr() {
         }
       }
       applySavedRows();
+      await load();
       if (catalogueRateErrors.length) {
         setIsError(true);
         setMessage(`${savedIds.length} fila(s) de depreciación guardada(s). No se pudo sincronizar el T.C. en Catálogo para: ${catalogueRateErrors.join(", ")}.`);
@@ -1111,16 +1129,15 @@ export default function FixAssetsDepr() {
                         className="input"
                         inputMode="decimal"
                         value={draft[key]}
-                        sanitize={numericDraft}
-                        normalizeOnBlur={(next) => validOptionalNumber(next) ? twoDecimals(next) : next}
+                        sanitize={(next) => decimalDraft(next, editableIntegerDigits(key))}
                         onFocus={() => focusHistory(row)}
                         onClick={(event) => {
                           event.stopPropagation();
                           focusHistory(row);
                         }}
                         onCommit={(next) => update(row, key, next)}
-                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && !validOptionalNumber(draft[key]) ? "#ebb086" : "rgba(147,211,230,.30)" }}
-                        aria-label={`${column.label} ${text(row.asset_code)}`}
+                      style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && !validOptionalNumber(draft[key], key) ? "#ebb086" : "rgba(147,211,230,.30)" }}
+                      aria-label={`${column.label} ${text(row.asset_code)}`}
                       /> : <span title={moneyColumn ? displayMoney(derivedValue, draft.exc_rate, currencyMode) : text(derivedValue)}>{column.key === "period_date" ? text(derivedValue).slice(0, 10) : column.key === "asset_code" || column.key === "asset_description" ? text(derivedValue) : moneyColumn ? displayMoney(derivedValue, draft.exc_rate, currencyMode) : displayNumber(derivedValue)}</span>}
                     </td>;
                   })}
