@@ -47,6 +47,7 @@ type CatalogueRow = {
   depreciation_method?: string | null;
   asset_comment?: string | null;
   asset_ini_cost_pen?: number | string | null;
+  asset_ini_cost_usd?: number | string | null;
 };
 
 type CecoRow = {
@@ -58,6 +59,7 @@ type Draft = {
   asset_code: string;
   line_description: string;
   capex_code: string;
+  usd_amount: string;
   pen_amount: string;
   exc_rate: string;
   location_name: string;
@@ -172,6 +174,7 @@ function draftFrom(row: VetaRow): Draft {
     asset_code: "",
     line_description: text(row.line_description),
     capex_code: text(row.capex_code),
+    usd_amount: twoDecimals(row.usd_amount),
     pen_amount: twoDecimals(row.pen_amount),
     exc_rate: twoDecimals(row.exc_rate),
     location_name: "",
@@ -239,7 +242,7 @@ const EXTRA_FIELDS = [
   ["brand", "Marca"], ["model", "Modelo"], ["serial_number", "Serie"],
   ["cost_center_code", "Centro de costo"], ["depreciation_method", "Método de depreciación"],
   ["asset_comment", "Comentario"],
-] as const satisfies ReadonlyArray<readonly [Exclude<keyof Draft, "asset_code" | "line_description" | "capex_code" | "pen_amount" | "exc_rate" | "asset_type" | "operation_date" | "asset_situation">, string]>;
+] as const satisfies ReadonlyArray<readonly [Exclude<keyof Draft, "asset_code" | "line_description" | "capex_code" | "usd_amount" | "pen_amount" | "exc_rate" | "asset_type" | "operation_date" | "asset_situation">, string]>;
 type ExtraField = (typeof EXTRA_FIELDS)[number][0];
 
 type NewRowsTableProps = {
@@ -294,10 +297,10 @@ const NewRowsTable = memo(function NewRowsTable({
                 const background = existing ? "rgba(2,35,52,.82)" : state === "invalid" ? "rgba(216,93,39,.32)" : focused ? "rgba(27,147,227,.34)" : state === "valid" ? "rgba(94,128,25,.32)" : undefined;
                 return <tr key={index} className="capex-tr" onClick={() => { if (!existing) onFocusDetails(index); }} title={existing ? `Ya existe en catálogo como ${text(existing.asset_code)}` : undefined} style={{ cursor: existing ? "default" : "pointer" }}>
                   {COLUMNS.map((column) => {
-                    const editable = !existing && (column.key === "asset_code" || column.key === "line_description" || column.key === "capex_code" || column.key === "pen_amount" || column.key === "exc_rate");
+                    const editable = !existing && (column.key === "asset_code" || column.key === "line_description" || column.key === "capex_code" || column.key === "usd_amount" || column.key === "pen_amount" || column.key === "exc_rate");
                     const field = column.key as keyof Draft;
                     const value = column.key === "asset_code" ? existing ? existing.asset_code : draft.asset_code : editable ? draft[field] : row[column.key as keyof VetaRow];
-                    const numeric = column.key === "pen_amount" || column.key === "exc_rate";
+                    const numeric = column.key === "usd_amount" || column.key === "pen_amount" || column.key === "exc_rate";
                     const sticky = column.key === "asset_code";
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? existing ? "#052b3d" : state === "invalid" ? "#79453b" : focused ? "#155a78" : stickyRowBackground(state) : background, position: sticky ? "sticky" : undefined, left: sticky ? 0 : undefined, zIndex: sticky ? 20 : undefined, boxShadow: sticky ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? <FastCellInput
@@ -307,7 +310,7 @@ const NewRowsTable = memo(function NewRowsTable({
                         maxLength={column.key === "asset_code" ? 7 : undefined}
                         sanitize={column.key === "asset_code"
                           ? (next) => next.replace(/\D/g, "").slice(0, 7)
-                          : column.key === "pen_amount"
+                          : column.key === "usd_amount" || column.key === "pen_amount"
                             ? (next) => decimalDraft(next, 14)
                             : column.key === "exc_rate"
                               ? (next) => decimalDraft(next, 12)
@@ -502,6 +505,7 @@ export default function FixAssetsNew() {
           || existingCodes.has(code)
           || (codeCounts.get(code) || 0) > 1
           || !sequentialCodes.has(code)
+          || !validNumber(draft.usd_amount, 14)
           || !validNumber(draft.pen_amount, 14)
           || !validNumber(draft.exc_rate, 12, true)
           ? "invalid" : "valid";
@@ -633,7 +637,9 @@ export default function FixAssetsNew() {
           brand: upperOrNull(draft.brand), model: upperOrNull(draft.model), serial_number: upperOrNull(draft.serial_number),
           color: null, cost_center_code: costCenterCode(draft.cost_center_code) || null,
           acquisition_date: dateOnly(row.comp_date) || null, operation_date: firstDayNextMonth(row.comp_date) || null, disposal_date: null,
-          exc_rate: numberOrNull(draft.exc_rate), asset_ini_cost_pen: numberOrNull(draft.pen_amount),
+          exc_rate: numberOrNull(draft.exc_rate),
+          asset_ini_cost_pen: numberOrNull(draft.pen_amount),
+          asset_ini_cost_usd: numberOrNull(draft.usd_amount),
           depreciation_method: upperOrNull(draft.depreciation_method), asset_situation: "OPERATIVO",
           asset_comment: upperOrNull(draft.asset_comment),
         });
@@ -662,6 +668,7 @@ export default function FixAssetsNew() {
           depreciation_method: drafts[index].depreciation_method.trim() || null,
           asset_comment: drafts[index].asset_comment.trim() || null,
           asset_ini_cost_pen: numberOrNull(drafts[index].pen_amount),
+          asset_ini_cost_usd: numberOrNull(drafts[index].usd_amount),
         })),
       ]);
       setDrafts((current) => {

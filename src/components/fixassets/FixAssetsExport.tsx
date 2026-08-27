@@ -282,7 +282,6 @@ export default function FixAssetsExport() {
   const [detailRowKey, setDetailRowKey] = useState<string | null>(null);
   const [detailParent, setDetailParent] = useState<ExportRow | null>(null);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
-  const [assetExcRates, setAssetExcRates] = useState<Record<string, string>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
 
@@ -301,15 +300,9 @@ export default function FixAssetsExport() {
       const catalogueRows = Array.isArray(catalogueResponse?.rows)
         ? catalogueResponse.rows as CatalogueRateRow[]
         : [];
-      const nextAssetExcRates = catalogueRows.reduce<Record<string, string>>((current, row) => {
-        const assetCode = text(row.asset_code).trim();
-        if (assetCode) current[assetCode] = text(row.exc_rate).trim();
-        return current;
-      }, {});
 
       setRows(nextRows);
       setCatalogueIndexRows(catalogueRows);
-      setAssetExcRates(nextAssetExcRates);
 
       const latestPeriod = nextRows
         .map((row) => text(row.period_date).slice(0, 7))
@@ -545,12 +538,9 @@ export default function FixAssetsExport() {
     ];
 
     const detailData: CellValue[][] = detailRows.map((detail) => {
-      const catalogueRate = assetExcRates[text(detail.asset_code).trim()] ?? "";
-      const rate = Number(catalogueRate);
+      const rate = Number(detail.exc_rate);
       const pen = Number(detail.depreciation_amount_pen);
-      const usd = Number.isFinite(rate) && rate > 0 && Number.isFinite(pen)
-        ? pen / rate
-        : "";
+      const usd = Number(detail.depreciation_amount_usd);
 
       return [
         text(detail.asset_code),
@@ -562,7 +552,7 @@ export default function FixAssetsExport() {
         text(detail.cost_center_code),
         Number.isFinite(pen) ? pen : "",
         Number.isFinite(rate) ? rate : "",
-        usd,
+        Number.isFinite(usd) ? usd : "",
       ];
     });
 
@@ -971,12 +961,8 @@ export default function FixAssetsExport() {
 
                 <tbody>
                   {detailRows.map((detail) => {
-                    const catalogueRate = assetExcRates[text(detail.asset_code).trim()] ?? "";
-                    const rate = Number(catalogueRate);
-                    const pen = Number(detail.depreciation_amount_pen);
-                    const usd = Number.isFinite(rate) && rate > 0 && Number.isFinite(pen)
-                      ? pen / rate
-                      : null;
+                    const rate = Number(detail.exc_rate);
+                    const usd = Number(detail.depreciation_amount_usd);
 
                     return (
                       <tr
@@ -994,15 +980,15 @@ export default function FixAssetsExport() {
                           {displayValue("importe_soles", detail.depreciation_amount_pen)}
                         </td>
                         <td className="capex-td" style={{ textAlign: "right" }}>
-                          {catalogueRate
-                            ? Number(catalogueRate).toLocaleString("es-PE", {
+                          {Number.isFinite(rate)
+                            ? rate.toLocaleString("es-PE", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 6,
                               })
                             : ""}
                         </td>
                         <td className="capex-td" style={{ textAlign: "right" }}>
-                          {usd == null ? "" : displayValue("importe_dolares", usd)}
+                          {Number.isFinite(usd) ? displayValue("importe_dolares", usd) : ""}
                         </td>
                       </tr>
                     );

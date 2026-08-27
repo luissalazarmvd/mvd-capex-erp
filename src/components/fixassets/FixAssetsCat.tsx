@@ -38,6 +38,7 @@ type CatalogueRow = {
   deprec_rate_pct: number | string | null;
   exc_rate: number | string | null;
   asset_ini_cost_pen: number | string | null;
+  asset_ini_cost_usd: number | string | null;
   depreciation_method: string | null;
   asset_situation: string | null;
   asset_comment: string | null;
@@ -64,13 +65,13 @@ const EDITABLE = [
   "location_name", "capex_code", "asset_description", "asset_type", "assigned_to",
   "area_name", "brand", "model", "serial_number", "color", "cost_center_code",
   "acquisition_date", "operation_date", "disposal_date", "exc_rate",
-  "asset_ini_cost_pen", "depreciation_method", "asset_situation", "asset_comment",
+  "asset_ini_cost_pen", "asset_ini_cost_usd", "depreciation_method", "asset_situation", "asset_comment",
 ] as const satisfies readonly (keyof CatalogueRow)[];
 type EditableKey = (typeof EDITABLE)[number];
 type Draft = Record<EditableKey, string>;
 
 const DATE_FIELDS = new Set<EditableKey>(["acquisition_date", "operation_date", "disposal_date"]);
-const NUMBER_FIELDS = new Set<EditableKey>(["exc_rate", "asset_ini_cost_pen"]);
+const NUMBER_FIELDS = new Set<EditableKey>(["exc_rate", "asset_ini_cost_pen", "asset_ini_cost_usd"]);
 const SUGGESTION_FIELDS = [
   "location_name", "assigned_to", "area_name", "brand", "model", "serial_number",
   "cost_center_code", "depreciation_method", "asset_comment",
@@ -113,6 +114,7 @@ const COLUMNS: Array<{ key: keyof CatalogueRow; label: string; width: number }> 
   { key: "deprec_rate_pct", label: "Tasa deprec.", width: 120 },
   { key: "exc_rate", label: "T.C.", width: 110 },
   { key: "asset_ini_cost_pen", label: "Costo inicial PEN", width: 155 },
+  { key: "asset_ini_cost_usd", label: "Costo inicial USD", width: 155 },
   { key: "depreciation_method", label: "Método depreciación", width: 175 },
   { key: "asset_situation", label: "Situación", width: 145 },
   { key: "asset_comment", label: "Comentario", width: 260 },
@@ -199,7 +201,8 @@ function changed(draft: Draft, original: Draft) {
 
 function invalid(draft: Draft) {
   return !validOptionalNumber(draft.exc_rate, 12)
-    || !validOptionalNumber(draft.asset_ini_cost_pen, 14);
+    || !validOptionalNumber(draft.asset_ini_cost_pen, 14)
+    || !validOptionalNumber(draft.asset_ini_cost_usd, 14);
 }
 
 function toMappingDraft(row: MappingRow): MappingDraft {
@@ -445,6 +448,7 @@ export default function FixAssetsCat() {
           disposal_date: draft.disposal_date || null,
           exc_rate: draft.exc_rate.trim() ? Number(draft.exc_rate) : null,
           asset_ini_cost_pen: draft.asset_ini_cost_pen.trim() ? Number(draft.asset_ini_cost_pen) : null,
+          asset_ini_cost_usd: draft.asset_ini_cost_usd.trim() ? Number(draft.asset_ini_cost_usd) : null,
           depreciation_method: upperOrNull(draft.depreciation_method),
           asset_situation: upperOrNull(draft.asset_situation),
           asset_comment: upperOrNull(draft.asset_comment),
