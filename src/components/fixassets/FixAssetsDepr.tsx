@@ -415,6 +415,7 @@ export default function FixAssetsDepr() {
   const deferredQuery = useDeferredValue(query);
   const [showAdjustments, setShowAdjustments] = useState(false);
   const [currencyMode, setCurrencyMode] = useState<CurrencyMode>("PEN");
+  const currencySymbol = currencyMode === "PEN" ? "S/" : "$";
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1170,7 +1171,7 @@ export default function FixAssetsDepr() {
             <thead><tr><th className="capex-th" style={{ padding: "8px", fontSize: 12, textAlign: "center", left: 0, zIndex: 48 }}><input type="checkbox" checked={allVisibleSelected} disabled={!editableVisibleRows.length || loading || saving} onChange={(event) => toggleAllVisible(event.target.checked)} aria-label="Seleccionar todas las filas editables" title="Seleccionar todas las filas editables" style={{ width: 18, height: 18, accentColor: "var(--brand-success)" }} /></th>{displayColumns.map((column) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
               const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
-              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: sticky ? 47 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{column.label}</th>;
+              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: sticky ? 47 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{TOTAL_COLUMN_KEY_SET.has(column.key) ? `${currencySymbol} ${column.label}` : column.label}</th>;
             })}</tr></thead>
             <tbody>
               {visibleRows.map((row) => {
@@ -1272,7 +1273,7 @@ export default function FixAssetsDepr() {
         </div>
         {historyRows.length ? <div style={{ overflow: "auto", maxHeight: 260 }}>
           <Table disableScrollWrapper stickyHeader>
-            <thead><tr>{["Periodo", "Tasa", "Var. adquis.", "Var. baja", "Var. reclas.", "Var. ajuste", "Valor final", "Depr. reclas.", "Depr. ajuste", "Depr. baja", "Depr. periodo", "Depr. acum.", "Saldo", "T.C."].map((label) => <th key={label} className="capex-th" style={{ top: 0, zIndex: 20, padding: 7, fontSize: 12 }}>{label}</th>)}</tr></thead>
+            <thead><tr>{["Periodo", "Tasa", "Var. adquis.", "Var. baja", "Var. reclas.", "Var. ajuste", "Valor final", "Depr. reclas.", "Depr. ajuste", "Depr. baja", "Depr. periodo", "Depr. acum.", "Saldo", "T.C."].map((label, index) => <th key={label} className="capex-th" style={{ top: 0, zIndex: 20, padding: 7, fontSize: 12 }}>{index >= 2 && index <= 12 ? `${currencySymbol} ${label}` : label}</th>)}</tr></thead>
             <tbody>{historyRows.map((historyRow) => {
               const historyDraft = drafts[rowKey(historyRow)] || toDraft(historyRow);
               const calculated = derived(historyRow, historyDraft, currencyMode);

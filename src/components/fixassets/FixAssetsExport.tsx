@@ -110,8 +110,8 @@ const COLUMNS: Array<{
   { key: "codigo_centro_costo", label: "Código de Centro de Costo", width: 160 },
   { key: "debe_haber", label: "Debe / Haber", width: 90 },
   { key: "importe_original", label: "Importe Original", width: 125 },
-  { key: "importe_dolares", label: "Importe en Dólares", width: 130 },
-  { key: "importe_soles", label: "Importe en Soles", width: 125 },
+  { key: "importe_dolares", label: "Importe en Dólares ($)", width: 130 },
+  { key: "importe_soles", label: "Importe en Soles (S/)", width: 125 },
   { key: "tipo_documento", label: "Tipo de Documento", width: 125 },
   { key: "numero_documento", label: "Número de Documento", width: 135 },
   { key: "fecha_documento", label: "Fecha de Documento", width: 130 },
@@ -944,9 +944,9 @@ export default function FixAssetsExport() {
                       "Denominación",
                       "Cuenta depreciación",
                       "Centro de costo",
-                      "Depreciación PEN",
+                      "Depreciación PEN (S/)",
                       "T.C.",
-                      "Depreciación USD",
+                      "Depreciación USD ($)",
                     ].map((label) => (
                       <th
                         key={label}
