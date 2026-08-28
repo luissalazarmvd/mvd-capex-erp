@@ -529,7 +529,7 @@ export default function FixAssetsCat() {
           : suggestionsByField[field].map((value) => <option key={value} value={value} />)}
       </datalist>)}
 
-      <div className="panel-inner" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", padding: 0 }}>
+      <div className="panel-inner fixassets-cat-table" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup>{COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
@@ -562,13 +562,13 @@ export default function FixAssetsCat() {
                           : row[column.key];
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
-                    const stickyBackground = bad ? "#79453b" : edited ? "#416f43" : "var(--panel2)";
+                    const stickyBackground = bad ? "#713f38" : edited ? "#3d6948" : "#0b4d6b";
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? stickyBackground : background, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 20 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? key === "asset_situation" ? <select
                         className="input"
                         value={text(value)}
                         onChange={(event) => update(code, key, event.target.value)}
-                        style={{ minWidth: column.width - 12, padding: "6px 7px" }}
+                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${code}`}
                       >
                         <option value=""></option>
@@ -595,7 +595,7 @@ export default function FixAssetsCat() {
                         onCommit={(next) => key === "cost_center_code"
                           ? commitCostCenter(code, next)
                           : update(code, key, next)}
-                        style={{ minWidth: column.width - 12, padding: "6px 7px", borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key], numericIntegerDigits(key)) ? "#ebb086" : undefined }}
+                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key], numericIntegerDigits(key)) ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${code}`}
                       /> : <span title={text(value)}>{column.key.endsWith("_date") ? dateOnly(value) : column.key === "deprec_rate_pct" ? twoDecimals(value) : text(value)}</span>}
                     </td>;
@@ -679,6 +679,26 @@ export default function FixAssetsCat() {
           </div>
         </section>
       </div> : null}
+
+      <style jsx global>{`
+        .fixassets-cat-table table {
+          font-size: 11px !important;
+        }
+
+        .fixassets-cat-table .capex-th {
+          padding: 6px !important;
+          font-size: 11px !important;
+          background: #163b49 !important;
+          white-space: normal !important;
+          line-height: 1.1;
+        }
+
+        .fixassets-cat-table .capex-td {
+          padding: 4px 6px !important;
+          line-height: 1.15;
+          border-bottom-color: rgba(147,211,230,.14) !important;
+        }
+      `}</style>
     </div>
   );
 }
