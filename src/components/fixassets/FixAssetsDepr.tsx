@@ -334,11 +334,19 @@ function hasViewDepreciation(row: DeprRow) {
     || num(row.depreciation_amount_usd) !== 0;
 }
 
-function canEditDepreciationRow(row: DeprRow, editablePeriod: string) {
+function isCurrencySent(row: DeprRow, currencyMode: CurrencyMode) {
+  const source = text(row.source_name).trim().toUpperCase();
+  if (source === "WEB") return true;
+  if (currencyMode === "PEN") return source === "WEB_PEN";
+  return source === "WEB_USD";
+}
+
+function canEditDepreciationRow(row: DeprRow, editablePeriod: string, currencyMode: CurrencyMode) {
   const assetType = canonicalAssetType(row.asset_type);
   if (!assetType || assetType === "No deprecia") return false;
   if (text(row.period_date).slice(0, 7) !== editablePeriod) return false;
-  return !(assetType === "LR" && text(row.source_name).trim().toUpperCase() === "WEB");
+  if (assetType !== "LR") return true;
+  return !isCurrencySent(row, currencyMode);
 }
 
 type MultiSelectFilterProps<T extends string> = {
@@ -662,31 +670,56 @@ export default function FixAssetsDepr() {
   }).sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true })),
   [filterBaseRows, mappingByOrigin, assetOrigins, assetSituations, assetTypes, mappingGroupsSelected, mappingDenomsSelected, situationsSelected]);
 
+  const currencyStatusCounts = useMemo(() => {
+    let penSent = 0;
+    let penPending = 0;
+    let usdSent = 0;
+    let usdPending = 0;
+
+    facetRows.forEach((row) => {
+      if (isCurrencySent(row, "PEN")) penSent += 1;
+      else penPending += 1;
+
+      if (isCurrencySent(row, "USD")) usdSent += 1;
+      else usdPending += 1;
+    });
+
+    return { penSent, penPending, usdSent, usdPending };
+  }, [facetRows]);
+
   const statusCounts = useMemo(() => {
     let loaded = 0;
     let pending = 0;
     let invalidCount = 0;
     let ready = 0;
+
     facetRows.forEach((row) => {
       const id = rowKey(row);
-      const sourceWeb = text(row.source_name).trim().toUpperCase() === "WEB";
-      if (sourceWeb) loaded += 1;
+      const sourceSent = isCurrencySent(row, currencyMode);
+
+      if (sourceSent) loaded += 1;
       else pending += 1;
+
       if (!selectedKeys.has(id)) return;
+
       const draft = drafts[id] || toDraft(row);
       if (invalidForCurrency(draft, currencyMode)) invalidCount += 1;
       else ready += 1;
     });
+
     return { loaded, pending, invalid: invalidCount, ready };
   }, [facetRows, selectedKeys, drafts, currencyMode]);
 
   const visibleRows = useMemo(() => facetRows.filter((row) => {
     if (statusFilter === "all") return true;
+
     const id = rowKey(row);
-    const sourceWeb = text(row.source_name).trim().toUpperCase() === "WEB";
-    if (statusFilter === "loaded") return sourceWeb;
-    if (statusFilter === "pending") return !sourceWeb;
+    const sourceSent = isCurrencySent(row, currencyMode);
+
+    if (statusFilter === "loaded") return sourceSent;
+    if (statusFilter === "pending") return !sourceSent;
     if (!selectedKeys.has(id)) return false;
+
     const draft = drafts[id] || toDraft(row);
     return statusFilter === "invalid" ? invalidForCurrency(draft, currencyMode) : !invalidForCurrency(draft, currencyMode);
   }), [facetRows, statusFilter, selectedKeys, drafts, currencyMode]);
@@ -728,8 +761,8 @@ export default function FixAssetsDepr() {
   }, [visibleRows, drafts, currencyMode]);
 
   const editableVisibleRows = useMemo(
-    () => visibleRows.filter((row) => canEditDepreciationRow(row, editablePeriod)),
-    [visibleRows, editablePeriod]
+    () => visibleRows.filter((row) => canEditDepreciationRow(row, editablePeriod, currencyMode)),
+    [visibleRows, editablePeriod, currencyMode]
   );
 
   const historyRows = useMemo(() => {
@@ -745,10 +778,10 @@ export default function FixAssetsDepr() {
   const editableRowIds = useMemo(
     () => new Set(
       rows
-        .filter((row) => canEditDepreciationRow(row, editablePeriod))
+        .filter((row) => canEditDepreciationRow(row, editablePeriod, currencyMode))
         .map(rowKey)
     ),
-    [rows, editablePeriod]
+    [rows, editablePeriod, currencyMode]
   );
   const selectedIds = useMemo(() => Array.from(selectedKeys).filter((id) => editableRowIds.has(id)), [selectedKeys, editableRowIds]);
   const invalidKeys = selectedIds.filter((key) => !drafts[key] || invalidForCurrency(drafts[key], currencyMode));
@@ -984,7 +1017,7 @@ export default function FixAssetsDepr() {
     try {
       const payloadRows = selectedIds.flatMap((id) => {
         const row = rows.find((candidate) => rowKey(candidate) === id);
-        if (!row || !canEditDepreciationRow(row, editablePeriod)) return [];
+        if (!row || !canEditDepreciationRow(row, editablePeriod, currencyMode)) return [];
 
         const draft = drafts[id];
         const common = {
@@ -1137,6 +1170,34 @@ export default function FixAssetsDepr() {
       </div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(147, 211, 230, 0.45)",
+            background: "rgba(27, 147, 227, 0.16)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: "rgb(180, 225, 245)",
+          }}
+        >
+          PEN · Enviados: {currencyStatusCounts.penSent} · Pendientes: {currencyStatusCounts.penPending}
+        </div>
+
+        <div
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(147, 211, 230, 0.45)",
+            background: "rgba(27, 147, 227, 0.16)",
+            fontSize: 12,
+            fontWeight: 900,
+            color: "rgb(180, 225, 245)",
+          }}
+        >
+          USD · Enviados: {currencyStatusCounts.usdSent} · Pendientes: {currencyStatusCounts.usdPending}
+        </div>
+
         <button
           type="button"
           onClick={() => setStatusFilter((current) => current === "loaded" ? "all" : "loaded")}
@@ -1155,7 +1216,7 @@ export default function FixAssetsDepr() {
             cursor: "pointer",
           }}
         >
-          Cargadas: {statusCounts.loaded}
+          Enviadas {currencyMode}: {statusCounts.loaded}
         </button>
 
         <button
@@ -1176,7 +1237,7 @@ export default function FixAssetsDepr() {
             cursor: "pointer",
           }}
         >
-          Pendientes: {statusCounts.pending}
+          Pendientes {currencyMode}: {statusCounts.pending}
         </button>
 
         <button
@@ -1241,8 +1302,8 @@ export default function FixAssetsDepr() {
                 const draft = drafts[id] || toDraft(row);
                 const rowAssetType = canonicalAssetType(row.asset_type);
                 const viewOnly = rowAssetType === "No deprecia";
-                const sourceWeb = text(row.source_name).trim().toUpperCase() === "WEB";
-                const selectableRow = canEditDepreciationRow(row, editablePeriod);
+                const sourceWeb = isCurrencySent(row, currencyMode);
+                const selectableRow = canEditDepreciationRow(row, editablePeriod, currencyMode);
                 const selected = selectableRow && selectedKeys.has(id);
                 const focused = historyRowId === id;
                 const bad = selected && invalidForCurrency(draft, currencyMode);
