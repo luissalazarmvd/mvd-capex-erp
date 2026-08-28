@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
@@ -325,7 +326,9 @@ function ExcelHeaderFilter({
   onSort,
 }: ExcelHeaderFilterProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const [search, setSearch] = useState("");
   const [draftFilter, setDraftFilter] = useState<ExcelColumnFilter>(
     () => filter || EMPTY_EXCEL_FILTER
@@ -349,7 +352,11 @@ function ExcelHeaderFilter({
     if (!open) return;
 
     const close = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target)
+        && !popupRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -357,6 +364,54 @@ function ExcelHeaderFilter({
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
+
+  const updatePopupPosition = useCallback(() => {
+    const anchor = rootRef.current;
+    if (!anchor) return;
+
+    const rect = anchor.getBoundingClientRect();
+    const viewportPadding = 8;
+    const gap = 4;
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const popupWidth = Math.min(285, Math.max(0, viewportWidth - viewportPadding * 2));
+    const maxPopupHeight = Math.max(240, viewportHeight - viewportPadding * 2);
+    const preferredPopupHeight = Math.min(520, maxPopupHeight);
+
+    const top = Math.max(
+      viewportPadding,
+      Math.min(
+        rect.bottom + gap,
+        viewportHeight - preferredPopupHeight - viewportPadding
+      )
+    );
+
+    const left = Math.min(
+      Math.max(viewportPadding, rect.right - popupWidth),
+      Math.max(viewportPadding, viewportWidth - popupWidth - viewportPadding)
+    );
+
+    setPopupPosition({ top, left });
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setPopupPosition(null);
+      return;
+    }
+
+    updatePopupPosition();
+
+    const reposition = () => updatePopupPosition();
+
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [open, updatePopupPosition]);
 
   const distinctValues = useMemo(
     () =>
@@ -457,7 +512,9 @@ function ExcelHeaderFilter({
     >
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          setOpen((current) => !current);
+        }}
         aria-label={`Filtrar ${label}`}
         title={`Filtrar ${label}`}
         style={{
@@ -480,14 +537,17 @@ function ExcelHeaderFilter({
         {active ? "◆" : "▼"}
       </button>
 
-      {open ? (
+      {open && popupPosition ? createPortal(
         <div
+          ref={popupRef}
           style={{
-            position: "absolute",
-            top: 24,
-            right: 0,
-            zIndex: 200,
-            width: 285,
+            position: "fixed",
+            top: popupPosition.top,
+            left: popupPosition.left,
+            zIndex: 10000,
+            width: "min(285px, calc(100vw - 16px))",
+            maxHeight: "calc(100vh - 16px)",
+            overflowY: "auto",
             padding: 10,
             border: "1px solid rgba(147,211,230,.42)",
             borderRadius: 10,
@@ -800,7 +860,8 @@ function ExcelHeaderFilter({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </div>
   );
