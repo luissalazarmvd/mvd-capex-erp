@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
@@ -70,6 +70,36 @@ const EDITABLE = [
 type EditableKey = (typeof EDITABLE)[number];
 type Draft = Record<EditableKey, string>;
 
+type ExcelFilterKind = "text" | "number" | "date";
+type ExcelSortDirection = "asc" | "desc";
+type ExcelFilterOperator =
+  | "none"
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "not_contains"
+  | "starts_with"
+  | "ends_with"
+  | "greater"
+  | "greater_equal"
+  | "less"
+  | "less_equal"
+  | "between";
+
+type ExcelColumnFilter = {
+  selected: string[] | null;
+  operator: ExcelFilterOperator;
+  value1: string;
+  value2: string;
+};
+
+const EMPTY_EXCEL_FILTER: ExcelColumnFilter = {
+  selected: null,
+  operator: "none",
+  value1: "",
+  value2: "",
+};
+
 const DATE_FIELDS = new Set<EditableKey>(["acquisition_date", "operation_date", "disposal_date"]);
 const NUMBER_FIELDS = new Set<EditableKey>(["exc_rate", "asset_ini_cost_pen", "asset_ini_cost_usd"]);
 const SUGGESTION_FIELDS = [
@@ -136,6 +166,646 @@ function text(value: unknown) {
   return value == null ? "" : String(value);
 }
 
+function excelOperatorOptions(kind: ExcelFilterKind): Array<{ value: ExcelFilterOperator; label: string }> {
+  if (kind === "text") {
+    return [
+      { value: "none", label: "Sin filtro personalizado" },
+      { value: "equals", label: "Es igual a" },
+      { value: "not_equals", label: "No es igual a" },
+      { value: "contains", label: "Contiene" },
+      { value: "not_contains", label: "No contiene" },
+      { value: "starts_with", label: "Comienza por" },
+      { value: "ends_with", label: "Termina en" },
+    ];
+  }
+
+  if (kind === "date") {
+    return [
+      { value: "none", label: "Sin filtro personalizado" },
+      { value: "equals", label: "Es igual a" },
+      { value: "not_equals", label: "No es igual a" },
+      { value: "greater", label: "Después de" },
+      { value: "greater_equal", label: "Después o igual a" },
+      { value: "less", label: "Antes de" },
+      { value: "less_equal", label: "Antes o igual a" },
+      { value: "between", label: "Entre" },
+    ];
+  }
+
+  return [
+    { value: "none", label: "Sin filtro personalizado" },
+    { value: "equals", label: "Es igual a" },
+    { value: "not_equals", label: "No es igual a" },
+    { value: "greater", label: "Mayor que" },
+    { value: "greater_equal", label: "Mayor o igual que" },
+    { value: "less", label: "Menor que" },
+    { value: "less_equal", label: "Menor o igual que" },
+    { value: "between", label: "Entre" },
+  ];
+}
+
+function excelFilterIsActive(filter: ExcelColumnFilter | undefined) {
+  return Boolean(filter && (filter.selected !== null || filter.operator !== "none"));
+}
+
+function matchesExcelFilter(rawValue: unknown, filter: ExcelColumnFilter | undefined, kind: ExcelFilterKind) {
+  if (!filter) return true;
+
+  const value = rawValue == null ? "" : String(rawValue).trim();
+
+  if (filter.selected !== null && !filter.selected.includes(value)) return false;
+  if (filter.operator === "none") return true;
+
+  const first = filter.value1.trim();
+  const second = filter.value2.trim();
+
+  if (!first && filter.operator !== "between") return true;
+
+  if (kind === "text") {
+    const current = value.toLocaleLowerCase("es");
+    const a = first.toLocaleLowerCase("es");
+
+    if (filter.operator === "equals") return current === a;
+    if (filter.operator === "not_equals") return current !== a;
+    if (filter.operator === "contains") return current.includes(a);
+    if (filter.operator === "not_contains") return !current.includes(a);
+    if (filter.operator === "starts_with") return current.startsWith(a);
+    if (filter.operator === "ends_with") return current.endsWith(a);
+
+    return true;
+  }
+
+  if (kind === "number") {
+    const current = Number(value.replace(",", "."));
+    const a = Number(first.replace(",", "."));
+    const b = Number(second.replace(",", "."));
+
+    if (!Number.isFinite(current) || !Number.isFinite(a)) return false;
+
+    if (filter.operator === "equals") return current === a;
+    if (filter.operator === "not_equals") return current !== a;
+    if (filter.operator === "greater") return current > a;
+    if (filter.operator === "greater_equal") return current >= a;
+    if (filter.operator === "less") return current < a;
+    if (filter.operator === "less_equal") return current <= a;
+
+    if (filter.operator === "between") {
+      return Number.isFinite(b)
+        && current >= Math.min(a, b)
+        && current <= Math.max(a, b);
+    }
+
+    return true;
+  }
+
+  const current = value.slice(0, 10);
+  const a = first.slice(0, 10);
+  const b = second.slice(0, 10);
+
+  if (!current || !a) return false;
+
+  if (filter.operator === "equals") return current === a;
+  if (filter.operator === "not_equals") return current !== a;
+  if (filter.operator === "greater") return current > a;
+  if (filter.operator === "greater_equal") return current >= a;
+  if (filter.operator === "less") return current < a;
+  if (filter.operator === "less_equal") return current <= a;
+
+  if (filter.operator === "between") {
+    return Boolean(b)
+      && current >= (a < b ? a : b)
+      && current <= (a > b ? a : b);
+  }
+
+  return true;
+}
+
+function compareExcelValues(
+  aRaw: unknown,
+  bRaw: unknown,
+  kind: ExcelFilterKind,
+  direction: ExcelSortDirection
+) {
+  const factor = direction === "asc" ? 1 : -1;
+  const a = aRaw == null ? "" : String(aRaw).trim();
+  const b = bRaw == null ? "" : String(bRaw).trim();
+
+  if (kind === "number") {
+    const aNum = Number(a.replace(",", "."));
+    const bNum = Number(b.replace(",", "."));
+
+    if (Number.isFinite(aNum) && Number.isFinite(bNum)) {
+      return (aNum - bNum) * factor;
+    }
+  }
+
+  return a.localeCompare(b, "es", {
+    numeric: true,
+    sensitivity: "base",
+  }) * factor;
+}
+
+type ExcelHeaderFilterProps = {
+  label: string;
+  kind: ExcelFilterKind;
+  values: string[];
+  filter?: ExcelColumnFilter;
+  sortDirection?: ExcelSortDirection;
+  onApply: (filter: ExcelColumnFilter) => void;
+  onSort: (direction: ExcelSortDirection) => void;
+};
+
+function ExcelHeaderFilter({
+  label,
+  kind,
+  values,
+  filter,
+  sortDirection,
+  onApply,
+  onSort,
+}: ExcelHeaderFilterProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [draftFilter, setDraftFilter] = useState<ExcelColumnFilter>(
+    () => filter || EMPTY_EXCEL_FILTER
+  );
+
+  useEffect(() => {
+    if (!open) return;
+
+    setSearch("");
+    setDraftFilter(
+      filter
+        ? {
+            ...filter,
+            selected: filter.selected ? [...filter.selected] : null,
+          }
+        : { ...EMPTY_EXCEL_FILTER }
+    );
+  }, [open, filter]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const close = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const distinctValues = useMemo(
+    () =>
+      Array.from(
+        new Set(values.map((value) => value.trim()))
+      ).sort((a, b) => {
+        if (a === "") return -1;
+        if (b === "") return 1;
+
+        if (kind === "number") {
+          const aNum = Number(a.replace(",", "."));
+          const bNum = Number(b.replace(",", "."));
+
+          if (Number.isFinite(aNum) && Number.isFinite(bNum)) {
+            return aNum - bNum;
+          }
+        }
+
+        return a.localeCompare(b, "es", {
+          numeric: true,
+          sensitivity: "base",
+        });
+      }),
+    [values, kind]
+  );
+
+  const searchedValues = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase("es");
+
+    if (!needle) return distinctValues;
+
+    return distinctValues.filter((value) =>
+      (value || "(Vacíos)")
+        .toLocaleLowerCase("es")
+        .includes(needle)
+    );
+  }, [distinctValues, search]);
+
+  const selectedSet = useMemo(
+    () =>
+      new Set(
+        draftFilter.selected === null
+          ? distinctValues
+          : draftFilter.selected
+      ),
+    [draftFilter.selected, distinctValues]
+  );
+
+  const allSelected =
+    distinctValues.length > 0
+    && distinctValues.every((value) => selectedSet.has(value));
+
+  const active =
+    excelFilterIsActive(filter)
+    || Boolean(sortDirection);
+
+  const firstInputType =
+    kind === "date"
+      ? "date"
+      : kind === "number"
+        ? "number"
+        : "text";
+
+  function toggleValue(value: string, checked: boolean) {
+    const next = new Set(
+      draftFilter.selected === null
+        ? distinctValues
+        : draftFilter.selected
+    );
+
+    if (checked) next.add(value);
+    else next.delete(value);
+
+    setDraftFilter((current) => ({
+      ...current,
+      selected:
+        next.size === distinctValues.length
+          ? null
+          : Array.from(next),
+    }));
+  }
+
+  function toggleAll(checked: boolean) {
+    setDraftFilter((current) => ({
+      ...current,
+      selected: checked ? null : [],
+    }));
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-label={`Filtrar ${label}`}
+        title={`Filtrar ${label}`}
+        style={{
+          width: 20,
+          height: 20,
+          padding: 0,
+          borderRadius: 5,
+          border: active
+            ? "1px solid rgba(147,211,230,.72)"
+            : "1px solid rgba(147,211,230,.30)",
+          background: active
+            ? "rgba(27,147,227,.32)"
+            : "rgba(2,35,52,.34)",
+          color: "#eaf8ff",
+          fontSize: 10,
+          lineHeight: 1,
+          cursor: "pointer",
+        }}
+      >
+        {active ? "◆" : "▼"}
+      </button>
+
+      {open ? (
+        <div
+          style={{
+            position: "absolute",
+            top: 24,
+            right: 0,
+            zIndex: 200,
+            width: 285,
+            padding: 10,
+            border: "1px solid rgba(147,211,230,.42)",
+            borderRadius: 10,
+            background: "#07364d",
+            boxShadow: "0 14px 32px rgba(0,0,0,.40)",
+            color: "#f4fbff",
+            textAlign: "left",
+            fontSize: 12,
+          }}
+        >
+          <div style={{ fontWeight: 900, marginBottom: 8 }}>
+            {label}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 6,
+              marginBottom: 8,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                onSort("asc");
+                setOpen(false);
+              }}
+              style={{
+                textAlign: "left",
+                padding: "6px 8px",
+                borderRadius: 7,
+                border: "1px solid rgba(147,211,230,.24)",
+                background:
+                  sortDirection === "asc"
+                    ? "rgba(27,147,227,.24)"
+                    : "rgba(2,35,52,.38)",
+                color: "#f4fbff",
+                cursor: "pointer",
+              }}
+            >
+              {kind === "number"
+                ? "Ordenar de menor a mayor"
+                : kind === "date"
+                  ? "Ordenar de más antiguo a más reciente"
+                  : "Ordenar de A a Z"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                onSort("desc");
+                setOpen(false);
+              }}
+              style={{
+                textAlign: "left",
+                padding: "6px 8px",
+                borderRadius: 7,
+                border: "1px solid rgba(147,211,230,.24)",
+                background:
+                  sortDirection === "desc"
+                    ? "rgba(27,147,227,.24)"
+                    : "rgba(2,35,52,.38)",
+                color: "#f4fbff",
+                cursor: "pointer",
+              }}
+            >
+              {kind === "number"
+                ? "Ordenar de mayor a menor"
+                : kind === "date"
+                  ? "Ordenar de más reciente a más antiguo"
+                  : "Ordenar de Z a A"}
+            </button>
+          </div>
+
+          <div
+            style={{
+              borderTop: "1px solid rgba(147,211,230,.18)",
+              paddingTop: 8,
+            }}
+          >
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar valores..."
+              style={{
+                width: "100%",
+                height: 30,
+                padding: "5px 8px",
+                borderRadius: 7,
+                border: "1px solid rgba(147,211,230,.30)",
+                background: "rgba(2,35,52,.58)",
+                color: "#f4fbff",
+                outline: "none",
+              }}
+            />
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                marginTop: 8,
+                fontWeight: 800,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(event) => toggleAll(event.target.checked)}
+              />
+              Seleccionar todo
+            </label>
+
+            <div
+              style={{
+                maxHeight: 155,
+                overflowY: "auto",
+                marginTop: 5,
+                paddingRight: 3,
+              }}
+            >
+              {searchedValues.map((value) => (
+                <label
+                  key={value || "__EMPTY__"}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    padding: "3px 0",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(value)}
+                    onChange={(event) =>
+                      toggleValue(value, event.target.checked)
+                    }
+                  />
+
+                  <span
+                    style={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {value || "(Vacíos)"}
+                  </span>
+                </label>
+              ))}
+
+              {!searchedValues.length ? (
+                <div style={{ padding: "8px 0", opacity: 0.72 }}>
+                  Sin coincidencias
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div
+            style={{
+              borderTop: "1px solid rgba(147,211,230,.18)",
+              marginTop: 8,
+              paddingTop: 8,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <select
+              value={draftFilter.operator}
+              onChange={(event) =>
+                setDraftFilter((current) => ({
+                  ...current,
+                  operator: event.target.value as ExcelFilterOperator,
+                }))
+              }
+              style={{
+                width: "100%",
+                height: 30,
+                padding: "4px 7px",
+                borderRadius: 7,
+                border: "1px solid rgba(147,211,230,.30)",
+                background: "#0b4d6b",
+                color: "#f4fbff",
+              }}
+            >
+              {excelOperatorOptions(kind).map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            {draftFilter.operator !== "none" ? (
+              <input
+                type={firstInputType}
+                value={draftFilter.value1}
+                step={kind === "number" ? "any" : undefined}
+                onChange={(event) =>
+                  setDraftFilter((current) => ({
+                    ...current,
+                    value1: event.target.value,
+                  }))
+                }
+                placeholder={
+                  kind === "text"
+                    ? "Valor..."
+                    : undefined
+                }
+                style={{
+                  width: "100%",
+                  height: 30,
+                  padding: "5px 8px",
+                  borderRadius: 7,
+                  border: "1px solid rgba(147,211,230,.30)",
+                  background: "rgba(2,35,52,.58)",
+                  color: "#f4fbff",
+                  outline: "none",
+                }}
+              />
+            ) : null}
+
+            {draftFilter.operator === "between" ? (
+              <input
+                type={firstInputType}
+                value={draftFilter.value2}
+                step={kind === "number" ? "any" : undefined}
+                onChange={(event) =>
+                  setDraftFilter((current) => ({
+                    ...current,
+                    value2: event.target.value,
+                  }))
+                }
+                style={{
+                  width: "100%",
+                  height: 30,
+                  padding: "5px 8px",
+                  borderRadius: 7,
+                  border: "1px solid rgba(147,211,230,.30)",
+                  background: "rgba(2,35,52,.58)",
+                  color: "#f4fbff",
+                  outline: "none",
+                }}
+              />
+            ) : null}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 6,
+              marginTop: 10,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                onApply({ ...EMPTY_EXCEL_FILTER });
+                setOpen(false);
+              }}
+              style={{
+                padding: "6px 8px",
+                borderRadius: 7,
+                border: "1px solid rgba(147,211,230,.24)",
+                background: "transparent",
+                color: "#d8eef8",
+                cursor: "pointer",
+              }}
+            >
+              Limpiar filtro
+            </button>
+
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                style={{
+                  padding: "6px 8px",
+                  borderRadius: 7,
+                  border: "1px solid rgba(147,211,230,.24)",
+                  background: "transparent",
+                  color: "#d8eef8",
+                  cursor: "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onApply(draftFilter);
+                  setOpen(false);
+                }}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 7,
+                  border: "1px solid rgba(147,211,230,.42)",
+                  background: "rgba(27,147,227,.32)",
+                  color: "#f4fbff",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                Aplicar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function dateOnly(value: unknown) {
   return text(value).slice(0, 10);
 }
@@ -185,6 +855,58 @@ function costCenterCode(value: string) {
   return raw.toLocaleUpperCase("es").replace(/[^0-9A-Z]/g, "").slice(0, 6);
 }
 
+const CATALOGUE_DATE_FILTER_FIELDS = new Set<keyof CatalogueRow>([
+  "acquisition_date",
+  "operation_date",
+  "disposal_date",
+]);
+
+const CATALOGUE_NUMBER_FILTER_FIELDS = new Set<keyof CatalogueRow>([
+  "deprec_rate_pct",
+  "exc_rate",
+  "asset_ini_cost_pen",
+  "asset_ini_cost_usd",
+]);
+
+function catalogueExcelFilterKind(key: keyof CatalogueRow): ExcelFilterKind {
+  if (CATALOGUE_DATE_FILTER_FIELDS.has(key)) {
+    return "date";
+  }
+
+  if (CATALOGUE_NUMBER_FILTER_FIELDS.has(key)) {
+    return "number";
+  }
+
+  return "text";
+}
+
+function catalogueExcelFilterValue(
+  row: CatalogueRow,
+  draft: Draft,
+  key: keyof CatalogueRow,
+  cecoByCode: Record<string, string>
+) {
+  if (key === "cost_center_code") {
+    return costCenterCode(draft.cost_center_code);
+  }
+
+  if (key === "cost_center_desc") {
+    const code = costCenterCode(
+      draft.cost_center_code
+    );
+
+    return code
+      ? cecoByCode[code] || ""
+      : "";
+  }
+
+  if (EDITABLE.includes(key as EditableKey)) {
+    return draft[key as EditableKey];
+  }
+
+  return row[key];
+}
+
 function toDraft(row: CatalogueRow): Draft {
   const draft = {} as Draft;
   EDITABLE.forEach((key) => {
@@ -231,6 +953,8 @@ export default function FixAssetsCat() {
   const [acquisitionMonthFrom, setAcquisitionMonthFrom] = useState("01");
   const [acquisitionMonthTo, setAcquisitionMonthTo] = useState("12");
   const [page, setPage] = useState(1);
+  const [columnFilters, setColumnFilters] = useState<Partial<Record<keyof CatalogueRow, ExcelColumnFilter>>>({});
+  const [excelSort, setExcelSort] = useState<{ key: keyof CatalogueRow; direction: ExcelSortDirection } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -265,6 +989,9 @@ export default function FixAssetsCat() {
       setCecoByCode(nextCecoByCode);
       setDrafts(nextDrafts);
       setOriginals(nextDrafts);
+      setColumnFilters({});
+      setExcelSort(null);
+      setPage(1);
       setIsError(false);
     } catch (error) {
       setIsError(true);
@@ -314,34 +1041,187 @@ export default function FixAssetsCat() {
     return result;
   }, [rows, drafts]);
 
-  const visibleRows = useMemo(() => {
-    const needle = deferredQuery.trim().toLocaleLowerCase("es");
+  const baseVisibleRows = useMemo(() => {
+    const needle = deferredQuery
+      .trim()
+      .toLocaleLowerCase("es");
+
     return rows.filter((row) => {
       const code = text(row.asset_code);
-      const draft = drafts[code];
-      const acquisition = monthOf(draft?.acquisition_date || row.acquisition_date);
-      const matchesAcquisition = !acquisitionYear || Boolean(acquisition && acquisition.year === acquisitionYear && acquisition.month >= acquisitionMonthFrom && acquisition.month <= acquisitionMonthTo);
-      if (!matchesAcquisition) return false;
-      if (!needle) return true;
-      return COLUMNS.some((column) => text(
-        EDITABLE.includes(column.key as EditableKey) ? draft?.[column.key as EditableKey] : row[column.key]
-      ).toLocaleLowerCase("es").includes(needle));
-    });
-  }, [rows, drafts, deferredQuery, acquisitionYear, acquisitionMonthFrom, acquisitionMonthTo]);
+      const draft = drafts[code] || toDraft(row);
 
-  const pageCount = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+      const acquisition = monthOf(
+        draft.acquisition_date
+        || row.acquisition_date
+      );
+
+      const matchesAcquisition =
+        !acquisitionYear
+        || Boolean(
+          acquisition
+          && acquisition.year === acquisitionYear
+          && acquisition.month >= acquisitionMonthFrom
+          && acquisition.month <= acquisitionMonthTo
+        );
+
+      if (!matchesAcquisition) {
+        return false;
+      }
+
+      if (!needle) {
+        return true;
+      }
+
+      return COLUMNS.some((column) =>
+        text(
+          catalogueExcelFilterValue(
+            row,
+            draft,
+            column.key,
+            cecoByCode
+          )
+        )
+          .toLocaleLowerCase("es")
+          .includes(needle)
+      );
+    });
+  }, [
+    rows,
+    drafts,
+    deferredQuery,
+    acquisitionYear,
+    acquisitionMonthFrom,
+    acquisitionMonthTo,
+    cecoByCode,
+  ]);
+
+  const excelColumnValues = useMemo(() => {
+    const result: Partial<
+      Record<keyof CatalogueRow, string[]>
+    > = {};
+
+    COLUMNS.forEach((column) => {
+      result[column.key] = baseVisibleRows.map(
+        (row) => {
+          const draft =
+            drafts[text(row.asset_code)]
+            || toDraft(row);
+
+          return text(
+            catalogueExcelFilterValue(
+              row,
+              draft,
+              column.key,
+              cecoByCode
+            )
+          ).trim();
+        }
+      );
+    });
+
+    return result;
+  }, [
+    baseVisibleRows,
+    drafts,
+    cecoByCode,
+  ]);
+
+  const visibleRows = useMemo(() => {
+    const filtered = baseVisibleRows.filter(
+      (row) => {
+        const draft =
+          drafts[text(row.asset_code)]
+          || toDraft(row);
+
+        return (
+          Object.entries(columnFilters) as Array<
+            [keyof CatalogueRow, ExcelColumnFilter]
+          >
+        ).every(([key, filter]) =>
+          matchesExcelFilter(
+            catalogueExcelFilterValue(
+              row,
+              draft,
+              key,
+              cecoByCode
+            ),
+            filter,
+            catalogueExcelFilterKind(key)
+          )
+        );
+      }
+    );
+
+    if (!excelSort) {
+      return filtered;
+    }
+
+    return [...filtered].sort((a, b) => {
+      const aDraft =
+        drafts[text(a.asset_code)]
+        || toDraft(a);
+
+      const bDraft =
+        drafts[text(b.asset_code)]
+        || toDraft(b);
+
+      return compareExcelValues(
+        catalogueExcelFilterValue(
+          a,
+          aDraft,
+          excelSort.key,
+          cecoByCode
+        ),
+        catalogueExcelFilterValue(
+          b,
+          bDraft,
+          excelSort.key,
+          cecoByCode
+        ),
+        catalogueExcelFilterKind(excelSort.key),
+        excelSort.direction
+      );
+    });
+  }, [
+    baseVisibleRows,
+    drafts,
+    columnFilters,
+    excelSort,
+    cecoByCode,
+  ]);
+
+  const pageCount = Math.max(
+    1,
+    Math.ceil(visibleRows.length / PAGE_SIZE)
+  );
 
   const paginatedRows = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return visibleRows.slice(start, start + PAGE_SIZE);
-  }, [visibleRows, page]);
+
+    return visibleRows.slice(
+      start,
+      start + PAGE_SIZE
+    );
+  }, [
+    visibleRows,
+    page,
+  ]);
 
   useEffect(() => {
     setPage(1);
-  }, [deferredQuery, acquisitionYear, acquisitionMonthFrom, acquisitionMonthTo]);
+  }, [
+    deferredQuery,
+    acquisitionYear,
+    acquisitionMonthFrom,
+    acquisitionMonthTo,
+    columnFilters,
+    excelSort,
+  ]);
 
   useEffect(() => {
-    setPage((current) => Math.min(current, pageCount));
+    setPage((current) =>
+      Math.min(current, pageCount)
+    );
   }, [pageCount]);
 
   function update(code: string, key: EditableKey, value: string) {
@@ -536,7 +1416,32 @@ export default function FixAssetsCat() {
             <thead><tr>{COLUMNS.map((column) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
               const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
-              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: sticky ? 45 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{column.label}</th>;
+
+              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: 79, overflow: "visible", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5 }}>
+                  <span>{column.label}</span>
+
+                  <ExcelHeaderFilter
+                    label={column.label}
+                    kind={catalogueExcelFilterKind(column.key)}
+                    values={excelColumnValues[column.key] || []}
+                    filter={columnFilters[column.key]}
+                    sortDirection={excelSort?.key === column.key ? excelSort.direction : undefined}
+                    onApply={(filter) =>
+                      setColumnFilters((current) => ({
+                        ...current,
+                        [column.key]: filter,
+                      }))
+                    }
+                    onSort={(direction) =>
+                      setExcelSort({
+                        key: column.key,
+                        direction,
+                      })
+                    }
+                  />
+                </div>
+              </th>;
             })}</tr></thead>
             <tbody>
               {paginatedRows.map((row) => {

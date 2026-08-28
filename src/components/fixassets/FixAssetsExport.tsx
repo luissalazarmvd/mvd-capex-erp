@@ -73,6 +73,16 @@ type CatalogueRateRow = {
   exc_rate: number | string | null;
 };
 
+type ConcarRealRow = {
+  cuenta_contable: string | null;
+  fecha_comprobante: string | null;
+  codigo_centro_costo: string | null;
+  sub_diario: string | null;
+  numero_comprobante: string | null;
+  importe_dolares: number | string | null;
+  importe_soles: number | string | null;
+};
+
 type ExportKey = Exclude<keyof ExportRow, "period_date">;
 type CellValue = string | number;
 
@@ -247,6 +257,65 @@ function period(value: unknown) {
   return match ? { year: match[1], month: match[2] } : null;
 }
 
+function normalizeDateKey(value: unknown) {
+  const raw = text(value).trim();
+  if (!raw) return "";
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  const dmy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+
+  return raw;
+}
+
+function concarCombinationKey(row: {
+  fecha_comprobante: unknown;
+  cuenta_contable: unknown;
+  codigo_centro_costo: unknown;
+}) {
+  return [
+    normalizeDateKey(row.fecha_comprobante),
+    text(row.cuenta_contable).trim(),
+    text(row.codigo_centro_costo).trim(),
+  ].join("|");
+}
+
+function nextVoucherNumber(row: ExportRow, concarRows: ConcarRealRow[]) {
+  const dateKey = normalizeDateKey(row.fecha_comprobante);
+  const fallback = text(row.numero_comprobante).trim();
+  let maxVoucher = -1;
+  let width = Math.max(6, fallback.length);
+
+  for (const concarRow of concarRows) {
+    if (normalizeDateKey(concarRow.fecha_comprobante) !== dateKey) continue;
+
+    const raw = text(concarRow.numero_comprobante).trim();
+    if (!/^\d+$/.test(raw)) continue;
+
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) continue;
+
+    maxVoucher = Math.max(maxVoucher, numeric);
+    width = Math.max(width, raw.length);
+  }
+
+  if (maxVoucher < 0) return fallback;
+
+  return String(maxVoucher + 1).padStart(width, "0");
+}
+
+function sumExportRows(
+  rows: ExportRow[],
+  key: "importe_original" | "importe_dolares" | "importe_soles"
+) {
+  return rows.reduce((sum, row) => {
+    const value = Number(row[key]);
+    return Number.isFinite(value) ? sum + value : sum;
+  }, 0);
+}
+
 function numericValue(value: unknown) {
   if (value == null || value === "") return "";
   const parsed = Number(value);
@@ -272,6 +341,7 @@ function excelValue(key: ExportKey, value: unknown): CellValue {
 export default function FixAssetsExport() {
   const [rows, setRows] = useState<ExportRow[]>([]);
   const [catalogueIndexRows, setCatalogueIndexRows] = useState<CatalogueRateRow[]>([]);
+  const [concarRows, setConcarRows] = useState<ConcarRealRow[]>([]);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [year, setYear] = useState("");
@@ -290,19 +360,25 @@ export default function FixAssetsExport() {
     setMessage("");
 
     try {
-      const [response, catalogueResponse] = await Promise.all([
+      const [response, catalogueResponse, concarResponse] = await Promise.all([
         apiGet("/api/actfij/deprec/export"),
         apiGet("/api/actfij/catalogue"),
+        apiGet("/api/actfij/concar-real"),
       ]);
+
       const nextRows = Array.isArray(response?.rows)
         ? response.rows as ExportRow[]
         : [];
       const catalogueRows = Array.isArray(catalogueResponse?.rows)
         ? catalogueResponse.rows as CatalogueRateRow[]
         : [];
+      const nextConcarRows = Array.isArray(concarResponse?.rows)
+        ? concarResponse.rows as ConcarRealRow[]
+        : [];
 
       setRows(nextRows);
       setCatalogueIndexRows(catalogueRows);
+      setConcarRows(nextConcarRows);
 
       const latestPeriod = nextRows
         .map((row) => text(row.period_date).slice(0, 7))
@@ -321,6 +397,8 @@ export default function FixAssetsExport() {
       setIsError(false);
     } catch (error) {
       setRows([]);
+      setCatalogueIndexRows([]);
+      setConcarRows([]);
       setYear("");
       setMonth("");
       setIsError(true);
@@ -411,6 +489,27 @@ export default function FixAssetsExport() {
       });
   }, [rows, year, month, deferredQuery, catalogueIndexRows]);
 
+  const existingConcarKeys = useMemo(
+    () => new Set(concarRows.map((row) => concarCombinationKey(row))),
+    [concarRows]
+  );
+
+  const existingVisibleRowsCount = useMemo(
+    () => visibleRows.filter((row) => existingConcarKeys.has(concarCombinationKey(row))).length,
+    [visibleRows, existingConcarKeys]
+  );
+
+  const exportableRows = useMemo(
+    () => visibleRows.filter((row) => !existingConcarKeys.has(concarCombinationKey(row))),
+    [visibleRows, existingConcarKeys]
+  );
+
+  const exportTotals = useMemo(() => ({
+    importe_original: sumExportRows(exportableRows, "importe_original"),
+    importe_dolares: sumExportRows(exportableRows, "importe_dolares"),
+    importe_soles: sumExportRows(exportableRows, "importe_soles"),
+  }), [exportableRows]);
+
   function exportRowKey(row: ExportRow) {
     return [
       text(row.period_date).slice(0, 7),
@@ -465,15 +564,24 @@ export default function FixAssetsExport() {
   }
 
   function exportExcel() {
-    if (!visibleRows.length || !year || !month) {
+    if (!exportableRows.length || !year || !month) {
       setIsError(true);
-      setMessage("No hay filas para exportar en el periodo seleccionado.");
+      setMessage("No hay filas nuevas para exportar en el periodo seleccionado.");
       return;
     }
 
-    const exportRows: CellValue[][] = visibleRows.map((row) =>
-      COLUMNS.map((column) => excelValue(column.key, row[column.key]))
-    );
+    const exportRows: CellValue[][] = exportableRows.map((row) => {
+      const voucherNumber = nextVoucherNumber(row, concarRows);
+
+      return COLUMNS.map((column) =>
+        excelValue(
+          column.key,
+          column.key === "numero_comprobante"
+            ? voucherNumber
+            : row[column.key]
+        )
+      );
+    });
 
     const sheetData: CellValue[][] = [
       COLUMNS.map((column) => column.label),
@@ -494,7 +602,7 @@ export default function FixAssetsExport() {
       { hpt: 30 },
     ];
 
-    for (let rowIndex = 0; rowIndex < visibleRows.length; rowIndex += 1) {
+    for (let rowIndex = 0; rowIndex < exportableRows.length; rowIndex += 1) {
       const excelRow = rowIndex + 4;
 
       COLUMNS.forEach((column, columnIndex) => {
@@ -518,7 +626,9 @@ export default function FixAssetsExport() {
     );
 
     setIsError(false);
-    setMessage(`Excel de ${MONTHS[Number(month) - 1]} ${year} exportado correctamente.`);
+    setMessage(
+      `Excel de ${MONTHS[Number(month) - 1]} ${year} exportado correctamente: ${exportableRows.length} filas nuevas, ${existingVisibleRowsCount} ya existentes excluidas.`
+    );
   }
 
   function exportDetailExcel() {
@@ -657,6 +767,23 @@ export default function FixAssetsExport() {
             />
           </label>
 
+          <div
+            style={{
+              height: 34,
+              display: "flex",
+              alignItems: "center",
+              padding: "0 12px",
+              borderRadius: 8,
+              border: "1px solid rgba(94,128,25,.72)",
+              background: "rgba(94,128,25,.24)",
+              fontSize: 12,
+              fontWeight: 900,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Existentes: {existingVisibleRowsCount}
+          </div>
+
           <Select
             label="Año"
             value={year}
@@ -699,9 +826,9 @@ export default function FixAssetsExport() {
             size="sm"
             variant="primary"
             onClick={exportExcel}
-            disabled={loading || !visibleRows.length || !year || !month}
+            disabled={loading || !exportableRows.length || !year || !month}
           >
-            Exportar Excel ({visibleRows.length})
+            Exportar Excel ({exportableRows.length})
           </Button>
         </div>
       </div>
@@ -785,6 +912,7 @@ export default function FixAssetsExport() {
               {visibleRows.map((row, rowIndex) => {
                 const key = exportRowKey(row);
                 const focused = detailRowKey === key;
+                const existing = existingConcarKeys.has(concarCombinationKey(row));
 
                 return (
                   <tr
@@ -793,7 +921,11 @@ export default function FixAssetsExport() {
                     onClick={() => void openDetail(row)}
                     style={{
                       cursor: "pointer",
-                      background: focused ? "rgba(27,147,227,.34)" : undefined,
+                      background: existing
+                        ? "rgba(94,128,25,.36)"
+                        : focused
+                          ? "rgba(27,147,227,.34)"
+                          : undefined,
                     }}
                   >
                     {COLUMNS.map((column, columnIndex) => {
@@ -812,11 +944,13 @@ export default function FixAssetsExport() {
                             position: sticky ? "sticky" : undefined,
                             left,
                             zIndex: sticky ? 20 : undefined,
-                            background: focused
-                              ? "#155a78"
-                              : sticky
-                                ? "#0b4d6b"
-                                : undefined,
+                            background: existing
+                              ? "#416f43"
+                              : focused
+                                ? "#155a78"
+                                : sticky
+                                  ? "#0b4d6b"
+                                  : undefined,
                             boxShadow: columnIndex === 1
                               ? "2px 0 rgba(216,238,255,.12)"
                               : undefined,
@@ -824,7 +958,9 @@ export default function FixAssetsExport() {
                               ? "right"
                               : undefined,
                           }}
-                          title={text(row[column.key])}
+                          title={existing
+                            ? "Esta combinación ya existe en Concar"
+                            : text(row[column.key])}
                         >
                           {displayValue(column.key, row[column.key])}
                         </td>
@@ -856,6 +992,37 @@ export default function FixAssetsExport() {
                 </tr>
               ) : null}
             </tbody>
+
+            {!loading && visibleRows.length ? (
+              <tfoot>
+                <tr>
+                  {COLUMNS.map((column) => (
+                    <td
+                      key={column.key}
+                      className="capex-td"
+                      style={{
+                        background: "#163b49",
+                        borderTop: "2px solid rgba(147,211,230,.32)",
+                        fontWeight: 900,
+                        textAlign: NUMERIC_KEYS.has(column.key)
+                          ? "right"
+                          : undefined,
+                      }}
+                    >
+                      {column.key === "codigo_centro_costo"
+                        ? "TOTAL A EXPORTAR"
+                        : column.key === "importe_original"
+                          ? displayValue("importe_original", exportTotals.importe_original)
+                          : column.key === "importe_dolares"
+                            ? displayValue("importe_dolares", exportTotals.importe_dolares)
+                            : column.key === "importe_soles"
+                              ? displayValue("importe_soles", exportTotals.importe_soles)
+                              : ""}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            ) : null}
           </Table>
         </div>
       </div>
