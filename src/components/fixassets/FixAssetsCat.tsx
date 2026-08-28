@@ -571,9 +571,9 @@ export default function FixAssetsCat() {
                         style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${code}`}
                       >
-                        <option value=""></option>
-                        <option value="OPERATIVO">OPERATIVO</option>
-                        <option value="DEPRECIADO">DEPRECIADO</option>
+                        <option value="" style={{ background: "#0b4d6b", color: "#f4fbff" }}></option>
+                        <option value="OPERATIVO" style={{ background: "#0b4d6b", color: "#f4fbff" }}>OPERATIVO</option>
+                        <option value="DEPRECIADO" style={{ background: "#0b4d6b", color: "#f4fbff" }}>DEPRECIADO</option>
                       </select> : <FastCellInput
                         className="input"
                         type={DATE_FIELDS.has(key) ? "date" : "text"}
