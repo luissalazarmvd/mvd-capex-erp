@@ -573,28 +573,34 @@ export default function FixAssetsExport() {
     const exportRows: CellValue[][] = exportableRows.map((row) => {
       const voucherNumber = nextVoucherNumber(row, concarRows);
 
-      return COLUMNS.map((column) =>
-        excelValue(
-          column.key,
-          column.key === "numero_comprobante"
-            ? voucherNumber
-            : row[column.key]
-        )
-      );
+      return [
+        "",
+        ...COLUMNS.map((column) =>
+          excelValue(
+            column.key,
+            column.key === "numero_comprobante"
+              ? voucherNumber
+              : row[column.key]
+          )
+        ),
+      ];
     });
 
     const sheetData: CellValue[][] = [
-      COLUMNS.map((column) => column.label),
-      [...RESTRICTIONS],
-      [...FORMATS],
+      ["Campo", ...COLUMNS.map((column) => column.label)],
+      ["Restricciones", ...RESTRICTIONS],
+      ["Tamaño/Formato", ...FORMATS],
       ...exportRows,
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
-    ws["!cols"] = COLUMNS.map((column) => ({
-      wch: Math.max(12, Math.round(column.width / 7)),
-    }));
+    ws["!cols"] = [
+      { wch: 18 },
+      ...COLUMNS.map((column) => ({
+        wch: Math.max(12, Math.round(column.width / 7)),
+      })),
+    ];
 
     ws["!rows"] = [
       { hpt: 30 },
@@ -608,7 +614,7 @@ export default function FixAssetsExport() {
       COLUMNS.forEach((column, columnIndex) => {
         if (!NUMERIC_KEYS.has(column.key)) return;
 
-        const cellRef = `${XLSX.utils.encode_col(columnIndex)}${excelRow}`;
+        const cellRef = `${XLSX.utils.encode_col(columnIndex + 1)}${excelRow}`;
         const cell = ws[cellRef];
 
         if (!cell || cell.t !== "n") return;
