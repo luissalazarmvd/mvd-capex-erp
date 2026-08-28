@@ -55,6 +55,11 @@ type CecoRow = {
   cost_center_description: string | null;
 };
 
+type MappingRow = {
+  origin_account_code: string | null;
+  correlative_start: string | null;
+};
+
 type Draft = {
   asset_code: string;
   line_description: string;
@@ -348,6 +353,7 @@ export default function FixAssetsNew() {
   const [rows, setRows] = useState<VetaRow[]>([]);
   const [catalogueRows, setCatalogueRows] = useState<CatalogueRow[]>([]);
   const [cecoByCode, setCecoByCode] = useState<Record<string, string>>({});
+  const [codePrefixByAccount, setCodePrefixByAccount] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [existingCodes, setExistingCodes] = useState<Set<string>>(new Set());
   const [year, setYear] = useState(initialPeriod.year);
@@ -355,7 +361,6 @@ export default function FixAssetsNew() {
   const [monthTo, setMonthTo] = useState(initialPeriod.month);
   const [activeCodePrefix, setActiveCodePrefix] = useState("");
   const [activeCodeIndex, setActiveCodeIndex] = useState<number | null>(null);
-  const [codeClass, setCodeClass] = useState("");
   const [detailIndex, setDetailIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -366,10 +371,11 @@ export default function FixAssetsNew() {
     setLoading(true);
     setMessage("");
     try {
-      const [veta, catalogue, ceco] = await Promise.all([
+      const [veta, catalogue, ceco, mapping] = await Promise.all([
         apiGet("/api/actfij/veta"),
         apiGet("/api/actfij/catalogue"),
         apiGet("/api/actfij/ceco"),
+        apiGet("/api/actfij/mapping"),
       ]);
       const nextRows = Array.isArray(veta?.rows) ? (veta.rows as VetaRow[]) : [];
       const nextCatalogue = Array.isArray(catalogue?.rows) ? catalogue.rows as CatalogueRow[] : [];
@@ -379,11 +385,19 @@ export default function FixAssetsNew() {
           if (code) current[code] = text(row.cost_center_description).trim();
           return current;
         }, {});
+      const nextCodePrefixByAccount = (Array.isArray(mapping?.rows) ? mapping.rows as MappingRow[] : [])
+        .reduce<Record<string, string>>((current, row) => {
+          const accountCode = text(row.origin_account_code).trim();
+          const prefix = text(row.correlative_start).trim();
+          if (accountCode && /^\d{3}$/.test(prefix)) current[accountCode] = prefix;
+          return current;
+        }, {});
       const nextDrafts: Record<number, Draft> = {};
       nextRows.forEach((row, index) => { nextDrafts[index] = draftFrom(row); });
       setRows(nextRows);
       setCatalogueRows(nextCatalogue);
       setCecoByCode(nextCecoByCode);
+      setCodePrefixByAccount(nextCodePrefixByAccount);
       setDrafts(nextDrafts);
       setExistingCodes(new Set(nextCatalogue.map((row) => text(row.asset_code).trim()).filter(Boolean)));
       const now = currentPeriod();
@@ -496,12 +510,15 @@ export default function FixAssetsNew() {
 
   const states = useMemo(() => {
     const result: Record<number, RowState> = {};
-    rows.forEach((_, index) => {
+    rows.forEach((row, index) => {
       const draft = drafts[index];
       if (!draft?.asset_code.trim()) result[index] = "idle";
       else {
         const code = draft.asset_code.trim();
+        const requiredPrefix = codePrefixByAccount[text(row.account_code).trim()] || "";
         result[index] = !/^\d{7}$/.test(code)
+          || !/^\d{3}$/.test(requiredPrefix)
+          || code.slice(0, 3) !== requiredPrefix
           || existingCodes.has(code)
           || (codeCounts.get(code) || 0) > 1
           || !sequentialCodes.has(code)
@@ -512,7 +529,7 @@ export default function FixAssetsNew() {
       }
     });
     return result;
-  }, [rows, drafts, existingCodes, codeCounts, sequentialCodes]);
+  }, [rows, drafts, existingCodes, codeCounts, sequentialCodes, codePrefixByAccount]);
 
   const filteredRows = useMemo(() => rows
     .map((row, index) => ({ row, index }))
@@ -521,11 +538,47 @@ export default function FixAssetsNew() {
       return Boolean(value && value.year === year && value.month >= monthFrom && value.month <= monthTo);
     }), [rows, year, monthFrom, monthTo]);
 
+  useEffect(() => {
+    if (loading || !filteredRows.length) return;
+
+    const candidates = filteredRows
+      .filter(({ row }) => !catalogueBySource.has(sourceIdentity(row)))
+      .map(({ row, index }) => ({
+        row,
+        index,
+        prefix: codePrefixByAccount[text(row.account_code).trim()] || "",
+      }))
+      .filter(({ prefix }) => /^\d{3}$/.test(prefix))
+      .sort((a, b) => {
+        const prefixOrder = a.prefix.localeCompare(b.prefix, undefined, { numeric: true });
+        if (prefixOrder) return prefixOrder;
+        const dateOrder = (dateOnly(a.row.comp_date) || "9999-12-31").localeCompare(dateOnly(b.row.comp_date) || "9999-12-31");
+        if (dateOrder) return dateOrder;
+        const glosaOrder = text(a.row.line_description).localeCompare(text(b.row.line_description), "es", { numeric: true, sensitivity: "base" });
+        return glosaOrder || a.index - b.index;
+      });
+
+    setDrafts((current) => {
+      const next = { ...current };
+      let changedDrafts = false;
+
+      candidates.forEach(({ index, prefix }) => {
+        if (next[index]?.asset_code.trim()) return;
+        const code = nextAvailableCode(prefix, classMaxSuffix, next, existingCodes, null);
+        if (!code) return;
+        next[index] = { ...next[index], asset_code: code };
+        changedDrafts = true;
+      });
+
+      return changedDrafts ? next : current;
+    });
+  }, [loading, filteredRows, catalogueBySource, codePrefixByAccount, classMaxSuffix, existingCodes]);
+
   const normalRows = useMemo(() => filteredRows.filter(({ row }) => !text(row.capex_code).trim()), [filteredRows]);
   const capexRows = useMemo(() => filteredRows
     .filter(({ row }) => Boolean(text(row.capex_code).trim()))
     .sort((a, b) => text(a.row.capex_code).localeCompare(text(b.row.capex_code), undefined, { numeric: true, sensitivity: "base" })), [filteredRows]);
-  const selectedIndexes = useMemo(() => rows.map((row, index) => ({ row, index })).filter(({ row, index }) => Boolean(drafts[index]?.asset_code.trim()) && !catalogueBySource.has(sourceIdentity(row))).map(({ index }) => index), [rows, drafts, catalogueBySource]);
+  const selectedIndexes = useMemo(() => filteredRows.filter(({ row, index }) => Boolean(drafts[index]?.asset_code.trim()) && !catalogueBySource.has(sourceIdentity(row))).map(({ index }) => index), [filteredRows, drafts, catalogueBySource]);
   const invalidCount = selectedIndexes.filter((index) => states[index] === "invalid").length;
   const canSave = selectedIndexes.length > 0 && invalidCount === 0 && !loading && !saving;
 
@@ -577,31 +630,6 @@ export default function FixAssetsNew() {
     setActiveCodePrefix(value.replace(/\D/g, "").slice(0, 7));
   }, []);
 
-  const assignNextCodes = useCallback(() => {
-    const classCode = codeClass.replace(/\D/g, "").slice(0, 3);
-    const emptyIndexes = filteredRows.map(({ row, index }) => ({ row, index })).filter(({ row, index }) => !catalogueBySource.has(sourceIdentity(row)) && !drafts[index]?.asset_code.trim()).map(({ index }) => index);
-    if (!/^\d{3}$/.test(classCode)) {
-      setIsError(true);
-      setMessage("Indica una clase de 3 dígitos para generar los COD.");
-      return;
-    }
-    if (!emptyIndexes.length) {
-      setIsError(true);
-      setMessage("No hay filas sin COD en el periodo seleccionado.");
-      return;
-    }
-    setDrafts((current) => {
-      const next = { ...current };
-      emptyIndexes.forEach((index) => {
-        const code = nextAvailableCode(classCode, classMaxSuffix, next, existingCodes, null);
-        if (code) next[index] = { ...next[index], asset_code: code };
-      });
-      return next;
-    });
-    setIsError(false);
-    setMessage(`${emptyIndexes.length} COD${emptyIndexes.length === 1 ? " fue asignado" : " fueron asignados"} en secuencia para la clase ${classCode}.`);
-  }, [codeClass, filteredRows, drafts, classMaxSuffix, existingCodes, catalogueBySource]);
-
   const detailRow = detailIndex == null ? null : rows[detailIndex];
   const detailDraft = detailIndex == null ? null : drafts[detailIndex];
   const openDetails = useCallback((index: number) => {
@@ -624,10 +652,10 @@ export default function FixAssetsNew() {
     setIsError(false);
     let saved = 0;
     try {
-      for (const index of selectedIndexes) {
+      const payloads = selectedIndexes.map((index) => {
         const row = rows[index];
         const draft = drafts[index];
-        await apiPost("/api/actfij/catalogue/insert", {
+        return {
           asset_code: draft.asset_code.trim(), source_name: "WEB", location_name: upperOrNull(draft.location_name),
           origin_account_code: row.account_code, capex_code: upperOrNull(draft.capex_code),
           subjournal_code: row.subjournal_code, voucher_number: row.voucher_number,
@@ -642,8 +670,13 @@ export default function FixAssetsNew() {
           asset_ini_cost_usd: numberOrNull(draft.usd_amount),
           depreciation_method: upperOrNull(draft.depreciation_method), asset_situation: "OPERATIVO",
           asset_comment: upperOrNull(draft.asset_comment),
-        });
-        saved += 1;
+        };
+      });
+
+      for (let start = 0; start < payloads.length; start += 100) {
+        const chunk = payloads.slice(start, start + 100);
+        await apiPost("/api/actfij/catalogue/insert", { rows: chunk });
+        saved += chunk.length;
       }
       const savedCodes = selectedIndexes.map((index) => drafts[index].asset_code.trim());
       setExistingCodes((current) => new Set([...current, ...savedCodes]));
@@ -694,17 +727,12 @@ export default function FixAssetsNew() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>Nuevos activos desde Veta</h1>
-          <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>Asigna un COD único de 7 dígitos. El periodo inicia siempre en el mes actual.</div>
+          <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>El COD se propone automáticamente según la cuenta y su correlativo. El periodo inicia siempre en el mes actual.</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}>
           <Select label="Año" value={year} onChange={(event) => { const value = event.target.value; setYear(value); if (value === initialPeriod.year) { if (monthFrom > initialPeriod.month) setMonthFrom(initialPeriod.month); if (monthTo > initialPeriod.month) setMonthTo(initialPeriod.month); } }} options={years.map((value) => ({ value, label: value }))} placeholder="Todos" style={{ minWidth: 110 }} />
           <Select label="Mes desde" value={monthFrom} onChange={(event) => { const value = event.target.value; setMonthFrom(value); if (value > monthTo) setMonthTo(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
           <Select label="Mes hasta" value={monthTo} onChange={(event) => { const value = event.target.value; setMonthTo(value); if (value < monthFrom) setMonthFrom(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
-          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
-            Clase para COD
-            <FastCellInput className="input" value={codeClass} onCommit={setCodeClass} onLiveChange={setCodeClass} sanitize={(next) => next.replace(/\D/g, "").slice(0, 3)} inputMode="numeric" maxLength={3} placeholder="Ej. 110" style={{ width: 105, height: 34, padding: "6px 10px" }} />
-          </label>
-          <Button size="sm" onClick={assignNextCodes} disabled={loading || saving}>Asignar siguientes</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${selectedIndexes.length})`}</Button>
         </div>
@@ -712,7 +740,7 @@ export default function FixAssetsNew() {
 
       <div style={{ display: "grid", gap: 4 }}>
         {message ? <div className="panel-inner" style={{ padding: 8, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
-        {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD existente/duplicado, correlativo saltado, formato inválido o monto incorrecto.</div> : null}
+        {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD fuera de la clase mapeada, existente/duplicado, correlativo saltado, formato inválido o monto incorrecto.</div> : null}
       </div>
 
       <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>

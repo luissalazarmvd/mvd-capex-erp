@@ -392,10 +392,10 @@ export default function FixAssetsCat() {
     setMappingError(false);
     let saved = 0;
     try {
-      for (const code of editedMappingCodes) {
+      const payloads = editedMappingCodes.flatMap((code) => {
         const row = mappingRows.find((item) => text(item.origin_account_code) === code);
-        if (!row) continue;
-        await apiPost("/api/actfij/mapping/insert", {
+        if (!row) return [];
+        return [{
           origin_account_code: code,
           account_group: row.account_group,
           account_denom: row.account_denom,
@@ -403,8 +403,13 @@ export default function FixAssetsCat() {
           deprec_acc_code_sec: row.deprec_acc_code_sec,
           deprec_rate_pct: Number(mappingDrafts[code].deprec_rate_pct),
           asset_type: row.asset_type,
-        });
-        saved += 1;
+        }];
+      });
+
+      for (let start = 0; start < payloads.length; start += 100) {
+        const chunk = payloads.slice(start, start + 100);
+        await apiPost("/api/actfij/mapping/insert", { rows: chunk });
+        saved += chunk.length;
       }
       setMappingOriginals((current) => {
         const next = { ...current };
@@ -427,9 +432,9 @@ export default function FixAssetsCat() {
     setIsError(false);
     let saved = 0;
     try {
-      for (const code of editedCodes) {
+      const payloads = editedCodes.map((code) => {
         const draft = drafts[code];
-        await apiPost("/api/actfij/catalogue/insert", {
+        return {
           asset_code: code,
           source_name: "WEB",
           location_name: upperOrNull(draft.location_name),
@@ -452,8 +457,13 @@ export default function FixAssetsCat() {
           depreciation_method: upperOrNull(draft.depreciation_method),
           asset_situation: upperOrNull(draft.asset_situation),
           asset_comment: upperOrNull(draft.asset_comment),
-        });
-        saved += 1;
+        };
+      });
+
+      for (let start = 0; start < payloads.length; start += 100) {
+        const chunk = payloads.slice(start, start + 100);
+        await apiPost("/api/actfij/catalogue/insert", { rows: chunk });
+        saved += chunk.length;
       }
       await load();
       setMessage(`${saved} fila${saved === 1 ? "" : "s"} actualizada${saved === 1 ? "" : "s"} correctamente.`);

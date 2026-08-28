@@ -218,12 +218,27 @@ function toDraft(row: DeprRow): Draft {
   return draft;
 }
 
-function changed(draft: Draft, original: Draft) {
-  return EDITABLE.some((key) => draft[key] !== original[key]);
+const CURRENCY_EDITABLE_KEYS: Record<CurrencyMode, readonly EditableKey[]> = {
+  PEN: [
+    "applied_rate_pct",
+    "acquisition_var_pen", "disposal_var_pen", "reclass_var_pen", "adjustment_var_pen",
+    "reclass_depr_pen", "adjustment_depr_pen", "disposal_depr_pen", "depreciation_amount_pen",
+    "exc_rate",
+  ],
+  USD: [
+    "applied_rate_pct",
+    "acquisition_var_usd", "disposal_var_usd", "reclass_var_usd", "adjustment_var_usd",
+    "disposal_depr_usd", "depreciation_amount_usd",
+    "exc_rate",
+  ],
+};
+
+function changedForCurrency(draft: Draft, original: Draft, currencyMode: CurrencyMode) {
+  return CURRENCY_EDITABLE_KEYS[currencyMode].some((key) => draft[key] !== original[key]);
 }
 
-function invalid(draft: Draft) {
-  return EDITABLE.some((key) => !validOptionalNumber(draft[key], key));
+function invalidForCurrency(draft: Draft, currencyMode: CurrencyMode) {
+  return CURRENCY_EDITABLE_KEYS[currencyMode].some((key) => !validOptionalNumber(draft[key], key));
 }
 
 function currencyField(key: keyof DeprRow, currencyMode: CurrencyMode): keyof DeprRow | null {
@@ -317,6 +332,13 @@ function hasViewDepreciation(row: DeprRow) {
   return num(row.applied_rate_pct) !== 0
     || num(row.depreciation_amount_pen) !== 0
     || num(row.depreciation_amount_usd) !== 0;
+}
+
+function canEditDepreciationRow(row: DeprRow, editablePeriod: string) {
+  const assetType = canonicalAssetType(row.asset_type);
+  if (!assetType || assetType === "No deprecia") return false;
+  if (text(row.period_date).slice(0, 7) !== editablePeriod) return false;
+  return !(assetType === "LR" && text(row.source_name).trim().toUpperCase() === "WEB");
 }
 
 type MultiSelectFilterProps<T extends string> = {
@@ -652,11 +674,11 @@ export default function FixAssetsDepr() {
       else pending += 1;
       if (!selectedKeys.has(id)) return;
       const draft = drafts[id] || toDraft(row);
-      if (invalid(draft)) invalidCount += 1;
+      if (invalidForCurrency(draft, currencyMode)) invalidCount += 1;
       else ready += 1;
     });
     return { loaded, pending, invalid: invalidCount, ready };
-  }, [facetRows, selectedKeys, drafts]);
+  }, [facetRows, selectedKeys, drafts, currencyMode]);
 
   const visibleRows = useMemo(() => facetRows.filter((row) => {
     if (statusFilter === "all") return true;
@@ -666,8 +688,8 @@ export default function FixAssetsDepr() {
     if (statusFilter === "pending") return !sourceWeb;
     if (!selectedKeys.has(id)) return false;
     const draft = drafts[id] || toDraft(row);
-    return statusFilter === "invalid" ? invalid(draft) : !invalid(draft);
-  }), [facetRows, statusFilter, selectedKeys, drafts]);
+    return statusFilter === "invalid" ? invalidForCurrency(draft, currencyMode) : !invalidForCurrency(draft, currencyMode);
+  }), [facetRows, statusFilter, selectedKeys, drafts, currencyMode]);
 
   const tableTotals = useMemo(() => {
     const totals: Record<TotalColumnKey, number> = {
@@ -706,11 +728,7 @@ export default function FixAssetsDepr() {
   }, [visibleRows, drafts, currencyMode]);
 
   const editableVisibleRows = useMemo(
-    () => visibleRows.filter(
-      (row) =>
-        text(row.period_date).slice(0, 7) === editablePeriod
-        && text(row.asset_type).trim().toLocaleLowerCase("es") !== "no deprecia"
-    ),
+    () => visibleRows.filter((row) => canEditDepreciationRow(row, editablePeriod)),
     [visibleRows, editablePeriod]
   );
 
@@ -723,21 +741,17 @@ export default function FixAssetsDepr() {
 
   const editedKeys = useMemo(() => rows
     .map(rowKey)
-    .filter((key) => drafts[key] && originals[key] && changed(drafts[key], originals[key])), [rows, drafts, originals]);
+    .filter((key) => drafts[key] && originals[key] && changedForCurrency(drafts[key], originals[key], currencyMode)), [rows, drafts, originals, currencyMode]);
   const editableRowIds = useMemo(
     () => new Set(
       rows
-        .filter(
-          (row) =>
-            text(row.period_date).slice(0, 7) === editablePeriod
-            && text(row.asset_type).trim().toLocaleLowerCase("es") !== "no deprecia"
-        )
+        .filter((row) => canEditDepreciationRow(row, editablePeriod))
         .map(rowKey)
     ),
     [rows, editablePeriod]
   );
   const selectedIds = useMemo(() => Array.from(selectedKeys).filter((id) => editableRowIds.has(id)), [selectedKeys, editableRowIds]);
-  const invalidKeys = selectedIds.filter((key) => !drafts[key] || invalid(drafts[key]));
+  const invalidKeys = selectedIds.filter((key) => !drafts[key] || invalidForCurrency(drafts[key], currencyMode));
   const canSave = selectedIds.length > 0 && invalidKeys.length === 0 && !loading && !saving;
   const allVisibleSelected = editableVisibleRows.length > 0 && editableVisibleRows.every((row) => selectedKeys.has(rowKey(row)));
   const displayColumns = useMemo(
@@ -747,12 +761,12 @@ export default function FixAssetsDepr() {
   const suggestedVisibleRows = useMemo(() => editableVisibleRows.filter(hasViewDepreciation), [editableVisibleRows]);
   const editedVisibleRows = useMemo(() => editableVisibleRows.filter((row) => {
     const id = rowKey(row);
-    return drafts[id] && originals[id] && changed(drafts[id], originals[id]);
-  }), [editableVisibleRows, drafts, originals]);
+    return drafts[id] && originals[id] && changedForCurrency(drafts[id], originals[id], currencyMode);
+  }), [editableVisibleRows, drafts, originals, currencyMode]);
   const manualSelectedCount = useMemo(() => selectedIds.filter((id) => {
     const row = rows.find((candidate) => rowKey(candidate) === id);
-    return Boolean(row && drafts[id] && originals[id] && changed(drafts[id], originals[id]));
-  }).length, [selectedIds, rows, drafts, originals]);
+    return Boolean(row && drafts[id] && originals[id] && changedForCurrency(drafts[id], originals[id], currencyMode));
+  }).length, [selectedIds, rows, drafts, originals, currencyMode]);
 
   function toggleSelected(id: string, checked: boolean) {
     setSelectedKeys((current) => {
@@ -918,82 +932,130 @@ export default function FixAssetsDepr() {
     setMessage("");
     setIsError(false);
     const savedIds: string[] = [];
+    const savedSources = new Map<string, string>();
     const catalogueRateErrors: string[] = [];
+    const savedKeys = CURRENCY_EDITABLE_KEYS[currencyMode];
+
     const applySavedRows = () => {
       if (!savedIds.length) return;
       const savedSet = new Set(savedIds);
+
       setOriginals((current) => {
         const next = { ...current };
-        savedIds.forEach((id) => { next[id] = { ...drafts[id] }; });
+        savedIds.forEach((id) => {
+          const nextOriginal = { ...current[id] };
+          savedKeys.forEach((key) => { nextOriginal[key] = drafts[id][key]; });
+          next[id] = nextOriginal;
+        });
         return next;
       });
+
       setRows((current) => current.map((row) => {
         const id = rowKey(row);
         if (!savedSet.has(id)) return row;
+
         const draft = drafts[id];
-        const calculatedPen = derived(row, draft, "PEN");
-        const calculatedUsd = derived(row, draft, "USD");
+        const calculated = derived(row, draft, currencyMode);
+        const savedDraft = Object.fromEntries(
+          savedKeys.map((key) => [key, draft[key]])
+        ) as Partial<DeprRow>;
+
         return {
           ...row,
-          source_name: "WEB",
-          ...draft,
-          asset_final_value: calculatedPen.asset_final_value,
-          depreciation_cum_amount_pen: calculatedPen.depreciation_cum_amount_pen,
-          asset_balance_pen: calculatedPen.asset_balance_pen,
-          asset_final_value_usd: calculatedUsd.asset_final_value,
-          depreciation_cum_amount_usd: calculatedUsd.depreciation_cum_amount_pen,
-          asset_balance_usd: calculatedUsd.asset_balance_pen,
+          ...savedDraft,
+          source_name: savedSources.get(id) || row.source_name,
+          ...(currencyMode === "PEN"
+            ? {
+                asset_final_value: calculated.asset_final_value,
+                depreciation_cum_amount_pen: calculated.depreciation_cum_amount_pen,
+                asset_balance_pen: calculated.asset_balance_pen,
+              }
+            : {
+                asset_final_value_usd: calculated.asset_final_value,
+                depreciation_cum_amount_usd: calculated.depreciation_cum_amount_pen,
+                asset_balance_usd: calculated.asset_balance_pen,
+              }),
         };
       }));
+
       setSelectedKeys((current) => new Set([...current].filter((id) => !savedSet.has(id))));
     };
+
     try {
-      for (const id of selectedIds) {
+      const payloadRows = selectedIds.flatMap((id) => {
         const row = rows.find((candidate) => rowKey(candidate) === id);
-        if (!row || text(row.asset_type).trim().toLocaleLowerCase("es") === "no deprecia") continue;
+        if (!row || !canEditDepreciationRow(row, editablePeriod)) return [];
+
         const draft = drafts[id];
-        const payload = {
+        const common = {
           asset_code: text(row.asset_code).trim(),
-          asset_description: row.asset_description,
-          source_name: "WEB",
           period_date: text(row.period_date).slice(0, 10),
-          asset_base_value_pen: row.asset_base_value,
-          asset_base_value_usd: row.asset_base_value_usd,
-          depreciation_base_pen: row.depreciation_base_pen,
-          depreciation_base_usd: row.depreciation_base_usd,
           applied_rate_pct: draft.applied_rate_pct.trim() ? Number(draft.applied_rate_pct) : null,
-          acquisition_var_pen: draft.acquisition_var_pen.trim() ? Number(draft.acquisition_var_pen) : null,
-          acquisition_var_usd: draft.acquisition_var_usd.trim() ? Number(draft.acquisition_var_usd) : null,
-          disposal_var_pen: draft.disposal_var_pen.trim() ? Number(draft.disposal_var_pen) : null,
-          disposal_var_usd: draft.disposal_var_usd.trim() ? Number(draft.disposal_var_usd) : null,
-          reclass_var_pen: draft.reclass_var_pen.trim() ? Number(draft.reclass_var_pen) : null,
-          reclass_var_usd: draft.reclass_var_usd.trim() ? Number(draft.reclass_var_usd) : null,
-          adjustment_var_pen: draft.adjustment_var_pen.trim() ? Number(draft.adjustment_var_pen) : null,
-          adjustment_var_usd: draft.adjustment_var_usd.trim() ? Number(draft.adjustment_var_usd) : null,
-          reclass_depr_pen: draft.reclass_depr_pen.trim() ? Number(draft.reclass_depr_pen) : null,
-          adjustment_depr_pen: draft.adjustment_depr_pen.trim() ? Number(draft.adjustment_depr_pen) : null,
-          disposal_depr_pen: draft.disposal_depr_pen.trim() ? Number(draft.disposal_depr_pen) : null,
-          disposal_depr_usd: draft.disposal_depr_usd.trim() ? Number(draft.disposal_depr_usd) : null,
-          depreciation_amount_pen: draft.depreciation_amount_pen.trim() ? Number(draft.depreciation_amount_pen) : null,
-          depreciation_amount_usd: draft.depreciation_amount_usd.trim() ? Number(draft.depreciation_amount_usd) : null,
           exc_rate: draft.exc_rate.trim() ? Number(draft.exc_rate) : null,
         };
-        await apiPost("/api/actfij/deprec/insert", payload);
-        savedIds.push(id);
-        if (draft.exc_rate !== originals[id].exc_rate) {
-          try {
-            await apiPost("/api/actfij/catalogue/insert", {
-              asset_code: text(row.asset_code).trim(),
-              source_name: "WEB",
-              exc_rate: draft.exc_rate.trim() ? Number(draft.exc_rate) : null,
-            });
-          } catch {
-            catalogueRateErrors.push(text(row.asset_code).trim());
-          }
+
+        const payload = currencyMode === "PEN"
+          ? {
+              ...common,
+              asset_base_value_pen: row.asset_base_value,
+              depreciation_base_pen: row.depreciation_base_pen,
+              acquisition_var_pen: draft.acquisition_var_pen.trim() ? Number(draft.acquisition_var_pen) : null,
+              disposal_var_pen: draft.disposal_var_pen.trim() ? Number(draft.disposal_var_pen) : null,
+              reclass_var_pen: draft.reclass_var_pen.trim() ? Number(draft.reclass_var_pen) : null,
+              adjustment_var_pen: draft.adjustment_var_pen.trim() ? Number(draft.adjustment_var_pen) : null,
+              reclass_depr_pen: draft.reclass_depr_pen.trim() ? Number(draft.reclass_depr_pen) : null,
+              adjustment_depr_pen: draft.adjustment_depr_pen.trim() ? Number(draft.adjustment_depr_pen) : null,
+              disposal_depr_pen: draft.disposal_depr_pen.trim() ? Number(draft.disposal_depr_pen) : null,
+              depreciation_amount_pen: draft.depreciation_amount_pen.trim() ? Number(draft.depreciation_amount_pen) : null,
+            }
+          : {
+              ...common,
+              asset_base_value_usd: row.asset_base_value_usd,
+              depreciation_base_usd: row.depreciation_base_usd,
+              acquisition_var_usd: draft.acquisition_var_usd.trim() ? Number(draft.acquisition_var_usd) : null,
+              disposal_var_usd: draft.disposal_var_usd.trim() ? Number(draft.disposal_var_usd) : null,
+              reclass_var_usd: draft.reclass_var_usd.trim() ? Number(draft.reclass_var_usd) : null,
+              adjustment_var_usd: draft.adjustment_var_usd.trim() ? Number(draft.adjustment_var_usd) : null,
+              disposal_depr_usd: draft.disposal_depr_usd.trim() ? Number(draft.disposal_depr_usd) : null,
+              depreciation_amount_usd: draft.depreciation_amount_usd.trim() ? Number(draft.depreciation_amount_usd) : null,
+            };
+
+        return [{ id, payload }];
+      });
+
+      for (let start = 0; start < payloadRows.length; start += 100) {
+        const chunk = payloadRows.slice(start, start + 100);
+        const response = await apiPost("/api/actfij/deprec/insert", {
+          currency: currencyMode,
+          rows: chunk.map(({ payload }) => payload),
+        });
+
+        chunk.forEach(({ id }) => { savedIds.push(id); });
+        (Array.isArray(response?.rows) ? response.rows : []).forEach((savedRow: { asset_code?: unknown; period_date?: unknown; source_name?: unknown }) => {
+          const id = `${text(savedRow.asset_code).trim()}|${text(savedRow.period_date).slice(0, 10)}`;
+          if (id !== "|") savedSources.set(id, text(savedRow.source_name).trim());
+        });
+      }
+
+      const rateSyncRows = savedIds
+        .filter((id) => drafts[id].exc_rate !== originals[id].exc_rate)
+        .map((id) => ({
+          asset_code: id.split("|")[0],
+          source_name: "WEB",
+          exc_rate: drafts[id].exc_rate.trim() ? Number(drafts[id].exc_rate) : null,
+        }));
+
+      for (let start = 0; start < rateSyncRows.length; start += 100) {
+        const chunk = rateSyncRows.slice(start, start + 100);
+        try {
+          await apiPost("/api/actfij/catalogue/insert", { rows: chunk });
+        } catch {
+          catalogueRateErrors.push(...chunk.map((row) => row.asset_code));
         }
       }
+
       applySavedRows();
-      await load();
+
       if (catalogueRateErrors.length) {
         setIsError(true);
         setMessage(`${savedIds.length} fila(s) de depreciación guardada(s). No se pudo sincronizar el T.C. en Catálogo para: ${catalogueRateErrors.join(", ")}.`);
@@ -1062,7 +1124,7 @@ export default function FixAssetsDepr() {
           <Button size="sm" onClick={() => selectRows(suggestedVisibleRows)} disabled={!suggestedVisibleRows.length || loading || saving}>Usar datos de vista ({suggestedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => selectRows(editedVisibleRows)} disabled={!editedVisibleRows.length || loading || saving}>Seleccionar manuales ({editedVisibleRows.length})</Button>
           <Button size="sm" onClick={() => setSelectedKeys(new Set())} disabled={!selectedIds.length || loading || saving}>Limpiar selección</Button>
-          <Button size="sm" onClick={() => setCurrencyMode((current) => current === "PEN" ? "USD" : "PEN")} disabled={loading || saving}>{currencyMode === "PEN" ? "Ver en USD" : "Ver en PEN"}</Button>
+          <Button size="sm" onClick={() => { setSelectedKeys(new Set()); setCurrencyMode((current) => current === "PEN" ? "USD" : "PEN"); }} disabled={loading || saving}>{currencyMode === "PEN" ? "Ver en USD" : "Ver en PEN"}</Button>
           <Button size="sm" onClick={() => setShowAdjustments((current) => !current)} disabled={loading || saving}>{showAdjustments ? "Ocultar ajustes" : "Mostrar ajustes"}</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${selectedIds.length})`}</Button>
@@ -1177,13 +1239,13 @@ export default function FixAssetsDepr() {
               {visibleRows.map((row) => {
                 const id = rowKey(row);
                 const draft = drafts[id] || toDraft(row);
-                const currentPeriodRow = text(row.period_date).slice(0, 7) === editablePeriod;
-                const viewOnly = text(row.asset_type).trim().toLocaleLowerCase("es") === "no deprecia";
+                const rowAssetType = canonicalAssetType(row.asset_type);
+                const viewOnly = rowAssetType === "No deprecia";
                 const sourceWeb = text(row.source_name).trim().toUpperCase() === "WEB";
-                const selectableRow = currentPeriodRow && !viewOnly;
+                const selectableRow = canEditDepreciationRow(row, editablePeriod);
                 const selected = selectableRow && selectedKeys.has(id);
                 const focused = historyRowId === id;
-                const bad = selected && invalid(draft);
+                const bad = selected && invalidForCurrency(draft, currencyMode);
                 const calculated = derived(row, draft, currencyMode);
                 const background = bad
                   ? "rgba(216,93,39,.32)"
@@ -1212,8 +1274,9 @@ export default function FixAssetsDepr() {
                     const editable = selectableRow
                       && mappedKey !== null
                       && EDITABLE.includes(key)
-                      && column.key !== "depreciation_amount_pen"
-                      && column.key !== "exc_rate";
+                      && column.key !== "exc_rate"
+                      && (column.key !== "applied_rate_pct" || rowAssetType !== "DUP")
+                      && (column.key !== "depreciation_amount_pen" || rowAssetType === "DUP");
                     const conversionRate = assetExcRates[text(row.asset_code).trim()] ?? "";
                     const derivedValue = column.key === "asset_final_value" || column.key === "depreciation_cum_amount_pen" || column.key === "asset_balance_pen"
                       ? calculated[column.key]
