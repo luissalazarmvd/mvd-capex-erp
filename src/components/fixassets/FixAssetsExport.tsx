@@ -84,7 +84,7 @@ type ConcarRealRow = {
 };
 
 type ExportKey = Exclude<keyof ExportRow, "period_date">;
-type CellValue = string | number;
+type CellValue = string | number | null;
 
 const MONTHS = [
   "Enero",
@@ -120,8 +120,8 @@ const COLUMNS: Array<{
   { key: "codigo_centro_costo", label: "Código de Centro de Costo", width: 160 },
   { key: "debe_haber", label: "Debe / Haber", width: 90 },
   { key: "importe_original", label: "Importe Original", width: 125 },
-  { key: "importe_dolares", label: "Importe en Dólares ($)", width: 130 },
-  { key: "importe_soles", label: "Importe en Soles (S/)", width: 125 },
+  { key: "importe_dolares", label: "Importe en Dólares", width: 130 },
+  { key: "importe_soles", label: "Importe en Soles", width: 125 },
   { key: "tipo_documento", label: "Tipo de Documento", width: 125 },
   { key: "numero_documento", label: "Número de Documento", width: 135 },
   { key: "fecha_documento", label: "Fecha de Documento", width: 130 },
@@ -150,44 +150,44 @@ const COLUMNS: Array<{
 
 const RESTRICTIONS = [
   "Ver T.G. 02",
-  "Los dos primeros dígitos son el mes y los otros 4 siguientes un correlativo",
+  "Los dos primeros dígitos son el mes\ny los otros 4 siguientes un correlativo",
   "",
   "Ver T.G. 03",
   "",
-  "Llenar solo si Tipo de Conversión es 'C'. Debe estar entre >=0 y <=9999.999999",
+  "Llenar\u00A0 solo si Tipo de Conversión\nes 'C'. Debe estar entre >=0 y <=9999.999999",
   "Solo: 'C'= Especial, 'M'=Compra, 'V'=Venta , 'F' De acuerdo a fecha",
   "Solo: 'S' = Si se convierte, 'N'= No se convierte",
-  "Si Tipo de Conversión 'F'",
+  "Si\u00A0 Tipo de Conversión 'F'",
   "Debe existir en el Plan de Cuentas",
-  "Si Cuenta Contable tiene seleccionado Tipo de Anexo, debe existir en la tabla de Anexos",
+  "Si Cuenta Contable tiene seleccionado Tipo de Anexo, debe existir en la\ntabla de Anexos",
   "Si Cuenta Contable tiene habilitado C. Costo, Ver T.G. 05",
-  "'D' ó 'H'",
-  "Importe original de la cuenta contable. Obligatorio, debe estar entre >=0 y <=99999999999.99",
-  "Importe de la Cuenta Contable en Dólares. Obligatorio si Flag de Conversión de Moneda esta en 'N', debe estar entre >=0 y <=99999999999.99",
-  "Importe de la Cuenta Contable en Soles. Obligatorio si Flag de Conversión de Moneda esta en 'N', debe estra entre >=0 y <=99999999999.99",
+  "\u00A0'D' ó 'H'",
+  "Importe original de la cuenta contable. Obligatorio, debe estar entre\n>=0 y <=99999999999.99\u00A0",
+  "Importe de la Cuenta Contable en Dólares. Obligatorio si Flag de\nConversión de Moneda esta en 'N', debe estar entre >=0 y\n<=99999999999.99\u00A0",
+  "Importe de la Cuenta Contable en Soles. Obligatorio si Flag de Conversión\nde Moneda esta en 'N', debe estra entre >=0 y <=99999999999.99\u00A0",
   "Si Cuenta Contable tiene habilitado el Documento Referencia Ver T.G. 06",
-  "Si Cuenta Contable tiene habilitado el Documento Referencia Incluye Serie y Número",
+  "Si Cuenta Contable tiene habilitado el Documento Referencia Incluye Serie\ny Número",
   "Si Cuenta Contable tiene habilitado el Documento Referencia",
   "Si Cuenta Contable tiene habilitada la Fecha de Vencimiento",
-  "Si Cuenta Contable tiene habilitada el Area. Ver T.G. 26",
+  "Si Cuenta Contable tiene habilitada\nel Area. Ver T.G. 26",
   "",
   "Si Cuenta Contable tiene seleccionado Tipo de Anexo Referencia",
   "Si Cuenta Contable tiene habilitado Tipo Medio Pago. Ver T.G. 'S1'",
   "Si Tipo de Documento es 'NA' ó 'ND' Ver T.G. 06",
   "Si Tipo de Documento es 'NC', 'NA' ó 'ND', incluye Serie y Número",
   "Si Tipo de Documento es 'NC', 'NA' ó 'ND'",
-  "Si Tipo de Documento es 'NC', 'NA' ó 'ND'. Solo cuando el Tipo Documento de Referencia 'TK'",
+  "Si Tipo de Documento es 'NC', 'NA' ó 'ND'. Solo cuando el Tipo Documento\nde Referencia 'TK'",
   "Si Tipo de Documento es 'NC', 'NA' ó 'ND'",
   "Si Tipo de Documento es 'NC', 'NA' ó 'ND'",
-  "Si la Cuenta Contable tiene Habilitado Documento Referencia 2 y Tipo de Documento es 'TK'",
-  "Si la Cuenta Contable teien Habilitado Documento Referencia 2 y Tipo de Documento es 'TK'",
-  "Si la Cuenta Contable tiene Habilitado Documento Referencia 2. Cuando Tipo de Documento es 'TK', consignar la fecha de emision del ticket",
-  "Si la Cuenta Contable tiene configurada la Tasa: Si es '1' ver T.G. 28 y '2' ver T.G. 29",
-  "Si la Cuenta Contable tiene conf. en Tasa: Si es '1' ver T.G. 28 y '2' ver T.G. 29. Debe estar entre >=0 y <=999.99",
-  "Si la Cuenta Contable tiene configurada la Tasa. Debe ser el importe total del documento y estar entre >=0 y <=99999999999.99",
-  "Si la Cuenta Contable tiene configurada la Tasa. Debe ser el importe total del documento y estar entre >=0 y <=99999999999.99",
-  "Especificar solo si Tipo Conversión es 'F'. Se permite 'M' Compra y 'V' Venta.",
-  "Especificar solo para comprobantes de compras con IGV sin derecho de crédito Fiscal. Se detalle solo en la cuenta 42xxxx",
+  "Si la Cuenta Contable tiene Habilitado Documento Referencia 2 y\u00A0 Tipo de Documento es 'TK'",
+  "Si la Cuenta Contable teien Habilitado Documento Referencia 2 y\u00A0 Tipo de Documento es 'TK'",
+  "Si la Cuenta Contable tiene Habilitado Documento Referencia 2. Cuando\nTipo de Documento es 'TK', consignar la fecha de emision del ticket",
+  "Si la Cuenta Contable tiene configurada la Tasa:\u00A0 Si es '1' ver T.G. 28 y '2' ver T.G. 29",
+  "Si la Cuenta Contable tiene conf. en Tasa:\u00A0 Si es '1' ver T.G. 28 y '2' ver T.G. 29.\nDebe estar entre >=0 y <=999.99",
+  "Si la Cuenta Contable tiene configurada la Tasa. Debe ser el importe\ntotal del documento y estar entre >=0 y <=99999999999.99",
+  "Si la Cuenta Contable tiene configurada la Tasa. Debe ser el importe\ntotal del documento y estar entre >=0 y <=99999999999.99",
+  "Especificar solo si Tipo Conversión es 'F'. Se permite 'M' Compra y 'V'\nVenta.",
+  "Especificar solo para comprobantes de compras con IGV sin derecho de\ncrédito Fiscal. Se detalle solo en la cuenta 42xxxx",
   "Obligatorio para comprobantes de compras, valores validos 0,10,18.",
 ];
 
@@ -214,15 +214,15 @@ const FORMATS = [
   "dd/mm/aaaa",
   "3 Caracteres",
   "30 Caracteres",
-  "18 Caracteres",
-  "8 Caracteres",
-  "2 Caracteres",
-  "20 Caracteres",
-  "dd/mm/aaaa",
-  "20 Caracteres",
+  "cuenta_contable",
+  "fecha_comprobante",
+  "codigo_centro_costo",
+  "sub_diario",
+  "numero_comprobante",
+  "importe_dolares",
+  "importe_soles",
   "Numérico 14,2",
-  "Numérico 14,2",
-  "'MQ'",
+  "\u00A0'MQ'",
   "15 caracteres",
   "dd/mm/aaaa",
   "5 Caracteres",
@@ -334,7 +334,7 @@ function displayValue(key: ExportKey, value: unknown) {
 }
 
 function excelValue(key: ExportKey, value: unknown): CellValue {
-  if (value == null || value === "") return "";
+  if (value == null || String(value).trim() === "") return null;
   return NUMERIC_KEYS.has(key) ? numericValue(value) : text(value);
 }
 
@@ -574,7 +574,7 @@ export default function FixAssetsExport() {
       const voucherNumber = nextVoucherNumber(row, concarRows);
 
       return [
-        "",
+        null,
         ...COLUMNS.map((column) =>
           excelValue(
             column.key,
@@ -588,8 +588,8 @@ export default function FixAssetsExport() {
 
     const sheetData: CellValue[][] = [
       ["Campo", ...COLUMNS.map((column) => column.label)],
-      ["Restricciones", ...RESTRICTIONS],
-      ["Tamaño/Formato", ...FORMATS],
+      ["Restricciones", ...RESTRICTIONS.map((value) => value === "" ? null : value)],
+      ["Tamaño/Formato", ...FORMATS.map((value) => value === "" ? null : value)],
       ...exportRows,
     ];
 
