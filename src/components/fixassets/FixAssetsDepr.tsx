@@ -1117,12 +1117,6 @@ function currentAccountingPeriod() {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-function hasViewDepreciation(row: DeprRow) {
-  return num(row.applied_rate_pct) !== 0
-    || num(row.depreciation_amount_pen) !== 0
-    || num(row.depreciation_amount_usd) !== 0;
-}
-
 function isCurrencySent(row: DeprRow, currencyMode: CurrencyMode) {
   const source = text(row.source_name).trim().toUpperCase();
   if (source === "WEB") return true;
@@ -1750,7 +1744,7 @@ export default function FixAssetsDepr() {
     () => showAdjustments ? COLUMNS : COLUMNS.filter((column) => !ADJUSTMENT_COLUMNS.has(column.key)),
     [showAdjustments]
   );
-  const suggestedVisibleRows = useMemo(() => editableVisibleRows.filter(hasViewDepreciation), [editableVisibleRows]);
+  const suggestedVisibleRows = editableVisibleRows;
   const editedVisibleRows = useMemo(() => editableVisibleRows.filter((row) => {
     const id = rowKey(row);
     return drafts[id] && originals[id] && changedForCurrency(drafts[id], originals[id], currencyMode);
@@ -2122,6 +2116,7 @@ export default function FixAssetsDepr() {
           <Button size="sm" onClick={() => setSelectedKeys(new Set())} disabled={!selectedIds.length || loading || saving}>Limpiar selección</Button>
           <Button size="sm" onClick={() => { setSelectedKeys(new Set()); setCurrencyMode((current) => current === "PEN" ? "USD" : "PEN"); }} disabled={loading || saving}>{currencyMode === "PEN" ? "Ver en USD" : "Ver en PEN"}</Button>
           <Button size="sm" onClick={() => setShowAdjustments((current) => !current)} disabled={loading || saving}>{showAdjustments ? "Ocultar ajustes" : "Mostrar ajustes"}</Button>
+          <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); }} disabled={loading || saving}>Limpiar filtros</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${selectedIds.length})`}</Button>
         </div>

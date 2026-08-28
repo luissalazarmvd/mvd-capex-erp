@@ -1450,6 +1450,7 @@ export default function FixAssetsCat() {
             <FastCellInput className="input" value={query} onCommit={setQuery} onLiveChange={setQuery} placeholder="COD, descripción, área..." style={{ width: 270, height: 34, padding: "6px 10px" }} />
           </label>
           <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving}>Actualizar mapping</Button>
+          <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setPage(1); }} disabled={loading || saving}>Limpiar filtros</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${editedCodes.length})`}</Button>
         </div>
