@@ -943,6 +943,10 @@ function twoDecimals(value: unknown) {
   return Number.isFinite(parsed) ? parsed.toFixed(2) : clean;
 }
 
+function displayEditableValue(key: EditableKey, value: string) {
+  return key === "applied_rate_pct" ? twoDecimals(value) : value;
+}
+
 function toDraft(row: DeprRow): Draft {
   const draft = {} as Draft;
   EDITABLE.forEach((key) => { draft[key] = twoDecimals(row[key]); });
@@ -2341,7 +2345,7 @@ export default function FixAssetsDepr() {
                       {editable ? <FastCellInput
                         className="input"
                         inputMode="decimal"
-                        value={draft[key]}
+                        value={displayEditableValue(key, draft[key])}
                         sanitize={(next) => decimalDraft(next, editableIntegerDigits(key))}
                         onFocus={() => focusHistory(row)}
                         onClick={(event) => {
