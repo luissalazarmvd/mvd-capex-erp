@@ -83,6 +83,8 @@ const MONTHS = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
+const PAGE_SIZE = 100;
+
 const COLUMNS: Array<{ key: keyof CatalogueRow; label: string; width: number }> = [
   { key: "asset_code", label: "COD", width: 105 },
   { key: "asset_description", label: "Descripción activo", width: 260 },
@@ -228,6 +230,7 @@ export default function FixAssetsCat() {
   const [acquisitionYear, setAcquisitionYear] = useState("");
   const [acquisitionMonthFrom, setAcquisitionMonthFrom] = useState("01");
   const [acquisitionMonthTo, setAcquisitionMonthTo] = useState("12");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -325,6 +328,21 @@ export default function FixAssetsCat() {
       ).toLocaleLowerCase("es").includes(needle));
     });
   }, [rows, drafts, deferredQuery, acquisitionYear, acquisitionMonthFrom, acquisitionMonthTo]);
+
+  const pageCount = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return visibleRows.slice(start, start + PAGE_SIZE);
+  }, [visibleRows, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [deferredQuery, acquisitionYear, acquisitionMonthFrom, acquisitionMonthTo]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
 
   function update(code: string, key: EditableKey, value: string) {
     setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
@@ -521,7 +539,7 @@ export default function FixAssetsCat() {
               return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: sticky ? 45 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>{column.label}</th>;
             })}</tr></thead>
             <tbody>
-              {visibleRows.map((row) => {
+              {paginatedRows.map((row) => {
                 const code = text(row.asset_code);
                 const draft = drafts[code] || toDraft(row);
                 const edited = originals[code] ? changed(draft, originals[code]) : false;
@@ -590,7 +608,33 @@ export default function FixAssetsCat() {
           </Table>
         </div>
       </div>
-      <div className="muted" style={{ fontSize: 12 }}>Mostrando {visibleRows.length} de {rows.length} activos · {editedCodes.length} modificados.</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div className="muted" style={{ fontSize: 12 }}>
+          Mostrando {visibleRows.length ? (page - 1) * PAGE_SIZE + 1 : 0}-{Math.min(page * PAGE_SIZE, visibleRows.length)} de {visibleRows.length} filtrados · {rows.length} activos totales · {editedCodes.length} modificados.
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Button
+            size="sm"
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            disabled={page <= 1}
+          >
+            Anterior
+          </Button>
+
+          <span style={{ fontSize: 12, fontWeight: 800 }}>
+            Página {page} de {pageCount}
+          </span>
+
+          <Button
+            size="sm"
+            onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+            disabled={page >= pageCount}
+          >
+            Siguiente
+          </Button>
+        </div>
+      </div>
 
       {mappingOpen ? <div role="dialog" aria-modal="true" aria-labelledby="mapping-preview-title" style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(0,0,0,.58)" }}>
         <section className="panel-inner" style={{ width: "min(1180px, 96vw)", height: "min(82vh, 760px)", padding: 14, display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto", gap: 10, overflow: "hidden" }}>
