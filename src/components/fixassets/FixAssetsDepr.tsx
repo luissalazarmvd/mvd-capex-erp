@@ -301,6 +301,24 @@ function recalculateDepreciation(row: DeprRow, draft: Draft, currencyMode: Curre
   draft[amountKey] = precise(Math.min(calculated, availableBeforePeriod));
 }
 
+function rateFromDepreciation(row: DeprRow, draft: Draft, currencyMode: CurrencyMode) {
+  const amount = currencyMode === "PEN"
+    ? draft.depreciation_amount_pen
+    : draft.depreciation_amount_usd;
+
+  if (!amount.trim() || !validOptionalNumber(
+    amount,
+    currencyMode === "PEN" ? "depreciation_amount_pen" : "depreciation_amount_usd"
+  )) {
+    return draft.applied_rate_pct;
+  }
+
+  const finalValue = derived(row, draft, currencyMode).asset_final_value;
+  if (!finalValue) return draft.applied_rate_pct;
+
+  return precise((Number(amount) * 12) / finalValue);
+}
+
 function period(value: unknown) {
   const match = text(value).match(/^(\d{4})-(\d{2})/);
   return match ? { year: match[1], month: match[2] } : null;
@@ -525,6 +543,46 @@ export default function FixAssetsDepr() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!rows.length) return;
+
+    setDrafts((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      rows.forEach((row) => {
+        const id = rowKey(row);
+        const draft = current[id] || toDraft(row);
+        const rate = rateFromDepreciation(row, draft, currencyMode);
+
+        if (draft.applied_rate_pct !== rate) {
+          next[id] = { ...draft, applied_rate_pct: rate };
+          changed = true;
+        }
+      });
+
+      return changed ? next : current;
+    });
+
+    setOriginals((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      rows.forEach((row) => {
+        const id = rowKey(row);
+        const draft = current[id] || toDraft(row);
+        const rate = rateFromDepreciation(row, draft, currencyMode);
+
+        if (draft.applied_rate_pct !== rate) {
+          next[id] = { ...draft, applied_rate_pct: rate };
+          changed = true;
+        }
+      });
+
+      return changed ? next : current;
+    });
+  }, [rows, currencyMode]);
 
   const years = useMemo(() => Array.from(new Set(
     rows.map((row) => period(row.period_date)?.year).filter((value): value is string => Boolean(value))
@@ -937,8 +995,7 @@ export default function FixAssetsDepr() {
       const next = { ...current[id], [key]: value };
 
       if (key === "applied_rate_pct") {
-        recalculateDepreciation(row, next, "PEN");
-        recalculateDepreciation(row, next, "USD");
+        recalculateDepreciation(row, next, currencyMode);
       } else if (VAR_FIELDS.has(key)) {
         recalculateDepreciation(row, next, key.endsWith("_usd") ? "USD" : "PEN");
       }
@@ -948,9 +1005,7 @@ export default function FixAssetsDepr() {
           next.applied_rate_pct = value.trim() ? next.applied_rate_pct : "";
         } else {
           const mode: CurrencyMode = key.endsWith("_usd") ? "USD" : "PEN";
-          const finalValue = derived(row, next, mode).asset_final_value;
-          next.applied_rate_pct = finalValue ? precise((Number(value) * 12) / finalValue) : "0.00";
-          recalculateDepreciation(row, next, mode === "PEN" ? "USD" : "PEN");
+          next.applied_rate_pct = rateFromDepreciation(row, next, mode);
         }
       }
 
@@ -990,7 +1045,14 @@ export default function FixAssetsDepr() {
         const draft = drafts[id];
         const calculated = derived(row, draft, currencyMode);
         const savedDraft = Object.fromEntries(
-          savedKeys.map((key) => [key, draft[key]])
+          savedKeys
+            .filter(
+              (key) =>
+                key !== "applied_rate_pct"
+                || currencyMode === "PEN"
+                || !isCurrencySent(row, "PEN")
+            )
+            .map((key) => [key, draft[key]])
         ) as Partial<DeprRow>;
 
         return {
