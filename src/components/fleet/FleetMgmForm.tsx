@@ -222,6 +222,11 @@ function toDraftRow(r: FleetMgmRow): DraftRow {
   return out;
 }
 
+function getServiceStatus(row: FleetMgmRow, draft?: DraftRow) {
+  if (formatDateYyyyMmDd(draft?.exit_date ?? row.exit_date)) return "Cerrado";
+  return String(row.req_serv_status ?? "").trim();
+}
+
 function compareText(a: string, b: string) {
   return String(a || "").localeCompare(String(b || ""), undefined, {
     numeric: true,
@@ -230,6 +235,8 @@ function compareText(a: string, b: string) {
 }
 
 function getSortValue(row: FleetMgmRow, key: SortKey, draft?: DraftRow) {
+  if (key === "req_serv_status") return getServiceStatus(row, draft);
+
   const value = draft?.[key] ?? row[key];
   if (value === null || value === undefined) return "";
   return String(value).trim();
@@ -298,7 +305,7 @@ function matchesGlobal(row: FleetMgmRow, draft: DraftRow | undefined, filterValu
     draft?.req_type ?? row.req_type,
     draft?.entry_date ?? row.entry_date,
     draft?.exit_date ?? row.exit_date,
-    row.req_serv_status,
+    getServiceStatus(row, draft),
   ];
 
   return values.some((value) =>
@@ -329,12 +336,6 @@ function todayPeYyyyMmDd() {
   return `${y}-${m}-${d}`;
 }
 
-function isFutureDatePe(value: unknown) {
-  const d = formatDateYyyyMmDd(value);
-  if (!d) return false;
-  return d > todayPeYyyyMmDd();
-}
-
 function parseReqTypes(value: unknown) {
   const raw = String(value ?? "").trim();
   if (!raw) return [];
@@ -359,20 +360,6 @@ function parseReqTypes(value: unknown) {
 
 function serializeReqTypes(values: string[]) {
   return JSON.stringify(REQ_TYPE_OPTIONS.filter((option) => values.includes(option)));
-}
-
-function rowHasInvalidEditableFields(current: DraftRow | undefined) {
-  if (!current) return false;
-
-  const odometer = String(current.odometer_km ?? "").trim();
-  const reqTypes = parseReqTypes(current.req_type);
-
-  if (!odometer || parseNum(odometer) === null) return true;
-  if (reqTypes.length === 0) return true;
-  if (isFutureDatePe(current.entry_date)) return true;
-  if (isFutureDatePe(current.exit_date)) return true;
-
-  return false;
 }
 
 function buildPayload(row: DraftRow) {
@@ -401,7 +388,6 @@ type RowItemProps = {
   loading: boolean;
   saving: boolean;
   edited: boolean;
-  invalid: boolean;
   registerInput: (
     key: string,
     field: keyof FleetMgmRow,
@@ -414,7 +400,6 @@ type RowItemProps = {
   gridV: string;
   rowBg: string;
   editedRowBg: string;
-  invalidRowBg: string;
   columnWidths: Partial<Record<keyof FleetMgmRow, number>>;
   columns: typeof COLUMNS;
 };
@@ -425,7 +410,6 @@ function RowItem({
   loading,
   saving,
   edited,
-  invalid,
   registerInput,
   onCellBlur,
   onCellFocus,
@@ -434,13 +418,12 @@ function RowItem({
   gridV,
   rowBg,
   editedRowBg,
-  invalidRowBg,
   columnWidths,
   columns,
 }: RowItemProps) {
   const key = String(row.req_item_key ?? "").trim();
   const [openDropdown, setOpenDropdown] = useState<keyof FleetMgmRow | null>(null);
-  const currentRowBg = invalid ? invalidRowBg : edited ? editedRowBg : rowBg;
+  const currentRowBg = edited ? editedRowBg : rowBg;
 
   return (
     <tr
@@ -455,7 +438,7 @@ function RowItem({
 
         if (!c.editable) {
           const isNumber = c.kind === "number";
-          const raw = row[c.key];
+          const raw = c.key === "req_serv_status" ? getServiceStatus(row, draft) : row[c.key];
           const show = formatDisplayValue(c.key, raw);
 
           return (
@@ -474,7 +457,7 @@ function RowItem({
                 minWidth: colWidth,
                 maxWidth: colWidth,
                 padding: isNumber ? "6px 4px" : "6px 8px",
-                color: invalid ? "rgb(229,149,103)" : "rgb(185,185,185)",
+                color: "rgb(185,185,185)",
               }}
               title={show || "—"}
             >
@@ -515,7 +498,7 @@ function RowItem({
                   width: "100%",
                   minWidth: 0,
                   background: "rgba(0,0,0,.10)",
-                  border: invalid ? "1px solid rgba(216, 93, 39, 0.75)" : "1px solid var(--border)",
+                  border: "1px solid var(--border)",
                   color: "var(--text)",
                   borderRadius: 10,
                   padding: "10px 12px",
@@ -563,7 +546,7 @@ function RowItem({
                   width: "100%",
                   minWidth: 0,
                   background: "rgba(0,0,0,.10)",
-                  border: invalid ? "1px solid rgba(216, 93, 39, 0.75)" : "1px solid var(--border)",
+                  border: "1px solid var(--border)",
                   color: "var(--text)",
                   borderRadius: 10,
                   padding: "10px 12px",
@@ -984,21 +967,6 @@ export default function FleetMgmForm() {
     return map;
   }, [editedTick]);
 
-  const invalidMap = useMemo(() => {
-    editedTick;
-    const map: Record<string, boolean> = {};
-
-    for (const key of Object.keys(draftsRef.current)) {
-      map[key] = rowHasInvalidEditableFields(draftsRef.current[key]);
-    }
-
-    return map;
-  }, [editedTick]);
-
-  const invalidCount = useMemo(() => {
-    return Object.values(invalidMap).filter(Boolean).length;
-  }, [invalidMap]);
-
   const statusCounts = useMemo(() => {
     editedTick;
 
@@ -1014,7 +982,7 @@ export default function FleetMgmForm() {
       if (!inDraftDateRange(row, draft, "exit_date", exitDateFrom, exitDateTo)) continue;
       if (!matchesGlobal(row, draft, globalFilter)) continue;
 
-      const status = String(row.req_serv_status ?? "").trim();
+      const status = getServiceStatus(row, draft);
 
       if (status === "Abierto") abiertos++;
       if (status === "Cerrado") cerrados++;
@@ -1031,7 +999,7 @@ export default function FleetMgmForm() {
       if (!inDateRange(row.req_date, dateFrom, dateTo)) return false;
       if (!inDraftDateRange(row, draft, "entry_date", entryDateFrom, entryDateTo)) return false;
       if (!inDraftDateRange(row, draft, "exit_date", exitDateFrom, exitDateTo)) return false;
-      if (statusFilter !== "all" && String(row.req_serv_status ?? "").trim() !== statusFilter) return false;
+      if (statusFilter !== "all" && getServiceStatus(row, draft) !== statusFilter) return false;
       if (!matchesGlobal(row, draft, globalFilter)) return false;
 
       return true;
@@ -1061,15 +1029,6 @@ export default function FleetMgmForm() {
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
-
-  const hasInvalidEditedRows = useMemo(() => {
-    editedTick;
-
-    return Object.keys(draftsRef.current).some((key) => {
-      if (!isRowEdited(draftsRef.current[key], originalsRef.current[key])) return false;
-      return rowHasInvalidEditableFields(draftsRef.current[key]);
-    });
-  }, [editedTick]);
 
   const visibleColumns = useMemo(() => {
     return COLUMNS.filter((c) => showReqDetails || !REQ_HEADER_COLLAPSIBLE_KEYS.includes(c.key));
@@ -1125,14 +1084,6 @@ export default function FleetMgmForm() {
       return;
     }
 
-    const invalidEditedKeys = editedKeys.filter((key) =>
-      rowHasInvalidEditableFields(draftsRef.current[key])
-    );
-    if (invalidEditedKeys.length > 0) {
-      setMsg("ERROR: el odómetro y al menos un tipo de requerimiento son obligatorios; las fechas no pueden ser mayores a hoy.");
-      return;
-    }
-
     setSaving(true);
     setMsg(null);
 
@@ -1180,7 +1131,12 @@ export default function FleetMgmForm() {
       const out: Record<string, string | number> = {};
 
       for (const c of visibleColumns) {
-        const raw = c.editable ? draft[c.key] : row[c.key];
+        const raw =
+          c.key === "req_serv_status"
+            ? getServiceStatus(row, draft)
+            : c.editable
+              ? draft[c.key]
+              : row[c.key];
 
         if (c.kind === "date") {
           out[c.label] = formatDateYyyyMmDd(raw);
@@ -1237,8 +1193,6 @@ export default function FleetMgmForm() {
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
   const rowBg = "rgba(0,0,0,.10)";
   const editedRowBg = "rgba(94, 128, 25, 0.28)";
-  const invalidRowBg = "rgba(216, 93, 39, 0.34)";
-
   const stickyHead: React.CSSProperties = {
     position: "sticky",
     top: 0,
@@ -1319,22 +1273,6 @@ export default function FleetMgmForm() {
         >
           Editadas: {editedCount}
         </div>
-
-        {invalidCount > 0 ? (
-          <div
-            style={{
-              padding: "6px 10px",
-              borderRadius: 999,
-              border: "1px solid rgba(216, 93, 39, 0.65)",
-              background: "rgba(216, 93, 39, 0.28)",
-              fontSize: 12,
-              fontWeight: 900,
-              color: "rgb(235, 176, 134)",
-            }}
-          >
-            Inválidas: {invalidCount}
-          </div>
-        ) : null}
 
         <button
           type="button"
@@ -1479,7 +1417,7 @@ export default function FleetMgmForm() {
             size="sm"
             variant="primary"
             onClick={onSaveAll}
-            disabled={loading || saving || editedCount === 0 || hasInvalidEditedRows}
+            disabled={loading || saving || editedCount === 0}
           >
             {saving ? "Guardando…" : "Guardar"}
           </Button>
@@ -1587,7 +1525,6 @@ export default function FleetMgmForm() {
                     loading={loading}
                     saving={saving}
                     edited={!!editedMap[rowKey]}
-                    invalid={!!invalidMap[rowKey]}
                     registerInput={registerInput}
                     onCellBlur={onCellBlur}
                     onCellFocus={onCellFocus}
@@ -1596,7 +1533,6 @@ export default function FleetMgmForm() {
                     gridV={gridV}
                     rowBg={rowBg}
                     editedRowBg={editedRowBg}
-                    invalidRowBg={invalidRowBg}
                     columnWidths={dynamicColumnWidths}
                     columns={visibleColumns}
                   />

@@ -102,7 +102,7 @@ Aplica a todo el repositorio. Leer este archivo una vez y después abrir solo lo
 ## Módulo Flota
 
 - Rutas `/fleet/mgmt` y `/fleet/units`; componentes `FleetMgmForm` y `FleetUnitsPermits`.
-- Gestión consume `/api/logistics/flota/req` y guarda lotes en `/api/logistics/flota/web`. Sus editables incluyen odómetro y tipo de requerimiento; este último admite selección múltiple y se guarda como arreglo JSON serializado en `req_type`.
+- Gestión consume `/api/logistics/flota/req` y guarda lotes en `/api/logistics/flota/web`. Sus campos se pueden completar y guardar en cualquier orden, sin exigir odómetro o tipo de requerimiento para editar los demás. Tipo de requerimiento admite selección múltiple y se guarda como arreglo JSON serializado en `req_type`. El frontend no envía `req_serv_status`: al ingresar `exit_date` muestra `Cerrado` y, tras guardar, recarga el estado resuelto por el backend/vista.
 - Unidades/permisos consume y actualiza `/api/logistics/flota/soat-rtv`.
 - El middleware conserva scopes separados para Gestión y Unidades, ambos concedidos por el acceso L2.
 
