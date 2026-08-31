@@ -236,7 +236,7 @@ function vrGroupIdentityParts(
     identityPart(subjournalCode),
     identityPart(voucherNumber),
     identityPart(annexCode),
-    capex ? "CAPEX" : "NORMAL",
+    capex ? `CAPEX:${capex}` : "NORMAL",
   ].join("\u001e");
 }
 
@@ -1715,9 +1715,26 @@ const VrDetailPanel = memo(function VrDetailPanel({
   const selectedCount = selectedDetailItems.length;
   const totalPen = twoDecimals(sumVetaAmount(selectedDetailItems, "pen_amount"), false);
   const totalUsd = twoDecimals(sumVetaAmount(selectedDetailItems, "usd_amount"), false);
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        panelRef.current
+        && event.target instanceof Node
+        && !panelRef.current.contains(event.target)
+      ) {
+        onClose();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [onClose]);
 
   return (
     <section
+      ref={panelRef}
       className="panel-inner fixassets-new-vr-detail"
       style={{
         position: "static",
@@ -2545,7 +2562,7 @@ export default function FixAssetsNew() {
         : numberOrNull(draft.usd_amount);
       return {
         asset_code: draft.asset_code.trim(),
-        source_name: "WEB",
+        source_name: item.isVrGroup ? "VR" : "WEB",
         location_name: upperOrNull(draft.location_name),
         origin_account_code: row.account_code,
         capex_code: upperOrNull(draft.capex_code),

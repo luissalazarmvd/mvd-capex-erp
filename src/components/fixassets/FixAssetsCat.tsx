@@ -11,6 +11,7 @@ import { FastCellInput } from "./FastCellInput";
 
 type CatalogueRow = {
   asset_code: string | null;
+  source_name: string | null;
   location_name: string | null;
   origin_account_code: string | null;
   origin_account_desc: string | null;
@@ -130,6 +131,11 @@ type CecoRow = {
   cost_center_description: string | null;
 };
 
+type AccountRow = {
+  account_code: string | null;
+  account_description: string | null;
+};
+
 type MappingRow = {
   origin_account_code: string | null;
   account_group: string | null;
@@ -138,6 +144,25 @@ type MappingRow = {
   deprec_acc_code_sec: string | null;
   deprec_rate_pct: number | string | null;
   asset_type: string | null;
+  correlative_start: string | null;
+};
+
+type ReclassDraft = {
+  origin_account_code: string;
+  capex_code: string;
+  asset_description: string;
+  cost_center_code: string;
+  acquisition_date: string;
+  location_name: string;
+  assigned_to: string;
+  area_name: string;
+  brand: string;
+  model: string;
+  serial_number: string;
+  color: string;
+  depreciation_method: string;
+  asset_situation: string;
+  asset_comment: string;
 };
 
 type MappingDraft = { deprec_rate_pct: string };
@@ -198,6 +223,7 @@ const PAGE_SIZE = 100;
 
 const COLUMNS_BEFORE_MONTHLY: CatalogueColumn[] = [
   { key: "asset_code", label: "COD", width: 105 },
+  { key: "source_name", label: "Origen", width: 90 },
   { key: "asset_description", label: "Descripción activo", width: 260 },
   { key: "location_name", label: "Ubicación", width: 150 },
   { key: "origin_account_code", label: "Cuenta origen", width: 125 },
@@ -1010,6 +1036,49 @@ function currentLimaYearMonth() {
   return year && month ? `${year}-${month}` : "";
 }
 
+function currentLimaDate() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+  const day = parts.find((part) => part.type === "day")?.value || "";
+  return year && month && day ? `${year}-${month}-${day}` : "";
+}
+
+function firstDayNextMonth(value: unknown) {
+  const match = dateOnly(value).match(/^(\d{4})-(\d{2})-\d{2}$/);
+  if (!match) return "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  return `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+}
+
+function emptyReclassDraft(): ReclassDraft {
+  return {
+    origin_account_code: "",
+    capex_code: "",
+    asset_description: "",
+    cost_center_code: "",
+    acquisition_date: "",
+    location_name: "",
+    assigned_to: "",
+    area_name: "",
+    brand: "",
+    model: "",
+    serial_number: "",
+    color: "",
+    depreciation_method: "",
+    asset_situation: "OPERATIVO",
+    asset_comment: "",
+  };
+}
+
 function decimalDraft(value: string, maxIntegerDigits: number, maxDecimals = 6) {
   const normalized = value.replace(",", ".").replace(/[^0-9.-]/g, "");
   const negative = normalized.startsWith("-");
@@ -1215,6 +1284,11 @@ export default function FixAssetsCat() {
   const [vrDetailAssetCode, setVrDetailAssetCode] = useState<string | null>(null);
   const [deprecCurrentPeriod, setDeprecCurrentPeriod] = useState("");
   const [cecoByCode, setCecoByCode] = useState<Record<string, string>>({});
+  const [accountRows, setAccountRows] = useState<AccountRow[]>([]);
+  const [codePrefixByAccount, setCodePrefixByAccount] = useState<Record<string, string>>({});
+  const [selectedReclassCodes, setSelectedReclassCodes] = useState<Set<string>>(new Set());
+  const [reclassDraft, setReclassDraft] = useState<ReclassDraft>(emptyReclassDraft);
+  const [reclassifying, setReclassifying] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [query, setQuery] = useState("");
@@ -1243,11 +1317,13 @@ export default function FixAssetsCat() {
     setLoading(true);
     setMessage("");
     try {
-      const [response, cecoResponse, deprecResponse, vetaVrResponse] = await Promise.all([
+      const [response, cecoResponse, deprecResponse, vetaVrResponse, accountResponse, mappingResponse] = await Promise.all([
         apiGet("/api/actfij/catalogue"),
         apiGet("/api/actfij/ceco"),
         apiGet("/api/actfij/deprec"),
         apiGet("/api/actfij/veta-vr"),
+        apiGet("/api/actfij/account"),
+        apiGet("/api/actfij/mapping"),
       ]);
 
       const nextCatalogueRows = Array.isArray(response?.rows)
@@ -1257,6 +1333,18 @@ export default function FixAssetsCat() {
       const nextVetaVrRows = Array.isArray(vetaVrResponse?.rows)
         ? vetaVrResponse.rows as VetaVrRow[]
         : [];
+
+      const nextAccountRows = Array.isArray(accountResponse?.rows)
+        ? accountResponse.rows as AccountRow[]
+        : [];
+
+      const nextCodePrefixByAccount = (Array.isArray(mappingResponse?.rows) ? mappingResponse.rows as MappingRow[] : [])
+        .reduce<Record<string, string>>((current, row) => {
+          const accountCode = text(row.origin_account_code).trim();
+          const prefix = text(row.correlative_start).trim();
+          if (accountCode && /^\d{3}$/.test(prefix)) current[accountCode] = prefix;
+          return current;
+        }, {});
 
       const nextDeprecRows = Array.isArray(deprecResponse?.rows)
         ? deprecResponse.rows as DeprRow[]
@@ -1344,6 +1432,11 @@ export default function FixAssetsCat() {
       setVetaVrRows(nextVetaVrRows);
       setDeprecCurrentPeriod(currentDeprecPeriod);
       setCecoByCode(nextCecoByCode);
+      setAccountRows(nextAccountRows);
+      setCodePrefixByAccount(nextCodePrefixByAccount);
+      setSelectedReclassCodes(new Set());
+      setReclassDraft(emptyReclassDraft());
+      setVrDetailAssetCode(null);
       setDrafts(nextDrafts);
       setOriginals(nextDrafts);
       setColumnFilters({});
@@ -1360,12 +1453,6 @@ export default function FixAssetsCat() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const vrAssetCodes = useMemo(() => new Set(
-    vetaVrRows
-      .map((row) => text(row.asset_code).trim())
-      .filter(Boolean)
-  ), [vetaVrRows]);
-
   const vrDetailRows = useMemo(() => (
     vrDetailAssetCode
       ? vetaVrRows.filter((row) => text(row.asset_code).trim() === vrDetailAssetCode)
@@ -1376,7 +1463,76 @@ export default function FixAssetsCat() {
     .map((row) => text(row.asset_code))
     .filter((code) => drafts[code] && originals[code] && changed(drafts[code], originals[code])), [rows, drafts, originals]);
   const invalidCodes = editedCodes.filter((code) => invalid(drafts[code]));
-  const canSave = editedCodes.length > 0 && invalidCodes.length === 0 && !loading && !saving;
+  const canSave = editedCodes.length > 0
+    && invalidCodes.length === 0
+    && selectedReclassCodes.size === 0
+    && !loading
+    && !saving
+    && !reclassifying;
+
+  const reclassSelectedRows = useMemo(() => rows.filter((row) => (
+    selectedReclassCodes.has(text(row.asset_code).trim())
+  )), [rows, selectedReclassCodes]);
+
+  const reclassTotalPen = useMemo(() => reclassSelectedRows.reduce(
+    (total, row) => total + numericAmount(row.asset_final_value_pen),
+    0
+  ), [reclassSelectedRows]);
+
+  const reclassTotalUsd = useMemo(() => reclassSelectedRows.reduce(
+    (total, row) => total + numericAmount(row.asset_final_value_usd),
+    0
+  ), [reclassSelectedRows]);
+
+  const reclassCapexOptions = useMemo(() => Array.from(new Set(
+    rows
+      .map((row) => text(row.capex_code).trim())
+      .filter((value): value is string => Boolean(value))
+  )).sort((a, b) => a.localeCompare(b, "es", { numeric: true, sensitivity: "base" })), [rows]);
+
+  const accountDescriptionByCode = useMemo(() => accountRows.reduce<Record<string, string>>((current, row) => {
+    const code = text(row.account_code).trim();
+    if (code) current[code] = text(row.account_description).trim();
+    return current;
+  }, {}), [accountRows]);
+
+  const reclassAccountCodes = useMemo(() => Object.keys(codePrefixByAccount)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [codePrefixByAccount]);
+
+  const reclassProposedCode = useMemo(() => {
+    const prefix = codePrefixByAccount[reclassDraft.origin_account_code.trim()] || "";
+    if (!/^\d{3}$/.test(prefix)) return "";
+
+    let maxSuffix = 0;
+    rows.forEach((row) => {
+      const code = text(row.asset_code).trim();
+      if (!/^\d{7}$/.test(code) || code.slice(0, 3) !== prefix) return;
+      maxSuffix = Math.max(maxSuffix, Number(code.slice(3)));
+    });
+
+    const nextSuffix = maxSuffix + 1;
+    return nextSuffix <= 9999
+      ? `${prefix}${String(nextSuffix).padStart(4, "0")}`
+      : "";
+  }, [rows, codePrefixByAccount, reclassDraft.origin_account_code]);
+
+  const reclassOperationDate = useMemo(
+    () => firstDayNextMonth(reclassDraft.acquisition_date),
+    [reclassDraft.acquisition_date]
+  );
+
+  const canReclassify = reclassSelectedRows.length > 0
+    && editedCodes.length === 0
+    && Boolean(reclassProposedCode)
+    && Boolean(reclassDraft.origin_account_code.trim())
+    && Boolean(reclassDraft.capex_code.trim())
+    && Boolean(reclassDraft.acquisition_date)
+    && Boolean(reclassOperationDate)
+    && Boolean(costCenterCode(reclassDraft.cost_center_code))
+    && Object.prototype.hasOwnProperty.call(cecoByCode, costCenterCode(reclassDraft.cost_center_code))
+    && !loading
+    && !saving
+    && !reclassifying;
 
   const acquisitionYears = useMemo(() => Array.from(new Set(
     rows.map((row) => monthOf(row.acquisition_date)?.year).filter((value): value is string => Boolean(value))
@@ -1934,6 +2090,83 @@ export default function FixAssetsCat() {
     }
   }
 
+  function toggleReclassSelection(row: CatalogueDisplayRow) {
+    const code = text(row.asset_code).trim();
+    if (!code) return;
+
+    setSelectedReclassCodes((current) => {
+      const next = new Set(current);
+      const adding = !next.has(code);
+
+      if (adding) {
+        next.add(code);
+
+        if (current.size === 0) {
+          setReclassDraft((draft) => ({
+            ...draft,
+            origin_account_code: text(row.origin_account_code).trim(),
+          }));
+        }
+      } else {
+        next.delete(code);
+
+        if (next.size === 0) {
+          setReclassDraft(emptyReclassDraft());
+        }
+      }
+
+      return next;
+    });
+
+    setMessage("");
+    setIsError(false);
+  }
+
+  async function executeReclassification() {
+    if (!canReclassify) return;
+
+    setReclassifying(true);
+    setMessage("");
+    setIsError(false);
+
+    try {
+      await apiPost("/api/actfij/catalogue/reclassify", {
+        source_asset_codes: reclassSelectedRows.map((row) => text(row.asset_code).trim()),
+        new_asset: {
+          asset_code: reclassProposedCode,
+          origin_account_code: reclassDraft.origin_account_code.trim(),
+          capex_code: upperOrNull(reclassDraft.capex_code),
+          asset_description: upperOrNull(reclassDraft.asset_description),
+          cost_center_code: costCenterCode(reclassDraft.cost_center_code),
+          acquisition_date: reclassDraft.acquisition_date,
+          operation_date: reclassOperationDate,
+          location_name: upperOrNull(reclassDraft.location_name),
+          assigned_to: upperOrNull(reclassDraft.assigned_to),
+          area_name: upperOrNull(reclassDraft.area_name),
+          brand: upperOrNull(reclassDraft.brand),
+          model: upperOrNull(reclassDraft.model),
+          serial_number: upperOrNull(reclassDraft.serial_number),
+          color: upperOrNull(reclassDraft.color),
+          depreciation_method: upperOrNull(reclassDraft.depreciation_method),
+          asset_situation: upperOrNull(reclassDraft.asset_situation) || "OPERATIVO",
+          asset_comment: upperOrNull(reclassDraft.asset_comment),
+        },
+      });
+
+      const moved = reclassSelectedRows.length;
+      const newCode = reclassProposedCode;
+
+      await load();
+
+      setMessage(`${moved} activo${moved === 1 ? "" : "s"} reclasificado${moved === 1 ? "" : "s"} al COD ${newCode}.`);
+    } catch (error) {
+      setIsError(true);
+      setMessage(error instanceof Error ? error.message : "No se pudo completar la reclasificación");
+    } finally {
+      setReclassifying(false);
+    }
+  }
+
   async function save() {
     if (!canSave) return;
     setSaving(true);
@@ -1943,9 +2176,10 @@ export default function FixAssetsCat() {
     try {
       const payloads = editedCodes.map((code) => {
         const draft = drafts[code];
+        const sourceRow = rows.find((row) => text(row.asset_code).trim() === code);
         return {
           asset_code: code,
-          source_name: "WEB",
+          source_name: text(sourceRow?.source_name).trim() || "WEB",
           location_name: upperOrNull(draft.location_name),
           capex_code: upperOrNull(draft.capex_code),
           asset_description: upperOrNull(draft.asset_description),
@@ -1999,11 +2233,14 @@ export default function FixAssetsCat() {
             Buscar en toda la tabla
             <FastCellInput className="input" value={query} onCommit={setQuery} onLiveChange={setQuery} placeholder="COD, descripción, área..." style={{ width: 270, height: 34, padding: "6px 10px" }} />
           </label>
-          <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving}>Actualizar mapping</Button>
-          <Button size="sm" onClick={() => setShowDetail((current) => !current)} disabled={loading || saving}>{showDetail ? "Ocultar detalle" : "Mostrar detalle"}</Button>
+          <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving || reclassifying}>Actualizar mapping</Button>
+          <Button size="sm" onClick={() => setShowDetail((current) => !current)} disabled={loading || saving || reclassifying}>{showDetail ? "Ocultar detalle" : "Mostrar detalle"}</Button>
           <Button size="sm" onClick={exportExcel} disabled={loading || saving || !visibleRows.length}>Exportar Excel ({visibleRows.length})</Button>
           <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setPage(1); }} disabled={loading || saving}>Limpiar filtros</Button>
-          <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
+          <Button size="sm" onClick={() => void load()} disabled={loading || saving || reclassifying}>{loading ? "Cargando..." : "Refrescar"}</Button>
+          <Button size="sm" onClick={() => void executeReclassification()} disabled={!canReclassify}>
+            {reclassifying ? "Reclasificando..." : `Reclasificar costos (${reclassSelectedRows.length})`}
+          </Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${editedCodes.length})`}</Button>
         </div>
       </div>
@@ -2023,13 +2260,22 @@ export default function FixAssetsCat() {
           : suggestionsByField[field].map((value) => <option key={value} value={value} />)}
       </datalist>)}
 
+      <datalist id="fixassets-cat-reclass-capex-options">
+        {reclassCapexOptions.map((value) => <option key={value} value={value} />)}
+      </datalist>
+
       <div className="panel-inner fixassets-cat-table" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
-            <colgroup>{displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
-            <thead><tr>{displayColumns.map((column, columnIndex) => {
+            <colgroup>
+              <col style={{ width: 44, minWidth: 44 }} />
+              {displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}
+            </colgroup>
+            <thead><tr>
+              <th className="capex-th" style={{ position: "sticky", top: 0, left: 0, zIndex: 95, width: 44, minWidth: 44, padding: 5, textAlign: "center", background: "#163b49" }}>Sel.</th>
+              {displayColumns.map((column, columnIndex) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
-              const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
+              const left = column.key === "asset_code" ? 44 : column.key === "asset_description" ? 149 : undefined;
 
               return <th key={column.key} className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, left, zIndex: sticky ? 92 : 79, overflow: "visible", background: catalogueColumnHeaderBackground(columnIndex), boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5 }}>
@@ -2063,8 +2309,9 @@ export default function FixAssetsCat() {
                 const draft = drafts[code] || toDraft(row);
                 const edited = originals[code] ? changed(draft, originals[code]) : false;
                 const bad = edited && invalid(draft);
-                const hasVrDetail = vrAssetCodes.has(code);
+                const hasVrDetail = text(row.source_name).trim().toUpperCase() === "VR";
                 const vrFocused = vrDetailAssetCode === code;
+                const reclassSelected = selectedReclassCodes.has(code);
 
                 return <tr
                   key={code}
@@ -2077,6 +2324,26 @@ export default function FixAssetsCat() {
                   style={{ cursor: hasVrDetail ? "pointer" : undefined }}
                   title={hasVrDetail ? "Abrir detalle VR" : undefined}
                 >
+                  <td
+                    className="capex-td"
+                    style={{
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 24,
+                      padding: 5,
+                      textAlign: "center",
+                      background: reclassSelected ? "#665b22" : "#0b4d6b",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={reclassSelected}
+                      disabled={loading || saving || reclassifying}
+                      onChange={() => toggleReclassSelection(row)}
+                      onClick={(event) => event.stopPropagation()}
+                      aria-label={`Seleccionar ${code} para reclasificación`}
+                    />
+                  </td>
                   {displayColumns.map((column, columnIndex) => {
                     const editable = EDITABLE.includes(column.key as EditableKey) && column.key !== "asset_type";
                     const key = column.key as EditableKey;
@@ -2087,15 +2354,17 @@ export default function FixAssetsCat() {
                       cecoByCode
                     );
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
-                    const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
+                    const left = column.key === "asset_code" ? 44 : column.key === "asset_description" ? 149 : undefined;
 
                     const cellBackground = bad
                       ? "#713f38"
                       : edited
                         ? "#3d6948"
-                        : vrFocused
-                          ? "#155a78"
-                          : catalogueColumnBodyBackground(columnIndex);
+                        : reclassSelected
+                          ? "#665b22"
+                          : vrFocused
+                            ? "#155a78"
+                            : catalogueColumnBodyBackground(columnIndex);
 
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: cellBackground, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 20 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? key === "asset_situation" ? <select
@@ -2136,20 +2405,34 @@ export default function FixAssetsCat() {
                   })}
                 </tr>;
               })}
-              {!loading && !visibleRows.length ? <tr><td className="capex-td" colSpan={displayColumns.length}>No hay activos que coincidan con la búsqueda.</td></tr> : null}
-              {loading ? <tr><td className="capex-td" colSpan={displayColumns.length}>Cargando catálogo...</td></tr> : null}
+              {!loading && !visibleRows.length ? <tr><td className="capex-td" colSpan={displayColumns.length + 1}>No hay activos que coincidan con la búsqueda.</td></tr> : null}
+              {loading ? <tr><td className="capex-td" colSpan={displayColumns.length + 1}>Cargando catálogo...</td></tr> : null}
             </tbody>
 
             {!loading && visibleRows.length ? (
               <tfoot>
                 <tr>
+                  <td
+                    className="capex-td"
+                    style={{
+                      position: "sticky",
+                      bottom: 0,
+                      left: 0,
+                      zIndex: 95,
+                      width: 44,
+                      minWidth: 44,
+                      padding: 5,
+                      background: "#163b49",
+                      borderTop: "2px solid rgba(216,238,255,.38)",
+                    }}
+                  />
                   {displayColumns.map((column, columnIndex) => {
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left =
                       column.key === "asset_code"
-                        ? 0
+                        ? 44
                         : column.key === "asset_description"
-                          ? 105
+                          ? 149
                           : undefined;
 
                     const isAmount = isCurrencyAmountColumn(column.key);
@@ -2279,6 +2562,187 @@ export default function FixAssetsCat() {
                 </tbody>
               </Table>
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {reclassSelectedRows.length ? (
+        <section className="panel-inner" style={{ padding: 12, display: "grid", gap: 10, borderColor: "rgba(224,190,80,.58)", background: "rgba(102,91,34,.18)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <strong>Reclasificación de costos</strong>
+              <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
+                {reclassSelectedRows.length} activo{reclassSelectedRows.length === 1 ? "" : "s"} · PEN {formatAmountTotal(reclassTotalPen)} · USD {formatAmountTotal(reclassTotalUsd)}
+              </span>
+            </div>
+
+            <Button
+              size="sm"
+              onClick={() => {
+                setSelectedReclassCodes(new Set());
+                setReclassDraft(emptyReclassDraft());
+              }}
+              disabled={reclassifying}
+            >
+              Limpiar selección
+            </Button>
+          </div>
+
+          <div className="muted" style={{ fontSize: 12 }}>
+            Los COD seleccionados recibirán fecha de baja {currentLimaDate()} y una reclasificación negativa por su valor final. El nuevo COD recibirá la suma positiva en PEN y USD.
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              COD propuesto
+              <input
+                className="input"
+                value={reclassProposedCode}
+                readOnly
+                style={{ height: 34, padding: "6px 8px" }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              Cuenta origen *
+              <select
+                className="input"
+                value={reclassDraft.origin_account_code}
+                onChange={(event) => setReclassDraft((current) => ({
+                  ...current,
+                  origin_account_code: event.target.value,
+                }))}
+                style={{ height: 34, padding: "6px 8px" }}
+              >
+                <option value="">Seleccionar...</option>
+                {reclassAccountCodes.map((code) => (
+                  <option key={code} value={code}>
+                    {code}{accountDescriptionByCode[code] ? ` - ${accountDescriptionByCode[code]}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              Código CAPEX *
+              <input
+                className="input"
+                list="fixassets-cat-reclass-capex-options"
+                value={reclassDraft.capex_code}
+                onChange={(event) => setReclassDraft((current) => ({
+                  ...current,
+                  capex_code: event.target.value.toLocaleUpperCase("es"),
+                }))}
+                style={{ height: 34, padding: "6px 8px" }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              Centro de costo *
+              <input
+                className="input"
+                list="fixassets-cat-cost_center_code-options"
+                value={reclassDraft.cost_center_code}
+                onChange={(event) => setReclassDraft((current) => ({
+                  ...current,
+                  cost_center_code: costCenterCode(event.target.value),
+                }))}
+                style={{ height: 34, padding: "6px 8px" }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              Fecha adquisición *
+              <input
+                className="input"
+                type="date"
+                value={reclassDraft.acquisition_date}
+                onChange={(event) => setReclassDraft((current) => ({
+                  ...current,
+                  acquisition_date: event.target.value,
+                }))}
+                style={{ height: 34, padding: "6px 8px" }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              Fecha operación
+              <input
+                className="input"
+                type="date"
+                value={reclassOperationDate}
+                readOnly
+                style={{ height: 34, padding: "6px 8px" }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              Descripción activo
+              <input
+                className="input"
+                value={reclassDraft.asset_description}
+                onChange={(event) => setReclassDraft((current) => ({
+                  ...current,
+                  asset_description: event.target.value,
+                }))}
+                style={{ height: 34, padding: "6px 8px" }}
+              />
+            </label>
+
+            {[
+              ["location_name", "Ubicación"],
+              ["assigned_to", "Asignado a"],
+              ["area_name", "Área"],
+              ["brand", "Marca"],
+              ["model", "Modelo"],
+              ["serial_number", "Serie"],
+              ["color", "Color"],
+              ["depreciation_method", "Método depreciación"],
+              ["asset_comment", "Comentario"],
+            ].map(([field, label]) => (
+              <label key={field} style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                {label}
+                <input
+                  className="input"
+                  list={SUGGESTION_FIELD_SET.has(field as EditableKey) ? `fixassets-cat-${field}-options` : undefined}
+                  value={reclassDraft[field as keyof ReclassDraft]}
+                  onChange={(event) => setReclassDraft((current) => ({
+                    ...current,
+                    [field]: event.target.value,
+                  }))}
+                  style={{ height: 34, padding: "6px 8px" }}
+                />
+              </label>
+            ))}
+
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              Situación
+              <select
+                className="input"
+                value={reclassDraft.asset_situation}
+                onChange={(event) => setReclassDraft((current) => ({
+                  ...current,
+                  asset_situation: event.target.value,
+                }))}
+                style={{ height: 34, padding: "6px 8px" }}
+              >
+                <option value="OPERATIVO">OPERATIVO</option>
+                <option value="DEPRECIADO">DEPRECIADO</option>
+              </select>
+            </label>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void executeReclassification()}
+              disabled={!canReclassify}
+            >
+              {reclassifying
+                ? "Reclasificando..."
+                : `Confirmar reclasificación → ${reclassProposedCode || "sin COD"}`}
+            </Button>
           </div>
         </section>
       ) : null}
