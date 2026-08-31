@@ -2493,11 +2493,29 @@ export default function FixAssetsNew() {
     return displayedItems.find((item) => item.index === selectedIndex) || null;
   }, [bajaSelectedIndexes, displayedItems]);
 
+  const bajaTargetOptions = useMemo(() => Array.from(
+    new Map(
+      catalogueRows
+        .map((row) => {
+          const code = text(row.asset_code).trim();
+          return [code, row] as const;
+        })
+        .filter(([code]) => Boolean(code))
+    ).values()
+  ).sort((a, b) => (
+    text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true })
+  )), [catalogueRows]);
+
+  const bajaTargetAssetCode = useMemo(() => (
+    bajaTargetCode.match(/^\s*(\d{7})/)?.[1] || ""
+  ), [bajaTargetCode]);
+
   const bajaTargetRow = useMemo(() => {
-    const code = bajaTargetCode.trim();
-    if (!code) return null;
-    return catalogueRows.find((row) => text(row.asset_code).trim() === code) || null;
-  }, [bajaTargetCode, catalogueRows]);
+    if (!bajaTargetAssetCode) return null;
+    return catalogueRows.find(
+      (row) => text(row.asset_code).trim() === bajaTargetAssetCode
+    ) || null;
+  }, [bajaTargetAssetCode, catalogueRows]);
 
   const bajaSourceDraft = bajaSelectedItem
     ? displayDraft(bajaSelectedItem, drafts)
@@ -2509,7 +2527,7 @@ export default function FixAssetsNew() {
   const canExecuteBaja = Boolean(
     bajaSelectedItem
     && bajaTargetRow
-    && /^\d{7}$/.test(bajaTargetCode.trim())
+    && /^\d{7}$/.test(bajaTargetAssetCode)
     && !loading
     && !saving
     && !bajaSaving
@@ -2923,19 +2941,34 @@ export default function FixAssetsNew() {
             </Button>
           </div>
 
-          <label style={{ display: "grid", gap: 5, maxWidth: 260, fontSize: 12, fontWeight: 800 }}>
+          <label style={{ display: "grid", gap: 5, maxWidth: 520, fontSize: 12, fontWeight: 800 }}>
             COD activo existente *
             <input
               className="input"
+              list="fixassets-new-baja-target-options"
               value={bajaTargetCode}
-              onChange={(event) => setBajaTargetCode(event.target.value.replace(/\D/g, "").slice(0, 7))}
-              placeholder="0000000"
-              inputMode="numeric"
+              onChange={(event) => setBajaTargetCode(event.target.value)}
+              placeholder="Escribe COD o descripción del activo"
+              autoComplete="off"
               style={{ height: 34, padding: "6px 8px" }}
             />
           </label>
 
-          {bajaTargetCode && !bajaTargetRow ? (
+          <datalist id="fixassets-new-baja-target-options">
+            {bajaTargetOptions.map((row) => {
+              const code = text(row.asset_code).trim();
+              const description = text(row.asset_description).trim();
+
+              return (
+                <option
+                  key={code}
+                  value={description ? `${code} - ${description}` : code}
+                />
+              );
+            })}
+          </datalist>
+
+          {bajaTargetAssetCode && !bajaTargetRow ? (
             <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
               El COD ingresado no existe en catálogo.
             </div>
