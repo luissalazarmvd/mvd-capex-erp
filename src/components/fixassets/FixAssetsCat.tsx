@@ -2,6 +2,7 @@
 
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
@@ -86,6 +87,7 @@ type CatalogueRow = {
 
 type DeprRow = {
   asset_code: string | null;
+  source_name: string | null;
   period_date: string | null;
   depreciation_amount_usd: number | string | null;
   depreciation_amount_pen: number | string | null;
@@ -1019,6 +1021,43 @@ function twoDecimals(value: unknown) {
   return Number.isFinite(parsed) ? parsed.toFixed(2) : clean;
 }
 
+function isCurrencyAmountColumn(key: CatalogueColumnKey) {
+  const normalized = String(key).toLowerCase();
+
+  return (
+    isMonthlyDeprecKey(key)
+    || normalized.endsWith("_usd")
+    || normalized.endsWith("_pen")
+  );
+}
+
+function numericAmount(value: unknown) {
+  const clean = text(value).trim().replace(/,/g, "");
+  if (!clean) return 0;
+
+  const parsed = Number(clean);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatAmountTotal(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function catalogueColumnBodyBackground(columnIndex: number) {
+  return columnIndex % 2 === 0
+    ? "#0b4d6b"
+    : "#115b78";
+}
+
+function catalogueColumnHeaderBackground(columnIndex: number) {
+  return columnIndex % 2 === 0
+    ? "#163b49"
+    : "#1c4d5e";
+}
+
 function upperOrNull(value: string) {
   const clean = value.trim();
   return clean ? clean.toLocaleUpperCase("es") : null;
@@ -1165,6 +1204,7 @@ export default function FixAssetsCat() {
   const [page, setPage] = useState(1);
   const [columnFilters, setColumnFilters] = useState<Partial<Record<CatalogueColumnKey, ExcelColumnFilter>>>({});
   const [excelSort, setExcelSort] = useState<{ key: CatalogueColumnKey; direction: ExcelSortDirection } | null>(null);
+  const [showDetail, setShowDetail] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -1240,10 +1280,18 @@ export default function FixAssetsCat() {
         const penKey =
           `monthly_depr_${monthToken}_pen` as MonthlyDeprecKey;
 
+        const hideLatestVirtual =
+          period === currentDeprecPeriod
+          && text(row.source_name).trim().toUpperCase() === "VIRTUAL";
+
         monthlyByAsset[code] = {
           ...(monthlyByAsset[code] || {}),
-          [usdKey]: row.depreciation_amount_usd,
-          [penKey]: row.depreciation_amount_pen,
+          [usdKey]: hideLatestVirtual
+            ? null
+            : row.depreciation_amount_usd,
+          [penKey]: hideLatestVirtual
+            ? null
+            : row.depreciation_amount_pen,
         };
       });
 
@@ -1361,6 +1409,21 @@ export default function FixAssetsCat() {
       ...COLUMNS_AFTER_MONTHLY,
     ];
   }, [deprecCurrentPeriod]);
+
+  const displayColumns = useMemo<CatalogueColumn[]>(() => {
+    if (showDetail) {
+      return columns;
+    }
+
+    return columns.filter(
+      (column) =>
+        column.key === "asset_code"
+        || (
+          EDITABLE.includes(column.key as EditableKey)
+          && column.key !== "asset_type"
+        )
+    );
+  }, [columns, showDetail]);
 
   const baseVisibleRows = useMemo(() => {
     const needle = deferredQuery
@@ -1513,6 +1576,40 @@ export default function FixAssetsCat() {
     cecoByCode,
   ]);
 
+  const columnTotals = useMemo(() => {
+    const result: Record<string, number> = {};
+
+    columns.forEach((column) => {
+      if (!isCurrencyAmountColumn(column.key)) {
+        return;
+      }
+
+      result[String(column.key)] = visibleRows.reduce(
+        (sum, row) => {
+          const code = text(row.asset_code);
+          const draft = drafts[code] || toDraft(row);
+
+          const value = catalogueExcelFilterValue(
+            row,
+            draft,
+            column.key,
+            cecoByCode
+          );
+
+          return sum + numericAmount(value);
+        },
+        0
+      );
+    });
+
+    return result;
+  }, [
+    columns,
+    visibleRows,
+    drafts,
+    cecoByCode,
+  ]);
+
   const pageCount = Math.max(
     1,
     Math.ceil(visibleRows.length / PAGE_SIZE)
@@ -1546,6 +1643,158 @@ export default function FixAssetsCat() {
       Math.min(current, pageCount)
     );
   }, [pageCount]);
+
+  function exportExcel() {
+    if (!visibleRows.length || !displayColumns.length) {
+      return;
+    }
+
+    const headers = displayColumns.map(
+      (column) => column.label
+    );
+
+    const data = visibleRows.map((row) => {
+      const code = text(row.asset_code);
+      const draft = drafts[code] || toDraft(row);
+
+      return displayColumns.map((column) => {
+        const value = catalogueExcelFilterValue(
+          row,
+          draft,
+          column.key,
+          cecoByCode
+        );
+
+        if (String(column.key).endsWith("_date")) {
+          return dateOnly(value);
+        }
+
+        if (catalogueExcelFilterKind(column.key) === "number") {
+          const clean = text(value)
+            .trim()
+            .replace(/,/g, "");
+
+          if (!clean) {
+            return "";
+          }
+
+          const parsed = Number(clean);
+
+          return Number.isFinite(parsed)
+            ? parsed
+            : text(value);
+        }
+
+        return text(value);
+      });
+    });
+
+    const totalRow = displayColumns.map((column) => {
+      if (column.key === "asset_code") {
+        return "TOTAL";
+      }
+
+      if (isCurrencyAmountColumn(column.key)) {
+        return columnTotals[String(column.key)] || 0;
+      }
+
+      return "";
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet([
+      headers,
+      ...data,
+      totalRow,
+    ]);
+
+    ws["!cols"] = displayColumns.map((column) => ({
+      wch: Math.max(
+        12,
+        Math.round(column.width / 7)
+      ),
+    }));
+
+    if (displayColumns.length && visibleRows.length) {
+      ws["!autofilter"] = {
+        ref: XLSX.utils.encode_range({
+          s: {
+            r: 0,
+            c: 0,
+          },
+          e: {
+            r: visibleRows.length,
+            c: displayColumns.length - 1,
+          },
+        }),
+      };
+    }
+
+    for (
+      let rowIndex = 0;
+      rowIndex <= visibleRows.length;
+      rowIndex += 1
+    ) {
+      const excelRow = rowIndex + 2;
+
+      displayColumns.forEach(
+        (column, columnIndex) => {
+          if (
+            catalogueExcelFilterKind(column.key)
+            !== "number"
+          ) {
+            return;
+          }
+
+          const cellRef = `${XLSX.utils.encode_col(
+            columnIndex
+          )}${excelRow}`;
+
+          const cell = ws[cellRef];
+
+          if (!cell || cell.t !== "n") {
+            return;
+          }
+
+          cell.z = "0.00";
+        }
+      );
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      wb,
+      ws,
+      "Catálogo"
+    );
+
+    const dateParts = new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone: "America/Lima",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }
+    ).formatToParts(new Date());
+
+    const year = dateParts.find(
+      (part) => part.type === "year"
+    )?.value || "";
+
+    const month = dateParts.find(
+      (part) => part.type === "month"
+    )?.value || "";
+
+    const day = dateParts.find(
+      (part) => part.type === "day"
+    )?.value || "";
+
+    XLSX.writeFile(
+      wb,
+      `catalogo_activos_${year}-${month}-${day}.xlsx`
+    );
+  }
 
   function update(code: string, key: EditableKey, value: string) {
     setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
@@ -1712,6 +1961,8 @@ export default function FixAssetsCat() {
             <FastCellInput className="input" value={query} onCommit={setQuery} onLiveChange={setQuery} placeholder="COD, descripción, área..." style={{ width: 270, height: 34, padding: "6px 10px" }} />
           </label>
           <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving}>Actualizar mapping</Button>
+          <Button size="sm" onClick={() => setShowDetail((current) => !current)} disabled={loading || saving}>{showDetail ? "Ocultar detalle" : "Mostrar detalle"}</Button>
+          <Button size="sm" onClick={exportExcel} disabled={loading || saving || !visibleRows.length}>Exportar Excel ({visibleRows.length})</Button>
           <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setPage(1); }} disabled={loading || saving}>Limpiar filtros</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${editedCodes.length})`}</Button>
@@ -1736,12 +1987,12 @@ export default function FixAssetsCat() {
       <div className="panel-inner fixassets-cat-table" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
-            <colgroup>{columns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
-            <thead><tr>{columns.map((column) => {
+            <colgroup>{displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
+            <thead><tr>{displayColumns.map((column, columnIndex) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
               const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
 
-              return <th key={column.key} className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, left, zIndex: sticky ? 92 : 79, overflow: "visible", background: "#163b49", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
+              return <th key={column.key} className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, left, zIndex: sticky ? 92 : 79, overflow: "visible", background: catalogueColumnHeaderBackground(columnIndex), boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5 }}>
                   <span>{column.label}</span>
 
@@ -1773,9 +2024,9 @@ export default function FixAssetsCat() {
                 const draft = drafts[code] || toDraft(row);
                 const edited = originals[code] ? changed(draft, originals[code]) : false;
                 const bad = edited && invalid(draft);
-                const background = bad ? "rgba(216,93,39,.32)" : edited ? "rgba(94,128,25,.32)" : undefined;
+
                 return <tr key={code} className="capex-tr">
-                  {columns.map((column) => {
+                  {displayColumns.map((column, columnIndex) => {
                     const editable = EDITABLE.includes(column.key as EditableKey) && column.key !== "asset_type";
                     const key = column.key as EditableKey;
                     const value = catalogueExcelFilterValue(
@@ -1786,13 +2037,19 @@ export default function FixAssetsCat() {
                     );
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
-                    const stickyBackground = bad ? "#713f38" : edited ? "#3d6948" : "#0b4d6b";
-                    return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? stickyBackground : background, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 20 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
+
+                    const cellBackground = bad
+                      ? "#713f38"
+                      : edited
+                        ? "#3d6948"
+                        : catalogueColumnBodyBackground(columnIndex);
+
+                    return <td key={column.key} className="capex-td" style={{ padding: 5, background: cellBackground, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 20 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? key === "asset_situation" ? <select
                         className="input"
                         value={text(value)}
                         onChange={(event) => update(code, key, event.target.value)}
-                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: "rgba(147,211,230,.30)" }}
+                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: cellBackground, borderColor: "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${code}`}
                       >
                         <option value="" style={{ background: "#0b4d6b", color: "#f4fbff" }}></option>
@@ -1819,16 +2076,65 @@ export default function FixAssetsCat() {
                         onCommit={(next) => key === "cost_center_code"
                           ? commitCostCenter(code, next)
                           : update(code, key, next)}
-                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key], numericIntegerDigits(key)) ? "#ebb086" : "rgba(147,211,230,.30)" }}
+                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: cellBackground, borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key], numericIntegerDigits(key)) ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${code}`}
                       /> : <span title={text(value)}>{String(column.key).endsWith("_date") ? dateOnly(value) : catalogueExcelFilterKind(column.key) === "number" ? twoDecimals(value) : text(value)}</span>}
                     </td>;
                   })}
                 </tr>;
               })}
-              {!loading && !visibleRows.length ? <tr><td className="capex-td" colSpan={columns.length}>No hay activos que coincidan con la búsqueda.</td></tr> : null}
-              {loading ? <tr><td className="capex-td" colSpan={columns.length}>Cargando catálogo...</td></tr> : null}
+              {!loading && !visibleRows.length ? <tr><td className="capex-td" colSpan={displayColumns.length}>No hay activos que coincidan con la búsqueda.</td></tr> : null}
+              {loading ? <tr><td className="capex-td" colSpan={displayColumns.length}>Cargando catálogo...</td></tr> : null}
             </tbody>
+
+            {!loading && visibleRows.length ? (
+              <tfoot>
+                <tr>
+                  {displayColumns.map((column, columnIndex) => {
+                    const sticky = column.key === "asset_code" || column.key === "asset_description";
+                    const left =
+                      column.key === "asset_code"
+                        ? 0
+                        : column.key === "asset_description"
+                          ? 105
+                          : undefined;
+
+                    const isAmount = isCurrencyAmountColumn(column.key);
+
+                    return (
+                      <td
+                        key={column.key}
+                        className="capex-td"
+                        style={{
+                          position: "sticky",
+                          bottom: 0,
+                          left,
+                          zIndex: sticky ? 92 : 78,
+                          padding: "7px 5px",
+                          background: catalogueColumnHeaderBackground(columnIndex),
+                          borderTop: "2px solid rgba(216,238,255,.38)",
+                          boxShadow:
+                            column.key === "asset_description"
+                              ? "2px 0 rgba(216,238,255,.16)"
+                              : undefined,
+                          fontWeight: 900,
+                          textAlign: isAmount ? "right" : "left",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {column.key === "asset_code"
+                          ? "TOTAL"
+                          : isAmount
+                            ? formatAmountTotal(
+                                columnTotals[String(column.key)] || 0
+                              )
+                            : ""}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
+            ) : null}
           </Table>
         </div>
       </div>
