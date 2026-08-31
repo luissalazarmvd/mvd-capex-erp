@@ -1479,7 +1479,7 @@ export default function FixAssetsCat() {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
               const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
 
-              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: 79, overflow: "visible", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
+              return <th key={column.key} className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, left, zIndex: sticky ? 92 : 79, overflow: "visible", background: "#163b49", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5 }}>
                   <span>{column.label}</span>
 

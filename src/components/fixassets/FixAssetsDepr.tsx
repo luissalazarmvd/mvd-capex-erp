@@ -2315,12 +2315,12 @@ export default function FixAssetsDepr() {
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup><col style={{ width: 52, minWidth: 52 }} />{displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
-            <thead><tr><th className="capex-th" style={{ padding: "8px", fontSize: 12, textAlign: "center", left: 0, zIndex: 80 }}><input type="checkbox" checked={allVisibleSelected} disabled={!editableVisibleRows.length || loading || saving} onChange={(event) => toggleAllVisible(event.target.checked)} aria-label="Seleccionar todas las filas editables" title="Seleccionar todas las filas editables" style={{ width: 18, height: 18, accentColor: "var(--brand-success)" }} /></th>{displayColumns.map((column) => {
+            <thead><tr><th className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, textAlign: "center", left: 0, zIndex: 94, background: "#163b49" }}><input type="checkbox" checked={allVisibleSelected} disabled={!editableVisibleRows.length || loading || saving} onChange={(event) => toggleAllVisible(event.target.checked)} aria-label="Seleccionar todas las filas editables" title="Seleccionar todas las filas editables" style={{ width: 18, height: 18, accentColor: "var(--brand-success)" }} /></th>{displayColumns.map((column) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
               const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
               const label = TOTAL_COLUMN_KEY_SET.has(column.key) ? `${currencySymbol} ${column.label}` : column.label;
 
-              return <th key={column.key} className="capex-th" style={{ padding: "8px", fontSize: 12, left, zIndex: 79, overflow: "visible", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
+              return <th key={column.key} className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, left, zIndex: sticky ? 92 : 79, overflow: "visible", background: "#163b49", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5 }}>
                   <span>{label}</span>
 
