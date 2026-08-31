@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
@@ -116,19 +117,40 @@ const NUMERIC_FIELDS: EditableField[] = [
 
 const RANGE_0_100_FIELDS: EditableField[] = ["h2o", "cu_grade_pct"];
 
-type SortKey =
-  | "lot"
-  | "entry_date"
-  | "process_date"
-  | "miner_name"
-  | "ruc"
-  | "doc_date"
-  | "doc_number"
-  | "dif_rc";
+type SortKey = keyof TraceabilityRow;
 
 type SortDir = "asc" | "desc";
 
 type ValuationFilter = "all" | "invalid" | "valid" | "pending";
+
+type ExcelFilterKind = "text" | "number" | "date";
+type ExcelFilterOperator =
+  | "none"
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "not_contains"
+  | "starts_with"
+  | "ends_with"
+  | "greater"
+  | "greater_equal"
+  | "less"
+  | "less_equal"
+  | "between";
+
+type ExcelColumnFilter = {
+  selected: string[] | null;
+  operator: ExcelFilterOperator;
+  value1: string;
+  value2: string;
+};
+
+const EMPTY_EXCEL_FILTER: ExcelColumnFilter = {
+  selected: null,
+  operator: "none",
+  value1: "",
+  value2: "",
+};
 
 const SORTABLE_KEYS: SortKey[] = [
   "lot",
@@ -471,22 +493,12 @@ function compareLot(a: string, b: string) {
 }
 
 function getSortValue(row: TraceabilityRow, key: SortKey, draft?: DraftRow) {
-  if (key === "dif_rc") {
-    if (!draft) return "";
+  const currentDraft = draft ?? toDraftRow(row);
+  const value = traceabilityExcelFilterValue(row, currentDraft, key);
 
-    const montoCalc = calcFacturaCalculada(draft);
-    const facturaReal = toNumOrNull(draft.lot_usd);
-    const difRc =
-      facturaReal === null || montoCalc === null
-        ? null
-        : round2(facturaReal - montoCalc);
+  if (value === null || value === undefined) return "";
 
-    return difRc === null ? "" : String(difRc);
-  }
-
-  const rowValue = row[key];
-  if (rowValue === null || rowValue === undefined) return "";
-  return String(rowValue).trim();
+  return String(value).trim();
 }
 
 function compareByKey(
@@ -627,6 +639,984 @@ function matchesValuationFilter(
   if (filter === "invalid") return invalidUsdMatch;
   if (filter === "valid") return validUsdMatch;
   return true;
+}
+
+const TRACEABILITY_DATE_FILTER_FIELDS = new Set<keyof TraceabilityRow>([
+  "entry_date",
+  "process_date",
+  "valuation_date",
+  "doc_date",
+  "payment_date",
+]);
+
+const TRACEABILITY_NUMBER_FILTER_FIELDS = new Set<keyof TraceabilityRow>([
+  "sack_qty",
+  "tmh",
+  "h2o",
+  "tms",
+  "au_grade_oztc",
+  "ag_grade_oztc",
+  "cu_grade_pct",
+  "au_oz",
+  "ag_oz",
+  "au_rec",
+  "ag_rec",
+  "pio",
+  "pip",
+  "pio_disc",
+  "maquila",
+  "nacn",
+  "escalador",
+  "usd_tms",
+  "au_usd",
+  "ag_usd",
+  "monto_calc",
+  "dif_rc",
+  "lot_usd",
+]);
+
+function traceabilityExcelFilterKind(key: keyof TraceabilityRow): ExcelFilterKind {
+  if (TRACEABILITY_DATE_FILTER_FIELDS.has(key)) return "date";
+  if (TRACEABILITY_NUMBER_FILTER_FIELDS.has(key)) return "number";
+  return "text";
+}
+
+function traceabilityExcelFilterValue(
+  row: TraceabilityRow,
+  draft: DraftRow,
+  key: keyof TraceabilityRow
+) {
+  if (key === "au_usd") {
+    return !isBlank(row.au_usd) ? row.au_usd : calcAuUsd(draft);
+  }
+
+  if (key === "usd_tms") {
+    return !isBlank(row.usd_tms) ? row.usd_tms : calcUsdTms(draft);
+  }
+
+  if (key === "monto_calc") {
+    return calcFacturaCalculada(draft);
+  }
+
+  if (key === "dif_rc") {
+    const montoCalc = calcFacturaCalculada(draft);
+    const facturaReal = toNumOrNull(draft.lot_usd);
+
+    return facturaReal === null || montoCalc === null
+      ? ""
+      : round2(facturaReal - montoCalc);
+  }
+
+  if (key === "pip") {
+    return !isBlank(row.pip) ? row.pip : draft.pip;
+  }
+
+  return draft[key] ?? row[key];
+}
+
+function excelOperatorOptions(
+  kind: ExcelFilterKind
+): Array<{ value: ExcelFilterOperator; label: string }> {
+  if (kind === "text") {
+    return [
+      { value: "none", label: "Sin filtro personalizado" },
+      { value: "equals", label: "Es igual a" },
+      { value: "not_equals", label: "No es igual a" },
+      { value: "contains", label: "Contiene" },
+      { value: "not_contains", label: "No contiene" },
+      { value: "starts_with", label: "Comienza por" },
+      { value: "ends_with", label: "Termina en" },
+    ];
+  }
+
+  if (kind === "date") {
+    return [
+      { value: "none", label: "Sin filtro personalizado" },
+      { value: "equals", label: "Es igual a" },
+      { value: "not_equals", label: "No es igual a" },
+      { value: "greater", label: "Después de" },
+      { value: "greater_equal", label: "Después o igual a" },
+      { value: "less", label: "Antes de" },
+      { value: "less_equal", label: "Antes o igual a" },
+      { value: "between", label: "Entre" },
+    ];
+  }
+
+  return [
+    { value: "none", label: "Sin filtro personalizado" },
+    { value: "equals", label: "Es igual a" },
+    { value: "not_equals", label: "No es igual a" },
+    { value: "greater", label: "Mayor que" },
+    { value: "greater_equal", label: "Mayor o igual que" },
+    { value: "less", label: "Menor que" },
+    { value: "less_equal", label: "Menor o igual que" },
+    { value: "between", label: "Entre" },
+  ];
+}
+
+function excelFilterIsActive(filter: ExcelColumnFilter | undefined) {
+  return Boolean(
+    filter &&
+      (
+        filter.selected !== null ||
+        filter.operator !== "none"
+      )
+  );
+}
+
+function matchesExcelFilter(
+  rawValue: unknown,
+  filter: ExcelColumnFilter | undefined,
+  kind: ExcelFilterKind
+) {
+  if (!filter) return true;
+
+  const value =
+    rawValue === null || rawValue === undefined
+      ? ""
+      : String(rawValue).trim();
+
+  if (
+    filter.selected !== null &&
+    !filter.selected.includes(value)
+  ) {
+    return false;
+  }
+
+  if (filter.operator === "none") return true;
+
+  const first = filter.value1.trim();
+  const second = filter.value2.trim();
+
+  if (!first && filter.operator !== "between") {
+    return true;
+  }
+
+  if (kind === "text") {
+    const current = value.toLocaleLowerCase("es");
+    const a = first.toLocaleLowerCase("es");
+
+    if (filter.operator === "equals") return current === a;
+    if (filter.operator === "not_equals") return current !== a;
+    if (filter.operator === "contains") return current.includes(a);
+    if (filter.operator === "not_contains") return !current.includes(a);
+    if (filter.operator === "starts_with") return current.startsWith(a);
+    if (filter.operator === "ends_with") return current.endsWith(a);
+
+    return true;
+  }
+
+  if (kind === "number") {
+    const current = Number(value.replace(",", "."));
+    const a = Number(first.replace(",", "."));
+    const b = Number(second.replace(",", "."));
+
+    if (!Number.isFinite(current) || !Number.isFinite(a)) {
+      return false;
+    }
+
+    if (filter.operator === "equals") return current === a;
+    if (filter.operator === "not_equals") return current !== a;
+    if (filter.operator === "greater") return current > a;
+    if (filter.operator === "greater_equal") return current >= a;
+    if (filter.operator === "less") return current < a;
+    if (filter.operator === "less_equal") return current <= a;
+
+    if (filter.operator === "between") {
+      return (
+        Number.isFinite(b) &&
+        current >= Math.min(a, b) &&
+        current <= Math.max(a, b)
+      );
+    }
+
+    return true;
+  }
+
+  const current = value.slice(0, 10);
+  const a = first.slice(0, 10);
+  const b = second.slice(0, 10);
+
+  if (!current || !a) return false;
+
+  if (filter.operator === "equals") return current === a;
+  if (filter.operator === "not_equals") return current !== a;
+  if (filter.operator === "greater") return current > a;
+  if (filter.operator === "greater_equal") return current >= a;
+  if (filter.operator === "less") return current < a;
+  if (filter.operator === "less_equal") return current <= a;
+
+  if (filter.operator === "between") {
+    return (
+      Boolean(b) &&
+      current >= (a < b ? a : b) &&
+      current <= (a > b ? a : b)
+    );
+  }
+
+  return true;
+}
+
+type ExcelHeaderFilterProps = {
+  label: string;
+  kind: ExcelFilterKind;
+  values: string[];
+  filter?: ExcelColumnFilter;
+  sortDirection?: SortDir;
+  onApply: (filter: ExcelColumnFilter) => void;
+  onSort: (direction: SortDir) => void;
+};
+
+function ExcelHeaderFilter({
+  label,
+  kind,
+  values,
+  filter,
+  sortDirection,
+  onApply,
+  onSort,
+}: ExcelHeaderFilterProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+
+  const [open, setOpen] = useState(false);
+  const [popupPosition, setPopupPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+
+  const [search, setSearch] = useState("");
+
+  const [draftFilter, setDraftFilter] =
+    useState<ExcelColumnFilter>(
+      () => filter || EMPTY_EXCEL_FILTER
+    );
+
+  useEffect(() => {
+    if (!open) return;
+
+    setSearch("");
+
+    setDraftFilter(
+      filter
+        ? {
+            ...filter,
+            selected: filter.selected
+              ? [...filter.selected]
+              : null,
+          }
+        : { ...EMPTY_EXCEL_FILTER }
+    );
+  }, [open, filter]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      if (
+        !rootRef.current?.contains(target) &&
+        !popupRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", close);
+
+    return () =>
+      document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const updatePopupPosition = useCallback(() => {
+    const anchor = rootRef.current;
+    if (!anchor) return;
+
+    const rect = anchor.getBoundingClientRect();
+
+    const viewportPadding = 8;
+    const gap = 4;
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+
+    const popupWidth = Math.min(
+      285,
+      Math.max(
+        0,
+        viewportWidth - viewportPadding * 2
+      )
+    );
+
+    const maxPopupHeight = Math.max(
+      240,
+      viewportHeight - viewportPadding * 2
+    );
+
+    const preferredPopupHeight = Math.min(
+      520,
+      maxPopupHeight
+    );
+
+    const top = Math.max(
+      viewportPadding,
+      Math.min(
+        rect.bottom + gap,
+        viewportHeight -
+          preferredPopupHeight -
+          viewportPadding
+      )
+    );
+
+    const left = Math.min(
+      Math.max(
+        viewportPadding,
+        rect.right - popupWidth
+      ),
+      Math.max(
+        viewportPadding,
+        viewportWidth -
+          popupWidth -
+          viewportPadding
+      )
+    );
+
+    setPopupPosition({ top, left });
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setPopupPosition(null);
+      return;
+    }
+
+    updatePopupPosition();
+
+    const reposition = () =>
+      updatePopupPosition();
+
+    window.addEventListener(
+      "resize",
+      reposition
+    );
+
+    window.addEventListener(
+      "scroll",
+      reposition,
+      true
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        reposition
+      );
+
+      window.removeEventListener(
+        "scroll",
+        reposition,
+        true
+      );
+    };
+  }, [open, updatePopupPosition]);
+
+  const distinctValues = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          values.map((value) =>
+            value.trim()
+          )
+        )
+      ).sort((a, b) => {
+        if (a === "") return -1;
+        if (b === "") return 1;
+
+        if (kind === "number") {
+          const aNum = Number(
+            a.replace(",", ".")
+          );
+
+          const bNum = Number(
+            b.replace(",", ".")
+          );
+
+          if (
+            Number.isFinite(aNum) &&
+            Number.isFinite(bNum)
+          ) {
+            return aNum - bNum;
+          }
+        }
+
+        return a.localeCompare(
+          b,
+          "es",
+          {
+            numeric: true,
+            sensitivity: "base",
+          }
+        );
+      }),
+    [values, kind]
+  );
+
+  const searchedValues = useMemo(() => {
+    const needle = search
+      .trim()
+      .toLocaleLowerCase("es");
+
+    if (!needle) return distinctValues;
+
+    return distinctValues.filter(
+      (value) =>
+        (value || "(Vacíos)")
+          .toLocaleLowerCase("es")
+          .includes(needle)
+    );
+  }, [distinctValues, search]);
+
+  const selectedSet = useMemo(
+    () =>
+      new Set(
+        draftFilter.selected === null
+          ? distinctValues
+          : draftFilter.selected
+      ),
+    [
+      draftFilter.selected,
+      distinctValues,
+    ]
+  );
+
+  const allSelected =
+    distinctValues.length > 0 &&
+    distinctValues.every((value) =>
+      selectedSet.has(value)
+    );
+
+  const active =
+    excelFilterIsActive(filter) ||
+    Boolean(sortDirection);
+
+  const firstInputType =
+    kind === "date"
+      ? "date"
+      : kind === "number"
+      ? "number"
+      : "text";
+
+  function toggleValue(
+    value: string,
+    checked: boolean
+  ) {
+    const next = new Set(
+      draftFilter.selected === null
+        ? distinctValues
+        : draftFilter.selected
+    );
+
+    if (checked) next.add(value);
+    else next.delete(value);
+
+    setDraftFilter((current) => ({
+      ...current,
+      selected:
+        next.size === distinctValues.length
+          ? null
+          : Array.from(next),
+    }));
+  }
+
+  function toggleAll(checked: boolean) {
+    setDraftFilter((current) => ({
+      ...current,
+      selected: checked ? null : [],
+    }));
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      onClick={(event) =>
+        event.stopPropagation()
+      }
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+        flexShrink: 0,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() =>
+          setOpen((current) => !current)
+        }
+        aria-label={`Filtrar ${label}`}
+        title={`Filtrar ${label}`}
+        style={{
+          width: 20,
+          height: 20,
+          padding: 0,
+          borderRadius: 5,
+          border: active
+            ? "1px solid rgba(147,211,230,.72)"
+            : "1px solid rgba(147,211,230,.30)",
+          background: active
+            ? "rgba(27,147,227,.32)"
+            : "rgba(2,35,52,.34)",
+          color: "#eaf8ff",
+          fontSize: 10,
+          lineHeight: 1,
+          cursor: "pointer",
+        }}
+      >
+        {active ? "◆" : "▼"}
+      </button>
+
+      {open && popupPosition
+        ? createPortal(
+            <div
+              ref={popupRef}
+              onClick={(event) =>
+                event.stopPropagation()
+              }
+              style={{
+                position: "fixed",
+                top: popupPosition.top,
+                left: popupPosition.left,
+                zIndex: 10000,
+                width:
+                  "min(285px, calc(100vw - 16px))",
+                maxHeight:
+                  "calc(100vh - 16px)",
+                overflowY: "auto",
+                padding: 10,
+                border:
+                  "1px solid rgba(147,211,230,.42)",
+                borderRadius: 10,
+                background: "#07364d",
+                boxShadow:
+                  "0 14px 32px rgba(0,0,0,.40)",
+                color: "#f4fbff",
+                textAlign: "left",
+                fontSize: 12,
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 900,
+                  marginBottom: 8,
+                }}
+              >
+                {label}
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gap: 6,
+                  marginBottom: 8,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSort("asc");
+                    setOpen(false);
+                  }}
+                  style={{
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    borderRadius: 7,
+                    border:
+                      "1px solid rgba(147,211,230,.24)",
+                    background:
+                      sortDirection === "asc"
+                        ? "rgba(27,147,227,.24)"
+                        : "rgba(2,35,52,.38)",
+                    color: "#f4fbff",
+                    cursor: "pointer",
+                  }}
+                >
+                  {kind === "number"
+                    ? "Ordenar de menor a mayor"
+                    : kind === "date"
+                    ? "Ordenar de más antiguo a más reciente"
+                    : "Ordenar de A a Z"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSort("desc");
+                    setOpen(false);
+                  }}
+                  style={{
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    borderRadius: 7,
+                    border:
+                      "1px solid rgba(147,211,230,.24)",
+                    background:
+                      sortDirection === "desc"
+                        ? "rgba(27,147,227,.24)"
+                        : "rgba(2,35,52,.38)",
+                    color: "#f4fbff",
+                    cursor: "pointer",
+                  }}
+                >
+                  {kind === "number"
+                    ? "Ordenar de mayor a menor"
+                    : kind === "date"
+                    ? "Ordenar de más reciente a más antiguo"
+                    : "Ordenar de Z a A"}
+                </button>
+              </div>
+
+              <div
+                style={{
+                  borderTop:
+                    "1px solid rgba(147,211,230,.18)",
+                  paddingTop: 8,
+                }}
+              >
+                <input
+                  value={search}
+                  onChange={(event) =>
+                    setSearch(event.target.value)
+                  }
+                  placeholder="Buscar valores..."
+                  style={{
+                    width: "100%",
+                    height: 30,
+                    padding: "5px 8px",
+                    borderRadius: 7,
+                    border:
+                      "1px solid rgba(147,211,230,.30)",
+                    background:
+                      "rgba(2,35,52,.58)",
+                    color: "#f4fbff",
+                    outline: "none",
+                  }}
+                />
+
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    marginTop: 8,
+                    fontWeight: 800,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(event) =>
+                      toggleAll(
+                        event.target.checked
+                      )
+                    }
+                  />
+                  Seleccionar todo
+                </label>
+
+                <div
+                  style={{
+                    maxHeight: 155,
+                    overflowY: "auto",
+                    marginTop: 5,
+                    paddingRight: 3,
+                  }}
+                >
+                  {searchedValues.map(
+                    (value) => (
+                      <label
+                        key={
+                          value ||
+                          "__EMPTY__"
+                        }
+                        style={{
+                          display: "flex",
+                          alignItems:
+                            "center",
+                          gap: 7,
+                          padding:
+                            "3px 0",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedSet.has(
+                            value
+                          )}
+                          onChange={(
+                            event
+                          ) =>
+                            toggleValue(
+                              value,
+                              event.target
+                                .checked
+                            )
+                          }
+                        />
+
+                        <span
+                          style={{
+                            overflow:
+                              "hidden",
+                            textOverflow:
+                              "ellipsis",
+                            whiteSpace:
+                              "nowrap",
+                          }}
+                        >
+                          {value ||
+                            "(Vacíos)"}
+                        </span>
+                      </label>
+                    )
+                  )}
+
+                  {!searchedValues.length ? (
+                    <div
+                      style={{
+                        padding:
+                          "8px 0",
+                        opacity: 0.72,
+                      }}
+                    >
+                      Sin coincidencias
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  borderTop:
+                    "1px solid rgba(147,211,230,.18)",
+                  marginTop: 8,
+                  paddingTop: 8,
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <select
+                  value={
+                    draftFilter.operator
+                  }
+                  onChange={(event) =>
+                    setDraftFilter(
+                      (current) => ({
+                        ...current,
+                        operator:
+                          event.target
+                            .value as ExcelFilterOperator,
+                      })
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    height: 30,
+                    padding: "4px 7px",
+                    borderRadius: 7,
+                    border:
+                      "1px solid rgba(147,211,230,.30)",
+                    background:
+                      "#0b4d6b",
+                    color: "#f4fbff",
+                  }}
+                >
+                  {excelOperatorOptions(
+                    kind
+                  ).map((option) => (
+                    <option
+                      key={option.value}
+                      value={
+                        option.value
+                      }
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+
+                {draftFilter.operator !==
+                "none" ? (
+                  <input
+                    type={firstInputType}
+                    value={
+                      draftFilter.value1
+                    }
+                    step={
+                      kind === "number"
+                        ? "any"
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      setDraftFilter(
+                        (current) => ({
+                          ...current,
+                          value1:
+                            event.target
+                              .value,
+                        })
+                      )
+                    }
+                    placeholder={
+                      kind === "text"
+                        ? "Valor..."
+                        : undefined
+                    }
+                    style={{
+                      width: "100%",
+                      height: 30,
+                      padding:
+                        "5px 8px",
+                      borderRadius: 7,
+                      border:
+                        "1px solid rgba(147,211,230,.30)",
+                      background:
+                        "rgba(2,35,52,.58)",
+                      color: "#f4fbff",
+                      outline: "none",
+                    }}
+                  />
+                ) : null}
+
+                {draftFilter.operator ===
+                "between" ? (
+                  <input
+                    type={firstInputType}
+                    value={
+                      draftFilter.value2
+                    }
+                    step={
+                      kind === "number"
+                        ? "any"
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      setDraftFilter(
+                        (current) => ({
+                          ...current,
+                          value2:
+                            event.target
+                              .value,
+                        })
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      height: 30,
+                      padding:
+                        "5px 8px",
+                      borderRadius: 7,
+                      border:
+                        "1px solid rgba(147,211,230,.30)",
+                      background:
+                        "rgba(2,35,52,.58)",
+                      color: "#f4fbff",
+                      outline: "none",
+                    }}
+                  />
+                ) : null}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  gap: 6,
+                  marginTop: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    onApply({
+                      ...EMPTY_EXCEL_FILTER,
+                    });
+                    setOpen(false);
+                  }}
+                  style={{
+                    padding:
+                      "6px 8px",
+                    borderRadius: 7,
+                    border:
+                      "1px solid rgba(147,211,230,.24)",
+                    background:
+                      "transparent",
+                    color: "#d8eef8",
+                    cursor: "pointer",
+                  }}
+                >
+                  Limpiar filtro
+                </button>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpen(false)
+                    }
+                    style={{
+                      padding:
+                        "6px 8px",
+                      borderRadius: 7,
+                      border:
+                        "1px solid rgba(147,211,230,.24)",
+                      background:
+                        "transparent",
+                      color: "#d8eef8",
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onApply(
+                        draftFilter
+                      );
+                      setOpen(false);
+                    }}
+                    style={{
+                      padding:
+                        "6px 10px",
+                      borderRadius: 7,
+                      border:
+                        "1px solid rgba(147,211,230,.42)",
+                      background:
+                        "rgba(27,147,227,.32)",
+                      color: "#f4fbff",
+                      fontWeight: 900,
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    Aplicar
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
 }
 
 function isRowEdited(current: DraftRow | undefined, original: DraftRow | undefined) {
@@ -875,6 +1865,9 @@ export default function TraceabilityEntryForm() {
   const [editedTick, setEditedTick] = useState(0);
   const [page, setPage] = useState(1);
   const [activeLot, setActiveLot] = useState<string | null>(null);
+  const [columnFilters, setColumnFilters] = useState<
+    Partial<Record<keyof TraceabilityRow, ExcelColumnFilter>>
+  >({});
 
   const draftsRef = useRef<Record<string, DraftRow>>({});
   const originalsRef = useRef<Record<string, DraftRow>>({});
@@ -908,6 +1901,7 @@ export default function TraceabilityEntryForm() {
       setRows(data);
       setEditedTick((v) => v + 1);
       setActiveLot(null);
+      setColumnFilters({});
       setPage(1);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar")}`);
@@ -945,7 +1939,15 @@ useEffect(() => {
 
   useEffect(() => {
     setPage(1);
-  }, [dateFrom, dateTo, lotFilter, valuationFilter, sortKey, sortDir]);
+  }, [
+    dateFrom,
+    dateTo,
+    lotFilter,
+    valuationFilter,
+    sortKey,
+    sortDir,
+    columnFilters,
+  ]);
 
   const editedCount = useMemo(() => {
     editedTick;
@@ -1001,6 +2003,61 @@ useEffect(() => {
     return map;
   }, [rows, editedTick]);
 
+  const excelColumnValues = useMemo(() => {
+    const baseRows = rows.filter((row) => {
+      if (!inDateRange(row.entry_date, dateFrom, dateTo)) return false;
+      if (!matchesLot(row, lotFilter)) return false;
+
+      const key = String(row.lot || "").trim();
+      const pendingValuation = !!pendingValuationMap[key];
+      const invalidUsdMatch = !!invalidUsdMap[key];
+      const validUsdMatch = !!validUsdMap[key];
+
+      return matchesValuationFilter(
+        valuationFilter,
+        pendingValuation,
+        invalidUsdMatch,
+        validUsdMatch
+      );
+    });
+
+    const result: Partial<
+      Record<keyof TraceabilityRow, string[]>
+    > = {};
+
+    COLUMNS.forEach((column) => {
+      result[column.key] = baseRows.map((row) => {
+        const key = String(row.lot || "").trim();
+        const draft =
+          draftsRef.current[key] ??
+          toDraftRow(row);
+
+        const value =
+          traceabilityExcelFilterValue(
+            row,
+            draft,
+            column.key
+          );
+
+        return value === null || value === undefined
+          ? ""
+          : String(value).trim();
+      });
+    });
+
+    return result;
+  }, [
+    rows,
+    dateFrom,
+    dateTo,
+    lotFilter,
+    valuationFilter,
+    editedTick,
+    pendingValuationMap,
+    invalidUsdMap,
+    validUsdMap,
+  ]);
+
     const preparedRows = useMemo(() => {
       const filtered = rows.filter((row) => {
         if (!inDateRange(row.entry_date, dateFrom, dateTo)) return false;
@@ -1011,11 +2068,40 @@ useEffect(() => {
         const invalidUsdMatch = !!invalidUsdMap[key];
         const validUsdMatch = !!validUsdMap[key];
 
-        return matchesValuationFilter(
-          valuationFilter,
-          pendingValuation,
-          invalidUsdMatch,
-          validUsdMatch
+        if (
+          !matchesValuationFilter(
+            valuationFilter,
+            pendingValuation,
+            invalidUsdMatch,
+            validUsdMatch
+          )
+        ) {
+          return false;
+        }
+
+        const draft =
+          draftsRef.current[key] ??
+          toDraftRow(row);
+
+        return (
+          Object.entries(columnFilters) as Array<
+            [
+              keyof TraceabilityRow,
+              ExcelColumnFilter
+            ]
+          >
+        ).every(([columnKey, filter]) =>
+          matchesExcelFilter(
+            traceabilityExcelFilterValue(
+              row,
+              draft,
+              columnKey
+            ),
+            filter,
+            traceabilityExcelFilterKind(
+              columnKey
+            )
+          )
         );
       });
 
@@ -1064,6 +2150,7 @@ useEffect(() => {
       pendingValuationMap,
       invalidUsdMap,
       validUsdMap,
+      columnFilters,
     ]);
 
   const totalRows = preparedRows.length;
@@ -1749,6 +2836,22 @@ useEffect(() => {
             />
           </div>
 
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            onClick={() => {
+              setColumnFilters({});
+              setHasManualSort(false);
+              setSortKey("entry_date");
+              setSortDir("desc");
+              setPage(1);
+            }}
+            disabled={loading || saving}
+          >
+            Limpiar filtros
+          </Button>
+
           <Button type="button" size="sm" variant="default" onClick={loadData} disabled={loading || saving}>
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
@@ -1832,28 +2935,106 @@ useEffect(() => {
                     <th
                       key={String(c.key)}
                       className="capex-th"
-                      onClick={sortable ? () => onSortClick(c.key) : undefined}
+                      onClick={
+                        sortable
+                          ? () => onSortClick(c.key)
+                          : undefined
+                      }
                       style={{
                         ...stickyHead,
                         border: headerBorder,
                         borderBottom: headerBorder,
-                        textAlign: c.kind === "number" || c.key === "sack_qty" ? "right" : "left",
-                        padding: c.kind === "number" ? "8px 4px" : "8px 8px",
+                        textAlign:
+                          c.kind === "number" ||
+                          c.key === "sack_qty"
+                            ? "right"
+                            : "left",
+                        padding:
+                          c.kind === "number"
+                            ? "8px 4px"
+                            : "8px 8px",
                         fontSize: 12,
                         width: c.width || 110,
                         minWidth: c.width || 110,
                         maxWidth: c.width || 110,
-                        cursor: sortable ? "pointer" : "default",
+                        cursor: sortable
+                          ? "pointer"
+                          : "default",
                         userSelect: "none",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        overflow: "visible",
                         whiteSpace: "nowrap",
                         boxSizing: "border-box",
                       }}
                       title={c.label}
                     >
-                      {c.label}
-                      {sortable ? getSortIndicator(c.key) : ""}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent:
+                            "space-between",
+                          gap: 5,
+                        }}
+                      >
+                        <span
+                          style={{
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow:
+                              "ellipsis",
+                          }}
+                        >
+                          {c.label}
+                          {sortable
+                            ? getSortIndicator(
+                                c.key
+                              )
+                            : ""}
+                        </span>
+
+                        <ExcelHeaderFilter
+                          label={c.label}
+                          kind={traceabilityExcelFilterKind(
+                            c.key
+                          )}
+                          values={
+                            excelColumnValues[
+                              c.key
+                            ] || []
+                          }
+                          filter={
+                            columnFilters[c.key]
+                          }
+                          sortDirection={
+                            hasManualSort &&
+                            sortKey === c.key
+                              ? sortDir
+                              : undefined
+                          }
+                          onApply={(filter) => {
+                            setColumnFilters(
+                              (current) => ({
+                                ...current,
+                                [c.key]:
+                                  filter,
+                              })
+                            );
+                            setPage(1);
+                          }}
+                          onSort={(
+                            direction
+                          ) => {
+                            setHasManualSort(
+                              true
+                            );
+                            setSortKey(c.key);
+                            setSortDir(
+                              direction
+                            );
+                            setPage(1);
+                          }}
+                        />
+                      </div>
                     </th>
                   );
                 })}
