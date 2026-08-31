@@ -114,11 +114,11 @@ export default function PortalClient() {
           : area === "fixassets"
           ? "/fixassets/new"
           : area === "fleet"
-          ? j?.defaultPath || "/fleet/offices"
+          ? j?.defaultPath || "/fleet/mgmt"
           : "/ti"
       );
-    } catch (e: any) {
-      setErr(String(e?.message || "Clave incorrecta"));
+    } catch (error: unknown) {
+      setErr(error instanceof Error ? error.message : "Clave incorrecta");
     } finally {
       setLoading(false);
     }

@@ -39,11 +39,8 @@ type FleetMgmRow = {
   po_est_delivery_date: string | null;
   odometer_km: number | string | null;
   req_type: string | null;
-  office_serv_desc: string | null;
-  repair_shop_name: string | null;
   entry_date: string | null;
   exit_date: string | null;
-  app_budget_pen: number | string | null;
   mgm_serv_comm: string | null;
   req_serv_status: string | null;
 };
@@ -62,29 +59,14 @@ type SaveResp = {
 
 type DraftRow = Partial<Record<keyof FleetMgmRow, string>>;
 
-const EDITABLE_FIELDS = ["repair_shop_name", "entry_date", "exit_date", "app_budget_pen", "mgm_serv_comm"] as const;
+const EDITABLE_FIELDS = ["odometer_km", "req_type", "entry_date", "exit_date", "mgm_serv_comm"] as const;
 type SortKey = keyof FleetMgmRow;
 type SortDir = "asc" | "desc";
 type StatusFilter = "all" | "Abierto" | "Cerrado";
 
 const PAGE_SIZE = 50;
 
-const REPAIR_SHOP_OPTIONS = [
-  "Premium Clínica Automotriz",
-  "Guido Laura Tintaya",
-  "Concesionarios Autorizados",
-  "Mecatronic Pedregalac",
-  "Los Vicos Car",
-  "Autoespar",
-  "Automotriz Mendoza Motors",
-  "Marta Salas Lupa",
-  "Grupo JJS Automotive",
-  "Nor Autos Piura",
-  "Autonort Trujillo",
-  "Autonort Cajamarca",
-  "Automotores Santa Clara",
-  "Nova Autos",
-];
+const REQ_TYPE_OPTIONS = ["Motor", "Llantas", "Transmisión", "Sist. Eléctrico", "Frenos", "Otros"];
 
 const REQ_HEADER_COLLAPSIBLE_KEYS: (keyof FleetMgmRow)[] = [
   "req_date",
@@ -152,13 +134,10 @@ const COLUMNS: {
   { key: "po_amount_usd", label: "Monto USD OC", editable: false, kind: "number", width: 130, sortable: true },
   { key: "po_status", label: "Estado OC", editable: false, kind: "readonly", width: 130, sortable: true },
   { key: "po_est_delivery_date", label: "F. Est. Entrega", editable: false, kind: "date", width: 130, sortable: true },
-  { key: "odometer_km", label: "Odómetro Km", editable: false, kind: "number", width: 140, sortable: true },
-  { key: "req_type", label: "Tipo Req", editable: false, kind: "readonly", width: 180, sortable: true },
-  { key: "office_serv_desc", label: "Descripción", editable: false, kind: "readonly", width: 320, sortable: true },
-  { key: "repair_shop_name", label: "Taller", editable: true, kind: "select", width: 220, sortable: true },
+  { key: "odometer_km", label: "Odómetro Km", editable: true, kind: "number", width: 140, sortable: true },
+  { key: "req_type", label: "Tipo Req", editable: true, kind: "select", width: 240, sortable: true },
   { key: "entry_date", label: "F. Ingreso", editable: true, kind: "date", width: 130, sortable: true },
   { key: "exit_date", label: "F. Salida", editable: true, kind: "date", width: 130, sortable: true },
-  { key: "app_budget_pen", label: "Presup. Aprob. PEN", editable: true, kind: "number", width: 170, sortable: true },
   { key: "mgm_serv_comm", label: "Comentario", editable: true, kind: "text", width: 340, sortable: true },
   { key: "req_serv_status", label: "Estado Servicio", editable: false, kind: "readonly", width: 140, sortable: true },
 ];
@@ -225,8 +204,7 @@ function formatDisplayValue(key: keyof FleetMgmRow, value: unknown) {
     key === "qty_approved" ||
     key === "po_unit_price_us" ||
     key === "po_amount_usd" ||
-    key === "odometer_km" ||
-    key === "app_budget_pen"
+    key === "odometer_km"
   ) {
     return formatNumber(value, 2);
   }
@@ -268,7 +246,7 @@ function compareByKey(
   const av = getSortValue(a, key, draftA);
   const bv = getSortValue(b, key, draftB);
 
-  const numericKeys: SortKey[] = ["qty_requested", "qty_ordered", "qty_delivered", "qty_approved", "po_unit_price_us", "po_amount_usd", "odometer_km", "app_budget_pen"];
+  const numericKeys: SortKey[] = ["qty_requested", "qty_ordered", "qty_delivered", "qty_approved", "po_unit_price_us", "po_amount_usd", "odometer_km"];
 
   if (numericKeys.includes(key)) {
     const an = parseNum(av);
@@ -316,11 +294,10 @@ function matchesGlobal(row: FleetMgmRow, draft: DraftRow | undefined, filterValu
     row.cost_center_desc,
     row.requester_desc,
     row.requester_area,
-    row.req_type,
-    draft?.repair_shop_name ?? row.repair_shop_name,
+    draft?.odometer_km ?? row.odometer_km,
+    draft?.req_type ?? row.req_type,
     draft?.entry_date ?? row.entry_date,
     draft?.exit_date ?? row.exit_date,
-    draft?.app_budget_pen ?? row.app_budget_pen,
     row.req_serv_status,
   ];
 
@@ -358,12 +335,40 @@ function isFutureDatePe(value: unknown) {
   return d > todayPeYyyyMmDd();
 }
 
-function rowHasInvalidNumber(current: DraftRow | undefined) {
+function parseReqTypes(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return [];
+
+  let values: unknown[];
+
+  try {
+    const parsed = JSON.parse(raw);
+    values = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    values = raw.split(",");
+  }
+
+  const unique = new Set(
+    values
+      .map((item) => String(item ?? "").trim())
+      .filter((item) => REQ_TYPE_OPTIONS.includes(item))
+  );
+
+  return REQ_TYPE_OPTIONS.filter((option) => unique.has(option));
+}
+
+function serializeReqTypes(values: string[]) {
+  return JSON.stringify(REQ_TYPE_OPTIONS.filter((option) => values.includes(option)));
+}
+
+function rowHasInvalidEditableFields(current: DraftRow | undefined) {
   if (!current) return false;
 
-  const budget = String(current.app_budget_pen ?? "").trim();
+  const odometer = String(current.odometer_km ?? "").trim();
+  const reqTypes = parseReqTypes(current.req_type);
 
-  if (budget && parseNum(budget) === null) return true;
+  if (!odometer || parseNum(odometer) === null) return true;
+  if (reqTypes.length === 0) return true;
   if (isFutureDatePe(current.entry_date)) return true;
   if (isFutureDatePe(current.exit_date)) return true;
 
@@ -375,16 +380,16 @@ function buildPayload(row: DraftRow) {
     req_item_key: String(row.req_item_key ?? "").trim() || null,
   };
 
-  const repairShopName = String(row.repair_shop_name ?? "").trim();
+  const odometerKm = parseNum(row.odometer_km);
+  const reqTypes = parseReqTypes(row.req_type);
   const entryDate = formatDateYyyyMmDd(row.entry_date);
   const exitDate = formatDateYyyyMmDd(row.exit_date);
-  const appBudgetPen = parseNum(row.app_budget_pen);
   const mgmServComm = String(row.mgm_serv_comm ?? "").trim().slice(0, 255);
 
-  if (repairShopName) payload.repair_shop_name = repairShopName;
+  if (odometerKm !== null) payload.odometer_km = odometerKm;
+  if (reqTypes.length > 0) payload.req_type = serializeReqTypes(reqTypes);
   if (entryDate) payload.entry_date = entryDate;
   if (exitDate) payload.exit_date = exitDate;
-  if (appBudgetPen !== null) payload.app_budget_pen = appBudgetPen;
   if (mgmServComm) payload.mgm_serv_comm = mgmServComm;
 
   return payload;
@@ -706,16 +711,10 @@ function RowItem({
             }}
           >
             {(() => {
-              const options = [
-                { value: "", label: "Selecciona..." },
-                ...REPAIR_SHOP_OPTIONS.map((x) => ({ value: x, label: x })),
-              ];
-
-              const currentValue = toText(draft[c.key]);
-              const currentLabel =
-                options.find((o) => o.value === currentValue)?.label ??
-                options.find((o) => o.value === "")?.label ??
-                "";
+              const selectedValues = parseReqTypes(draft[c.key]);
+              const currentLabel = selectedValues.length
+                ? selectedValues.join(", ")
+                : "Selecciona...";
 
               return (
                 <div
@@ -757,9 +756,12 @@ function RowItem({
                   >
                     <span
                       style={{
-                        opacity: currentValue ? 1 : 0.6,
+                        opacity: selectedValues.length ? 1 : 0.6,
                         whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
                       }}
+                      title={currentLabel}
                     >
                       {currentLabel}
                     </span>
@@ -785,35 +787,62 @@ function RowItem({
                         whiteSpace: "normal",
                       }}
                     >
-                      {options.map((o) => {
-                        const active = o.value === currentValue;
-                        const isEmpty = o.value === "";
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onCellBlur(key, c.key, "");
+                        }}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "10px 12px",
+                          background: "transparent",
+                          color: "rgba(255,255,255,.55)",
+                          border: "none",
+                          borderBottom: "1px solid rgba(255,255,255,.10)",
+                          cursor: "pointer",
+                          fontWeight: 900,
+                        }}
+                      >
+                        Limpiar selección
+                      </button>
+
+                      {REQ_TYPE_OPTIONS.map((option) => {
+                        const active = selectedValues.includes(option);
 
                         return (
                           <button
-                            key={o.value || "__empty__"}
+                            key={option}
                             type="button"
-                            ref={(el) => {
-                              if (active) registerInput(key, c.key, el as any);
-                            }}
                             onMouseDown={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              onCellBlur(key, c.key, o.value);
-                              setOpenDropdown(null);
+                              const nextValues = active
+                                ? selectedValues.filter((value) => value !== option)
+                                : [...selectedValues, option];
+                              onCellBlur(
+                                key,
+                                c.key,
+                                nextValues.length ? serializeReqTypes(nextValues) : ""
+                              );
                             }}
                             style={{
                               width: "100%",
                               textAlign: "left",
                               padding: "10px 12px",
                               background: active ? "rgba(27,147,227,.18)" : "transparent",
-                              color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
+                              color: "rgba(255,255,255,.92)",
                               border: "none",
                               cursor: "pointer",
                               fontWeight: 900,
                               whiteSpace: "normal",
                               lineHeight: "16px",
                               wordBreak: "normal",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
                             }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.background = active
@@ -826,7 +855,8 @@ function RowItem({
                                 : "transparent";
                             }}
                           >
-                            {o.label}
+                            <span aria-hidden="true">{active ? "☑" : "☐"}</span>
+                            <span>{option}</span>
                           </button>
                         );
                       })}
@@ -895,8 +925,9 @@ export default function FleetMgmForm() {
       setEditedTick((v) => v + 1);
       setActiveItem(null);
       setPage(1);
-    } catch (e: any) {
-      setMsg(`ERROR: ${String(e?.message || e || "No se pudo cargar")}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error || "No se pudo cargar");
+      setMsg(`ERROR: ${message}`);
     } finally {
       setLoading(false);
     }
@@ -958,7 +989,7 @@ export default function FleetMgmForm() {
     const map: Record<string, boolean> = {};
 
     for (const key of Object.keys(draftsRef.current)) {
-      map[key] = rowHasInvalidNumber(draftsRef.current[key]);
+      map[key] = rowHasInvalidEditableFields(draftsRef.current[key]);
     }
 
     return map;
@@ -1036,7 +1067,7 @@ export default function FleetMgmForm() {
 
     return Object.keys(draftsRef.current).some((key) => {
       if (!isRowEdited(draftsRef.current[key], originalsRef.current[key])) return false;
-      return rowHasInvalidNumber(draftsRef.current[key]);
+      return rowHasInvalidEditableFields(draftsRef.current[key]);
     });
   }, [editedTick]);
 
@@ -1050,13 +1081,13 @@ export default function FleetMgmForm() {
     const values = rows.map((row) => {
       const rowKey = String(row.req_item_key ?? "").trim();
       const draft = draftsRef.current[rowKey] ?? toDraftRow(row);
-      return toText(draft.repair_shop_name) || "Selecciona...";
+      return parseReqTypes(draft.req_type).join(", ") || "Selecciona...";
     });
 
     const maxLength = Math.max("Selecciona...".length, ...values.map((x) => x.length));
 
     return {
-      repair_shop_name: Math.max(170, Math.min(260, maxLength * 9 + 64)),
+      req_type: Math.max(220, Math.min(360, maxLength * 9 + 64)),
     };
   }, [rows, editedTick]);
 
@@ -1094,9 +1125,11 @@ export default function FleetMgmForm() {
       return;
     }
 
-    const invalidEditedKeys = editedKeys.filter((key) => rowHasInvalidNumber(draftsRef.current[key]));
+    const invalidEditedKeys = editedKeys.filter((key) =>
+      rowHasInvalidEditableFields(draftsRef.current[key])
+    );
     if (invalidEditedKeys.length > 0) {
-      setMsg("ERROR: el presupuesto debe ser numérico y las fechas no pueden ser mayores a hoy.");
+      setMsg("ERROR: el odómetro y al menos un tipo de requerimiento son obligatorios; las fechas no pueden ser mayores a hoy.");
       return;
     }
 
@@ -1132,8 +1165,9 @@ export default function FleetMgmForm() {
       await loadData();
 
       setMsg(`OK: se guardaron ${savedCount} fila(s).`);
-    } catch (e: any) {
-      setMsg(`ERROR: ${String(e?.message || e || "No se pudo guardar")}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error || "No se pudo guardar");
+      setMsg(`ERROR: ${message}`);
     } finally {
       setSaving(false);
     }
@@ -1421,7 +1455,7 @@ export default function FleetMgmForm() {
               type="text"
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              placeholder="Buscar RQ, código, material, centro, solicitante, área, taller o estado..."
+              placeholder="Buscar RQ, código, material, centro, solicitante, área, odómetro, tipo o estado..."
               style={{ ...inputBase, minWidth: 420 }}
             />
           </div>

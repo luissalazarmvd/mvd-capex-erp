@@ -50,18 +50,23 @@ async function verifyToken(token: string, secret: string) {
 
   if (!timingSafeEqual(expected, got)) return null;
 
-  let payload: any;
+  let payload: unknown;
   try {
     payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(payloadB64)));
   } catch {
     return null;
   }
 
-  const exp = Number(payload?.exp ?? 0);
+  const authPayload =
+    typeof payload === "object" && payload !== null
+      ? (payload as { exp?: unknown; scopes?: unknown })
+      : {};
+
+  const exp = Number(authPayload.exp ?? 0);
   if (!Number.isFinite(exp) || Date.now() > exp) return null;
 
-  const scopes = Array.isArray(payload?.scopes)
-    ? payload.scopes.map((x: any) => String(x))
+  const scopes = Array.isArray(authPayload.scopes)
+    ? authPayload.scopes.map((x: unknown) => String(x))
     : [];
 
   return { scopes };
@@ -141,8 +146,6 @@ export async function middleware(req: NextRequest) {
     ? "sustainability"
     : pathname.startsWith("/fleet/mgmt")
     ? "fleet_mgmt"
-    : pathname.startsWith("/fleet/offices")
-    ? "fleet_offices"
     : pathname.startsWith("/fleet/units")
     ? "fleet_units"
     : pathname.startsWith("/fleet")
@@ -152,8 +155,7 @@ export async function middleware(req: NextRequest) {
   const allowed =
     auth.scopes.includes(need) ||
     (need === "fleet" &&
-      (auth.scopes.includes("fleet_offices") ||
-        auth.scopes.includes("fleet_mgmt") ||
+      (auth.scopes.includes("fleet_mgmt") ||
         auth.scopes.includes("fleet_units")));
 
   if (!allowed) {

@@ -25,7 +25,7 @@ Aplica a todo el repositorio. Leer este archivo una vez y después abrir solo lo
   - Logística: `logistics`, `LOGISTICS_PASSWORD`, `/logistics/downloads`.
   - Sostenibilidad: `sustainability`, `SUSTAINABILITY_PASSWORD`, `/sustainability/igafom`.
   - Activos Fijos: `fixassets`, `FIXASSETS_PASSWORD`, `/fixassets/new`.
-  - Flota: área `fleet`; `FLEET_PASSWORD_L1` da `fleet_offices`; `FLEET_PASSWORD_L2` da `fleet_offices`, `fleet_mgmt` y `fleet_units`; ruta inicial `/fleet/offices`.
+  - Flota: área `fleet`; solo `FLEET_PASSWORD_L2`, con scopes `fleet_mgmt` y `fleet_units`; ruta inicial `/fleet/mgmt`.
   - TI: `ti`, `DTI_PASSWORD`, `/ti`.
 - TI además tiene una sesión interna de roles en `mvd_ti_session`, con `PASS_TI` y `PASS_JEFES`, endpoints `/api/ti/auth/login|logout|me` y duración de 8 horas.
 - Nunca exponer ni registrar valores de contraseñas, claves API o secretos.
@@ -101,10 +101,10 @@ Aplica a todo el repositorio. Leer este archivo una vez y después abrir solo lo
 
 ## Módulo Flota
 
-- Rutas `/fleet/offices`, `/fleet/mgmt`, `/fleet/units`; componentes `FleetOffForm`, `FleetMgmForm` y `FleetUnitsPermits`.
-- Sedes y Gestión consumen `/api/logistics/flota/req` y guardan lotes en `/api/logistics/flota/web`.
+- Rutas `/fleet/mgmt` y `/fleet/units`; componentes `FleetMgmForm` y `FleetUnitsPermits`.
+- Gestión consume `/api/logistics/flota/req` y guarda lotes en `/api/logistics/flota/web`. Sus editables incluyen odómetro y tipo de requerimiento; este último admite selección múltiple y se guarda como arreglo JSON serializado en `req_type`.
 - Unidades/permisos consume y actualiza `/api/logistics/flota/soat-rtv`.
-- El middleware distingue permisos de nivel 1/2; no convertirlos en un único scope genérico.
+- El middleware conserva scopes separados para Gestión y Unidades, ambos concedidos por el acceso L2.
 
 ## Módulo Sostenibilidad
 

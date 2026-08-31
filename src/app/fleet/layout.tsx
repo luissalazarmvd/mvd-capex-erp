@@ -7,14 +7,6 @@ function FleetTopNav() {
   return (
     <nav style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
       <Link
-        href="/fleet/offices"
-        prefetch={false}
-        className="nav-pill !text-white visited:!text-white text-sm font-extrabold"
-      >
-        Sedes
-      </Link>
-
-      <Link
         href="/fleet/mgmt"
         prefetch={false}
         className="nav-pill !text-white visited:!text-white text-sm font-extrabold"
@@ -76,7 +68,7 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – FLOTA</div>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Sedes · Gestión · Unidades
+                  Gestión · Unidades
                 </div>
               </div>
             </div>

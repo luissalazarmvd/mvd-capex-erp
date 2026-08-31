@@ -20,7 +20,7 @@ async function hmacSha256(secret: string, data: string) {
   return new Uint8Array(sig);
 }
 
-function buildToken(payload: any, secret: string) {
+function buildToken(payload: unknown, secret: string) {
   const payloadB64 = bytesToB64url(new TextEncoder().encode(JSON.stringify(payload)));
   return hmacSha256(secret, payloadB64).then((sig) => `${payloadB64}.${bytesToB64url(sig)}`);
 }
@@ -66,7 +66,6 @@ export async function POST(req: Request) {
     const LOGISTICS_PASSWORD = process.env.LOGISTICS_PASSWORD || "";
     const SUSTAINABILITY_PASSWORD = process.env.SUSTAINABILITY_PASSWORD || "";
     const FIXASSETS_PASSWORD = process.env.FIXASSETS_PASSWORD || "";
-    const FLEET_PASSWORD_L1 = process.env.FLEET_PASSWORD_L1 || "";
     const FLEET_PASSWORD_L2 = process.env.FLEET_PASSWORD_L2 || "";
     const DTI_PASSWORD = process.env.DTI_PASSWORD || "";
 
@@ -84,16 +83,10 @@ export async function POST(req: Request) {
     if (area === "fixassets" && FIXASSETS_PASSWORD && password === FIXASSETS_PASSWORD) ok = true;
     if (area === "ti" && DTI_PASSWORD && password === DTI_PASSWORD) ok = true;
 
-    if (area === "fleet" && password === FLEET_PASSWORD_L1) {
+    if (area === "fleet" && FLEET_PASSWORD_L2 && password === FLEET_PASSWORD_L2) {
       ok = true;
-      scopes = ["fleet_offices"];
-      defaultPath = "/fleet/offices";
-    }
-
-    if (area === "fleet" && password === FLEET_PASSWORD_L2) {
-      ok = true;
-      scopes = ["fleet_offices", "fleet_mgmt", "fleet_units"];
-      defaultPath = "/fleet/offices";
+      scopes = ["fleet_mgmt", "fleet_units"];
+      defaultPath = "/fleet/mgmt";
     }
 
     if (!ok) {
@@ -117,7 +110,8 @@ export async function POST(req: Request) {
     });
 
     return res;
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
