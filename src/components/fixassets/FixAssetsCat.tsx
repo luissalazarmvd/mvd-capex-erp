@@ -93,6 +93,25 @@ type DeprRow = {
   depreciation_amount_pen: number | string | null;
 };
 
+type VetaVrRow = {
+  asset_code: string | null;
+  account_code: string | null;
+  account_description: string | null;
+  comp_date: string | null;
+  subjournal_code: string | null;
+  voucher_number: string | null;
+  annex_code: string | null;
+  annex_description: string | null;
+  document_type: string | null;
+  document_number: string | null;
+  document_date: string | null;
+  voucher_description: string | null;
+  line_description: string | null;
+  debit_credit: string | null;
+  usd_amount: number | string | null;
+  pen_amount: number | string | null;
+};
+
 type MonthlyDeprecCurrency = "usd" | "pen";
 type MonthlyDeprecKey = `monthly_depr_${string}_${MonthlyDeprecCurrency}`;
 type CatalogueColumnKey = keyof CatalogueRow | MonthlyDeprecKey;
@@ -1192,6 +1211,8 @@ function validMappingRate(value: string) {
 
 export default function FixAssetsCat() {
   const [rows, setRows] = useState<CatalogueDisplayRow[]>([]);
+  const [vetaVrRows, setVetaVrRows] = useState<VetaVrRow[]>([]);
+  const [vrDetailAssetCode, setVrDetailAssetCode] = useState<string | null>(null);
   const [deprecCurrentPeriod, setDeprecCurrentPeriod] = useState("");
   const [cecoByCode, setCecoByCode] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -1222,14 +1243,19 @@ export default function FixAssetsCat() {
     setLoading(true);
     setMessage("");
     try {
-      const [response, cecoResponse, deprecResponse] = await Promise.all([
+      const [response, cecoResponse, deprecResponse, vetaVrResponse] = await Promise.all([
         apiGet("/api/actfij/catalogue"),
         apiGet("/api/actfij/ceco"),
         apiGet("/api/actfij/deprec"),
+        apiGet("/api/actfij/veta-vr"),
       ]);
 
       const nextCatalogueRows = Array.isArray(response?.rows)
         ? response.rows as CatalogueRow[]
+        : [];
+
+      const nextVetaVrRows = Array.isArray(vetaVrResponse?.rows)
+        ? vetaVrResponse.rows as VetaVrRow[]
         : [];
 
       const nextDeprecRows = Array.isArray(deprecResponse?.rows)
@@ -1315,6 +1341,7 @@ export default function FixAssetsCat() {
       });
 
       setRows(nextRows);
+      setVetaVrRows(nextVetaVrRows);
       setDeprecCurrentPeriod(currentDeprecPeriod);
       setCecoByCode(nextCecoByCode);
       setDrafts(nextDrafts);
@@ -1332,6 +1359,18 @@ export default function FixAssetsCat() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const vrAssetCodes = useMemo(() => new Set(
+    vetaVrRows
+      .map((row) => text(row.asset_code).trim())
+      .filter(Boolean)
+  ), [vetaVrRows]);
+
+  const vrDetailRows = useMemo(() => (
+    vrDetailAssetCode
+      ? vetaVrRows.filter((row) => text(row.asset_code).trim() === vrDetailAssetCode)
+      : []
+  ), [vetaVrRows, vrDetailAssetCode]);
 
   const editedCodes = useMemo(() => rows
     .map((row) => text(row.asset_code))
@@ -2024,8 +2063,20 @@ export default function FixAssetsCat() {
                 const draft = drafts[code] || toDraft(row);
                 const edited = originals[code] ? changed(draft, originals[code]) : false;
                 const bad = edited && invalid(draft);
+                const hasVrDetail = vrAssetCodes.has(code);
+                const vrFocused = vrDetailAssetCode === code;
 
-                return <tr key={code} className="capex-tr">
+                return <tr
+                  key={code}
+                  className="capex-tr"
+                  onClick={(event) => {
+                    if (!hasVrDetail) return;
+                    if ((event.target as HTMLElement).closest("input, select, button")) return;
+                    setVrDetailAssetCode((current) => current === code ? null : code);
+                  }}
+                  style={{ cursor: hasVrDetail ? "pointer" : undefined }}
+                  title={hasVrDetail ? "Abrir detalle VR" : undefined}
+                >
                   {displayColumns.map((column, columnIndex) => {
                     const editable = EDITABLE.includes(column.key as EditableKey) && column.key !== "asset_type";
                     const key = column.key as EditableKey;
@@ -2042,7 +2093,9 @@ export default function FixAssetsCat() {
                       ? "#713f38"
                       : edited
                         ? "#3d6948"
-                        : catalogueColumnBodyBackground(columnIndex);
+                        : vrFocused
+                          ? "#155a78"
+                          : catalogueColumnBodyBackground(columnIndex);
 
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: cellBackground, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 20 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? key === "asset_situation" ? <select
@@ -2138,6 +2191,98 @@ export default function FixAssetsCat() {
           </Table>
         </div>
       </div>
+
+      {vrDetailAssetCode ? (
+        <section
+          className="panel-inner fixassets-cat-vr-detail"
+          style={{
+            position: "static",
+            maxHeight: "min(62vh, 370px)",
+            padding: 10,
+            overflow: "hidden",
+            background: "var(--panel2)",
+            borderColor: "rgba(147,211,230,.52)",
+            boxShadow: "0 10px 30px rgba(0,0,0,.24)",
+            display: "grid",
+            gridTemplateRows: "auto minmax(0, 1fr)",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <strong>Detalle VR · COD {vrDetailAssetCode}</strong>
+              <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
+                {vrDetailRows.length} línea{vrDetailRows.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <Button size="sm" onClick={() => setVrDetailAssetCode(null)}>Cerrar detalle</Button>
+          </div>
+
+          <div style={{ overflow: "auto", minHeight: 0, border: "1px solid rgba(147,211,230,.22)", borderRadius: 9 }}>
+            <div style={{ minWidth: "max-content" }}>
+              <Table disableScrollWrapper stickyHeader>
+                <thead>
+                  <tr>
+                    {[
+                      "COD",
+                      "Cuenta",
+                      "Descripción cuenta",
+                      "Fecha contable",
+                      "Subdiario",
+                      "Comprobante",
+                      "Código anexo",
+                      "Descripción anexo",
+                      "Tipo doc.",
+                      "Nro. documento",
+                      "Fecha documento",
+                      "Descripción comprobante",
+                      "Descripción línea",
+                      "D/H",
+                      "Monto USD",
+                      "Monto PEN",
+                    ].map((label) => (
+                      <th key={label} className="capex-th" style={{ top: 0, zIndex: 20, padding: 8, fontSize: 12 }}>
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {vrDetailRows.map((detail, detailIndex) => (
+                    <tr
+                      key={`${text(detail.asset_code)}|${text(detail.account_code)}|${text(detail.subjournal_code)}|${text(detail.voucher_number)}|${text(detail.annex_code)}|${text(detail.document_number)}|${detailIndex}`}
+                      className="capex-tr"
+                    >
+                      <td className="capex-td">{text(detail.asset_code)}</td>
+                      <td className="capex-td">{text(detail.account_code)}</td>
+                      <td className="capex-td">{text(detail.account_description)}</td>
+                      <td className="capex-td">{dateOnly(detail.comp_date)}</td>
+                      <td className="capex-td">{text(detail.subjournal_code)}</td>
+                      <td className="capex-td">{text(detail.voucher_number)}</td>
+                      <td className="capex-td">{text(detail.annex_code)}</td>
+                      <td className="capex-td">{text(detail.annex_description)}</td>
+                      <td className="capex-td">{text(detail.document_type)}</td>
+                      <td className="capex-td">{text(detail.document_number)}</td>
+                      <td className="capex-td">{dateOnly(detail.document_date)}</td>
+                      <td className="capex-td">{text(detail.voucher_description)}</td>
+                      <td className="capex-td">{text(detail.line_description)}</td>
+                      <td className="capex-td">{text(detail.debit_credit)}</td>
+                      <td className="capex-td" style={{ textAlign: "right" }}>{twoDecimals(detail.usd_amount)}</td>
+                      <td className="capex-td" style={{ textAlign: "right" }}>{twoDecimals(detail.pen_amount)}</td>
+                    </tr>
+                  ))}
+                  {!vrDetailRows.length ? (
+                    <tr>
+                      <td className="capex-td" colSpan={16}>No hay detalle VR para este COD.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </Table>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div className="muted" style={{ fontSize: 12 }}>
           Mostrando {visibleRows.length ? (page - 1) * PAGE_SIZE + 1 : 0}-{Math.min(page * PAGE_SIZE, visibleRows.length)} de {visibleRows.length} filtrados · {rows.length} activos totales · {editedCodes.length} modificados.

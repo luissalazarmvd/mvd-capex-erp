@@ -28,6 +28,15 @@ type VetaRow = {
   exc_rate: number | string | null;
 };
 
+type VetaVrStoredRow = {
+  asset_code: string | null;
+  account_code: string | null;
+  subjournal_code: string | null;
+  voucher_number: string | null;
+  annex_code: string | null;
+  document_number: string | null;
+};
+
 type CatalogueRow = {
   asset_code: string | null;
   asset_description?: string | null;
@@ -84,6 +93,12 @@ type Draft = {
 
 type RowState = "idle" | "valid" | "invalid";
 type IndexedRow = { row: VetaRow; index: number };
+type NewAssetItem = IndexedRow & {
+  detailIndexes: number[];
+  selectedDetailIndexes: number[];
+  isVrGroup: boolean;
+  readOnly: boolean;
+};
 type TableColumnKey = keyof VetaRow | "asset_code";
 
 type ExcelFilterKind = "text" | "number" | "date";
@@ -137,6 +152,8 @@ const COLUMNS: Array<{ key: TableColumnKey; label: string; width: number }> = [
   { key: "exc_rate", label: "T.C.", width: 110 },
 ];
 
+const DETAIL_COLUMN_WIDTH = 88;
+
 const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
@@ -163,6 +180,156 @@ function firstDayNextMonth(value: unknown) {
 function sourceIdentity(row: Pick<VetaRow | CatalogueRow, "subjournal_code" | "voucher_number" | "annex_code" | "document_number">) {
   const parts = [row.subjournal_code, row.voucher_number, row.annex_code, row.document_number].map((value) => text(value).trim());
   return parts.some(Boolean) ? parts.join("\u001f") : "";
+}
+
+function vetaVrDetailIdentity(
+  row: Pick<VetaRow | VetaVrStoredRow, "account_code" | "subjournal_code" | "voucher_number" | "annex_code" | "document_number">
+) {
+  return [
+    row.account_code,
+    row.subjournal_code,
+    row.voucher_number,
+    row.annex_code,
+    row.document_number,
+  ].map(identityPart).join("\u001f");
+}
+
+function vetaVrUpdateIdentity(
+  row: Pick<VetaVrStoredRow, "asset_code" | "account_code" | "subjournal_code" | "voucher_number" | "annex_code" | "document_number">
+) {
+  return [
+    row.asset_code,
+    row.account_code,
+    row.subjournal_code,
+    row.voucher_number,
+    row.annex_code,
+    row.document_number,
+  ].map(identityPart).join("\u001f");
+}
+
+function documentType(row: Pick<VetaRow, "document_type">) {
+  return text(row.document_type).trim().toLocaleUpperCase("es");
+}
+
+function isNaDocument(row: Pick<VetaRow, "document_type">) {
+  return documentType(row) === "NA";
+}
+
+function isVrDocument(row: Pick<VetaRow, "document_type">) {
+  return documentType(row) === "VR";
+}
+
+function identityPart(value: unknown) {
+  return text(value).trim().toLocaleUpperCase("es");
+}
+
+function vrGroupIdentityParts(
+  accountCode: unknown,
+  subjournalCode: unknown,
+  voucherNumber: unknown,
+  annexCode: unknown,
+  capexCode: unknown
+) {
+  const capex = identityPart(capexCode);
+  return [
+    identityPart(accountCode),
+    identityPart(subjournalCode),
+    identityPart(voucherNumber),
+    identityPart(annexCode),
+    capex ? "CAPEX" : "NORMAL",
+  ].join("\u001e");
+}
+
+function vrGroupIdentity(row: VetaRow) {
+  return vrGroupIdentityParts(
+    row.account_code,
+    row.subjournal_code,
+    row.voucher_number,
+    row.annex_code,
+    row.capex_code
+  );
+}
+
+function catalogueVrGroupIdentity(row: CatalogueRow) {
+  return vrGroupIdentityParts(
+    row.origin_account_code,
+    row.subjournal_code,
+    row.voucher_number,
+    row.annex_code,
+    row.capex_code
+  );
+}
+
+function finiteNumber(value: unknown) {
+  const clean = text(value).trim().replace(",", ".");
+  if (!clean) return null;
+  const parsed = Number(clean);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sumVetaAmount(items: IndexedRow[], field: "usd_amount" | "pen_amount") {
+  return items.reduce((total, item) => total + (finiteNumber(item.row[field]) || 0), 0);
+}
+
+function buildNewAssetItems(
+  items: IndexedRow[],
+  excludedVrIndexes: ReadonlySet<number>
+) {
+  type Slot =
+    | { kind: "single"; item: IndexedRow }
+    | { kind: "vr"; members: IndexedRow[] };
+
+  const slots: Slot[] = [];
+  const vrSlotByKey = new Map<string, number>();
+
+  items.forEach((item) => {
+    if (!isVrDocument(item.row)) {
+      slots.push({ kind: "single", item });
+      return;
+    }
+
+    const key = vrGroupIdentity(item.row);
+    const slotIndex = vrSlotByKey.get(key);
+
+    if (slotIndex == null) {
+      vrSlotByKey.set(key, slots.length);
+      slots.push({ kind: "vr", members: [item] });
+      return;
+    }
+
+    const slot = slots[slotIndex];
+    if (slot.kind === "vr") slot.members.push(item);
+  });
+
+  return slots.map<NewAssetItem>((slot) => {
+    if (slot.kind === "single") {
+      return {
+        ...slot.item,
+        detailIndexes: [slot.item.index],
+        selectedDetailIndexes: [slot.item.index],
+        isVrGroup: false,
+        readOnly: isNaDocument(slot.item.row),
+      };
+    }
+
+    const selectedMembers = slot.members.filter(
+      ({ index }) => !excludedVrIndexes.has(index)
+    );
+    const representative = selectedMembers[0] || slot.members[0];
+
+    return {
+      row: {
+        ...representative.row,
+        usd_amount: sumVetaAmount(selectedMembers, "usd_amount"),
+        pen_amount: sumVetaAmount(selectedMembers, "pen_amount"),
+      },
+      index: slot.members[0].index,
+      detailIndexes: slot.members.map(({ index }) => index),
+      selectedDetailIndexes: selectedMembers.map(({ index }) => index),
+      isVrGroup: true,
+      readOnly: false,
+    };
+  });
 }
 
 function decimalDraft(value: string, maxIntegerDigits: number, maxDecimals = 6) {
@@ -225,6 +392,16 @@ function draftFrom(row: VetaRow): Draft {
     depreciation_method: "",
     asset_situation: "OPERATIVO",
     asset_comment: "",
+  };
+}
+
+function displayDraft(item: NewAssetItem, drafts: Record<number, Draft>) {
+  const draft = drafts[item.index] || draftFrom(item.row);
+  if (!item.isVrGroup) return draft;
+  return {
+    ...draft,
+    usd_amount: twoDecimals(item.row.usd_amount, false),
+    pen_amount: twoDecimals(item.row.pen_amount, false),
   };
 }
 
@@ -1074,7 +1251,7 @@ type ExtraField = (typeof EXTRA_FIELDS)[number][0];
 type NewRowsTableProps = {
   title: string;
   subtitle: string;
-  items: IndexedRow[];
+  items: NewAssetItem[];
   drafts: Record<number, Draft>;
   states: Record<number, RowState>;
   loading: boolean;
@@ -1082,8 +1259,10 @@ type NewRowsTableProps = {
   onCodeActivity: (index: number, value: string) => void;
   onFocusDetails: (index: number) => void;
   onOpenDetails: (index: number) => void;
+  onOpenVrDetails: (index: number) => void;
   focusedDetailIndex: number | null;
-  catalogueBySource: ReadonlyMap<string, CatalogueRow>;
+  existingByIndex: ReadonlyMap<number, CatalogueRow>;
+  storedVrCountByIndex: ReadonlyMap<number, number>;
 };
 
 const NewRowsTable = memo(function NewRowsTable({
@@ -1097,8 +1276,10 @@ const NewRowsTable = memo(function NewRowsTable({
   onCodeActivity,
   onFocusDetails,
   onOpenDetails,
+  onOpenVrDetails,
   focusedDetailIndex,
-  catalogueBySource,
+  existingByIndex,
+  storedVrCountByIndex,
 }: NewRowsTableProps) {
   const [columnFilters, setColumnFilters] = useState<
     Partial<Record<TableColumnKey, ExcelColumnFilter>>
@@ -1118,10 +1299,10 @@ const NewRowsTable = memo(function NewRowsTable({
     const result: Partial<Record<TableColumnKey, string[]>> = {};
 
     COLUMNS.forEach((column) => {
-      result[column.key] = items.map(({ row, index }) => {
-        const draft = drafts[index] || draftFrom(row);
-        const existing =
-          catalogueBySource.get(sourceIdentity(row)) || null;
+      result[column.key] = items.map((item) => {
+        const { row, index, readOnly } = item;
+        const draft = displayDraft(item, drafts);
+        const existing = readOnly ? null : existingByIndex.get(index) || null;
 
         return text(
           newAssetsExcelFilterValue(
@@ -1135,13 +1316,13 @@ const NewRowsTable = memo(function NewRowsTable({
     });
 
     return result;
-  }, [items, drafts, catalogueBySource]);
+  }, [items, drafts, existingByIndex]);
 
   const visibleItems = useMemo(() => {
-    const filtered = items.filter(({ row, index }) => {
-      const draft = drafts[index] || draftFrom(row);
-      const existing =
-        catalogueBySource.get(sourceIdentity(row)) || null;
+    const filtered = items.filter((item) => {
+      const { row, index, readOnly } = item;
+      const draft = displayDraft(item, drafts);
+      const existing = readOnly ? null : existingByIndex.get(index) || null;
 
       return (
         Object.entries(columnFilters) as Array<
@@ -1164,14 +1345,12 @@ const NewRowsTable = memo(function NewRowsTable({
     if (!excelSort) return filtered;
 
     return [...filtered].sort((a, b) => {
-      const aDraft = drafts[a.index] || draftFrom(a.row);
-      const bDraft = drafts[b.index] || draftFrom(b.row);
+      const aDraft = displayDraft(a, drafts);
+      const bDraft = displayDraft(b, drafts);
 
-      const aExisting =
-        catalogueBySource.get(sourceIdentity(a.row)) || null;
+      const aExisting = a.readOnly ? null : existingByIndex.get(a.index) || null;
 
-      const bExisting =
-        catalogueBySource.get(sourceIdentity(b.row)) || null;
+      const bExisting = b.readOnly ? null : existingByIndex.get(b.index) || null;
 
       const comparison = compareExcelValues(
         newAssetsExcelFilterValue(
@@ -1195,7 +1374,7 @@ const NewRowsTable = memo(function NewRowsTable({
   }, [
     items,
     drafts,
-    catalogueBySource,
+    existingByIndex,
     columnFilters,
     excelSort,
   ]);
@@ -1241,76 +1420,209 @@ const NewRowsTable = memo(function NewRowsTable({
       <div className="panel-inner fixassets-new-table-grid" style={{ overflow: "auto", height: "100%", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
-            <colgroup>{COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
-            <thead><tr>{COLUMNS.map((column) => {
-              const sticky = column.key === "asset_code";
-
-              return <th
-                key={column.key}
-                className="capex-th"
-                style={{
-                  position: "sticky",
-                  top: 0,
-                  left: sticky ? 0 : undefined,
-                  zIndex: sticky ? 92 : 79,
-                  overflow: "visible",
-                  background: "#163b49",
-                  boxShadow: sticky
-                    ? "2px 0 rgba(216,238,255,.16)"
-                    : undefined,
-                }}
-              >
-                <div
+            <colgroup>
+              <col style={{ width: DETAIL_COLUMN_WIDTH, minWidth: DETAIL_COLUMN_WIDTH }} />
+              {COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}
+            </colgroup>
+            <thead>
+              <tr>
+                <th
+                  className="capex-th"
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 5,
+                    position: "sticky",
+                    top: 0,
+                    left: 0,
+                    zIndex: 94,
+                    background: "#163b49",
+                    boxShadow: "2px 0 rgba(216,238,255,.16)",
                   }}
                 >
-                  <span>{column.label}</span>
+                  Detalle
+                </th>
+                {COLUMNS.map((column) => {
+                  const sticky = column.key === "asset_code";
 
-                  <ExcelHeaderFilter
-                    label={column.label}
-                    kind={newAssetsExcelFilterKind(column.key)}
-                    values={excelColumnValues[column.key] || []}
-                    filter={columnFilters[column.key]}
-                    sortDirection={
-                      excelSort?.key === column.key
-                        ? excelSort.direction
-                        : undefined
-                    }
-                    onApply={(filter) =>
-                      setColumnFilters((current) => ({
-                        ...current,
-                        [column.key]: filter,
-                      }))
-                    }
-                    onSort={(direction) =>
-                      setExcelSort({
-                        key: column.key,
-                        direction,
-                      })
-                    }
-                  />
-                </div>
-              </th>;
-            })}</tr></thead>
+                  return <th
+                    key={column.key}
+                    className="capex-th"
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      left: sticky ? DETAIL_COLUMN_WIDTH : undefined,
+                      zIndex: sticky ? 93 : 79,
+                      overflow: "visible",
+                      background: "#163b49",
+                      boxShadow: sticky
+                        ? "2px 0 rgba(216,238,255,.16)"
+                        : undefined,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 5,
+                      }}
+                    >
+                      <span>{column.label}</span>
+
+                      <ExcelHeaderFilter
+                        label={column.label}
+                        kind={newAssetsExcelFilterKind(column.key)}
+                        values={excelColumnValues[column.key] || []}
+                        filter={columnFilters[column.key]}
+                        sortDirection={
+                          excelSort?.key === column.key
+                            ? excelSort.direction
+                            : undefined
+                        }
+                        onApply={(filter) =>
+                          setColumnFilters((current) => ({
+                            ...current,
+                            [column.key]: filter,
+                          }))
+                        }
+                        onSort={(direction) =>
+                          setExcelSort({
+                            key: column.key,
+                            direction,
+                          })
+                        }
+                      />
+                    </div>
+                  </th>;
+                })}
+              </tr>
+            </thead>
             <tbody>
-              {visibleItems.map(({ row, index }) => {
-                const draft = drafts[index] || draftFrom(row);
-                const existing = catalogueBySource.get(sourceIdentity(row)) || null;
-                const state = states[index] || "idle";
-                const focused = !existing && focusedDetailIndex === index;
-                const background = existing ? "rgba(2,35,52,.82)" : state === "invalid" ? "rgba(216,93,39,.32)" : focused ? "rgba(27,147,227,.34)" : state === "valid" ? "rgba(94,128,25,.32)" : undefined;
-                return <tr key={index} className="capex-tr" onClick={() => { if (!existing) onFocusDetails(index); }} title={existing ? `Ya existe en catálogo como ${text(existing.asset_code)}` : undefined} style={{ cursor: existing ? "default" : "pointer" }}>
+              {visibleItems.map((item) => {
+                const {
+                  row,
+                  index,
+                  isVrGroup,
+                  readOnly,
+                  detailIndexes,
+                  selectedDetailIndexes,
+                } = item;
+                const draft = displayDraft(item, drafts);
+                const existing = readOnly ? null : existingByIndex.get(index) || null;
+                const visibleSelectedCount = existing && storedVrCountByIndex.has(index)
+                  ? storedVrCountByIndex.get(index) || 0
+                  : selectedDetailIndexes.length;
+                const locked = Boolean(existing) || readOnly;
+                const state = locked ? "idle" : states[index] || "idle";
+                const focused = !locked && focusedDetailIndex === index;
+                const background = existing
+                  ? "rgba(2,35,52,.82)"
+                  : readOnly
+                    ? "rgba(67,78,86,.48)"
+                    : state === "invalid"
+                      ? "rgba(216,93,39,.32)"
+                      : focused
+                        ? "rgba(27,147,227,.34)"
+                        : state === "valid"
+                          ? "rgba(94,128,25,.32)"
+                          : undefined;
+                const title = existing
+                  ? `Ya existe en catálogo como ${text(existing.asset_code)}`
+                  : readOnly
+                    ? "Tipo de documento NA: fila informativa, sin COD y fuera del guardado."
+                    : isVrGroup
+                      ? `Paquete VR: ${visibleSelectedCount} de ${detailIndexes.length} líneas seleccionadas.`
+                      : undefined;
+
+                return <tr
+                  key={index}
+                  className="capex-tr"
+                  onClick={() => { if (!locked) onFocusDetails(index); }}
+                  title={title}
+                  style={{ cursor: locked ? "default" : "pointer" }}
+                >
+                  <td
+                    className="capex-td"
+                    style={{
+                      padding: 5,
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 22,
+                      background: existing
+                        ? "#052b3d"
+                        : readOnly
+                          ? "#394851"
+                          : focused
+                            ? "#155a78"
+                            : "#0b4d6b",
+                      boxShadow: "2px 0 rgba(216,238,255,.12)",
+                      textAlign: "center",
+                    }}
+                  >
+                    {isVrGroup ? <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenVrDetails(index);
+                      }}
+                      style={{
+                        width: "100%",
+                        minWidth: 70,
+                        padding: "4px 5px",
+                        borderRadius: 7,
+                        border: "1px solid rgba(147,211,230,.38)",
+                        background: "rgba(27,147,227,.22)",
+                        color: "#eefaff",
+                        fontSize: 11,
+                        fontWeight: 900,
+                        cursor: "pointer",
+                      }}
+                      aria-label={`Abrir detalle del paquete VR de la fila ${index + 1}`}
+                    >
+                      Ver {visibleSelectedCount}/{detailIndexes.length}
+                    </button> : readOnly ? <strong style={{ color: "#d7e0e5" }}>NA</strong> : <span className="muted">—</span>}
+                  </td>
                   {COLUMNS.map((column) => {
-                    const editable = !existing && (column.key === "asset_code" || column.key === "line_description" || column.key === "capex_code" || column.key === "usd_amount" || column.key === "pen_amount" || column.key === "exc_rate");
+                    const isVrAmount = isVrGroup && (column.key === "usd_amount" || column.key === "pen_amount");
+                    const editable = !locked && !isVrAmount && (
+                      column.key === "asset_code"
+                      || column.key === "line_description"
+                      || column.key === "capex_code"
+                      || column.key === "usd_amount"
+                      || column.key === "pen_amount"
+                      || column.key === "exc_rate"
+                    );
                     const field = column.key as keyof Draft;
-                    const value = column.key === "asset_code" ? existing ? existing.asset_code : draft.asset_code : editable ? draft[field] : row[column.key as keyof VetaRow];
+                    const value = column.key === "asset_code"
+                      ? existing ? existing.asset_code : readOnly ? "" : draft.asset_code
+                      : isVrAmount
+                        ? row[column.key as keyof VetaRow]
+                        : editable
+                          ? draft[field]
+                        : row[column.key as keyof VetaRow];
                     const numeric = column.key === "usd_amount" || column.key === "pen_amount" || column.key === "exc_rate";
                     const sticky = column.key === "asset_code";
-                    return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? existing ? "#052b3d" : state === "invalid" ? "#79453b" : focused ? "#155a78" : stickyRowBackground(state) : background, position: sticky ? "sticky" : undefined, left: sticky ? 0 : undefined, zIndex: sticky ? 20 : undefined, boxShadow: sticky ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
+
+                    return <td
+                      key={column.key}
+                      className="capex-td"
+                      style={{
+                        padding: 5,
+                        background: sticky
+                          ? existing
+                            ? "#052b3d"
+                            : readOnly
+                              ? "#394851"
+                              : state === "invalid"
+                                ? "#79453b"
+                                : focused
+                                  ? "#155a78"
+                                  : stickyRowBackground(state)
+                          : background,
+                        position: sticky ? "sticky" : undefined,
+                        left: sticky ? DETAIL_COLUMN_WIDTH : undefined,
+                        zIndex: sticky ? 21 : undefined,
+                        boxShadow: sticky ? "2px 0 rgba(216,238,255,.12)" : undefined,
+                      }}
+                    >
                       {editable ? <FastCellInput
                         className="input"
                         value={text(value)}
@@ -1336,13 +1648,217 @@ const NewRowsTable = memo(function NewRowsTable({
                         onCommit={(next) => onCommit(index, field, next)}
                         style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: state === "invalid" ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} fila ${index + 1}`}
-                      /> : <span title={text(value)}>{column.key.endsWith("date") ? dateOnly(value) : column.key === "usd_amount" ? twoDecimals(value) : text(value)}</span>}
+                      /> : <span title={text(value)}>{
+                        column.key.endsWith("date")
+                          ? dateOnly(value)
+                          : column.key === "usd_amount" || column.key === "pen_amount"
+                            ? twoDecimals(value)
+                            : text(value)
+                      }</span>}
                     </td>;
                   })}
                 </tr>;
               })}
-              {!loading && !visibleItems.length ? <tr><td className="capex-td" colSpan={COLUMNS.length}>{items.length ? "No hay registros que coincidan con los filtros." : "No hay registros para el periodo seleccionado."}</td></tr> : null}
-              {loading ? <tr><td className="capex-td" colSpan={COLUMNS.length}>Cargando activos...</td></tr> : null}
+              {!loading && !visibleItems.length ? <tr><td className="capex-td" colSpan={COLUMNS.length + 1}>{items.length ? "No hay registros que coincidan con los filtros." : "No hay registros para el periodo seleccionado."}</td></tr> : null}
+              {loading ? <tr><td className="capex-td" colSpan={COLUMNS.length + 1}>Cargando activos...</td></tr> : null}
+            </tbody>
+          </Table>
+        </div>
+      </div>
+    </section>
+  );
+});
+
+type VrDetailPanelProps = {
+  item: NewAssetItem;
+  rows: VetaRow[];
+  draft: Draft;
+  excludedVrIndexes: ReadonlySet<number>;
+  storedAssetCodeByDetail: ReadonlyMap<string, string>;
+  existing: CatalogueRow | null;
+  saving: boolean;
+  onToggle: (index: number) => void;
+  onClose: () => void;
+};
+
+const VrDetailPanel = memo(function VrDetailPanel({
+  item,
+  rows,
+  draft,
+  excludedVrIndexes,
+  storedAssetCodeByDetail,
+  existing,
+  saving,
+  onToggle,
+  onClose,
+}: VrDetailPanelProps) {
+  const assetCode = text(existing?.asset_code || draft.asset_code).trim();
+  const locked = Boolean(existing) || saving;
+  const persistedSelectedIndexes = new Set(
+    item.detailIndexes.filter((detailIndex) => {
+      const row = rows[detailIndex];
+      return Boolean(
+        row
+        && assetCode
+        && storedAssetCodeByDetail.get(vetaVrDetailIdentity(row)) === assetCode
+      );
+    })
+  );
+  const usePersistedSelection = Boolean(existing && persistedSelectedIndexes.size);
+  const isSelected = (detailIndex: number) => usePersistedSelection
+    ? persistedSelectedIndexes.has(detailIndex)
+    : !excludedVrIndexes.has(detailIndex);
+  const selectedDetailItems = item.detailIndexes
+    .filter(isSelected)
+    .map((detailIndex) => ({ row: rows[detailIndex], index: detailIndex }))
+    .filter((entry): entry is IndexedRow => Boolean(entry.row));
+  const selectedCount = selectedDetailItems.length;
+  const totalPen = twoDecimals(sumVetaAmount(selectedDetailItems, "pen_amount"), false);
+  const totalUsd = twoDecimals(sumVetaAmount(selectedDetailItems, "usd_amount"), false);
+
+  return (
+    <section
+      className="panel-inner fixassets-new-vr-detail"
+      style={{
+        position: "static",
+        maxHeight: "min(68vh, 520px)",
+        padding: 10,
+        overflow: "hidden",
+        background: "var(--panel2)",
+        borderColor: "rgba(147,211,230,.52)",
+        boxShadow: "0 10px 30px rgba(0,0,0,.24)",
+        display: "grid",
+        gridTemplateRows: "auto auto minmax(0, 1fr)",
+        gap: 8,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div>
+          <strong>Detalle del paquete VR</strong>
+          <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
+            COD {assetCode || "sin proponer"} · Cuenta {text(item.row.account_code) || "—"} · {selectedCount}/{item.detailIndexes.length} líneas
+          </span>
+        </div>
+        <Button size="sm" onClick={onClose}>Cerrar detalle</Button>
+      </div>
+
+      <div
+        className="panel-inner"
+        style={{
+          padding: "7px 9px",
+          borderColor: "rgba(147,211,230,.34)",
+          background: "rgba(2,35,52,.32)",
+          fontSize: 12,
+          display: "flex",
+          gap: 14,
+          flexWrap: "wrap",
+        }}
+      >
+        <span><strong>Subdiario:</strong> {text(item.row.subjournal_code) || "—"}</span>
+        <span><strong>Comprobante:</strong> {text(item.row.voucher_number) || "—"}</span>
+        <span><strong>Anexo:</strong> {text(item.row.annex_code) || "—"}</span>
+        <span><strong>Total PEN:</strong> {totalPen}</span>
+        <span><strong>Total USD:</strong> {totalUsd}</span>
+        <span className="muted">
+          {existing
+            ? "El paquete ya existe en catálogo; la selección queda bloqueada."
+            : "Desmarca una línea para excluirla del POST veta-vr; su COD se limpia inmediatamente y los totales master se recalculan."}
+        </span>
+      </div>
+
+      <div style={{ overflow: "auto", minHeight: 0, border: "1px solid rgba(147,211,230,.22)", borderRadius: 9 }}>
+        <div style={{ minWidth: "max-content" }}>
+          <Table disableScrollWrapper>
+            <colgroup>
+              <col style={{ width: 74, minWidth: 74 }} />
+              {COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="capex-th" style={{ position: "sticky", top: 0, left: 0, zIndex: 94, background: "#163b49" }}>
+                  Incluir
+                </th>
+                {COLUMNS.map((column) => {
+                  const sticky = column.key === "asset_code";
+                  return <th
+                    key={column.key}
+                    className="capex-th"
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      left: sticky ? 74 : undefined,
+                      zIndex: sticky ? 93 : 79,
+                      background: "#163b49",
+                    }}
+                  >
+                    {column.label}
+                  </th>;
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {item.detailIndexes.map((detailIndex) => {
+                const row = rows[detailIndex];
+                if (!row) return null;
+                const selected = isSelected(detailIndex);
+
+                return <tr
+                  key={detailIndex}
+                  className="capex-tr"
+                  style={{
+                    opacity: selected ? 1 : 0.58,
+                    background: selected ? "rgba(94,128,25,.17)" : "rgba(67,78,86,.38)",
+                  }}
+                >
+                  <td
+                    className="capex-td"
+                    style={{
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 22,
+                      textAlign: "center",
+                      background: selected ? "#315b43" : "#394851",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={locked}
+                      onChange={() => onToggle(detailIndex)}
+                      aria-label={`${selected ? "Excluir" : "Incluir"} línea VR ${detailIndex + 1}`}
+                      style={{ width: 16, height: 16, cursor: locked ? "not-allowed" : "pointer" }}
+                    />
+                  </td>
+                  {COLUMNS.map((column) => {
+                    const sticky = column.key === "asset_code";
+                    const value = column.key === "asset_code"
+                      ? selected ? assetCode : ""
+                      : row[column.key as keyof VetaRow];
+
+                    return <td
+                      key={column.key}
+                      className="capex-td"
+                      style={{
+                        position: sticky ? "sticky" : undefined,
+                        left: sticky ? 74 : undefined,
+                        zIndex: sticky ? 21 : undefined,
+                        background: sticky
+                          ? selected ? "#416f43" : "#394851"
+                          : undefined,
+                        boxShadow: sticky ? "2px 0 rgba(216,238,255,.12)" : undefined,
+                      }}
+                    >
+                      <span title={text(value)}>{
+                        column.key.endsWith("date")
+                          ? dateOnly(value)
+                          : column.key === "usd_amount" || column.key === "pen_amount"
+                            ? twoDecimals(value)
+                            : text(value)
+                      }</span>
+                    </td>;
+                  })}
+                </tr>;
+              })}
             </tbody>
           </Table>
         </div>
@@ -1353,7 +1869,9 @@ const NewRowsTable = memo(function NewRowsTable({
 
 export default function FixAssetsNew() {
   const initialPeriod = useMemo(currentPeriod, []);
+  const autoCodeIndexesRef = useRef<Set<number>>(new Set());
   const [rows, setRows] = useState<VetaRow[]>([]);
+  const [vetaVrRows, setVetaVrRows] = useState<VetaVrStoredRow[]>([]);
   const [catalogueRows, setCatalogueRows] = useState<CatalogueRow[]>([]);
   const [cecoByCode, setCecoByCode] = useState<Record<string, string>>({});
   const [codePrefixByAccount, setCodePrefixByAccount] = useState<Record<string, string>>({});
@@ -1365,6 +1883,8 @@ export default function FixAssetsNew() {
   const [activeCodePrefix, setActiveCodePrefix] = useState("");
   const [activeCodeIndex, setActiveCodeIndex] = useState<number | null>(null);
   const [detailIndex, setDetailIndex] = useState<number | null>(null);
+  const [vrDetailIndex, setVrDetailIndex] = useState<number | null>(null);
+  const [excludedVrIndexes, setExcludedVrIndexes] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -1374,13 +1894,15 @@ export default function FixAssetsNew() {
     setLoading(true);
     setMessage("");
     try {
-      const [veta, catalogue, ceco, mapping] = await Promise.all([
+      const [veta, vetaVr, catalogue, ceco, mapping] = await Promise.all([
         apiGet("/api/actfij/veta"),
+        apiGet("/api/actfij/veta-vr"),
         apiGet("/api/actfij/catalogue"),
         apiGet("/api/actfij/ceco"),
         apiGet("/api/actfij/mapping"),
       ]);
       const nextRows = Array.isArray(veta?.rows) ? (veta.rows as VetaRow[]) : [];
+      const nextVetaVrRows = Array.isArray(vetaVr?.rows) ? (vetaVr.rows as VetaVrStoredRow[]) : [];
       const nextCatalogue = Array.isArray(catalogue?.rows) ? catalogue.rows as CatalogueRow[] : [];
       const nextCecoByCode = (Array.isArray(ceco?.rows) ? ceco.rows as CecoRow[] : [])
         .reduce<Record<string, string>>((current, row) => {
@@ -1397,7 +1919,9 @@ export default function FixAssetsNew() {
         }, {});
       const nextDrafts: Record<number, Draft> = {};
       nextRows.forEach((row, index) => { nextDrafts[index] = draftFrom(row); });
+      autoCodeIndexesRef.current.clear();
       setRows(nextRows);
+      setVetaVrRows(nextVetaVrRows);
       setCatalogueRows(nextCatalogue);
       setCecoByCode(nextCecoByCode);
       setCodePrefixByAccount(nextCodePrefixByAccount);
@@ -1410,6 +1934,8 @@ export default function FixAssetsNew() {
       setActiveCodePrefix("");
       setActiveCodeIndex(null);
       setDetailIndex(null);
+      setVrDetailIndex(null);
+      setExcludedVrIndexes(new Set());
       setIsError(false);
     } catch (error) {
       setIsError(true);
@@ -1431,15 +1957,6 @@ export default function FixAssetsNew() {
     .filter((option) => year < initialPeriod.year || (year === initialPeriod.year && option.value <= initialPeriod.month)),
   [year, initialPeriod.year, initialPeriod.month]);
 
-  const codeCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    Object.values(drafts).forEach((draft) => {
-      const code = draft.asset_code.trim();
-      if (code) counts.set(code, (counts.get(code) || 0) + 1);
-    });
-    return counts;
-  }, [drafts]);
-
   const classMaxSuffix = useMemo(() => {
     const result = new Map<string, number>();
     existingCodes.forEach((code) => {
@@ -1459,6 +1976,43 @@ export default function FixAssetsNew() {
     });
     return result;
   }, [catalogueRows]);
+
+  const catalogueByVrGroup = useMemo(() => {
+    const result = new Map<string, CatalogueRow>();
+    catalogueRows.forEach((row) => {
+      const key = catalogueVrGroupIdentity(row);
+      if (key) result.set(key, row);
+    });
+    return result;
+  }, [catalogueRows]);
+
+  const catalogueByCode = useMemo(() => {
+    const result = new Map<string, CatalogueRow>();
+    catalogueRows.forEach((row) => {
+      const code = text(row.asset_code).trim();
+      if (code) result.set(code, row);
+    });
+    return result;
+  }, [catalogueRows]);
+
+  const vetaVrAssetCodeByDetail = useMemo(() => {
+    const result = new Map<string, string>();
+    vetaVrRows.forEach((row) => {
+      const code = text(row.asset_code).trim();
+      if (code) result.set(vetaVrDetailIdentity(row), code);
+    });
+    return result;
+  }, [vetaVrRows]);
+
+  const vetaVrStoredUpdateKeys = useMemo(() => {
+    const result = new Set<string>();
+    vetaVrRows.forEach((row) => {
+      if (text(row.asset_code).trim()) {
+        result.add(vetaVrUpdateIdentity(row));
+      }
+    });
+    return result;
+  }, [vetaVrRows]);
 
   const catalogueCecoCodes = useMemo(() => Array.from(new Set(
     catalogueRows
@@ -1488,9 +2042,297 @@ export default function FixAssetsNew() {
     return result;
   }, [catalogueRows, drafts]);
 
+  const filteredRows = useMemo(() => rows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => {
+      const value = monthOf(row.comp_date);
+      return Boolean(value && value.year === year && value.month >= monthFrom && value.month <= monthTo);
+    }), [rows, year, monthFrom, monthTo]);
+
+  const normalSourceRows = useMemo(
+    () => filteredRows.filter(({ row }) => !text(row.capex_code).trim()),
+    [filteredRows]
+  );
+
+  const capexSourceRows = useMemo(
+    () => filteredRows
+      .filter(({ row }) => Boolean(text(row.capex_code).trim()))
+      .sort((a, b) => text(a.row.capex_code).localeCompare(
+        text(b.row.capex_code),
+        undefined,
+        { numeric: true, sensitivity: "base" }
+      )),
+    [filteredRows]
+  );
+
+  const persistedExcludedVrIndexes = useMemo(() => {
+    const result = new Set<number>();
+    const unfilteredGroups = [
+      ...buildNewAssetItems(normalSourceRows, new Set<number>()),
+      ...buildNewAssetItems(capexSourceRows, new Set<number>()),
+    ].filter((item) => item.isVrGroup);
+
+    unfilteredGroups.forEach((item) => {
+      const linkedCodes = item.detailIndexes
+        .map((detailIndex) => rows[detailIndex])
+        .filter((row): row is VetaRow => Boolean(row))
+        .map((row) => vetaVrAssetCodeByDetail.get(vetaVrDetailIdentity(row)) || "")
+        .filter((code) => Boolean(code && catalogueByCode.has(code)));
+
+      const storedAssetCode = linkedCodes[0] || "";
+      if (!storedAssetCode) return;
+
+      item.detailIndexes.forEach((detailIndex) => {
+        const row = rows[detailIndex];
+        if (
+          !row
+          || vetaVrAssetCodeByDetail.get(vetaVrDetailIdentity(row)) !== storedAssetCode
+        ) {
+          result.add(detailIndex);
+        }
+      });
+    });
+
+    return result;
+  }, [
+    normalSourceRows,
+    capexSourceRows,
+    rows,
+    vetaVrAssetCodeByDetail,
+    catalogueByCode,
+  ]);
+
+  const effectiveExcludedVrIndexes = useMemo(() => new Set([
+    ...persistedExcludedVrIndexes,
+    ...excludedVrIndexes,
+  ]), [persistedExcludedVrIndexes, excludedVrIndexes]);
+
+  const normalRows = useMemo(
+    () => buildNewAssetItems(normalSourceRows, effectiveExcludedVrIndexes),
+    [normalSourceRows, effectiveExcludedVrIndexes]
+  );
+
+  const capexRows = useMemo(
+    () => buildNewAssetItems(capexSourceRows, effectiveExcludedVrIndexes),
+    [capexSourceRows, effectiveExcludedVrIndexes]
+  );
+
+  const displayedItems = useMemo(
+    () => [...normalRows, ...capexRows],
+    [normalRows, capexRows]
+  );
+
+  const itemByIndex = useMemo(() => {
+    const result = new Map<number, NewAssetItem>();
+    displayedItems.forEach((item) => result.set(item.index, item));
+    return result;
+  }, [displayedItems]);
+
+  const existingByIndex = useMemo(() => {
+    const result = new Map<number, CatalogueRow>();
+
+    displayedItems.forEach((item) => {
+      let existing: CatalogueRow | undefined;
+
+      if (item.isVrGroup) {
+        const linkedCode = item.detailIndexes
+          .map((index) => rows[index])
+          .filter((row): row is VetaRow => Boolean(row))
+          .map((row) => vetaVrAssetCodeByDetail.get(vetaVrDetailIdentity(row)))
+          .find((code): code is string => Boolean(code && catalogueByCode.has(code)));
+
+        existing = linkedCode
+          ? catalogueByCode.get(linkedCode)
+          : catalogueByVrGroup.get(vrGroupIdentity(item.row));
+      } else {
+        existing = catalogueBySource.get(sourceIdentity(item.row));
+      }
+
+      if (existing) result.set(item.index, existing);
+    });
+
+    return result;
+  }, [
+    displayedItems,
+    rows,
+    catalogueBySource,
+    catalogueByVrGroup,
+    catalogueByCode,
+    vetaVrAssetCodeByDetail,
+  ]);
+
+  const storedVrCountByIndex = useMemo(() => {
+    const result = new Map<number, number>();
+
+    displayedItems.forEach((item) => {
+      if (!item.isVrGroup) return;
+      const assetCode = text(existingByIndex.get(item.index)?.asset_code).trim();
+      if (!assetCode) return;
+
+      const count = item.detailIndexes.reduce((total, detailIndex) => {
+        const row = rows[detailIndex];
+        return total + Number(
+          Boolean(
+            row
+            && vetaVrAssetCodeByDetail.get(vetaVrDetailIdentity(row)) === assetCode
+          )
+        );
+      }, 0);
+
+      if (count > 0) result.set(item.index, count);
+    });
+
+    return result;
+  }, [displayedItems, existingByIndex, rows, vetaVrAssetCodeByDetail]);
+
+  const codeValidationItems = useMemo(() => displayedItems.filter((item) => (
+    !item.readOnly
+    && !existingByIndex.has(item.index)
+    && (!item.isVrGroup || item.selectedDetailIndexes.length > 0)
+  )), [displayedItems, existingByIndex]);
+
+  const codeCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    codeValidationItems.forEach(({ index }) => {
+      const code = drafts[index]?.asset_code.trim() || "";
+      if (code) counts.set(code, (counts.get(code) || 0) + 1);
+    });
+    return counts;
+  }, [codeValidationItems, drafts]);
+
+  useEffect(() => {
+    if (!displayedItems.length) return;
+
+    const currentVrDetailIndexes = new Set<number>();
+    const currentVrMasterIndexes = new Set<number>();
+
+    displayedItems.forEach((item) => {
+      if (!item.isVrGroup) return;
+      currentVrMasterIndexes.add(item.index);
+      item.detailIndexes.forEach((index) => currentVrDetailIndexes.add(index));
+    });
+
+    setDrafts((current) => {
+      const next = { ...current };
+      let changed = false;
+
+      rows.forEach((row, index) => {
+        const mustClearCode = isNaDocument(row)
+          || (currentVrDetailIndexes.has(index) && !currentVrMasterIndexes.has(index));
+
+        if (mustClearCode && next[index]?.asset_code) {
+          next[index] = { ...next[index], asset_code: "" };
+          autoCodeIndexesRef.current.delete(index);
+          changed = true;
+        }
+      });
+
+      displayedItems.forEach((item) => {
+        if (!item.isVrGroup) return;
+        const draft = next[item.index] || draftFrom(item.row);
+        const usdAmount = twoDecimals(item.row.usd_amount, false);
+        const penAmount = twoDecimals(item.row.pen_amount, false);
+
+        if (item.selectedDetailIndexes.length === 0 && draft.asset_code) {
+          next[item.index] = { ...draft, asset_code: "" };
+          autoCodeIndexesRef.current.delete(item.index);
+          changed = true;
+        }
+
+        const amountDraft = next[item.index] || draft;
+
+        if (amountDraft.usd_amount !== usdAmount || amountDraft.pen_amount !== penAmount) {
+          next[item.index] = {
+            ...amountDraft,
+            usd_amount: usdAmount,
+            pen_amount: penAmount,
+          };
+          changed = true;
+        }
+      });
+
+      return changed ? next : current;
+    });
+  }, [displayedItems, rows]);
+
+  const codeCandidates = useMemo(() => displayedItems
+    .filter((item) => (
+      !item.readOnly
+      && !existingByIndex.has(item.index)
+      && (!item.isVrGroup || item.selectedDetailIndexes.length > 0)
+    ))
+    .map((item) => ({
+      item,
+      prefix: codePrefixByAccount[text(item.row.account_code).trim()] || "",
+    }))
+    .filter(({ prefix }) => /^\d{3}$/.test(prefix))
+    .sort((a, b) => {
+      const prefixOrder = a.prefix.localeCompare(b.prefix, undefined, { numeric: true });
+      if (prefixOrder) return prefixOrder;
+      const dateOrder = (dateOnly(a.item.row.comp_date) || "9999-12-31")
+        .localeCompare(dateOnly(b.item.row.comp_date) || "9999-12-31");
+      if (dateOrder) return dateOrder;
+      const glosaOrder = text(a.item.row.line_description).localeCompare(
+        text(b.item.row.line_description),
+        "es",
+        { numeric: true, sensitivity: "base" }
+      );
+      return glosaOrder || a.item.index - b.item.index;
+    }), [displayedItems, existingByIndex, codePrefixByAccount]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    setDrafts((current) => {
+      const previousAutoIndexes = autoCodeIndexesRef.current;
+      const nextAutoIndexes = new Set<number>();
+      const next = { ...current };
+      let changed = false;
+
+      previousAutoIndexes.forEach((index) => {
+        const draft = next[index];
+        if (draft?.asset_code) {
+          next[index] = { ...draft, asset_code: "" };
+          changed = true;
+        }
+      });
+
+      codeCandidates.forEach(({ item, prefix }) => {
+        const currentDraft = next[item.index] || draftFrom(item.row);
+        const hadAutomaticCode = previousAutoIndexes.has(item.index);
+        const manualCode = !hadAutomaticCode
+          ? text(current[item.index]?.asset_code).trim()
+          : "";
+
+        if (manualCode) return;
+
+        const code = nextAvailableCode(
+          prefix,
+          classMaxSuffix,
+          next,
+          existingCodes,
+          null
+        );
+
+        if (!code) return;
+
+        if (currentDraft.asset_code !== code) {
+          next[item.index] = { ...currentDraft, asset_code: code };
+          changed = true;
+        }
+        nextAutoIndexes.add(item.index);
+      });
+
+      autoCodeIndexesRef.current = nextAutoIndexes;
+      return changed ? next : current;
+    });
+  }, [loading, codeCandidates, classMaxSuffix, existingCodes]);
+
   const sequentialCodes = useMemo(() => {
     const suffixesByClass = new Map<string, Array<{ code: string; suffix: number }>>();
-    Object.values(drafts).forEach((draft) => {
+    codeValidationItems.forEach(({ index }) => {
+      const draft = drafts[index];
+      if (!draft) return;
       const code = draft.asset_code.trim();
       if (!/^\d{7}$/.test(code) || existingCodes.has(code) || (codeCounts.get(code) || 0) > 1) return;
       const classCode = code.slice(0, 3);
@@ -1509,81 +2351,57 @@ export default function FixAssetsNew() {
       });
     });
     return valid;
-  }, [drafts, existingCodes, codeCounts, classMaxSuffix]);
+  }, [codeValidationItems, drafts, existingCodes, codeCounts, classMaxSuffix]);
 
   const states = useMemo(() => {
     const result: Record<number, RowState> = {};
-    rows.forEach((row, index) => {
+
+    displayedItems.forEach((item) => {
+      const { row, index } = item;
       const draft = drafts[index];
-      if (!draft?.asset_code.trim()) result[index] = "idle";
-      else {
-        const code = draft.asset_code.trim();
-        const requiredPrefix = codePrefixByAccount[text(row.account_code).trim()] || "";
-        result[index] = !/^\d{7}$/.test(code)
-          || !/^\d{3}$/.test(requiredPrefix)
-          || code.slice(0, 3) !== requiredPrefix
-          || existingCodes.has(code)
-          || (codeCounts.get(code) || 0) > 1
-          || !sequentialCodes.has(code)
-          || !validNumber(draft.usd_amount, 14)
-          || !validNumber(draft.pen_amount, 14)
-          || !validNumber(draft.exc_rate, 12, true)
-          ? "invalid" : "valid";
+
+      if (
+        item.readOnly
+        || (item.isVrGroup && item.selectedDetailIndexes.length === 0)
+        || !draft?.asset_code.trim()
+      ) {
+        result[index] = "idle";
+        return;
       }
+
+      const code = draft.asset_code.trim();
+      const requiredPrefix = codePrefixByAccount[text(row.account_code).trim()] || "";
+      const usdAmount = item.isVrGroup ? twoDecimals(row.usd_amount, false) : draft.usd_amount;
+      const penAmount = item.isVrGroup ? twoDecimals(row.pen_amount, false) : draft.pen_amount;
+      result[index] = !/^\d{7}$/.test(code)
+        || !/^\d{3}$/.test(requiredPrefix)
+        || code.slice(0, 3) !== requiredPrefix
+        || existingCodes.has(code)
+        || (codeCounts.get(code) || 0) > 1
+        || !sequentialCodes.has(code)
+        || !validNumber(usdAmount, 14)
+        || !validNumber(penAmount, 14)
+        || !validNumber(draft.exc_rate, 12, true)
+        ? "invalid" : "valid";
     });
+
     return result;
-  }, [rows, drafts, existingCodes, codeCounts, sequentialCodes, codePrefixByAccount]);
+  }, [displayedItems, drafts, existingCodes, codeCounts, sequentialCodes, codePrefixByAccount]);
 
-  const filteredRows = useMemo(() => rows
-    .map((row, index) => ({ row, index }))
-    .filter(({ row }) => {
-      const value = monthOf(row.comp_date);
-      return Boolean(value && value.year === year && value.month >= monthFrom && value.month <= monthTo);
-    }), [rows, year, monthFrom, monthTo]);
+  const selectedItems = useMemo(() => displayedItems.filter((item) => (
+    !item.readOnly
+    && !existingByIndex.has(item.index)
+    && Boolean(drafts[item.index]?.asset_code.trim())
+    && (!item.isVrGroup || item.selectedDetailIndexes.length > 0)
+  )), [displayedItems, drafts, existingByIndex]);
 
-  useEffect(() => {
-    if (loading || !filteredRows.length) return;
+  const selectedIndexes = useMemo(
+    () => selectedItems.map(({ index }) => index),
+    [selectedItems]
+  );
 
-    const candidates = filteredRows
-      .filter(({ row }) => !catalogueBySource.has(sourceIdentity(row)))
-      .map(({ row, index }) => ({
-        row,
-        index,
-        prefix: codePrefixByAccount[text(row.account_code).trim()] || "",
-      }))
-      .filter(({ prefix }) => /^\d{3}$/.test(prefix))
-      .sort((a, b) => {
-        const prefixOrder = a.prefix.localeCompare(b.prefix, undefined, { numeric: true });
-        if (prefixOrder) return prefixOrder;
-        const dateOrder = (dateOnly(a.row.comp_date) || "9999-12-31").localeCompare(dateOnly(b.row.comp_date) || "9999-12-31");
-        if (dateOrder) return dateOrder;
-        const glosaOrder = text(a.row.line_description).localeCompare(text(b.row.line_description), "es", { numeric: true, sensitivity: "base" });
-        return glosaOrder || a.index - b.index;
-      });
-
-    setDrafts((current) => {
-      const next = { ...current };
-      let changedDrafts = false;
-
-      candidates.forEach(({ index, prefix }) => {
-        if (next[index]?.asset_code.trim()) return;
-        const code = nextAvailableCode(prefix, classMaxSuffix, next, existingCodes, null);
-        if (!code) return;
-        next[index] = { ...next[index], asset_code: code };
-        changedDrafts = true;
-      });
-
-      return changedDrafts ? next : current;
-    });
-  }, [loading, filteredRows, catalogueBySource, codePrefixByAccount, classMaxSuffix, existingCodes]);
-
-  const normalRows = useMemo(() => filteredRows.filter(({ row }) => !text(row.capex_code).trim()), [filteredRows]);
-  const capexRows = useMemo(() => filteredRows
-    .filter(({ row }) => Boolean(text(row.capex_code).trim()))
-    .sort((a, b) => text(a.row.capex_code).localeCompare(text(b.row.capex_code), undefined, { numeric: true, sensitivity: "base" })), [filteredRows]);
-  const selectedIndexes = useMemo(() => filteredRows.filter(({ row, index }) => Boolean(drafts[index]?.asset_code.trim()) && !catalogueBySource.has(sourceIdentity(row))).map(({ index }) => index), [filteredRows, drafts, catalogueBySource]);
-  const invalidCount = selectedIndexes.filter((index) => states[index] === "invalid").length;
-  const canSave = selectedIndexes.length > 0 && invalidCount === 0 && !loading && !saving;
+  const invalidCount = selectedItems.filter(({ index }) => states[index] === "invalid").length;
+  const canSave = selectedItems.length > 0 && invalidCount === 0 && !loading && !saving;
 
   const catalogueLastMatch = useMemo(() => {
     const prefix = activeCodePrefix.trim();
@@ -1608,6 +2426,7 @@ export default function FixAssetsNew() {
   }, [activeCodePrefix, activeCodeIndex, classMaxSuffix, drafts, existingCodes]);
 
   const updateDraft = useCallback((index: number, field: keyof Draft, value: string) => {
+    if (field === "asset_code") autoCodeIndexesRef.current.delete(index);
     setDrafts((current) => ({ ...current, [index]: { ...current[index], [field]: value } }));
     setMessage("");
   }, []);
@@ -1633,8 +2452,23 @@ export default function FixAssetsNew() {
     setActiveCodePrefix(value.replace(/\D/g, "").slice(0, 7));
   }, []);
 
-  const detailRow = detailIndex == null ? null : rows[detailIndex];
+  const detailItem = detailIndex == null ? null : itemByIndex.get(detailIndex) || null;
+  const detailRow = detailItem?.row || null;
   const detailDraft = detailIndex == null ? null : drafts[detailIndex];
+  const vrDetailItem = vrDetailIndex == null ? null : itemByIndex.get(vrDetailIndex) || null;
+  const vrDetailExisting = vrDetailIndex == null ? null : existingByIndex.get(vrDetailIndex) || null;
+
+  useEffect(() => {
+    if (detailIndex != null && !itemByIndex.has(detailIndex)) {
+      setDetailIndex(null);
+      setActiveCodeIndex(null);
+      setActiveCodePrefix("");
+    }
+    if (vrDetailIndex != null && !itemByIndex.has(vrDetailIndex)) {
+      setVrDetailIndex(null);
+    }
+  }, [detailIndex, vrDetailIndex, itemByIndex]);
+
   const openDetails = useCallback((index: number) => {
     setDetailIndex(index);
     setActiveCodeIndex(index);
@@ -1648,89 +2482,201 @@ export default function FixAssetsNew() {
     openDetails(index);
   }, [detailIndex, openDetails]);
 
+  const openVrDetails = useCallback((index: number) => {
+    setVrDetailIndex(index);
+  }, []);
+
+  const toggleVrDetail = useCallback((index: number) => {
+    setExcludedVrIndexes((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+    setMessage("");
+    setIsError(false);
+  }, []);
+
   async function save() {
     if (!canSave) return;
     setSaving(true);
     setMessage("");
     setIsError(false);
     let saved = 0;
-    try {
-      const payloads = selectedIndexes.map((index) => {
-        const row = rows[index];
-        const draft = drafts[index];
-        return {
-          asset_code: draft.asset_code.trim(), source_name: "WEB", location_name: upperOrNull(draft.location_name),
-          origin_account_code: row.account_code, capex_code: upperOrNull(draft.capex_code),
-          subjournal_code: row.subjournal_code, voucher_number: row.voucher_number,
-          annex_code: row.annex_code, annex_description: row.annex_description,
-          document_number: row.document_number, asset_description: upperOrNull(draft.line_description),
-          assigned_to: upperOrNull(draft.assigned_to), area_name: upperOrNull(draft.area_name),
-          brand: upperOrNull(draft.brand), model: upperOrNull(draft.model), serial_number: upperOrNull(draft.serial_number),
-          color: null, cost_center_code: costCenterCode(draft.cost_center_code) || null,
-          acquisition_date: dateOnly(row.comp_date) || null, operation_date: firstDayNextMonth(row.comp_date) || null, disposal_date: null,
-          exc_rate: numberOrNull(draft.exc_rate),
-          asset_ini_cost_pen: numberOrNull(draft.pen_amount),
-          asset_ini_cost_usd: numberOrNull(draft.usd_amount),
-          depreciation_method: upperOrNull(draft.depreciation_method), asset_situation: "OPERATIVO",
-          asset_comment: upperOrNull(draft.asset_comment),
-        };
-      });
+    let savedVrDetails = 0;
 
-      for (let start = 0; start < payloads.length; start += 100) {
-        const chunk = payloads.slice(start, start + 100);
+    const vrDetailPayloads = selectedItems.flatMap((item) => {
+      if (!item.isVrGroup) return [];
+      const assetCode = drafts[item.index].asset_code.trim();
+
+      return item.selectedDetailIndexes
+        .map((detailIndex) => {
+          const row = rows[detailIndex];
+          return {
+            asset_code: assetCode,
+            account_code: row.account_code,
+            account_description: row.account_description,
+            comp_date: dateOnly(row.comp_date) || null,
+            subjournal_code: row.subjournal_code,
+            voucher_number: row.voucher_number,
+            annex_code: row.annex_code,
+            annex_description: row.annex_description,
+            document_type: row.document_type,
+            document_number: row.document_number,
+            document_date: dateOnly(row.document_date) || null,
+            voucher_description: row.voucher_description,
+            line_description: row.line_description,
+            debit_credit: row.debit_credit,
+            usd_amount: finiteNumber(row.usd_amount),
+            pen_amount: finiteNumber(row.pen_amount),
+          };
+        })
+        .filter((row) => !vetaVrStoredUpdateKeys.has(vetaVrUpdateIdentity(row)));
+    });
+
+    const cataloguePayloads = selectedItems.map((item) => {
+      const { row, index } = item;
+      const draft = drafts[index];
+      const assetIniCostPen = item.isVrGroup
+        ? finiteNumber(row.pen_amount)
+        : numberOrNull(draft.pen_amount);
+      const assetIniCostUsd = item.isVrGroup
+        ? finiteNumber(row.usd_amount)
+        : numberOrNull(draft.usd_amount);
+      return {
+        asset_code: draft.asset_code.trim(),
+        source_name: "WEB",
+        location_name: upperOrNull(draft.location_name),
+        origin_account_code: row.account_code,
+        capex_code: upperOrNull(draft.capex_code),
+        subjournal_code: row.subjournal_code,
+        voucher_number: row.voucher_number,
+        annex_code: row.annex_code,
+        annex_description: row.annex_description,
+        document_number: row.document_number,
+        asset_description: upperOrNull(draft.line_description),
+        assigned_to: upperOrNull(draft.assigned_to),
+        area_name: upperOrNull(draft.area_name),
+        brand: upperOrNull(draft.brand),
+        model: upperOrNull(draft.model),
+        serial_number: upperOrNull(draft.serial_number),
+        color: null,
+        cost_center_code: costCenterCode(draft.cost_center_code) || null,
+        acquisition_date: dateOnly(row.comp_date) || null,
+        operation_date: firstDayNextMonth(row.comp_date) || null,
+        disposal_date: null,
+        exc_rate: numberOrNull(draft.exc_rate),
+        asset_ini_cost_pen: assetIniCostPen,
+        asset_ini_cost_usd: assetIniCostUsd,
+        depreciation_method: upperOrNull(draft.depreciation_method),
+        asset_situation: "OPERATIVO",
+        asset_comment: upperOrNull(draft.asset_comment),
+      };
+    });
+
+    try {
+      for (let start = 0; start < vrDetailPayloads.length; start += 100) {
+        const chunk = vrDetailPayloads.slice(start, start + 100);
+        await apiPost("/api/actfij/veta-vr/insert", { rows: chunk });
+        savedVrDetails += chunk.length;
+      }
+
+      for (let start = 0; start < cataloguePayloads.length; start += 100) {
+        const chunk = cataloguePayloads.slice(start, start + 100);
         await apiPost("/api/actfij/catalogue/insert", { rows: chunk });
         saved += chunk.length;
       }
-      const savedCodes = selectedIndexes.map((index) => drafts[index].asset_code.trim());
+
+      const savedCodes = selectedItems.map(({ index }) => drafts[index].asset_code.trim());
+      if (vrDetailPayloads.length) {
+        setVetaVrRows((current) => [
+          ...current,
+          ...vrDetailPayloads.map((row) => ({
+            asset_code: row.asset_code,
+            account_code: row.account_code,
+            subjournal_code: row.subjournal_code,
+            voucher_number: row.voucher_number,
+            annex_code: row.annex_code,
+            document_number: row.document_number,
+          })),
+        ]);
+      }
       setExistingCodes((current) => new Set([...current, ...savedCodes]));
       setCatalogueRows((current) => [
         ...current,
-        ...selectedIndexes.map((index) => ({
-          asset_code: drafts[index].asset_code.trim(),
-          asset_description: drafts[index].line_description.trim() || null,
-          origin_account_code: rows[index].account_code,
-          capex_code: drafts[index].capex_code.trim() || null,
-          subjournal_code: rows[index].subjournal_code,
-          voucher_number: rows[index].voucher_number,
-          annex_code: rows[index].annex_code,
-          document_number: rows[index].document_number,
-          location_name: drafts[index].location_name.trim() || null,
-          assigned_to: drafts[index].assigned_to.trim() || null,
-          area_name: drafts[index].area_name.trim() || null,
-          brand: drafts[index].brand.trim() || null,
-          model: drafts[index].model.trim() || null,
-          serial_number: drafts[index].serial_number.trim() || null,
-          cost_center_code: drafts[index].cost_center_code.trim() || null,
-          depreciation_method: drafts[index].depreciation_method.trim() || null,
-          asset_comment: drafts[index].asset_comment.trim() || null,
-          asset_ini_cost_pen: numberOrNull(drafts[index].pen_amount),
-          asset_ini_cost_usd: numberOrNull(drafts[index].usd_amount),
-        })),
+        ...selectedItems.map((item) => {
+          const { row, index } = item;
+          const draft = drafts[index];
+          const assetIniCostPen = item.isVrGroup
+            ? finiteNumber(row.pen_amount)
+            : numberOrNull(draft.pen_amount);
+          const assetIniCostUsd = item.isVrGroup
+            ? finiteNumber(row.usd_amount)
+            : numberOrNull(draft.usd_amount);
+          return {
+            asset_code: draft.asset_code.trim(),
+            asset_description: draft.line_description.trim() || null,
+            origin_account_code: row.account_code,
+            capex_code: draft.capex_code.trim() || null,
+            subjournal_code: row.subjournal_code,
+            voucher_number: row.voucher_number,
+            annex_code: row.annex_code,
+            document_number: row.document_number,
+            location_name: draft.location_name.trim() || null,
+            assigned_to: draft.assigned_to.trim() || null,
+            area_name: draft.area_name.trim() || null,
+            brand: draft.brand.trim() || null,
+            model: draft.model.trim() || null,
+            serial_number: draft.serial_number.trim() || null,
+            cost_center_code: draft.cost_center_code.trim() || null,
+            depreciation_method: draft.depreciation_method.trim() || null,
+            asset_comment: draft.asset_comment.trim() || null,
+            asset_ini_cost_pen: assetIniCostPen,
+            asset_ini_cost_usd: assetIniCostUsd,
+          };
+        }),
       ]);
       setDrafts((current) => {
         const next = { ...current };
-        selectedIndexes.forEach((index) => { next[index] = draftFrom(rows[index]); });
+        selectedItems.forEach((item) => {
+          next[item.index] = draftFrom(item.row);
+          autoCodeIndexesRef.current.delete(item.index);
+        });
         return next;
       });
       setActiveCodePrefix("");
       setActiveCodeIndex(null);
       setDetailIndex(null);
-      setMessage(`${saved} activo${saved === 1 ? "" : "s"} guardado${saved === 1 ? "" : "s"} correctamente.`);
+      setVrDetailIndex(null);
+      setMessage(
+        `${saved} activo${saved === 1 ? "" : "s"} guardado${saved === 1 ? "" : "s"} correctamente.`
+        + (vrDetailPayloads.length
+          ? ` ${savedVrDetails} línea${savedVrDetails === 1 ? "" : "s"} VR vinculada${savedVrDetails === 1 ? "" : "s"}.`
+          : "")
+      );
     } catch (error) {
       setIsError(true);
-      setMessage(`Se guardaron ${saved} de ${selectedIndexes.length} filas. ${error instanceof Error ? error.message : "Error al guardar"}`);
+      const vrProgress = vrDetailPayloads.length
+        ? ` Detalle VR: ${savedVrDetails} de ${vrDetailPayloads.length} líneas procesadas.`
+        : "";
+      setMessage(
+        `Se guardaron ${saved} de ${selectedItems.length} activos.${vrProgress} `
+        + (error instanceof Error ? error.message : "Error al guardar")
+      );
     } finally {
       setSaving(false);
     }
   }
 
+  const hasExpandedPanel = detailIndex != null || vrDetailIndex != null;
+
   return (
-    <div className="fixassets-new-shell" style={{ position: "relative", display: "grid", gap: 10, height: detailIndex == null ? "calc(100vh - 205px)" : "auto", minHeight: 0, overflow: detailIndex == null ? "hidden" : "visible" }}>
+    <div className="fixassets-new-shell" style={{ position: "relative", display: "grid", gap: 10, height: hasExpandedPanel ? "auto" : "calc(100vh - 205px)", minHeight: 0, overflow: hasExpandedPanel ? "visible" : "hidden" }}>
       <div className="fixassets-new-root" style={{ position: "relative", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto auto", gap: 10, height: "calc(100vh - 205px)", minHeight: 0, overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>Nuevos activos desde Veta</h1>
-          <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>El COD se propone automáticamente según la cuenta y su correlativo. El periodo inicia siempre en el mes actual.</div>
+          <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>El COD se propone por cuenta. Las VR se consolidan como paquetes y las NA quedan solo como referencia, sin guardarse.</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}>
           <Select label="Año" value={year} onChange={(event) => { const value = event.target.value; setYear(value); if (value === initialPeriod.year) { if (monthFrom > initialPeriod.month) setMonthFrom(initialPeriod.month); if (monthTo > initialPeriod.month) setMonthTo(initialPeriod.month); } }} options={years.map((value) => ({ value, label: value }))} placeholder="Todos" style={{ minWidth: 110 }} />
@@ -1747,11 +2693,43 @@ export default function FixAssetsNew() {
       </div>
 
       <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
-        <NewRowsTable title="Activos normales" subtitle="Haz clic o edita una fila para completar su ficha opcional." items={normalRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} onOpenDetails={openDetails} focusedDetailIndex={detailIndex} catalogueBySource={catalogueBySource} />
-        <NewRowsTable title="Activos CAPEX" subtitle="Ordenados por Código CAPEX. Haz clic o edita una fila para completar su ficha opcional." items={capexRows} drafts={drafts} states={states} loading={loading} onCommit={updateDraft} onCodeActivity={handleCodeActivity} onFocusDetails={focusDetails} onOpenDetails={openDetails} focusedDetailIndex={detailIndex} catalogueBySource={catalogueBySource} />
+        <NewRowsTable
+          title="Activos normales"
+          subtitle="Las filas VR aparecen agrupadas; usa Ver para revisar o excluir líneas del paquete."
+          items={normalRows}
+          drafts={drafts}
+          states={states}
+          loading={loading}
+          onCommit={updateDraft}
+          onCodeActivity={handleCodeActivity}
+          onFocusDetails={focusDetails}
+          onOpenDetails={openDetails}
+          onOpenVrDetails={openVrDetails}
+          focusedDetailIndex={detailIndex}
+          existingByIndex={existingByIndex}
+          storedVrCountByIndex={storedVrCountByIndex}
+        />
+        <NewRowsTable
+          title="Activos CAPEX"
+          subtitle="Ordenados por Código CAPEX. Las VR se muestran como un solo paquete por agrupación."
+          items={capexRows}
+          drafts={drafts}
+          states={states}
+          loading={loading}
+          onCommit={updateDraft}
+          onCodeActivity={handleCodeActivity}
+          onFocusDetails={focusDetails}
+          onOpenDetails={openDetails}
+          onOpenVrDetails={openVrDetails}
+          focusedDetailIndex={detailIndex}
+          existingByIndex={existingByIndex}
+          storedVrCountByIndex={storedVrCountByIndex}
+        />
       </div>
 
-      <div className="muted" style={{ fontSize: 12 }}>Mostrando {filteredRows.length} de {rows.length} filas: {normalRows.length} normales y {capexRows.length} CAPEX.</div>
+      <div className="muted" style={{ fontSize: 12 }}>
+        Mostrando {displayedItems.length} filas master desde {filteredRows.length} de {rows.length} líneas fuente: {normalRows.length} normales y {capexRows.length} CAPEX.
+      </div>
 
       {EXTRA_FIELDS.map(([field]) => <datalist key={field} id={`fixassets-new-${field}-options`}>
         {field === "cost_center_code"
@@ -1781,6 +2759,15 @@ export default function FixAssetsNew() {
           line-height: 1.15;
           border-bottom-color: rgba(147,211,230,.14) !important;
         }
+        .fixassets-new-vr-detail table {
+          font-size: 11px !important;
+        }
+        .fixassets-new-vr-detail .capex-th,
+        .fixassets-new-vr-detail .capex-td {
+          padding: 5px 6px !important;
+          font-size: 11px !important;
+          line-height: 1.15;
+        }
         @media (max-width: 1100px) {
           .fixassets-new-shell {
             height: auto !important;
@@ -1794,12 +2781,27 @@ export default function FixAssetsNew() {
             position: static !important;
             max-height: none !important;
           }
+          .fixassets-new-vr-detail {
+            max-height: none !important;
+          }
           .fixassets-new-table {
             min-height: 320px !important;
           }
         }
       `}</style>
       </div>
+
+      {vrDetailItem?.isVrGroup && vrDetailIndex != null ? <VrDetailPanel
+        item={vrDetailItem}
+        rows={rows}
+        draft={drafts[vrDetailIndex] || draftFrom(vrDetailItem.row)}
+        excludedVrIndexes={effectiveExcludedVrIndexes}
+        storedAssetCodeByDetail={vetaVrAssetCodeByDetail}
+        existing={vrDetailExisting}
+        saving={saving}
+        onToggle={toggleVrDetail}
+        onClose={() => setVrDetailIndex(null)}
+      /> : null}
 
       {detailRow && detailDraft && detailIndex != null ? <section className="panel-inner fixassets-new-preview" style={{ position: "static", maxHeight: "min(62vh, 370px)", padding: 10, overflow: "auto", background: "var(--panel2)", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 30px rgba(0,0,0,.24)", outline: "none" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
