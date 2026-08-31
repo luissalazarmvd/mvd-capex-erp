@@ -2131,7 +2131,11 @@ export default function FixAssetsCat() {
 
     try {
       await apiPost("/api/actfij/catalogue/reclassify", {
-        source_asset_codes: reclassSelectedRows.map((row) => text(row.asset_code).trim()),
+        source_rows: reclassSelectedRows.map((row) => ({
+          asset_code: text(row.asset_code).trim(),
+          asset_final_value_pen: numericAmount(row.asset_final_value_pen),
+          asset_final_value_usd: numericAmount(row.asset_final_value_usd),
+        })),
         new_asset: {
           asset_code: reclassProposedCode,
           origin_account_code: reclassDraft.origin_account_code.trim(),

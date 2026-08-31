@@ -35,14 +35,17 @@ type VetaVrStoredRow = {
   voucher_number: string | null;
   annex_code: string | null;
   document_number: string | null;
+  line_description: string | null;
 };
 
 type CatalogueRow = {
   asset_code: string | null;
+  source_name?: string | null;
   asset_description?: string | null;
   asset_type?: string | null;
   location_name?: string | null;
   origin_account_code?: string | null;
+  origin_account_desc?: string | null;
   capex_code?: string | null;
   subjournal_code?: string | null;
   voucher_number?: string | null;
@@ -54,10 +57,19 @@ type CatalogueRow = {
   model?: string | null;
   serial_number?: string | null;
   cost_center_code?: string | null;
+  cost_center_desc?: string | null;
+  acquisition_date?: string | null;
+  operation_date?: string | null;
+  disposal_date?: string | null;
   depreciation_method?: string | null;
+  asset_situation?: string | null;
   asset_comment?: string | null;
   asset_ini_cost_pen?: number | string | null;
   asset_ini_cost_usd?: number | string | null;
+  asset_final_value_pen?: number | string | null;
+  asset_final_value_usd?: number | string | null;
+  asset_balance_pen?: number | string | null;
+  asset_balance_usd?: number | string | null;
 };
 
 type CecoRow = {
@@ -97,6 +109,7 @@ type NewAssetItem = IndexedRow & {
   detailIndexes: number[];
   selectedDetailIndexes: number[];
   isVrGroup: boolean;
+  isBaja: boolean;
   readOnly: boolean;
 };
 type TableColumnKey = keyof VetaRow | "asset_code";
@@ -183,7 +196,7 @@ function sourceIdentity(row: Pick<VetaRow | CatalogueRow, "subjournal_code" | "v
 }
 
 function vetaVrDetailIdentity(
-  row: Pick<VetaRow | VetaVrStoredRow, "account_code" | "subjournal_code" | "voucher_number" | "annex_code" | "document_number">
+  row: Pick<VetaRow | VetaVrStoredRow, "account_code" | "subjournal_code" | "voucher_number" | "annex_code" | "document_number" | "line_description">
 ) {
   return [
     row.account_code,
@@ -191,11 +204,12 @@ function vetaVrDetailIdentity(
     row.voucher_number,
     row.annex_code,
     row.document_number,
+    row.line_description,
   ].map(identityPart).join("\u001f");
 }
 
 function vetaVrUpdateIdentity(
-  row: Pick<VetaVrStoredRow, "asset_code" | "account_code" | "subjournal_code" | "voucher_number" | "annex_code" | "document_number">
+  row: Pick<VetaVrStoredRow, "asset_code" | "account_code" | "subjournal_code" | "voucher_number" | "annex_code" | "document_number" | "line_description">
 ) {
   return [
     row.asset_code,
@@ -204,6 +218,7 @@ function vetaVrUpdateIdentity(
     row.voucher_number,
     row.annex_code,
     row.document_number,
+    row.line_description,
   ].map(identityPart).join("\u001f");
 }
 
@@ -217,6 +232,10 @@ function isNaDocument(row: Pick<VetaRow, "document_type">) {
 
 function isVrDocument(row: Pick<VetaRow, "document_type">) {
   return documentType(row) === "VR";
+}
+
+function isBajaAnnex(row: Pick<VetaRow, "annex_description">) {
+  return /\bBAJA\b/.test(identityPart(row.annex_description));
 }
 
 function identityPart(value: unknown) {
@@ -308,6 +327,7 @@ function buildNewAssetItems(
         detailIndexes: [slot.item.index],
         selectedDetailIndexes: [slot.item.index],
         isVrGroup: false,
+        isBaja: isBajaAnnex(slot.item.row),
         readOnly: isNaDocument(slot.item.row),
       };
     }
@@ -327,6 +347,7 @@ function buildNewAssetItems(
       detailIndexes: slot.members.map(({ index }) => index),
       selectedDetailIndexes: selectedMembers.map(({ index }) => index),
       isVrGroup: true,
+      isBaja: slot.members.some(({ row }) => isBajaAnnex(row)),
       readOnly: false,
     };
   });
@@ -1260,6 +1281,8 @@ type NewRowsTableProps = {
   onFocusDetails: (index: number) => void;
   onOpenDetails: (index: number) => void;
   onOpenVrDetails: (index: number) => void;
+  onToggleBaja: (index: number) => void;
+  bajaSelectedIndexes: ReadonlySet<number>;
   focusedDetailIndex: number | null;
   existingByIndex: ReadonlyMap<number, CatalogueRow>;
   storedVrCountByIndex: ReadonlyMap<number, number>;
@@ -1277,6 +1300,8 @@ const NewRowsTable = memo(function NewRowsTable({
   onFocusDetails,
   onOpenDetails,
   onOpenVrDetails,
+  onToggleBaja,
+  bajaSelectedIndexes,
   focusedDetailIndex,
   existingByIndex,
   storedVrCountByIndex,
@@ -1501,36 +1526,43 @@ const NewRowsTable = memo(function NewRowsTable({
                   row,
                   index,
                   isVrGroup,
+                  isBaja,
                   readOnly,
                   detailIndexes,
                   selectedDetailIndexes,
                 } = item;
                 const draft = displayDraft(item, drafts);
                 const existing = readOnly ? null : existingByIndex.get(index) || null;
+                const bajaSelected = bajaSelectedIndexes.has(index);
+                const bajaMode = isBaja || bajaSelected;
                 const visibleSelectedCount = existing && storedVrCountByIndex.has(index)
                   ? storedVrCountByIndex.get(index) || 0
                   : selectedDetailIndexes.length;
-                const locked = Boolean(existing) || readOnly;
+                const locked = Boolean(existing) || readOnly || bajaMode;
                 const state = locked ? "idle" : states[index] || "idle";
                 const focused = !locked && focusedDetailIndex === index;
                 const background = existing
                   ? "rgba(2,35,52,.82)"
                   : readOnly
                     ? "rgba(67,78,86,.48)"
-                    : state === "invalid"
-                      ? "rgba(216,93,39,.32)"
-                      : focused
-                        ? "rgba(27,147,227,.34)"
-                        : state === "valid"
-                          ? "rgba(94,128,25,.32)"
-                          : undefined;
+                    : bajaMode
+                      ? "rgba(123,79,31,.42)"
+                      : state === "invalid"
+                        ? "rgba(216,93,39,.32)"
+                        : focused
+                          ? "rgba(27,147,227,.34)"
+                          : state === "valid"
+                            ? "rgba(94,128,25,.32)"
+                            : undefined;
                 const title = existing
                   ? `Ya existe en catálogo como ${text(existing.asset_code)}`
                   : readOnly
                     ? "Tipo de documento NA: fila informativa, sin COD y fuera del guardado."
-                    : isVrGroup
-                      ? `Paquete VR: ${visibleSelectedCount} de ${detailIndexes.length} líneas seleccionadas.`
-                      : undefined;
+                    : bajaMode
+                      ? "Fila de BAJA: no genera COD ni entra al guardado de altas."
+                      : isVrGroup
+                        ? `Paquete VR: ${visibleSelectedCount} de ${detailIndexes.length} líneas seleccionadas.`
+                        : undefined;
 
                 return <tr
                   key={index}
@@ -1550,35 +1582,46 @@ const NewRowsTable = memo(function NewRowsTable({
                         ? "#052b3d"
                         : readOnly
                           ? "#394851"
-                          : focused
-                            ? "#155a78"
-                            : "#0b4d6b",
+                          : bajaMode
+                            ? "#6b491f"
+                            : focused
+                              ? "#155a78"
+                              : "#0b4d6b",
                       boxShadow: "2px 0 rgba(216,238,255,.12)",
                       textAlign: "center",
                     }}
                   >
-                    {isVrGroup ? <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onOpenVrDetails(index);
-                      }}
-                      style={{
-                        width: "100%",
-                        minWidth: 70,
-                        padding: "4px 5px",
-                        borderRadius: 7,
-                        border: "1px solid rgba(147,211,230,.38)",
-                        background: "rgba(27,147,227,.22)",
-                        color: "#eefaff",
-                        fontSize: 11,
-                        fontWeight: 900,
-                        cursor: "pointer",
-                      }}
-                      aria-label={`Abrir detalle del paquete VR de la fila ${index + 1}`}
-                    >
-                      Ver {visibleSelectedCount}/{detailIndexes.length}
-                    </button> : readOnly ? <strong style={{ color: "#d7e0e5" }}>NA</strong> : <span className="muted">—</span>}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={bajaSelected}
+                        disabled={readOnly || Boolean(existing) || loading}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => onToggleBaja(index)}
+                        aria-label={`Seleccionar fila ${index + 1} para BAJA`}
+                      />
+                      {bajaMode ? <strong style={{ color: "#ffe0a8", fontSize: 11 }}>BAJA</strong> : isVrGroup ? <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenVrDetails(index);
+                        }}
+                        style={{
+                          minWidth: 58,
+                          padding: "4px 5px",
+                          borderRadius: 7,
+                          border: "1px solid rgba(147,211,230,.38)",
+                          background: "rgba(27,147,227,.22)",
+                          color: "#eefaff",
+                          fontSize: 11,
+                          fontWeight: 900,
+                          cursor: "pointer",
+                        }}
+                        aria-label={`Abrir detalle del paquete VR de la fila ${index + 1}`}
+                      >
+                        Ver {visibleSelectedCount}/{detailIndexes.length}
+                      </button> : readOnly ? <strong style={{ color: "#d7e0e5" }}>NA</strong> : <span className="muted">—</span>}
+                    </div>
                   </td>
                   {COLUMNS.map((column) => {
                     const isVrAmount = isVrGroup && (column.key === "usd_amount" || column.key === "pen_amount");
@@ -1902,6 +1945,10 @@ export default function FixAssetsNew() {
   const [detailIndex, setDetailIndex] = useState<number | null>(null);
   const [vrDetailIndex, setVrDetailIndex] = useState<number | null>(null);
   const [excludedVrIndexes, setExcludedVrIndexes] = useState<Set<number>>(new Set());
+  const [bajaSelectedIndexes, setBajaSelectedIndexes] = useState<Set<number>>(new Set());
+  const [bajaPanelOpen, setBajaPanelOpen] = useState(false);
+  const [bajaTargetCode, setBajaTargetCode] = useState("");
+  const [bajaSaving, setBajaSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -1953,6 +2000,9 @@ export default function FixAssetsNew() {
       setDetailIndex(null);
       setVrDetailIndex(null);
       setExcludedVrIndexes(new Set());
+      setBajaSelectedIndexes(new Set());
+      setBajaPanelOpen(false);
+      setBajaTargetCode("");
       setIsError(false);
     } catch (error) {
       setIsError(true);
@@ -2204,9 +2254,11 @@ export default function FixAssetsNew() {
 
   const codeValidationItems = useMemo(() => displayedItems.filter((item) => (
     !item.readOnly
+    && !item.isBaja
+    && !bajaSelectedIndexes.has(item.index)
     && !existingByIndex.has(item.index)
     && (!item.isVrGroup || item.selectedDetailIndexes.length > 0)
-  )), [displayedItems, existingByIndex]);
+  )), [displayedItems, bajaSelectedIndexes, existingByIndex]);
 
   const codeCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -2235,6 +2287,8 @@ export default function FixAssetsNew() {
 
       rows.forEach((row, index) => {
         const mustClearCode = isNaDocument(row)
+          || isBajaAnnex(row)
+          || bajaSelectedIndexes.has(index)
           || (currentVrDetailIndexes.has(index) && !currentVrMasterIndexes.has(index));
 
         if (mustClearCode && next[index]?.asset_code) {
@@ -2245,7 +2299,16 @@ export default function FixAssetsNew() {
       });
 
       displayedItems.forEach((item) => {
+        const itemMustClearCode = item.isBaja || bajaSelectedIndexes.has(item.index);
+
+        if (itemMustClearCode && next[item.index]?.asset_code) {
+          next[item.index] = { ...next[item.index], asset_code: "" };
+          autoCodeIndexesRef.current.delete(item.index);
+          changed = true;
+        }
+
         if (!item.isVrGroup) return;
+
         const draft = next[item.index] || draftFrom(item.row);
         const usdAmount = twoDecimals(item.row.usd_amount, false);
         const penAmount = twoDecimals(item.row.pen_amount, false);
@@ -2270,11 +2333,13 @@ export default function FixAssetsNew() {
 
       return changed ? next : current;
     });
-  }, [displayedItems, rows]);
+  }, [displayedItems, rows, bajaSelectedIndexes]);
 
   const codeCandidates = useMemo(() => displayedItems
     .filter((item) => (
       !item.readOnly
+      && !item.isBaja
+      && !bajaSelectedIndexes.has(item.index)
       && !existingByIndex.has(item.index)
       && (!item.isVrGroup || item.selectedDetailIndexes.length > 0)
     ))
@@ -2295,7 +2360,7 @@ export default function FixAssetsNew() {
         { numeric: true, sensitivity: "base" }
       );
       return glosaOrder || a.item.index - b.item.index;
-    }), [displayedItems, existingByIndex, codePrefixByAccount]);
+    }), [displayedItems, bajaSelectedIndexes, existingByIndex, codePrefixByAccount]);
 
   useEffect(() => {
     if (loading) return;
@@ -2407,10 +2472,12 @@ export default function FixAssetsNew() {
 
   const selectedItems = useMemo(() => displayedItems.filter((item) => (
     !item.readOnly
+    && !item.isBaja
+    && !bajaSelectedIndexes.has(item.index)
     && !existingByIndex.has(item.index)
     && Boolean(drafts[item.index]?.asset_code.trim())
     && (!item.isVrGroup || item.selectedDetailIndexes.length > 0)
-  )), [displayedItems, drafts, existingByIndex]);
+  )), [displayedItems, bajaSelectedIndexes, drafts, existingByIndex]);
 
   const selectedIndexes = useMemo(
     () => selectedItems.map(({ index }) => index),
@@ -2418,7 +2485,35 @@ export default function FixAssetsNew() {
   );
 
   const invalidCount = selectedItems.filter(({ index }) => states[index] === "invalid").length;
-  const canSave = selectedItems.length > 0 && invalidCount === 0 && !loading && !saving;
+  const canSave = selectedItems.length > 0 && invalidCount === 0 && !loading && !saving && !bajaSaving;
+
+  const bajaSelectedItem = useMemo(() => {
+    const selectedIndex = Array.from(bajaSelectedIndexes)[0];
+    if (selectedIndex == null) return null;
+    return displayedItems.find((item) => item.index === selectedIndex) || null;
+  }, [bajaSelectedIndexes, displayedItems]);
+
+  const bajaTargetRow = useMemo(() => {
+    const code = bajaTargetCode.trim();
+    if (!code) return null;
+    return catalogueRows.find((row) => text(row.asset_code).trim() === code) || null;
+  }, [bajaTargetCode, catalogueRows]);
+
+  const bajaSourceDraft = bajaSelectedItem
+    ? displayDraft(bajaSelectedItem, drafts)
+    : null;
+
+  const bajaSourcePen = finiteNumber(bajaSourceDraft?.pen_amount) || 0;
+  const bajaSourceUsd = finiteNumber(bajaSourceDraft?.usd_amount) || 0;
+
+  const canExecuteBaja = Boolean(
+    bajaSelectedItem
+    && bajaTargetRow
+    && /^\d{7}$/.test(bajaTargetCode.trim())
+    && !loading
+    && !saving
+    && !bajaSaving
+  );
 
   const catalogueLastMatch = useMemo(() => {
     const prefix = activeCodePrefix.trim();
@@ -2513,6 +2608,48 @@ export default function FixAssetsNew() {
     setMessage("");
     setIsError(false);
   }, []);
+
+  const toggleBajaSelection = useCallback((index: number) => {
+    setBajaSelectedIndexes((current) => (
+      current.has(index)
+        ? new Set<number>()
+        : new Set<number>([index])
+    ));
+    setBajaPanelOpen(false);
+    setBajaTargetCode("");
+    setDetailIndex(null);
+    setVrDetailIndex(null);
+    setMessage("");
+    setIsError(false);
+  }, []);
+
+  async function executeBaja() {
+    if (!canExecuteBaja || !bajaSelectedItem || !bajaTargetRow) return;
+
+    setBajaSaving(true);
+    setMessage("");
+    setIsError(false);
+
+    try {
+      const sourceDescription = text(bajaSelectedItem.row.line_description).trim() || `fila ${bajaSelectedItem.index + 1}`;
+      const targetCode = text(bajaTargetRow.asset_code).trim();
+
+      await apiPost("/api/actfij/catalogue/dispose-from-veta", {
+        target_asset_code: targetCode,
+        pen_amount: bajaSourcePen,
+        usd_amount: bajaSourceUsd,
+      });
+
+      await load();
+
+      setMessage(`BAJA aplicada desde ${sourceDescription} al COD ${targetCode}.`);
+    } catch (error) {
+      setIsError(true);
+      setMessage(error instanceof Error ? error.message : "No se pudo registrar la baja");
+    } finally {
+      setBajaSaving(false);
+    }
+  }
 
   async function save() {
     if (!canSave) return;
@@ -2615,6 +2752,7 @@ export default function FixAssetsNew() {
             voucher_number: row.voucher_number,
             annex_code: row.annex_code,
             document_number: row.document_number,
+            line_description: row.line_description,
           })),
         ]);
       }
@@ -2699,7 +2837,14 @@ export default function FixAssetsNew() {
           <Select label="Año" value={year} onChange={(event) => { const value = event.target.value; setYear(value); if (value === initialPeriod.year) { if (monthFrom > initialPeriod.month) setMonthFrom(initialPeriod.month); if (monthTo > initialPeriod.month) setMonthTo(initialPeriod.month); } }} options={years.map((value) => ({ value, label: value }))} placeholder="Todos" style={{ minWidth: 110 }} />
           <Select label="Mes desde" value={monthFrom} onChange={(event) => { const value = event.target.value; setMonthFrom(value); if (value > monthTo) setMonthTo(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
           <Select label="Mes hasta" value={monthTo} onChange={(event) => { const value = event.target.value; setMonthTo(value); if (value < monthFrom) setMonthFrom(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
-          <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
+          <Button size="sm" onClick={() => void load()} disabled={loading || saving || bajaSaving}>{loading ? "Cargando..." : "Refrescar"}</Button>
+          <Button
+            size="sm"
+            onClick={() => setBajaPanelOpen(true)}
+            disabled={!bajaSelectedItem || loading || saving || bajaSaving}
+          >
+            BAJA{bajaSelectedItem ? " (1)" : ""}
+          </Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${selectedIndexes.length})`}</Button>
         </div>
       </div>
@@ -2712,7 +2857,7 @@ export default function FixAssetsNew() {
       <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
         <NewRowsTable
           title="Activos normales"
-          subtitle="Las filas VR aparecen agrupadas; usa Ver para revisar o excluir líneas del paquete."
+          subtitle="Las filas VR aparecen agrupadas; usa Ver para revisar o excluir líneas del paquete. Las filas con BAJA en descripción anexo no generan COD."
           items={normalRows}
           drafts={drafts}
           states={states}
@@ -2722,13 +2867,15 @@ export default function FixAssetsNew() {
           onFocusDetails={focusDetails}
           onOpenDetails={openDetails}
           onOpenVrDetails={openVrDetails}
+          onToggleBaja={toggleBajaSelection}
+          bajaSelectedIndexes={bajaSelectedIndexes}
           focusedDetailIndex={detailIndex}
           existingByIndex={existingByIndex}
           storedVrCountByIndex={storedVrCountByIndex}
         />
         <NewRowsTable
           title="Activos CAPEX"
-          subtitle="Ordenados por Código CAPEX. Las VR se muestran como un solo paquete por agrupación."
+          subtitle="Ordenados por Código CAPEX. Las VR se muestran como un solo paquete por agrupación. Las filas con BAJA en descripción anexo no generan COD."
           items={capexRows}
           drafts={drafts}
           states={states}
@@ -2738,11 +2885,102 @@ export default function FixAssetsNew() {
           onFocusDetails={focusDetails}
           onOpenDetails={openDetails}
           onOpenVrDetails={openVrDetails}
+          onToggleBaja={toggleBajaSelection}
+          bajaSelectedIndexes={bajaSelectedIndexes}
           focusedDetailIndex={detailIndex}
           existingByIndex={existingByIndex}
           storedVrCountByIndex={storedVrCountByIndex}
         />
       </div>
+
+      {bajaPanelOpen && bajaSelectedItem ? (
+        <section
+          className="panel-inner"
+          style={{
+            padding: 12,
+            display: "grid",
+            gap: 10,
+            borderColor: "rgba(224,145,63,.7)",
+            background: "rgba(107,73,31,.2)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <strong>BAJA de activo existente</strong>
+              <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
+                Origen: {text(bajaSelectedItem.row.line_description) || `fila ${bajaSelectedItem.index + 1}`} · PEN {twoDecimals(bajaSourcePen, false)} · USD {twoDecimals(bajaSourceUsd, false)}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                setBajaPanelOpen(false);
+                setBajaTargetCode("");
+              }}
+              disabled={bajaSaving}
+            >
+              Cerrar
+            </Button>
+          </div>
+
+          <label style={{ display: "grid", gap: 5, maxWidth: 260, fontSize: 12, fontWeight: 800 }}>
+            COD activo existente *
+            <input
+              className="input"
+              value={bajaTargetCode}
+              onChange={(event) => setBajaTargetCode(event.target.value.replace(/\D/g, "").slice(0, 7))}
+              placeholder="0000000"
+              inputMode="numeric"
+              style={{ height: 34, padding: "6px 8px" }}
+            />
+          </label>
+
+          {bajaTargetCode && !bajaTargetRow ? (
+            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
+              El COD ingresado no existe en catálogo.
+            </div>
+          ) : null}
+
+          {bajaTargetRow ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+              {[
+                ["COD", bajaTargetRow.asset_code],
+                ["Origen", bajaTargetRow.source_name],
+                ["Descripción", bajaTargetRow.asset_description],
+                ["Cuenta", bajaTargetRow.origin_account_code],
+                ["Descripción cuenta", bajaTargetRow.origin_account_desc],
+                ["Código CAPEX", bajaTargetRow.capex_code],
+                ["Centro de costo", bajaTargetRow.cost_center_code],
+                ["Descripción CECO", bajaTargetRow.cost_center_desc],
+                ["Situación", bajaTargetRow.asset_situation],
+                ["Fecha adquisición", dateOnly(bajaTargetRow.acquisition_date)],
+                ["Fecha operación", dateOnly(bajaTargetRow.operation_date)],
+                ["Fecha baja actual", dateOnly(bajaTargetRow.disposal_date)],
+                ["Valor final PEN", twoDecimals(bajaTargetRow.asset_final_value_pen, false)],
+                ["Valor final USD", twoDecimals(bajaTargetRow.asset_final_value_usd, false)],
+                ["Saldo PEN", twoDecimals(bajaTargetRow.asset_balance_pen, false)],
+                ["Saldo USD", twoDecimals(bajaTargetRow.asset_balance_usd, false)],
+              ].map(([label, value]) => (
+                <div key={String(label)} style={{ padding: 8, border: "1px solid rgba(216,238,255,.14)", borderRadius: 7 }}>
+                  <div className="muted" style={{ fontSize: 10, fontWeight: 800 }}>{label}</div>
+                  <div style={{ marginTop: 2, fontSize: 12, fontWeight: 800 }}>{text(value) || "—"}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void executeBaja()}
+              disabled={!canExecuteBaja}
+            >
+              {bajaSaving ? "Aplicando BAJA..." : "Aceptar BAJA"}
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <div className="muted" style={{ fontSize: 12 }}>
         Mostrando {displayedItems.length} filas master desde {filteredRows.length} de {rows.length} líneas fuente: {normalRows.length} normales y {capexRows.length} CAPEX.
