@@ -1742,6 +1742,17 @@ export default function FixAssetsDepr() {
   );
   const selectedIds = useMemo(() => Array.from(selectedKeys).filter((id) => editableRowIds.has(id)), [selectedKeys, editableRowIds]);
   const invalidKeys = selectedIds.filter((key) => !drafts[key] || invalidForCurrency(drafts[key], currencyMode));
+  const deletableVisibleRows = useMemo(
+    () => visibleRows.filter((row) =>
+      text(row.period_date).slice(0, 7) === editablePeriod
+      && isCurrencySent(row, currencyMode)
+    ),
+    [visibleRows, editablePeriod, currencyMode]
+  );
+  const canDelete = `${year}-${month}` === editablePeriod
+    && deletableVisibleRows.length > 0
+    && !loading
+    && !saving;
   const canSave = selectedIds.length > 0 && invalidKeys.length === 0 && !loading && !saving;
   const allVisibleSelected = editableVisibleRows.length > 0 && editableVisibleRows.every((row) => selectedKeys.has(rowKey(row)));
   const displayColumns = useMemo(
@@ -1911,6 +1922,56 @@ export default function FixAssetsDepr() {
       return { ...current, [id]: next };
     });
     setMessage("");
+  }
+
+  async function deleteSentCurrency() {
+    if (!canDelete) return;
+
+    const confirmed = window.confirm(
+      `Se quitará la depreciación WEB en ${currencyMode} de ${deletableVisibleRows.length} fila${deletableVisibleRows.length === 1 ? "" : "s"} visibles del periodo ${editablePeriod}. ¿Continuar?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+    setIsError(false);
+
+    try {
+      let affected = 0;
+
+      const payloadRows = deletableVisibleRows.map((row) => ({
+        asset_code: text(row.asset_code).trim(),
+        period_date: text(row.period_date).slice(0, 10),
+      }));
+
+      for (let start = 0; start < payloadRows.length; start += 100) {
+        const chunk = payloadRows.slice(start, start + 100);
+
+        const response = await apiPost("/api/actfij/deprec/delete", {
+          currency: currencyMode,
+          rows: chunk,
+        });
+
+        affected += Number(response?.affected || 0);
+      }
+
+      await load();
+
+      setIsError(false);
+      setMessage(
+        `${affected} fila${affected === 1 ? "" : "s"} WEB en ${currencyMode} eliminada${affected === 1 ? "" : "s"} correctamente.`
+      );
+    } catch (error) {
+      setIsError(true);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo borrar la depreciación WEB"
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function save() {
@@ -2122,6 +2183,7 @@ export default function FixAssetsDepr() {
           <Button size="sm" onClick={() => setShowAdjustments((current) => !current)} disabled={loading || saving}>{showAdjustments ? "Ocultar ajustes" : "Mostrar ajustes"}</Button>
           <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); }} disabled={loading || saving}>Limpiar filtros</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
+          <Button size="sm" onClick={() => void deleteSentCurrency()} disabled={!canDelete}>{saving ? "Procesando..." : `Borrar WEB ${currencyMode} (${deletableVisibleRows.length})`}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${selectedIds.length})`}</Button>
         </div>
       </div>

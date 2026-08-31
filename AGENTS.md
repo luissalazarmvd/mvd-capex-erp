@@ -7,7 +7,7 @@ Aplica a todo el repositorio. Leer este archivo una vez y después abrir solo lo
 - Next.js 16.1 App Router + React 19 + TypeScript estricto. Rutas `src/app`, componentes `src/components`, lógica/tipos/validación `src/lib`, estáticos `public`, scripts `scripts`; alias `@/*` a raíz.
 - UI compartida: `Button`, `Input`, `Select`, `Table`; estilos globales en `src/app/globals.css`.
 - Frontend → backend externo mediante `src/lib/apiClient.ts`; usa `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_API_KEY` y `x-api-key`.
-- No inventar rutas, payloads, fechas, batch ni semántica de borrado: revisar siempre el endpoint/código existente. Algunos endpoints aceptan `{ rows: [...] }`; Activos Fijos inserta una fila por POST.
+- No inventar rutas, payloads, fechas, batch ni semántica de borrado: revisar siempre el endpoint/código existente. Algunos endpoints aceptan `{ rows: [...] }`; los componentes actuales de Activos Fijos agrupan inserciones en lotes de hasta 100 filas cuando el endpoint correspondiente ya trabaja con `rows`.
 - Comandos: `npm run dev|build|start|lint`. No agregar nuevos errores ESLint.
 
 ## Autenticación, portal y seguridad de rutas
@@ -34,7 +34,7 @@ Aplica a todo el repositorio. Leer este archivo una vez y después abrir solo lo
 
 - Mantener identidad azul Veta Dorada, `panel`/`panel-inner`, `Table`, `capex-th`/`capex-td`, headers/identificadores sticky y scroll interno en tablas anchas.
 - Edición: original y borrador separados; verde=válida/preparada, rojo=inválida; validar antes del POST.
-- En tablas editables grandes usar `FastCellInput`: estado local al escribir y commit al blur; `onLiveChange` solo cuando se necesite respuesta inmediata y diferida con `startTransition`.
+- En tablas editables grandes usar `FastCellInput`: mientras tiene foco conserva estado local para no perder escritura por rerenders; sincroniza el `value` externo al enfocar, aplica `sanitize` en cada cambio, permite `normalizeOnBlur` antes del commit y ejecuta `onLiveChange` dentro de `startTransition` solo cuando se necesite respuesta inmediata.
 - Aplicar consistentemente cambios de patrones reutilizados (multiselect, seleccionar/deseleccionar todo, click fuera, filtros dependientes, selección de filas) en componentes equivalentes.
 - Preservar cambios ajenos del worktree.
 
@@ -123,75 +123,97 @@ Aplica a todo el repositorio. Leer este archivo una vez y después abrir solo lo
 
 ## Módulo Activos Fijos y Depreciación
 
-Scope `fixassets`; rutas `/fixassets/new|catalogue|depreciation|export`; componentes `src/components/fixassets`. POST con `source_name: "WEB"` y una fila por request. Montos/tasas a 2 decimales.
+Scope `fixassets`; rutas `/fixassets/new|catalogue|depreciation|export`; componentes `src/components/fixassets`. Mantener la UI compacta azul petróleo y las reglas de foco/scroll definidas en cada vista. No redondear ni convertir campos por inferencia: los drafts numéricos permiten hasta 6 decimales donde la validación actual lo admite; las vistas monetarias suelen mostrarse a 2 decimales y la exportación contable formatea el T.C. a 6 decimales.
 
 ### Contratos
 
-- `/api/actfij/veta`: fuente de altas; incluye cuenta, `comp_date`, subdiario, comprobante, anexo, documento, descripción, CAPEX, montos y T.C.
-- `/api/actfij/catalogue` + `/catalogue/insert`: catálogo; `MERGE` por `asset_code`; `null` no borra por `COALESCE`.
-- `/api/actfij/deprec` + `/deprec/insert`: depreciación; `MERGE` por `asset_code + period_date(EOM)`.
-- `/api/actfij/mapping` + `/mapping/insert`: mapping por `origin_account_code`; desde UI solo se modifica `deprec_rate_pct`; `No deprecia` bloqueado.
-- `/api/actfij/ceco`: mapping `cost_center_code → descripción`. Mostrar `CODIGO - DESCRIPCION`; POST solo código.
+- `/api/actfij/veta`: fuente de altas; incluye cuenta, `comp_date`, subdiario, comprobante, anexo, documento, descripción, CAPEX, `usd_amount`, `pen_amount` y T.C.
+- `/api/actfij/catalogue` + `/catalogue/insert`: catálogo; `MERGE` por `asset_code`; `null` no borra por `COALESCE`. El frontend usa lotes de hasta 100 filas con `{ rows: [...] }` y `source_name: "WEB"` en altas/ediciones.
+- `/api/actfij/deprec` + `/deprec/insert`: depreciación; clave funcional `asset_code + period_date(EOM)`. El POST actual recibe `{ currency: "PEN" | "USD", rows: [...] }` y el frontend envía lotes de hasta 100 filas.
+- `/api/actfij/mapping` + `/mapping/insert`: mapping por `origin_account_code`; el GET también aporta `correlative_start`, usado por Nuevos Activos para la clase/prefijo del COD. En el preview de Catálogo solo se modifica `deprec_rate_pct`; `No deprecia` queda bloqueado. El guardado del preview usa lotes de hasta 100 filas.
+- `/api/actfij/ceco`: mapping `cost_center_code → descripción`. En UI mostrar `CODIGO - DESCRIPCION`; en drafts/payload conservar solo el código validado.
+- `/api/actfij/deprec/export`: vista de provisión contable para Concar.
+- `/api/actfij/deprec/export/detail`: detalle de activos de una fila de exportación; parámetros usados por UI: `period`, `account`, `ceco`, `debit_credit`.
+- `/api/actfij/concar-real`: registros reales de Concar usados para detectar provisiones ya existentes y calcular el siguiente número de comprobante.
 
 ### Alta desde Veta
 
-- `FixAssetsNew.tsx` carga Veta, catálogo y CECO.
+- `FixAssetsNew.tsx` carga en paralelo Veta, catálogo, CECO y mapping.
 - Ficha complementaria: `location_name`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `cost_center_code`, `depreciation_method`, `asset_comment`. No pedir `asset_type`, `operation_date` ni `asset_situation`; guardar `asset_situation="OPERATIVO"`.
 - `acquisition_date <- comp_date`; `operation_date` = primer día del mes siguiente.
-- Todo texto editable de grilla/ficha se normaliza a MAYÚSCULAS antes del POST.
-- CECO: autocomplete `CODIGO - DESCRIPCION`, hint inferior con descripción y payload solo `cost_center_code`.
-- La ficha complementaria se renderiza dentro del flujo vertical de la página, debajo de las tablas, en lugar de superponerse. Al abrirla la página puede aumentar su alto para mantener visible la fila seleccionada y evitar que el panel tape Activos normales o Activos CAPEX.
-- Campos reutilizables de la ficha usan autocomplete con distinct existentes + borradores; se permiten valores nuevos.
-- La ficha complementaria corresponde a un único activo a la vez. Al hacer clic en cualquier parte vacía de una fila se focaliza/abre su ficha y la fila queda sombreada en azul; repetir el clic en la misma fila la cierra. Enfocar, editar o volver a hacer clic en cualquiera de sus celdas editables fuerza la apertura de la ficha, incluso si ya estaba focalizada; el clic de la celda no activa el toggle de la fila. El panel no toma el foco ni interrumpe la escritura. No usar checks ni selección múltiple. El hint de COD se muestra dentro de la ficha activa y refleja el COD de esa fila, incluyendo el último correlativo del catálogo y el siguiente obligatorio.
-- Para acelerar altas de una misma clase, se ingresa una clase de 3 dígitos y `Asignar siguientes` completa los COD vacíos de las filas visibles con correlativos consecutivos. La validación acepta varias altas simultáneas si, como conjunto, forman la secuencia continua después del máximo existente. Las filas que ya fueron dadas de alta no participan en esta asignación.
-- COD: exactamente 7 dígitos, no existente en catálogo y no repetido entre borradores. Los primeros 3 dígitos son la clase y los últimos 4 el correlativo; para cada clase solo se acepta el siguiente correlativo después del máximo existente, sin saltos. Varias altas simultáneas de una clase deben formar una secuencia continua. Una clase sin registros empieza en `0001`. Solo filas con COD que todavía no existen en catálogo entran al guardado.
-- Alta existente = `subjournal_code + voucher_number + annex_code + document_number`; mostrar COD, bloquear fila y oscurecerla. Tras guardar actualizar ese estado localmente.
-- Editables: `line_description`, `capex_code`, `pen_amount`, `exc_rate`.
-- Al abrir/cargar, el filtro usa año actual y mes actual tanto en “desde” como en “hasta”.
-- La vista se divide en Activos normales (`capex_code` original vacío) y Activos CAPEX (`capex_code` original con valor), conservando la misma lógica de alta.
-- Activos normales y Activos CAPEX se muestran uno encima del otro, compartiendo la altura disponible y usando scroll interno para evitar scroll vertical de página en escritorio.
-- Sus grillas usan el mismo fondo azul petróleo, encabezados, densidad y tipografía de 11 px que Depreciación y Catálogo.
-- La tabla Activos CAPEX se ordena ascendentemente por `capex_code`.
-- Mientras se escribe un COD, un hint inferior muestra solo el COD más alto/último del catálogo que empieza con ese prefijo y su `asset_description`; si no hay coincidencia, lo indica.
-- La columna COD es sticky.
-- Mapeo: `asset_code <- COD`, `origin_account_code <- account_code`, `capex_code <- capex_code`, `subjournal_code <- subjournal_code`, `voucher_number <- voucher_number`, `annex_code <- annex_code`, `annex_description <- annex_description`, `document_number <- document_number`, `asset_description <- line_description`, `acquisition_date <- comp_date`, `operation_date <- primer día del mes siguiente a comp_date`, `exc_rate <- exc_rate`, `asset_ini_cost_pen <- pen_amount`. Los campos opcionales de la ficha empiezan vacíos y se envían como `null` si no se completan; la excepción es `asset_situation`, que se guarda siempre como `OPERATIVO` en el alta. `asset_type` no se captura ni se envía desde la ficha de Nuevos Activos.
-- Filtro inclusivo por año y rango de meses sobre `comp_date`.
+- Todo texto editable de grilla/ficha se normaliza a MAYÚSCULAS antes del POST. CECO se sanitiza a máximo 6 caracteres alfanuméricos y debe existir en `/api/actfij/ceco` si no queda vacío.
+- Campos reutilizables de la ficha usan autocomplete con distinct del catálogo + borradores; se permiten valores nuevos salvo CECO, que debe existir.
+- La ficha complementaria se renderiza dentro del flujo vertical de la página, debajo de las tablas. Al abrirla la página deja de forzar altura cerrada y puede crecer para que el panel no tape las grillas.
+- La ficha corresponde a un único activo a la vez. Clic en una fila no existente alterna abrir/cerrar su ficha; la fila enfocada se sombrea en azul. Enfocar o hacer clic en una celda editable fuerza la ficha abierta sin disparar el toggle de fila. No usar checks ni selección múltiple.
+- Alta existente = `subjournal_code + voucher_number + annex_code + document_number`; mostrar el COD ya registrado, bloquear toda la fila y oscurecerla. Tras guardar, actualizar localmente catálogo/códigos para que esas filas ya no vuelvan a entrar al lote.
+- COD: exactamente 7 dígitos. Los primeros 3 son la clase y deben coincidir con `mapping.correlative_start` de la `account_code` de la fila; los últimos 4 son correlativo.
+- Ya no se ingresa una clase manual ni existe la lógica de `Asignar siguientes`. Para cada fila visible, no existente y con `correlative_start` válido de 3 dígitos, el componente propone automáticamente el siguiente COD libre de su clase.
+- La propuesta automática ordena candidatos por prefijo, `comp_date`, `line_description` e índice original; respeta los COD ya existentes y los COD pendientes ya asignados en otros drafts.
+- Validación de COD: no existente en catálogo, no repetido entre borradores, prefijo igual al mapping de la cuenta y secuencia continua desde el máximo existente de la clase. Una clase sin registros empieza en `0001`; varias altas simultáneas de la misma clase deben formar la secuencia sin saltos.
+- Mientras se enfoca/escribe un COD, el hint de la ficha muestra el último COD del catálogo que empieza con el prefijo activo, su `asset_description` y el siguiente COD obligatorio calculado para la clase.
+- Editables en grilla: `asset_code`, `line_description`, `capex_code`, `usd_amount`, `pen_amount`, `exc_rate`. Para una fila nueva, PEN y USD deben ser números válidos; T.C. puede quedar vacío.
+- Al abrir/refrescar, el filtro vuelve al año y mes actual de Lima; en el año actual no se ofrecen meses futuros. El rango `Mes desde`/`Mes hasta` es inclusivo sobre `comp_date`.
+- La vista se divide en Activos normales (`capex_code` original vacío) y Activos CAPEX (`capex_code` original con valor). Ambas grillas comparten la altura disponible con scroll interno en escritorio; CAPEX se ordena ascendentemente por `capex_code`.
+- Las grillas usan fondo azul petróleo, headers compactos y tipografía de 11 px; la columna COD es sticky.
+- Mapeo de alta: `asset_code <- COD`, `origin_account_code <- account_code`, `capex_code <- capex_code`, `subjournal_code <- subjournal_code`, `voucher_number <- voucher_number`, `annex_code <- annex_code`, `annex_description <- annex_description`, `document_number <- document_number`, `asset_description <- line_description`, `acquisition_date <- comp_date`, `operation_date <- primer día del mes siguiente`, `exc_rate <- exc_rate`, `asset_ini_cost_pen <- pen_amount`, `asset_ini_cost_usd <- usd_amount`. Los opcionales de ficha se envían como `null` si quedan vacíos; `asset_situation` siempre se envía `OPERATIVO`; `asset_type` no se captura ni se envía desde Nuevos Activos.
+- Guardar toma todas las filas visibles con COD no vacío que todavía no existan por identidad de origen; no hay selección manual. Envía el catálogo en lotes de hasta 100 filas y, si todo termina bien, resetea los drafts de esas filas.
 
 ### Catálogo
 
-- `FixAssetsCat.tsx` solo envía filas modificadas y tiene búsqueda global.
-- La vista permite filtrar por Fecha de adquisición mediante `Año adquisición`, `Mes desde` y `Mes hasta`; el rango de meses es inclusivo. Este filtro se combina con la búsqueda global.
+- `FixAssetsCat.tsx` carga catálogo + CECO, conserva original y draft por `asset_code`, pagina 100 filas y solo envía filas modificadas.
+- La vista combina búsqueda global con filtro inclusivo por Fecha de adquisición (`Año adquisición`, `Mes desde`, `Mes hasta`). La búsqueda global evalúa todas las columnas visibles usando los valores vigentes de los drafts.
+- Cada encabezado tiene filtro/ordenamiento estilo Excel. El menú permite ordenar asc/desc, buscar valores distintos, seleccionar/deseleccionar valores, aplicar operadores personalizados por tipo (`text|number|date`) y limpiar el filtro de esa columna.
+- Los menús de filtro se renderizan con `createPortal` y `position: fixed`, se reposicionan en scroll/resize y se mantienen dentro del viewport para que nunca queden cortados por el contenedor con scroll. Clic fuera del botón o popup cierra el menú.
+- El botón global `Limpiar filtros` limpia los filtros por columna y el ordenamiento y vuelve a página 1; no borra la búsqueda global ni el rango de adquisición.
 - COD y Descripción activo son las dos primeras columnas y permanecen sticky.
-- Editables: `location_name`, `capex_code`, `asset_description`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `color`, `cost_center_code`, `acquisition_date`, `operation_date`, `disposal_date`, `exc_rate`, `asset_ini_cost_pen`, `depreciation_method`, `asset_situation`, `asset_comment`. `asset_type` se muestra pero es de solo lectura. `asset_situation` se edita mediante un select con vacío, `OPERATIVO` y `DEPRECIADO`.
-- Textos editables se normalizan a MAYÚSCULAS antes del POST. Ubicación, asignado, área, marca, modelo, serie, CECO, método y comentario usan autocomplete con distinct + borradores. CECO muestra `CODIGO - DESCRIPCION`, conserva solo código en draft/payload y toma descripción de `/api/actfij/ceco`.
+- El GET muestra también cuenta/descripción origen, cuentas/descripciones de depreciación 1/2, tasa y costos iniciales PEN/USD.
+- Editables: `location_name`, `capex_code`, `asset_description`, `assigned_to`, `area_name`, `brand`, `model`, `serial_number`, `color`, `cost_center_code`, `acquisition_date`, `operation_date`, `disposal_date`, `exc_rate`, `asset_ini_cost_pen`, `asset_ini_cost_usd`, `depreciation_method`, `asset_situation`, `asset_comment`. `asset_type` se muestra pero es de solo lectura; `deprec_rate_pct` también se muestra como referencia y no se edita en la grilla principal.
+- `asset_situation` se edita mediante select con vacío, `OPERATIVO` y `DEPRECIADO`.
+- Textos editables se normalizan a MAYÚSCULAS antes del POST. Ubicación, asignado, área, marca, modelo, serie, CECO, método y comentario usan autocomplete con distinct + borradores. CECO muestra su descripción mapeada y solo acepta códigos existentes.
+- `Actualizar mapping` abre un modal independiente con `/api/actfij/mapping`; muestra cuenta origen, grupo, denominación, cuentas de depreciación, tasa y tipo de activo. Solo `deprec_rate_pct` es editable; las filas `No deprecia` quedan deshabilitadas. Guardar tasas usa `{ rows: [...] }` en lotes de hasta 100.
 
 ### Depreciación
 
-- `FixAssetsDepr.tsx` filtra año/mes y ordena por `asset_code` ascendente.
-- El GET de depreciación incluye `asset_type`, pero la columna no se muestra. `Tipo de activo` es un multiselect con opciones disponibles entre `LR`, `DUP` y `No deprecia`; por defecto queda seleccionado únicamente `LR`. `Situación` también es multiselect y por defecto queda seleccionado únicamente `OPERATIVO`; cuando existan activos `DEPRECIADO`, ese estado debe aparecer como opción pero permanecer desmarcado hasta que el usuario lo seleccione expresamente.
-- Depreciación carga también el catálogo y `GET /api/actfij/mapping` para relacionar cada COD con su `origin_account_code` y `asset_situation`. Los cuatro selectores `Tipo de activo`, `Grupo`, `Denominación` y `Situación` son dependientes: modificar cualquiera recalcula las opciones compatibles de los demás según los datos disponibles, mapping, periodo y búsqueda. Cada multiselect permite `Seleccionar todos`/`Deseleccionar todos`, y hacer clic fuera del selector lo cierra.
-- Cambiar cualquiera de los filtros de depreciación limpia la selección de filas y el histórico focalizado. Las selecciones iniciales `LR` y `OPERATIVO` deben preservarse mientras las opciones todavía están vacías durante la primera carga.
-- Los activos `No deprecia` pueden mostrarse si entran en el filtro, pero son de solo lectura: no tienen checkbox de envío, no se pueden editar y nunca se guardan como depreciación.
-- Al hacer clic en una fila de depreciación fuera de su checkbox y de sus celdas editables, se abre debajo de la grilla principal el histórico de ese COD: todos los periodos anteriores al año/mes seleccionado, con tasa, las cuatro variaciones de valor, los tres ajustes de depreciación, valores y saldos calculados. El histórico ya no se superpone sobre la tabla: al abrirlo la página aumenta verticalmente y mantiene una altura suficiente para la grilla principal, evitando tapar la fila seleccionada. La fila enfocada queda sombreada en azul; repetir el clic en ella cierra el histórico. Enfocar, editar o volver a hacer clic en una celda editable fuerza su apertura, aun si ya corresponde a la fila activa, sin quitar el foco de la celda ni activar el toggle de la fila. El panel usa el mismo fondo, tamaño de letra y formato de tabla que la grilla principal.
-- Cada fila tiene checkbox de envío y por defecto ninguna está seleccionada. Editar cualquier celda marca automáticamente el check de esa fila; también se puede seleccionar manualmente una fila sin editar. El guardado envía todos los campos aceptados por el POST para cada fila seleccionada.
-- Contadores/filtros `Cargadas`, `Pendientes`, `Inválidas`, `Correctas para enviar`: usar estilo compacto de `TraceabilityEntryForm`; click filtra y segundo click limpia. `Cargadas`=`source_name==="WEB"`; `Pendientes`=resto; inválidas/correctas según selección+validación. Respetan todos los filtros y tras POST exitoso la fila pasa localmente a `source_name="WEB"`.
-- Solo el periodo contable habilitado según hora de Lima es editable y seleccionable para envío. Del día 1 al 10 de cada mes permanece habilitado el mes calendario anterior; desde el día 11 queda habilitado el mes calendario actual. Los demás periodos se muestran en modo consulta, sin inputs ni checks habilitados. Por ejemplo, el 24-08-2026 se puede editar y guardar `2026-08`, mientras que el 05-09-2026 todavía corresponde editar `2026-08`.
-- Los botones `Usar datos de vista` y `Seleccionar manuales` ayudan a armar el lote visible: el primero selecciona filas cuyo origen trae tasa o monto de depreciación distinto de cero; el segundo selecciona los borradores modificados por el usuario. Ninguno cambia por sí mismo los valores calculados.
-- El checkbox del encabezado selecciona o desmarca todas las filas editables visibles después de aplicar periodo, búsqueda, Tipo de activo, Grupo, Denominación y Situación; las filas `No deprecia` nunca entran en esa selección.
-- Tiene un único buscador por COD o descripción. Check, COD y Descripción activo son sticky.
-- La vista compacta oculta por defecto las cuatro variaciones y tres ajustes de depreciación; “Mostrar ajustes” vuelve a exponer las siete columnas. La vista compacta conserva valores y cálculos de esas columnas.
-- Al pie de la grilla visible hay una fila de totales para Valor base, Deprec. base, Valor final, Depr. periodo, Depr. acum. y Saldo; al mostrar ajustes incluye también las cuatro variaciones y los tres ajustes de depreciación. Los totales se calculan sobre las filas visibles y respetan periodo, búsqueda, Tipo de activo, Grupo, Denominación, Situación y borradores vigentes.
-- Usar anchos/celdas compactos y el fondo azul petróleo del contenedor para reducir ruido visual y scroll horizontal.
-- Cambiar año/mes, refrescar o completar un guardado limpia la selección.
-- Editables directamente en la grilla: `applied_rate_pct`, las cuatro variaciones `*_var_pen` y los tres ajustes `*_depr_pen`. `depreciation_amount_pen` se calcula automáticamente y `exc_rate` se muestra actualmente como solo lectura.
-- Fórmulas de preview:
-  - `asset_final_value = asset_base_value + acquisition_var_pen + disposal_var_pen + reclass_var_pen + adjustment_var_pen`.
-  - `depreciation_cum_amount_pen = depreciation_base_pen + reclass_depr_pen + adjustment_depr_pen + disposal_depr_pen + depreciation_amount_pen`.
-  - `asset_balance_pen = asset_final_value - depreciation_cum_amount_pen`.
-  - Tasa a monto: `asset_final_value * (applied_rate_pct / 12)`, limitada al saldo disponible antes de la depreciación del periodo.
-  - Cambiar `applied_rate_pct` o cualquiera de los cuatro `*_var_pen` recalcula automáticamente `depreciation_amount_pen` usando la tasa vigente.
-- Si el guardado por filas falla parcialmente, las depreciaciones ya confirmadas se conservan como guardadas y salen de la selección; las pendientes permanecen seleccionadas. Si solo falla la sincronización de `exc_rate` al catálogo, se informa el COD afectado sin revertir la depreciación ya guardada.
-- `FixAssetsCat.tsx` incorpora una ventana de preview `Actualizar mapping`: carga `/api/actfij/mapping`, no muestra `updated_at` y permite cambiar/guardar únicamente la tasa de depreciación de cada cuenta origen.
+- `FixAssetsDepr.tsx` carga depreciación, mapping y catálogo. Del catálogo obtiene por COD `origin_account_code`, `asset_situation`, `cost_center_code` y `exc_rate`; la grilla se ordena por `asset_code` ascendente.
+- El buscador global filtra por COD, descripción o CECO. Año/mes solo muestran periodos existentes hasta el periodo contable habilitado.
+- El GET incluye `asset_type`, pero la columna no se muestra. `Tipo de activo` ofrece `LR`, `DUP` y `No deprecia`; default solo `LR`. `Situación` default solo `OPERATIVO`; `DEPRECIADO` aparece cuando exista pero permanece desmarcado inicialmente.
+- `Tipo de activo`, `Grupo`, `Denominación` y `Situación` son facets dependientes: cada cambio recalcula las opciones compatibles de los demás según periodo/búsqueda/datos. Cada multiselect alterna `Seleccionar todos`/`Deseleccionar todos` y se cierra al hacer clic fuera.
+- Cambiar cualquiera de esos facets o año/mes limpia selección e histórico. Las selecciones iniciales `LR` y `OPERATIVO` deben preservarse mientras las opciones todavía estén vacías durante la primera carga.
+- Además de los facets, cada encabezado visible tiene filtro/ordenamiento estilo Excel, calculado sobre los valores actuales de draft y la moneda visible. Aplicar un filtro de columna limpia la selección. `Limpiar filtros` limpia filtros por columna y ordenamiento.
+- Los menús de filtros de encabezado usan `createPortal`/`position: fixed`, se reposicionan con scroll/resize, respetan el viewport y se cierran al click fuera para evitar que el popup se corte dentro de la grilla.
+- La vista alterna `PEN`/`USD` con `Ver en USD`/`Ver en PEN`. Cambiar moneda limpia la selección, conserva los datos de ambas monedas y reutiliza las mismas columnas visuales mediante el mapeo PEN→USD.
+- Estado de envío por moneda: `source_name="WEB"` cuenta como enviado en ambas; `WEB_PEN` solo PEN; `WEB_USD` solo USD. La UI muestra contadores permanentes PEN/USD y filtros clicables `Enviadas <moneda>`, `Pendientes <moneda>`, `Inválidas`, `Correctas para enviar`.
+- Para activos `LR`, una moneda ya enviada deja de ser editable/seleccionable para esa moneda. `DUP` sigue siendo editable en el periodo habilitado aunque ya tenga source de esa moneda. `No deprecia` siempre es consulta: sin checkbox, sin inputs y nunca entra al guardado.
+- Solo el periodo contable habilitado según Lima es editable: días 1–10 → mes calendario anterior; desde el día 11 → mes calendario actual. Los demás periodos son consulta. Refrescar selecciona el último periodo disponible que no exceda ese periodo contable.
+- Cada fila editable tiene checkbox y por defecto ninguna está seleccionada. Editar una celda selecciona automáticamente esa fila; también puede seleccionarse manualmente. El checkbox del encabezado alterna todas las filas editables visibles después de todos los filtros activos.
+- `Usar datos de vista` agrega a la selección todas las filas editables visibles; `Seleccionar manuales` agrega las filas visibles con cambios en el draft; `Limpiar selección` vacía el lote. Ninguno de esos botones modifica los cálculos por sí mismo.
+- Al hacer clic en una fila fuera del check/celda editable se abre/cierra debajo de la grilla el histórico del COD. Enfocar/clicar una celda editable fuerza el histórico abierto sin activar el toggle de fila. Al abrir histórico la página crece verticalmente y la grilla principal conserva altura suficiente; la fila focalizada se resalta en azul.
+- El histórico usa la moneda activa. En USD, `Depr. reclas.` y `Depr. ajuste` se muestran como `—` porque no existe contraparte USD en el contrato actual; las demás variaciones/valores/saldos usan sus campos USD.
+- La vista compacta oculta por defecto las cuatro variaciones y tres ajustes de depreciación; `Mostrar ajustes` los expone. Los filtros de encabezado y sus valores disponibles corresponden solo a las columnas visibles en ese momento.
+- Check, COD y Descripción activo son sticky. La tabla incluye fila de totales sobre las filas visibles/filtradas; los totales usan la moneda activa y los drafts vigentes.
+- T.C. se toma del catálogo por `asset_code` para mostrarlo en la grilla/histórico y actualmente es de solo lectura en UI.
+- Campos de edición PEN: `applied_rate_pct`, `acquisition_var_pen`, `disposal_var_pen`, `reclass_var_pen`, `adjustment_var_pen`, `reclass_depr_pen`, `adjustment_depr_pen`, `disposal_depr_pen`, `depreciation_amount_pen`, `exc_rate` dentro del draft/payload. En UI `exc_rate` no es editable.
+- Campos de edición USD: `applied_rate_pct`, `acquisition_var_usd`, `disposal_var_usd`, `reclass_var_usd`, `adjustment_var_usd`, `disposal_depr_usd`, `depreciation_amount_usd`, `exc_rate` dentro del draft/payload. No hay `reclass_depr_usd` ni `adjustment_depr_usd` en el componente actual.
+- Regla LR: `applied_rate_pct` es editable y `depreciation_amount_*` no se edita directamente; cambiar tasa o cualquiera de las cuatro variaciones de la moneda recalcula el monto de depreciación.
+- Regla DUP: `applied_rate_pct` no es editable y `depreciation_amount_*` sí; al cambiar el monto, la tasa se deriva como `(monto * 12) / valor_final` cuando el valor final es distinto de cero.
+- Preview PEN: `valor_final = asset_base_value + acquisition_var_pen + disposal_var_pen + reclass_var_pen + adjustment_var_pen`; `depr_acum = depreciation_base_pen + reclass_depr_pen + adjustment_depr_pen + disposal_depr_pen + depreciation_amount_pen`; `saldo = valor_final - depr_acum`.
+- Preview USD: `valor_final = asset_base_value_usd + acquisition_var_usd + disposal_var_usd + reclass_var_usd + adjustment_var_usd`; `depr_acum = depreciation_base_usd + disposal_depr_usd + depreciation_amount_usd`; `saldo = valor_final - depr_acum`.
+- Tasa→monto en ambas monedas: `valor_final * (applied_rate_pct / 12)`, limitada al saldo disponible antes de la depreciación del periodo. En PEN el saldo previo resta base + reclas/ajuste/baja de depreciación; en USD resta base + baja de depreciación.
+- Guardar envía solo las filas seleccionadas que sigan editables para la moneda activa, con `{ currency, rows }` en lotes de hasta 100. Si hay fallo parcial, conserva localmente las filas ya confirmadas y las saca de selección; las pendientes permanecen seleccionadas.
+- Después de guardar, si el T.C. del draft difiere del original, intenta sincronizar `exc_rate` a Catálogo con `/api/actfij/catalogue/insert`; un fallo de esa sincronización se reporta por COD sin revertir la depreciación ya guardada.
+
+### Exportación de depreciación
+
+- `FixAssetsExport.tsx` carga en paralelo `/api/actfij/deprec/export`, `/api/actfij/catalogue` y `/api/actfij/concar-real`. Al cargar selecciona el periodo más reciente disponible de la vista de exportación.
+- Filtros principales: Año, Mes y un único buscador por cuenta contable, CECO o COD. Buscar por COD cruza el catálogo: para filas Debe (`D`) coincide por `deprec_acc_code_fir + cost_center_code`; para Haber usa `deprec_acc_code_sec` por cuenta.
+- Las filas se ordenan Debe antes que Haber, luego por cuenta y centro de costo.
+- Una fila se considera ya existente en Concar por la combinación normalizada `fecha_comprobante + cuenta_contable + codigo_centro_costo`. Las existentes se muestran en verde, cuentan en `Existentes` y se excluyen de `exportableRows` y de los totales/export principal.
+- El Excel principal exporta solo filas nuevas. Antes de escribir cada fila sustituye `numero_comprobante` por el siguiente comprobante numérico encontrado en `/api/actfij/concar-real` para la misma `fecha_comprobante`; conserva al menos 6 dígitos y usa el número de la vista como fallback si no hay comprobantes numéricos previos.
+- El archivo principal se llama `depreciacion_<año>_<mes>.xlsx`, hoja `Depreciación`, e incluye antes de los datos las filas `Campo`, `Restricciones` y `Tamaño/Formato`. Valores numéricos se exportan como números; `tipo_cambio` usa formato de 6 decimales y los demás importes 2.
+- La tabla principal muestra totales de `importe_original`, `importe_dolares` e `importe_soles` calculados solo sobre filas exportables.
+- Clic en una fila abre/cierra debajo de la grilla su detalle. Para Debe el detalle se consulta por cuenta + CECO; para Haber por cuenta y `ceco` vacío. El panel no se superpone: al abrirlo la página crece y la fila focalizada se resalta.
+- El detalle muestra COD, descripción, cuenta origen, grupo, denominación, cuenta de depreciación, CECO, `depreciation_amount_pen`, T.C. y `depreciation_amount_usd`. El USD mostrado/exportado es el campo USD recibido del detalle, no una conversión hecha por el frontend.
+- El botón `Exportar Excel` del detalle está junto a `Cerrar detalle`; genera una hoja `Detalle` con esas 10 columnas y nombre `detalle_depreciacion_<periodo>_<cuenta>[_<ceco>].xlsx`.
 
 ## Verificación
 
