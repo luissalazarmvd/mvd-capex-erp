@@ -36,6 +36,45 @@ type CatalogueRow = {
   acquisition_date: string | null;
   operation_date: string | null;
   disposal_date: string | null;
+
+  applied_rate_pct: number | string | null;
+
+  asset_base_value_usd: number | string | null;
+  asset_base_value_pen: number | string | null;
+
+  acquisition_var_usd: number | string | null;
+  disposal_var_usd: number | string | null;
+  reclass_var_usd: number | string | null;
+  adjustment_var_usd: number | string | null;
+
+  acquisition_var_pen: number | string | null;
+  disposal_var_pen: number | string | null;
+  reclass_var_pen: number | string | null;
+  adjustment_var_pen: number | string | null;
+
+  asset_final_value_usd: number | string | null;
+  asset_final_value_pen: number | string | null;
+
+  depreciation_base_usd: number | string | null;
+  depreciation_base_pen: number | string | null;
+
+  reclass_depr_usd: number | string | null;
+  adjustment_depr_usd: number | string | null;
+  disposal_depr_usd: number | string | null;
+
+  reclass_depr_pen: number | string | null;
+  adjustment_depr_pen: number | string | null;
+  disposal_depr_pen: number | string | null;
+
+  depreciation_amount_usd: number | string | null;
+  depreciation_amount_pen: number | string | null;
+
+  depreciation_cum_amount_usd: number | string | null;
+  depreciation_cum_amount_pen: number | string | null;
+
+  asset_balance_usd: number | string | null;
+  asset_balance_pen: number | string | null;
+
   deprec_rate_pct: number | string | null;
   exc_rate: number | string | null;
   asset_ini_cost_pen: number | string | null;
@@ -43,6 +82,26 @@ type CatalogueRow = {
   depreciation_method: string | null;
   asset_situation: string | null;
   asset_comment: string | null;
+};
+
+type DeprRow = {
+  asset_code: string | null;
+  period_date: string | null;
+  depreciation_amount_usd: number | string | null;
+  depreciation_amount_pen: number | string | null;
+};
+
+type MonthlyDeprecCurrency = "usd" | "pen";
+type MonthlyDeprecKey = `monthly_depr_${string}_${MonthlyDeprecCurrency}`;
+type CatalogueColumnKey = keyof CatalogueRow | MonthlyDeprecKey;
+
+type CatalogueDisplayRow = CatalogueRow &
+  Partial<Record<MonthlyDeprecKey, number | string | null>>;
+
+type CatalogueColumn = {
+  key: CatalogueColumnKey;
+  label: string;
+  width: number;
 };
 
 type CecoRow = {
@@ -116,7 +175,7 @@ const MONTHS = [
 
 const PAGE_SIZE = 100;
 
-const COLUMNS: Array<{ key: keyof CatalogueRow; label: string; width: number }> = [
+const COLUMNS_BEFORE_MONTHLY: CatalogueColumn[] = [
   { key: "asset_code", label: "COD", width: 105 },
   { key: "asset_description", label: "Descripción activo", width: 260 },
   { key: "location_name", label: "Ubicación", width: 150 },
@@ -144,6 +203,47 @@ const COLUMNS: Array<{ key: keyof CatalogueRow; label: string; width: number }> 
   { key: "acquisition_date", label: "Fecha adquisición", width: 145 },
   { key: "operation_date", label: "Fecha operación", width: 135 },
   { key: "disposal_date", label: "Fecha baja", width: 125 },
+
+  { key: "applied_rate_pct", label: "Tasa", width: 100 },
+
+  { key: "asset_base_value_usd", label: "Valor base USD", width: 145 },
+  { key: "asset_base_value_pen", label: "Valor base PEN", width: 145 },
+
+  { key: "acquisition_var_usd", label: "Var. adquis. USD", width: 145 },
+  { key: "disposal_var_usd", label: "Var. baja USD", width: 135 },
+  { key: "reclass_var_usd", label: "Var. reclas. USD", width: 145 },
+  { key: "adjustment_var_usd", label: "Var. ajuste USD", width: 145 },
+
+  { key: "acquisition_var_pen", label: "Var. adquis. PEN", width: 145 },
+  { key: "disposal_var_pen", label: "Var. baja PEN", width: 135 },
+  { key: "reclass_var_pen", label: "Var. reclas. PEN", width: 145 },
+  { key: "adjustment_var_pen", label: "Var. ajuste PEN", width: 145 },
+
+  { key: "asset_final_value_usd", label: "Valor final USD", width: 145 },
+  { key: "asset_final_value_pen", label: "Valor final PEN", width: 145 },
+
+  { key: "depreciation_base_usd", label: "Deprec. base USD", width: 145 },
+  { key: "depreciation_base_pen", label: "Deprec. base PEN", width: 145 },
+
+  { key: "reclass_depr_usd", label: "Depr. reclas. USD", width: 145 },
+  { key: "adjustment_depr_usd", label: "Depr. ajuste USD", width: 145 },
+  { key: "disposal_depr_usd", label: "Depr. baja USD", width: 135 },
+
+  { key: "reclass_depr_pen", label: "Depr. reclas. PEN", width: 145 },
+  { key: "adjustment_depr_pen", label: "Depr. ajuste PEN", width: 145 },
+  { key: "disposal_depr_pen", label: "Depr. baja PEN", width: 135 },
+];
+
+const COLUMNS_AFTER_MONTHLY: CatalogueColumn[] = [
+  { key: "depreciation_amount_usd", label: "Depr. año USD", width: 145 },
+  { key: "depreciation_amount_pen", label: "Depr. año PEN", width: 145 },
+
+  { key: "depreciation_cum_amount_usd", label: "Depr. acum. USD", width: 155 },
+  { key: "depreciation_cum_amount_pen", label: "Depr. acum. PEN", width: 155 },
+
+  { key: "asset_balance_usd", label: "Saldo USD", width: 135 },
+  { key: "asset_balance_pen", label: "Saldo PEN", width: 135 },
+
   { key: "deprec_rate_pct", label: "Tasa deprec.", width: 120 },
   { key: "exc_rate", label: "T.C.", width: 110 },
   { key: "asset_ini_cost_pen", label: "Costo inicial PEN (S/)", width: 155 },
@@ -876,6 +976,19 @@ function monthOf(value: unknown) {
   return match ? { year: match[1], month: match[2] } : null;
 }
 
+function currentLimaYearMonth() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+
+  return year && month ? `${year}-${month}` : "";
+}
+
 function decimalDraft(value: string, maxIntegerDigits: number, maxDecimals = 6) {
   const normalized = value.replace(",", ".").replace(/[^0-9.-]/g, "");
   const negative = normalized.startsWith("-");
@@ -916,20 +1029,55 @@ function costCenterCode(value: string) {
   return raw.toLocaleUpperCase("es").replace(/[^0-9A-Z]/g, "").slice(0, 6);
 }
 
-const CATALOGUE_DATE_FILTER_FIELDS = new Set<keyof CatalogueRow>([
+const CATALOGUE_DATE_FILTER_FIELDS = new Set<CatalogueColumnKey>([
   "acquisition_date",
   "operation_date",
   "disposal_date",
 ]);
 
-const CATALOGUE_NUMBER_FILTER_FIELDS = new Set<keyof CatalogueRow>([
+const CATALOGUE_NUMBER_FILTER_FIELDS = new Set<CatalogueColumnKey>([
+  "applied_rate_pct",
+  "asset_base_value_usd",
+  "asset_base_value_pen",
+  "acquisition_var_usd",
+  "disposal_var_usd",
+  "reclass_var_usd",
+  "adjustment_var_usd",
+  "acquisition_var_pen",
+  "disposal_var_pen",
+  "reclass_var_pen",
+  "adjustment_var_pen",
+  "asset_final_value_usd",
+  "asset_final_value_pen",
+  "depreciation_base_usd",
+  "depreciation_base_pen",
+  "reclass_depr_usd",
+  "adjustment_depr_usd",
+  "disposal_depr_usd",
+  "reclass_depr_pen",
+  "adjustment_depr_pen",
+  "disposal_depr_pen",
+  "depreciation_amount_usd",
+  "depreciation_amount_pen",
+  "depreciation_cum_amount_usd",
+  "depreciation_cum_amount_pen",
+  "asset_balance_usd",
+  "asset_balance_pen",
   "deprec_rate_pct",
   "exc_rate",
   "asset_ini_cost_pen",
   "asset_ini_cost_usd",
 ]);
 
-function catalogueExcelFilterKind(key: keyof CatalogueRow): ExcelFilterKind {
+function isMonthlyDeprecKey(key: CatalogueColumnKey): key is MonthlyDeprecKey {
+  return /^monthly_depr_\d{4}_\d{2}_(usd|pen)$/.test(String(key));
+}
+
+function catalogueExcelFilterKind(key: CatalogueColumnKey): ExcelFilterKind {
+  if (isMonthlyDeprecKey(key)) {
+    return "number";
+  }
+
   if (CATALOGUE_DATE_FILTER_FIELDS.has(key)) {
     return "date";
   }
@@ -942,9 +1090,9 @@ function catalogueExcelFilterKind(key: keyof CatalogueRow): ExcelFilterKind {
 }
 
 function catalogueExcelFilterValue(
-  row: CatalogueRow,
+  row: CatalogueDisplayRow,
   draft: Draft,
-  key: keyof CatalogueRow,
+  key: CatalogueColumnKey,
   cecoByCode: Record<string, string>
 ) {
   if (key === "cost_center_code") {
@@ -965,7 +1113,7 @@ function catalogueExcelFilterValue(
     return draft[key as EditableKey];
   }
 
-  return row[key];
+  return (row as unknown as Record<string, unknown>)[String(key)];
 }
 
 function toDraft(row: CatalogueRow): Draft {
@@ -1004,7 +1152,8 @@ function validMappingRate(value: string) {
 }
 
 export default function FixAssetsCat() {
-  const [rows, setRows] = useState<CatalogueRow[]>([]);
+  const [rows, setRows] = useState<CatalogueDisplayRow[]>([]);
+  const [deprecCurrentPeriod, setDeprecCurrentPeriod] = useState("");
   const [cecoByCode, setCecoByCode] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
@@ -1014,8 +1163,8 @@ export default function FixAssetsCat() {
   const [acquisitionMonthFrom, setAcquisitionMonthFrom] = useState("01");
   const [acquisitionMonthTo, setAcquisitionMonthTo] = useState("12");
   const [page, setPage] = useState(1);
-  const [columnFilters, setColumnFilters] = useState<Partial<Record<keyof CatalogueRow, ExcelColumnFilter>>>({});
-  const [excelSort, setExcelSort] = useState<{ key: keyof CatalogueRow; direction: ExcelSortDirection } | null>(null);
+  const [columnFilters, setColumnFilters] = useState<Partial<Record<CatalogueColumnKey, ExcelColumnFilter>>>({});
+  const [excelSort, setExcelSort] = useState<{ key: CatalogueColumnKey; direction: ExcelSortDirection } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -1033,20 +1182,92 @@ export default function FixAssetsCat() {
     setLoading(true);
     setMessage("");
     try {
-      const [response, cecoResponse] = await Promise.all([
+      const [response, cecoResponse, deprecResponse] = await Promise.all([
         apiGet("/api/actfij/catalogue"),
         apiGet("/api/actfij/ceco"),
+        apiGet("/api/actfij/deprec"),
       ]);
-      const nextRows = Array.isArray(response?.rows) ? (response.rows as CatalogueRow[]) : [];
+
+      const nextCatalogueRows = Array.isArray(response?.rows)
+        ? response.rows as CatalogueRow[]
+        : [];
+
+      const nextDeprecRows = Array.isArray(deprecResponse?.rows)
+        ? deprecResponse.rows as DeprRow[]
+        : [];
+
+      const latestPeriodFromData = nextDeprecRows.reduce((latest, row) => {
+        const period = dateOnly(row.period_date).slice(0, 7);
+
+        if (!/^\d{4}-\d{2}$/.test(period)) {
+          return latest;
+        }
+
+        return !latest || period > latest
+          ? period
+          : latest;
+      }, "");
+
+      const currentDeprecPeriod =
+        latestPeriodFromData || currentLimaYearMonth();
+
+      const currentDeprecYear =
+        currentDeprecPeriod.slice(0, 4);
+
+      const monthlyByAsset: Record<
+        string,
+        Partial<Record<MonthlyDeprecKey, number | string | null>>
+      > = {};
+
+      nextDeprecRows.forEach((row) => {
+        const code = text(row.asset_code).trim();
+        const period = dateOnly(row.period_date).slice(0, 7);
+
+        if (
+          !code
+          || !/^\d{4}-\d{2}$/.test(period)
+          || period.slice(0, 4) !== currentDeprecYear
+          || period > currentDeprecPeriod
+        ) {
+          return;
+        }
+
+        const monthToken = period.replace("-", "_");
+
+        const usdKey =
+          `monthly_depr_${monthToken}_usd` as MonthlyDeprecKey;
+
+        const penKey =
+          `monthly_depr_${monthToken}_pen` as MonthlyDeprecKey;
+
+        monthlyByAsset[code] = {
+          ...(monthlyByAsset[code] || {}),
+          [usdKey]: row.depreciation_amount_usd,
+          [penKey]: row.depreciation_amount_pen,
+        };
+      });
+
+      const nextRows: CatalogueDisplayRow[] =
+        nextCatalogueRows.map((row) => ({
+          ...row,
+          ...(monthlyByAsset[text(row.asset_code).trim()] || {}),
+        }));
+
       const nextCecoByCode = (Array.isArray(cecoResponse?.rows) ? cecoResponse.rows as CecoRow[] : [])
         .reduce<Record<string, string>>((current, row) => {
           const code = costCenterCode(text(row.cost_center_code));
           if (code) current[code] = text(row.cost_center_description).trim();
           return current;
         }, {});
+
       const nextDrafts: Record<string, Draft> = {};
-      nextRows.forEach((row) => { nextDrafts[text(row.asset_code)] = toDraft(row); });
+
+      nextRows.forEach((row) => {
+        nextDrafts[text(row.asset_code)] = toDraft(row);
+      });
+
       setRows(nextRows);
+      setDeprecCurrentPeriod(currentDeprecPeriod);
       setCecoByCode(nextCecoByCode);
       setDrafts(nextDrafts);
       setOriginals(nextDrafts);
@@ -1102,6 +1323,45 @@ export default function FixAssetsCat() {
     return result;
   }, [rows, drafts]);
 
+  const columns = useMemo<CatalogueColumn[]>(() => {
+    const match = deprecCurrentPeriod.match(/^(\d{4})-(\d{2})$/);
+
+    if (!match) {
+      return [
+        ...COLUMNS_BEFORE_MONTHLY,
+        ...COLUMNS_AFTER_MONTHLY,
+      ];
+    }
+
+    const year = match[1];
+    const currentMonth = Number(match[2]);
+
+    const monthlyColumns: CatalogueColumn[] = [];
+
+    for (let month = 1; month <= currentMonth; month += 1) {
+      const monthText = String(month).padStart(2, "0");
+
+      monthlyColumns.push(
+        {
+          key: `monthly_depr_${year}_${monthText}_usd` as MonthlyDeprecKey,
+          label: `${MONTHS[month - 1]} ${year} USD`,
+          width: 145,
+        },
+        {
+          key: `monthly_depr_${year}_${monthText}_pen` as MonthlyDeprecKey,
+          label: `${MONTHS[month - 1]} ${year} PEN`,
+          width: 145,
+        }
+      );
+    }
+
+    return [
+      ...COLUMNS_BEFORE_MONTHLY,
+      ...monthlyColumns,
+      ...COLUMNS_AFTER_MONTHLY,
+    ];
+  }, [deprecCurrentPeriod]);
+
   const baseVisibleRows = useMemo(() => {
     const needle = deferredQuery
       .trim()
@@ -1133,7 +1393,7 @@ export default function FixAssetsCat() {
         return true;
       }
 
-      return COLUMNS.some((column) =>
+      return columns.some((column) =>
         text(
           catalogueExcelFilterValue(
             row,
@@ -1154,14 +1414,15 @@ export default function FixAssetsCat() {
     acquisitionMonthFrom,
     acquisitionMonthTo,
     cecoByCode,
+    columns,
   ]);
 
   const excelColumnValues = useMemo(() => {
     const result: Partial<
-      Record<keyof CatalogueRow, string[]>
+      Record<CatalogueColumnKey, string[]>
     > = {};
 
-    COLUMNS.forEach((column) => {
+    columns.forEach((column) => {
       result[column.key] = baseVisibleRows.map(
         (row) => {
           const draft =
@@ -1185,6 +1446,7 @@ export default function FixAssetsCat() {
     baseVisibleRows,
     drafts,
     cecoByCode,
+    columns,
   ]);
 
   const visibleRows = useMemo(() => {
@@ -1196,7 +1458,7 @@ export default function FixAssetsCat() {
 
         return (
           Object.entries(columnFilters) as Array<
-            [keyof CatalogueRow, ExcelColumnFilter]
+            [CatalogueColumnKey, ExcelColumnFilter]
           >
         ).every(([key, filter]) =>
           matchesExcelFilter(
@@ -1474,8 +1736,8 @@ export default function FixAssetsCat() {
       <div className="panel-inner fixassets-cat-table" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
-            <colgroup>{COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
-            <thead><tr>{COLUMNS.map((column) => {
+            <colgroup>{columns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
+            <thead><tr>{columns.map((column) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
               const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
 
@@ -1513,20 +1775,15 @@ export default function FixAssetsCat() {
                 const bad = edited && invalid(draft);
                 const background = bad ? "rgba(216,93,39,.32)" : edited ? "rgba(94,128,25,.32)" : undefined;
                 return <tr key={code} className="capex-tr">
-                  {COLUMNS.map((column) => {
+                  {columns.map((column) => {
                     const editable = EDITABLE.includes(column.key as EditableKey) && column.key !== "asset_type";
                     const key = column.key as EditableKey;
-                    const draftCostCenter = costCenterCode(draft.cost_center_code);
-                    const mappedCostCenterDesc = draftCostCenter
-                      ? cecoByCode[draftCostCenter] || "Centro de costo no existe"
-                      : "";
-                    const value = column.key === "cost_center_desc"
-                      ? mappedCostCenterDesc
-                      : column.key === "cost_center_code"
-                        ? draftCostCenter
-                        : editable
-                          ? draft[key]
-                          : row[column.key];
+                    const value = catalogueExcelFilterValue(
+                      row,
+                      draft,
+                      column.key,
+                      cecoByCode
+                    );
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 0 : column.key === "asset_description" ? 105 : undefined;
                     const stickyBackground = bad ? "#713f38" : edited ? "#3d6948" : "#0b4d6b";
@@ -1564,13 +1821,13 @@ export default function FixAssetsCat() {
                           : update(code, key, next)}
                         style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key], numericIntegerDigits(key)) ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${code}`}
-                      /> : <span title={text(value)}>{column.key.endsWith("_date") ? dateOnly(value) : column.key === "deprec_rate_pct" ? twoDecimals(value) : text(value)}</span>}
+                      /> : <span title={text(value)}>{String(column.key).endsWith("_date") ? dateOnly(value) : catalogueExcelFilterKind(column.key) === "number" ? twoDecimals(value) : text(value)}</span>}
                     </td>;
                   })}
                 </tr>;
               })}
-              {!loading && !visibleRows.length ? <tr><td className="capex-td" colSpan={COLUMNS.length}>No hay activos que coincidan con la búsqueda.</td></tr> : null}
-              {loading ? <tr><td className="capex-td" colSpan={COLUMNS.length}>Cargando catálogo...</td></tr> : null}
+              {!loading && !visibleRows.length ? <tr><td className="capex-td" colSpan={columns.length}>No hay activos que coincidan con la búsqueda.</td></tr> : null}
+              {loading ? <tr><td className="capex-td" colSpan={columns.length}>Cargando catálogo...</td></tr> : null}
             </tbody>
           </Table>
         </div>
