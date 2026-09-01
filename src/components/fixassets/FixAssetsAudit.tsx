@@ -33,6 +33,7 @@ type AuditRow = {
 type AuditDetailRow = AuditRow & {
   before_json: string | null;
   after_json: string | null;
+  asset_descriptions?: Record<string, string>;
 };
 
 type JsonRow = Record<string, unknown>;
@@ -277,17 +278,22 @@ function buildEntityChanges(row: AuditDetailRow | null): AuditEntityChange[] {
   });
 }
 
-function compactEntityKeys(value: unknown) {
-  const rows = parseJsonRows(value);
+function changeAssetDescription(
+  change: AuditEntityChange,
+  detail: AuditDetailRow | null
+) {
+  const assetCode = text(
+    change.after?.asset_code
+    ?? change.before?.asset_code
+  ).trim();
 
-  if (!rows.length) {
-    return "—";
-  }
-
-  const labels = rows.slice(0, 2).map((row) => Object.values(row).filter((item) => item != null && item !== "").join(" | "));
-  const remaining = rows.length - labels.length;
-
-  return `${labels.join("; ")}${remaining > 0 ? ` +${remaining}` : ""}`;
+  return text(change.after?.asset_description).trim()
+    || text(change.before?.asset_description).trim()
+    || (assetCode
+      ? text(detail?.asset_descriptions?.[assetCode]).trim()
+      : "")
+    || text(change.after?.line_description).trim()
+    || text(change.before?.line_description).trim();
 }
 
 function actorLabel(row: AuditRow) {
@@ -351,7 +357,7 @@ export default function FixAssetsAudit({
           return current;
         }
 
-        return nextRows.length ? text(nextRows[0].audit_id) : null;
+        return null;
       });
     } catch (loadError) {
       setRows([]);
@@ -481,7 +487,7 @@ export default function FixAssetsAudit({
               <div>
                 <h2 id="fixassets-audit-title" style={{ margin: 0, fontSize: 20 }}>Historial de cambios</h2>
                 <div className="muted" style={{ marginTop: 4, fontSize: 12 }}>
-                  Auditoría consolidada de catálogo, depreciación, mapping y movimientos Veta VR.
+                  Solo se muestran cambios realizados desde la plataforma en catálogo, depreciación, mapping y movimientos Veta VR.
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -571,17 +577,15 @@ export default function FixAssetsAudit({
 
             <div className="fixassets-audit-content" style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(660px, 1.35fr) minmax(420px, .85fr)", gap: 10, overflow: "hidden" }}>
               <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(147,211,230,.2)", borderRadius: 10 }}>
-                <div style={{ minWidth: 1130 }}>
+                <div style={{ minWidth: 850 }}>
                   <Table disableScrollWrapper stickyHeader>
                     <colgroup>
                       <col style={{ width: 165 }} />
-                      <col style={{ width: 180 }} />
-                      <col style={{ width: 155 }} />
-                      <col style={{ width: 105 }} />
-                      <col style={{ width: 70 }} />
-                      <col style={{ width: 260 }} />
-                      <col style={{ width: 145 }} />
+                      <col style={{ width: 210 }} />
+                      <col style={{ width: 150 }} />
                       <col style={{ width: 110 }} />
+                      <col style={{ width: 70 }} />
+                      <col style={{ width: 145 }} />
                     </colgroup>
                     <thead>
                       <tr>
@@ -590,17 +594,29 @@ export default function FixAssetsAudit({
                         <th className="capex-th">Tabla</th>
                         <th className="capex-th">Operación</th>
                         <th className="capex-th">Filas</th>
-                        <th className="capex-th">Entidades</th>
                         <th className="capex-th">Usuario</th>
-                        <th className="capex-th">Detalle</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((row) => {
-                        const selected = text(row.audit_id) === selectedAuditId;
+                        const auditId = text(row.audit_id);
+                        const selected = auditId === selectedAuditId;
 
                         return (
-                          <tr key={text(row.audit_id)} className="capex-tr" style={{ background: selected ? "rgba(27,147,227,.2)" : undefined }}>
+                          <tr
+                            key={auditId}
+                            className={`capex-tr${selected ? " fixassets-audit-row-selected" : ""}`}
+                            tabIndex={0}
+                            aria-selected={selected}
+                            onClick={() => setSelectedAuditId(auditId)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setSelectedAuditId(auditId);
+                              }
+                            }}
+                            style={{ cursor: "pointer" }}
+                          >
                             <td className="capex-td" style={{ padding: 7, whiteSpace: "nowrap" }}>{formatDateTime(row.occurred_at)}</td>
                             <td className="capex-td" style={{ padding: 7 }} title={text(row.endpoint)}>{actionLabel(row.action_name)}</td>
                             <td className="capex-td" style={{ padding: 7 }}>{tableLabel(row.table_name)}</td>
@@ -610,16 +626,12 @@ export default function FixAssetsAudit({
                               </span>
                             </td>
                             <td className="capex-td" style={{ padding: 7, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{numberValue(row.row_count)}</td>
-                            <td className="capex-td" style={{ padding: 7 }} title={text(row.entity_keys_json)}>{compactEntityKeys(row.entity_keys_json)}</td>
                             <td className="capex-td" style={{ padding: 7 }} title={`${text(row.database_login)} · ${text(row.client_ip)}`}>{actorLabel(row)}</td>
-                            <td className="capex-td" style={{ padding: 7 }}>
-                              <Button size="sm" onClick={() => setSelectedAuditId(text(row.audit_id))}>{selected ? "Viendo" : "Ver"}</Button>
-                            </td>
                           </tr>
                         );
                       })}
-                      {loading ? <tr><td className="capex-td" colSpan={8} style={{ padding: 12 }}>Cargando historial...</td></tr> : null}
-                      {!loading && !rows.length ? <tr><td className="capex-td" colSpan={8} style={{ padding: 12 }}>{error || "No hay cambios para los filtros seleccionados."}</td></tr> : null}
+                      {loading ? <tr><td className="capex-td" colSpan={6} style={{ padding: 12 }}>Cargando historial...</td></tr> : null}
+                      {!loading && !rows.length ? <tr><td className="capex-td" colSpan={6} style={{ padding: 12 }}>{error || "No hay cambios de la plataforma para los filtros seleccionados."}</td></tr> : null}
                     </tbody>
                   </Table>
                 </div>
@@ -639,36 +651,65 @@ export default function FixAssetsAudit({
                     {detailLoading ? <div className="muted" style={{ fontSize: 12 }}>Cargando valores anteriores y posteriores...</div> : null}
                     {detailError ? <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>{detailError}</div> : null}
 
-                    {!detailLoading && !detailError ? selectedChanges.map((change) => (
-                      <section key={change.key} style={{ display: "grid", gap: 6, padding: 9, border: "1px solid rgba(147,211,230,.18)", borderRadius: 9, background: "rgba(255,255,255,.025)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                          <strong style={{ fontSize: 12, wordBreak: "break-word" }}>{change.key}</strong>
-                          <span className="muted" style={{ fontSize: 11 }}>{change.fields.length} campo{change.fields.length === 1 ? "" : "s"}</span>
-                        </div>
+                    {!detailLoading && !detailError ? selectedChanges.map((change) => {
+                      const description = changeAssetDescription(change, selectedDetail);
+                      const title = description
+                        ? `${change.key} — ${description}`
+                        : change.key;
 
-                        <div style={{ overflow: "auto" }}>
-                          <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 11 }}>
-                            <thead>
-                              <tr>
-                                <th style={{ textAlign: "left", padding: 5, borderBottom: "1px solid rgba(147,211,230,.18)" }}>Campo</th>
-                                <th style={{ textAlign: "left", padding: 5, borderBottom: "1px solid rgba(147,211,230,.18)" }}>Antes</th>
-                                <th style={{ textAlign: "left", padding: 5, borderBottom: "1px solid rgba(147,211,230,.18)" }}>Después</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {change.fields.map((field) => (
-                                <tr key={field}>
-                                  <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", fontWeight: 800 }}>{field}</td>
-                                  <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", wordBreak: "break-word" }}>{formatValue(change.before?.[field])}</td>
-                                  <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", wordBreak: "break-word" }}>{formatValue(change.after?.[field])}</td>
+                      return (
+                        <details
+                          key={`${selectedAuditId}:${change.key}`}
+                          className="fixassets-audit-change"
+                          style={{
+                            border: "1px solid rgba(147,211,230,.18)",
+                            borderRadius: 9,
+                            background: "rgba(255,255,255,.025)",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <summary
+                            className="fixassets-audit-change-summary"
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "auto minmax(0, 1fr) auto",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: 9,
+                              cursor: "pointer",
+                            }}
+                          >
+                            <span className="fixassets-audit-change-chevron" aria-hidden="true">›</span>
+                            <strong style={{ minWidth: 0, fontSize: 12, wordBreak: "break-word" }}>{title}</strong>
+                            <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+                              {change.fields.length} campo{change.fields.length === 1 ? "" : "s"}
+                            </span>
+                          </summary>
+
+                          <div style={{ overflow: "auto", padding: "0 9px 9px" }}>
+                            <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", fontSize: 11 }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: "left", padding: 5, borderBottom: "1px solid rgba(147,211,230,.18)" }}>Campo</th>
+                                  <th style={{ textAlign: "left", padding: 5, borderBottom: "1px solid rgba(147,211,230,.18)" }}>Antes</th>
+                                  <th style={{ textAlign: "left", padding: 5, borderBottom: "1px solid rgba(147,211,230,.18)" }}>Después</th>
                                 </tr>
-                              ))}
-                              {!change.fields.length ? <tr><td colSpan={3} style={{ padding: 6 }} className="muted">Solo cambió metadata de actualización.</td></tr> : null}
-                            </tbody>
-                          </table>
-                        </div>
-                      </section>
-                    )) : null}
+                              </thead>
+                              <tbody>
+                                {change.fields.map((field) => (
+                                  <tr key={field}>
+                                    <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", fontWeight: 800 }}>{field}</td>
+                                    <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", wordBreak: "break-word" }}>{formatValue(change.before?.[field])}</td>
+                                    <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", wordBreak: "break-word" }}>{formatValue(change.after?.[field])}</td>
+                                  </tr>
+                                ))}
+                                {!change.fields.length ? <tr><td colSpan={3} style={{ padding: 6 }} className="muted">Solo cambió metadata de actualización.</td></tr> : null}
+                              </tbody>
+                            </table>
+                          </div>
+                        </details>
+                      );
+                    }) : null}
 
                     {!detailLoading && !detailError && !selectedChanges.length ? <div className="muted" style={{ fontSize: 12 }}>No se pudo reconstruir el detalle JSON de esta operación.</div> : null}
                   </div>
@@ -700,6 +741,48 @@ export default function FixAssetsAudit({
             .fixassets-audit-modal select.input option {
               background: #0b4d6b !important;
               color: #f4fbff !important;
+            }
+
+            .fixassets-audit-row-selected .capex-td {
+              background: rgba(27,147,227,.34) !important;
+            }
+
+            .fixassets-audit-row-selected .capex-td:first-child {
+              box-shadow: inset 4px 0 0 #35b7ff;
+            }
+
+            .fixassets-audit-content .capex-tr[tabindex="0"]:focus-visible .capex-td {
+              outline: 1px solid #35b7ff;
+              outline-offset: -1px;
+            }
+
+            .fixassets-audit-change-summary {
+              list-style: none;
+              transition: background .15s ease;
+            }
+
+            .fixassets-audit-change-summary::-webkit-details-marker {
+              display: none;
+            }
+
+            .fixassets-audit-change-summary:hover {
+              background: rgba(27,147,227,.12);
+            }
+
+            .fixassets-audit-change-chevron {
+              display: inline-block;
+              font-size: 20px;
+              line-height: 1;
+              transition: transform .15s ease;
+            }
+
+            .fixassets-audit-change[open] .fixassets-audit-change-chevron {
+              transform: rotate(90deg);
+            }
+
+            .fixassets-audit-change[open] .fixassets-audit-change-summary {
+              background: rgba(27,147,227,.10);
+              border-bottom: 1px solid rgba(147,211,230,.14);
             }
 
             @media (max-width: 1050px) {

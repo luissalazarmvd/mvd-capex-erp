@@ -81,6 +81,7 @@ type CatalogueRow = {
   exc_rate: number | string | null;
   asset_ini_cost_pen: number | string | null;
   asset_ini_cost_usd: number | string | null;
+  has_deprec_history?: boolean;
   depreciation_method: string | null;
   asset_situation: string | null;
   asset_comment: string | null;
@@ -1134,6 +1135,27 @@ function numericAmount(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function assetMovementAmount(
+  row: CatalogueRow,
+  currency: "pen" | "usd"
+) {
+  const initialValue = currency === "pen"
+    ? row.asset_ini_cost_pen
+    : row.asset_ini_cost_usd;
+
+  const finalValue = currency === "pen"
+    ? row.asset_final_value_pen
+    : row.asset_final_value_usd;
+
+  if (!row.has_deprec_history) {
+    return numericAmount(initialValue);
+  }
+
+  return text(finalValue).trim()
+    ? numericAmount(finalValue)
+    : numericAmount(initialValue);
+}
+
 function formatAmountTotal(value: number) {
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
@@ -1414,11 +1436,25 @@ export default function FixAssetsCat() {
         };
       });
 
+      const realDeprecAssetCodes = new Set(
+        nextDeprecRows
+          .filter((row) => (
+            text(row.source_name).trim().toUpperCase() !== "VIRTUAL"
+          ))
+          .map((row) => text(row.asset_code).trim())
+          .filter(Boolean)
+      );
+
       const nextRows: CatalogueDisplayRow[] =
-        nextCatalogueRows.map((row) => ({
-          ...row,
-          ...(monthlyByAsset[text(row.asset_code).trim()] || {}),
-        }));
+        nextCatalogueRows.map((row) => {
+          const code = text(row.asset_code).trim();
+
+          return {
+            ...row,
+            has_deprec_history: realDeprecAssetCodes.has(code),
+            ...(monthlyByAsset[code] || {}),
+          };
+        });
 
       const nextCecoByCode = (Array.isArray(cecoResponse?.rows) ? cecoResponse.rows as CecoRow[] : [])
         .reduce<Record<string, string>>((current, row) => {
@@ -1492,12 +1528,12 @@ export default function FixAssetsCat() {
   )), [rows, selectedReclassCodes]);
 
   const reclassTotalPen = useMemo(() => reclassSelectedRows.reduce(
-    (total, row) => total + numericAmount(row.asset_final_value_pen),
+    (total, row) => total + assetMovementAmount(row, "pen"),
     0
   ), [reclassSelectedRows]);
 
   const reclassTotalUsd = useMemo(() => reclassSelectedRows.reduce(
-    (total, row) => total + numericAmount(row.asset_final_value_usd),
+    (total, row) => total + assetMovementAmount(row, "usd"),
     0
   ), [reclassSelectedRows]);
 
@@ -1543,7 +1579,6 @@ export default function FixAssetsCat() {
     && editedCodes.length === 0
     && Boolean(reclassProposedCode)
     && Boolean(reclassDraft.origin_account_code.trim())
-    && Boolean(reclassDraft.capex_code.trim())
     && Boolean(reclassDraft.acquisition_date)
     && Boolean(reclassOperationDate)
     && Boolean(costCenterCode(reclassDraft.cost_center_code))
@@ -2105,8 +2140,8 @@ export default function FixAssetsCat() {
       await apiPost("/api/actfij/catalogue/reclassify", {
         source_rows: reclassSelectedRows.map((row) => ({
           asset_code: text(row.asset_code).trim(),
-          asset_final_value_pen: numericAmount(row.asset_final_value_pen),
-          asset_final_value_usd: numericAmount(row.asset_final_value_usd),
+          asset_final_value_pen: assetMovementAmount(row, "pen"),
+          asset_final_value_usd: assetMovementAmount(row, "usd"),
         })),
         new_asset: {
           asset_code: reclassProposedCode,
@@ -2650,7 +2685,7 @@ export default function FixAssetsCat() {
             </label>
 
             <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-              Código CAPEX *
+              Código CAPEX
               <input
                 className="input"
                 list="fixassets-cat-reclass-capex-options"
@@ -2821,19 +2856,42 @@ export default function FixAssetsCat() {
                 <tr>
                   <th className="capex-th">COD</th>
                   <th className="capex-th">Descripción</th>
-                  <th className="capex-th">Valor final PEN</th>
-                  <th className="capex-th">Valor final USD</th>
+                  <th className="capex-th">Base usada</th>
+                  <th className="capex-th" style={{ textAlign: "right", whiteSpace: "nowrap" }}>Monto antes PEN</th>
+                  <th className="capex-th" style={{ textAlign: "right", whiteSpace: "nowrap" }}>Var. baja PEN</th>
+                  <th className="capex-th" style={{ textAlign: "right", whiteSpace: "nowrap" }}>Valor final PEN</th>
+                  <th className="capex-th" style={{ textAlign: "right", whiteSpace: "nowrap" }}>Monto antes USD</th>
+                  <th className="capex-th" style={{ textAlign: "right", whiteSpace: "nowrap" }}>Var. baja USD</th>
+                  <th className="capex-th" style={{ textAlign: "right", whiteSpace: "nowrap" }}>Valor final USD</th>
                 </tr>
               </thead>
               <tbody>
-                {reclassSelectedRows.map((row) => (
-                  <tr key={text(row.asset_code)} className="capex-tr">
-                    <td className="capex-td">{text(row.asset_code)}</td>
-                    <td className="capex-td">{text(row.asset_description)}</td>
-                    <td className="capex-td" style={{ textAlign: "right" }}>{twoDecimals(row.asset_final_value_pen)}</td>
-                    <td className="capex-td" style={{ textAlign: "right" }}>{twoDecimals(row.asset_final_value_usd)}</td>
-                  </tr>
-                ))}
+                {reclassSelectedRows.map((row) => {
+                  const valueBeforePen = assetMovementAmount(row, "pen");
+                  const valueBeforeUsd = assetMovementAmount(row, "usd");
+                  const disposalVarPen = -valueBeforePen;
+                  const disposalVarUsd = -valueBeforeUsd;
+                  const valueAfterPen = valueBeforePen + disposalVarPen;
+                  const valueAfterUsd = valueBeforeUsd + disposalVarUsd;
+
+                  return (
+                    <tr key={text(row.asset_code)} className="capex-tr">
+                      <td className="capex-td">{text(row.asset_code)}</td>
+                      <td className="capex-td">{text(row.asset_description)}</td>
+                      <td className="capex-td">
+                        {row.has_deprec_history
+                          ? "VALOR FINAL"
+                          : "COSTO INICIAL CATÁLOGO"}
+                      </td>
+                      <td className="capex-td" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{twoDecimals(valueBeforePen)}</td>
+                      <td className="capex-td" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{twoDecimals(disposalVarPen)}</td>
+                      <td className="capex-td" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{twoDecimals(valueAfterPen)}</td>
+                      <td className="capex-td" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{twoDecimals(valueBeforeUsd)}</td>
+                      <td className="capex-td" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{twoDecimals(disposalVarUsd)}</td>
+                      <td className="capex-td" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{twoDecimals(valueAfterUsd)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </Table>
           </div>
