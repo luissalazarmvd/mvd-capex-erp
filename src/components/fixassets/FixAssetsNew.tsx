@@ -2575,22 +2575,11 @@ export default function FixAssetsNew() {
     const result = new Set<number>();
 
     selectedItems.forEach(({ index }) => {
-      if (states[index] !== "valid") return;
-
-      const code = drafts[index]?.asset_code.trim() || "";
-      if (!/^\d{7}$/.test(code)) return;
-
-      const classCode = code.slice(0, 3);
-      const suffix = Number(code.slice(3));
-      const nextSuffix = (classMaxSuffix.get(classCode) || 0) + 1;
-
-      if (suffix === nextSuffix) {
-        result.add(index);
-      }
+      if (states[index] === "valid") result.add(index);
     });
 
     return result;
-  }, [selectedItems, states, drafts, classMaxSuffix]);
+  }, [selectedItems, states]);
 
   const catalogueLastMatch = useMemo(() => {
     const prefix = activeCodePrefix.trim();
@@ -2701,7 +2690,10 @@ export default function FixAssetsNew() {
     setIsError(false);
   }, []);
 
-  async function saveItems(itemsToSave: NewAssetItem[]) {
+  async function saveItems(
+    itemsToSave: NewAssetItem[],
+    draftSource: Record<number, Draft> = drafts
+  ) {
     if (
       !itemsToSave.length
       || loading
@@ -2721,7 +2713,7 @@ export default function FixAssetsNew() {
 
     const vrDetailPayloads = selectedItems.flatMap((item) => {
       if (!item.isVrGroup) return [];
-      const assetCode = drafts[item.index].asset_code.trim();
+      const assetCode = draftSource[item.index].asset_code.trim();
 
       return item.selectedDetailIndexes
         .map((detailIndex) => {
@@ -2750,7 +2742,7 @@ export default function FixAssetsNew() {
 
     const cataloguePayloads = selectedItems.map((item) => {
       const { row, index } = item;
-      const draft = drafts[index];
+      const draft = draftSource[index];
       const assetIniCostPen = item.isVrGroup
         ? finiteNumber(row.pen_amount)
         : numberOrNull(draft.pen_amount);
@@ -2802,7 +2794,7 @@ export default function FixAssetsNew() {
         saved += chunk.length;
       }
 
-      const savedCodes = selectedItems.map(({ index }) => drafts[index].asset_code.trim());
+      const savedCodes = selectedItems.map(({ index }) => draftSource[index].asset_code.trim());
       if (vrDetailPayloads.length) {
         setVetaVrRows((current) => [
           ...current,
@@ -2823,7 +2815,7 @@ export default function FixAssetsNew() {
         ...current,
         ...selectedItems.map((item) => {
           const { row, index } = item;
-          const draft = drafts[index];
+          const draft = draftSource[index];
           const assetIniCostPen = item.isVrGroup
             ? finiteNumber(row.pen_amount)
             : numberOrNull(draft.pen_amount);
@@ -2904,7 +2896,52 @@ export default function FixAssetsNew() {
       return;
     }
 
-    await saveItems([item]);
+    const currentDraft = drafts[index];
+    const classCode = currentDraft?.asset_code.trim().slice(0, 3) || "";
+    const firstSuffix = (classMaxSuffix.get(classCode) || 0) + 1;
+
+    const sameClassPending = codeCandidates.filter(({ item: candidate, prefix }) => (
+      prefix === classCode
+      && candidate.index !== index
+    ));
+
+    if (
+      !/^\d{3}$/.test(classCode)
+      || firstSuffix + sameClassPending.length > 9999
+    ) {
+      return;
+    }
+
+    const nextDrafts = { ...drafts };
+    let nextSuffix = firstSuffix;
+
+    const assignCode = (rowIndex: number) => {
+      const rowDraft = nextDrafts[rowIndex] || draftFrom(rows[rowIndex]);
+
+      nextDrafts[rowIndex] = {
+        ...rowDraft,
+        asset_code: `${classCode}${String(nextSuffix).padStart(4, "0")}`,
+      };
+
+      nextSuffix += 1;
+    };
+
+    assignCode(index);
+    sameClassPending.forEach(({ item: candidate }) => {
+      assignCode(candidate.index);
+    });
+
+    const nextAutoIndexes = new Set(autoCodeIndexesRef.current);
+    nextAutoIndexes.add(index);
+
+    sameClassPending.forEach(({ item: candidate }) => {
+      nextAutoIndexes.add(candidate.index);
+    });
+
+    autoCodeIndexesRef.current = nextAutoIndexes;
+
+    setDrafts(nextDrafts);
+    await saveItems([item], nextDrafts);
   }
 
   const hasExpandedPanel = detailIndex != null || vrDetailIndex != null;
