@@ -35,6 +35,7 @@ type CatalogueRow = {
   color: string | null;
   cost_center_code: string | null;
   cost_center_desc: string | null;
+  comp_date: string | null;
   acquisition_date: string | null;
   operation_date: string | null;
   disposal_date: string | null;
@@ -249,6 +250,7 @@ const COLUMNS_BEFORE_MONTHLY: CatalogueColumn[] = [
   { key: "color", label: "Color", width: 110 },
   { key: "cost_center_code", label: "Centro costo", width: 135 },
   { key: "cost_center_desc", label: "Descripción C.C.", width: 210 },
+  { key: "comp_date", label: "Fecha Contable", width: 135 },
   { key: "acquisition_date", label: "Fecha adquisición", width: 145 },
   { key: "operation_date", label: "Fecha operación", width: 135 },
   { key: "disposal_date", label: "Fecha baja", width: 125 },
@@ -358,10 +360,30 @@ function excelFilterIsActive(filter: ExcelColumnFilter | undefined) {
   return Boolean(filter && (filter.selected !== null || filter.operator !== "none"));
 }
 
+function excelFilterBucketValue(rawValue: unknown, kind: ExcelFilterKind) {
+  const value = rawValue == null ? "" : String(rawValue).trim();
+
+  if (kind !== "number" || !value) {
+    return value;
+  }
+
+  const parsed = Number(value.replace(",", "."));
+
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  const rounded = Math.round(
+    (parsed + Math.sign(parsed || 1) * Number.EPSILON) * 100
+  ) / 100;
+
+  return (Object.is(rounded, -0) ? 0 : rounded).toFixed(2);
+}
+
 function matchesExcelFilter(rawValue: unknown, filter: ExcelColumnFilter | undefined, kind: ExcelFilterKind) {
   if (!filter) return true;
 
-  const value = rawValue == null ? "" : String(rawValue).trim();
+  const value = excelFilterBucketValue(rawValue, kind);
 
   if (filter.selected !== null && !filter.selected.includes(value)) return false;
   if (filter.operator === "none") return true;
@@ -387,8 +409,8 @@ function matchesExcelFilter(rawValue: unknown, filter: ExcelColumnFilter | undef
 
   if (kind === "number") {
     const current = Number(value.replace(",", "."));
-    const a = Number(first.replace(",", "."));
-    const b = Number(second.replace(",", "."));
+    const a = Number(excelFilterBucketValue(first, "number"));
+    const b = Number(excelFilterBucketValue(second, "number"));
 
     if (!Number.isFinite(current) || !Number.isFinite(a)) return false;
 
@@ -565,7 +587,7 @@ function ExcelHeaderFilter({
   const distinctValues = useMemo(
     () =>
       Array.from(
-        new Set(values.map((value) => value.trim()))
+        new Set(values.map((value) => excelFilterBucketValue(value, kind)))
       ).sort((a, b) => {
         if (a === "") return -1;
         if (b === "") return 1;
@@ -1186,6 +1208,7 @@ function costCenterCode(value: string) {
 }
 
 const CATALOGUE_DATE_FILTER_FIELDS = new Set<CatalogueColumnKey>([
+  "comp_date",
   "acquisition_date",
   "operation_date",
   "disposal_date",
@@ -1325,6 +1348,7 @@ export default function FixAssetsCat() {
   const [page, setPage] = useState(1);
   const [columnFilters, setColumnFilters] = useState<Partial<Record<CatalogueColumnKey, ExcelColumnFilter>>>({});
   const [excelSort, setExcelSort] = useState<{ key: CatalogueColumnKey; direction: ExcelSortDirection } | null>(null);
+  const [showReadyOnly, setShowReadyOnly] = useState(false);
   const [showDetail, setShowDetail] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1411,18 +1435,34 @@ export default function FixAssetsCat() {
         const sourceName =
           text(row.source_name).trim().toUpperCase();
 
+        const adjustmentOnly =
+          sourceName === "WEB_BAJA"
+          || sourceName === "WEB_RECLA";
+
+        const penOnly =
+          sourceName === "WEB_PEN"
+          || sourceName === "WEB_BAJA_PEN"
+          || sourceName === "WEB_RECLA_PEN";
+
+        const usdOnly =
+          sourceName === "WEB_USD"
+          || sourceName === "WEB_BAJA_USD"
+          || sourceName === "WEB_RECLA_USD";
+
         const hideCurrentUsd =
           period === currentDeprecPeriod
           && (
             sourceName === "VIRTUAL"
-            || sourceName === "WEB_PEN"
+            || adjustmentOnly
+            || penOnly
           );
 
         const hideCurrentPen =
           period === currentDeprecPeriod
           && (
             sourceName === "VIRTUAL"
-            || sourceName === "WEB_USD"
+            || adjustmentOnly
+            || usdOnly
           );
 
         monthlyByAsset[code] = {
@@ -1483,6 +1523,7 @@ export default function FixAssetsCat() {
       setOriginals(nextDrafts);
       setColumnFilters({});
       setExcelSort(null);
+      setShowReadyOnly(false);
       setPage(1);
       setIsError(false);
     } catch (error) {
@@ -1514,7 +1555,13 @@ export default function FixAssetsCat() {
   const editedCodes = useMemo(() => rows
     .map((row) => text(row.asset_code))
     .filter((code) => drafts[code] && originals[code] && changed(drafts[code], originals[code])), [rows, drafts, originals]);
+  const editedCodeSet = useMemo(() => new Set(editedCodes), [editedCodes]);
   const invalidCodes = editedCodes.filter((code) => invalid(drafts[code]));
+  const readyCodes = useMemo(
+    () => editedCodes.filter((code) => !invalid(drafts[code])),
+    [editedCodes, drafts]
+  );
+  const readyCodeSet = useMemo(() => new Set(readyCodes), [readyCodes]);
   const canSave = editedCodes.length > 0
     && invalidCodes.length === 0
     && selectedReclassCodes.size === 0
@@ -1720,9 +1767,14 @@ export default function FixAssetsCat() {
   const visibleRows = useMemo(() => {
     const filtered = baseVisibleRows.filter(
       (row) => {
+        const code = text(row.asset_code);
         const draft =
-          drafts[text(row.asset_code)]
+          drafts[code]
           || toDraft(row);
+
+        if (showReadyOnly && !readyCodeSet.has(code)) {
+          return false;
+        }
 
         return (
           Object.entries(columnFilters) as Array<
@@ -1743,17 +1795,26 @@ export default function FixAssetsCat() {
       }
     );
 
-    if (!excelSort) {
-      return filtered;
-    }
-
     return [...filtered].sort((a, b) => {
+      const aCode = text(a.asset_code);
+      const bCode = text(b.asset_code);
+      const aEdited = editedCodeSet.has(aCode);
+      const bEdited = editedCodeSet.has(bCode);
+
+      if (aEdited !== bEdited) {
+        return aEdited ? -1 : 1;
+      }
+
+      if (!excelSort) {
+        return 0;
+      }
+
       const aDraft =
-        drafts[text(a.asset_code)]
+        drafts[aCode]
         || toDraft(a);
 
       const bDraft =
-        drafts[text(b.asset_code)]
+        drafts[bCode]
         || toDraft(b);
 
       return compareExcelValues(
@@ -1779,6 +1840,9 @@ export default function FixAssetsCat() {
     columnFilters,
     excelSort,
     cecoByCode,
+    showReadyOnly,
+    readyCodeSet,
+    editedCodeSet,
   ]);
 
   const columnTotals = useMemo(() => {
@@ -1999,6 +2063,7 @@ export default function FixAssetsCat() {
 
   function update(code: string, key: EditableKey, value: string) {
     setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
+    setPage(1);
     setMessage("");
   }
 
@@ -2277,7 +2342,7 @@ export default function FixAssetsCat() {
           <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving || reclassifying || disposing}>Actualizar mapping</Button>
           <Button size="sm" onClick={() => setShowDetail((current) => !current)} disabled={loading || saving || reclassifying || disposing}>{showDetail ? "Ocultar detalle" : "Mostrar detalle"}</Button>
           <Button size="sm" onClick={exportExcel} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar Excel ({visibleRows.length})</Button>
-          <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setPage(1); }} disabled={loading || saving || reclassifying || disposing}>Limpiar filtros</Button>
+          <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setShowReadyOnly(false); setPage(1); }} disabled={loading || saving || reclassifying || disposing}>Limpiar filtros</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving || reclassifying || disposing}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button
             size="sm"
@@ -2295,6 +2360,30 @@ export default function FixAssetsCat() {
           >
             Baja ({reclassSelectedRows.length})
           </Button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowReadyOnly((current) => !current);
+              setPage(1);
+            }}
+            disabled={loading || saving || reclassifying || disposing}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: showReadyOnly
+                ? "1px solid rgba(147,178,92,.95)"
+                : "1px solid rgba(147,178,92,.45)",
+              background: showReadyOnly
+                ? "rgba(94,128,25,.40)"
+                : "rgba(94,128,25,.24)",
+              color: "rgb(174,202,125)",
+              fontSize: 12,
+              fontWeight: 900,
+              cursor: loading || saving || reclassifying || disposing ? "not-allowed" : "pointer",
+            }}
+          >
+            Correctas para enviar: {readyCodes.length}
+          </button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${editedCodes.length})`}</Button>
         </div>
       </div>

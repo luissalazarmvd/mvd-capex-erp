@@ -209,10 +209,30 @@ function excelFilterIsActive(filter: ExcelColumnFilter | undefined) {
   return Boolean(filter && (filter.selected !== null || filter.operator !== "none"));
 }
 
+function excelFilterBucketValue(rawValue: unknown, kind: ExcelFilterKind) {
+  const value = rawValue == null ? "" : String(rawValue).trim();
+
+  if (kind !== "number" || !value) {
+    return value;
+  }
+
+  const parsed = Number(value.replace(",", "."));
+
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  const rounded = Math.round(
+    (parsed + Math.sign(parsed || 1) * Number.EPSILON) * 100
+  ) / 100;
+
+  return (Object.is(rounded, -0) ? 0 : rounded).toFixed(2);
+}
+
 function matchesExcelFilter(rawValue: unknown, filter: ExcelColumnFilter | undefined, kind: ExcelFilterKind) {
   if (!filter) return true;
 
-  const value = rawValue == null ? "" : String(rawValue).trim();
+  const value = excelFilterBucketValue(rawValue, kind);
 
   if (filter.selected !== null && !filter.selected.includes(value)) return false;
   if (filter.operator === "none") return true;
@@ -238,8 +258,8 @@ function matchesExcelFilter(rawValue: unknown, filter: ExcelColumnFilter | undef
 
   if (kind === "number") {
     const current = Number(value.replace(",", "."));
-    const a = Number(first.replace(",", "."));
-    const b = Number(second.replace(",", "."));
+    const a = Number(excelFilterBucketValue(first, "number"));
+    const b = Number(excelFilterBucketValue(second, "number"));
 
     if (!Number.isFinite(current) || !Number.isFinite(a)) return false;
 
@@ -416,7 +436,7 @@ function ExcelHeaderFilter({
   const distinctValues = useMemo(
     () =>
       Array.from(
-        new Set(values.map((value) => value.trim()))
+        new Set(values.map((value) => excelFilterBucketValue(value, kind)))
       ).sort((a, b) => {
         if (a === "") return -1;
         if (b === "") return 1;
@@ -1124,9 +1144,28 @@ function currentAccountingPeriod() {
 
 function isCurrencySent(row: DeprRow, currencyMode: CurrencyMode) {
   const source = text(row.source_name).trim().toUpperCase();
-  if (source === "WEB") return true;
-  if (currencyMode === "PEN") return source === "WEB_PEN";
-  return source === "WEB_USD";
+
+  if (
+    source === "WEB"
+    || source === "WEB_BAJA_BOTH"
+    || source === "WEB_RECLA_BOTH"
+  ) {
+    return true;
+  }
+
+  if (currencyMode === "PEN") {
+    return (
+      source === "WEB_PEN"
+      || source === "WEB_BAJA_PEN"
+      || source === "WEB_RECLA_PEN"
+    );
+  }
+
+  return (
+    source === "WEB_USD"
+    || source === "WEB_BAJA_USD"
+    || source === "WEB_RECLA_USD"
+  );
 }
 
 function canEditDepreciationRow(row: DeprRow, editablePeriod: string, currencyMode: CurrencyMode) {

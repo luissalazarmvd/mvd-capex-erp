@@ -60,6 +60,7 @@ type CatalogueRow = {
   serial_number?: string | null;
   cost_center_code?: string | null;
   cost_center_desc?: string | null;
+  comp_date?: string | null;
   acquisition_date?: string | null;
   operation_date?: string | null;
   disposal_date?: string | null;
@@ -543,6 +544,26 @@ function excelFilterIsActive(filter: ExcelColumnFilter | undefined) {
   );
 }
 
+function excelFilterBucketValue(rawValue: unknown, kind: ExcelFilterKind) {
+  const value = rawValue == null ? "" : String(rawValue).trim();
+
+  if (kind !== "number" || !value) {
+    return value;
+  }
+
+  const parsed = Number(value.replace(",", "."));
+
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  const rounded = Math.round(
+    (parsed + Math.sign(parsed || 1) * Number.EPSILON) * 100
+  ) / 100;
+
+  return (Object.is(rounded, -0) ? 0 : rounded).toFixed(2);
+}
+
 function matchesExcelFilter(
   rawValue: unknown,
   filter: ExcelColumnFilter | undefined,
@@ -550,7 +571,7 @@ function matchesExcelFilter(
 ) {
   if (!filter) return true;
 
-  const value = rawValue == null ? "" : String(rawValue).trim();
+  const value = excelFilterBucketValue(rawValue, kind);
 
   if (
     filter.selected !== null &&
@@ -582,8 +603,8 @@ function matchesExcelFilter(
 
   if (kind === "number") {
     const current = Number(value.replace(",", "."));
-    const a = Number(first.replace(",", "."));
-    const b = Number(second.replace(",", "."));
+    const a = Number(excelFilterBucketValue(first, "number"));
+    const b = Number(excelFilterBucketValue(second, "number"));
 
     if (!Number.isFinite(current) || !Number.isFinite(a)) {
       return false;
@@ -786,7 +807,7 @@ function ExcelHeaderFilter({
   const distinctValues = useMemo(
     () =>
       Array.from(
-        new Set(values.map((value) => value.trim()))
+        new Set(values.map((value) => excelFilterBucketValue(value, kind)))
       ).sort((a, b) => {
         if (a === "") return -1;
         if (b === "") return 1;
@@ -1278,6 +1299,9 @@ type NewRowsTableProps = {
   drafts: Record<number, Draft>;
   states: Record<number, RowState>;
   loading: boolean;
+  saving: boolean;
+  individualSaveIndexes: ReadonlySet<number>;
+  onSaveRow: (index: number) => void;
   onCommit: (index: number, field: keyof Draft, value: string) => void;
   onCodeActivity: (index: number, value: string) => void;
   onFocusDetails: (index: number) => void;
@@ -1295,6 +1319,9 @@ const NewRowsTable = memo(function NewRowsTable({
   drafts,
   states,
   loading,
+  saving,
+  individualSaveIndexes,
+  onSaveRow,
   onCommit,
   onCodeActivity,
   onFocusDetails,
@@ -1588,28 +1615,72 @@ const NewRowsTable = memo(function NewRowsTable({
                       textAlign: "center",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                      {bajaMode ? <strong style={{ color: "#ffe0a8", fontSize: 11 }}>BAJA</strong> : isVrGroup ? <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onOpenVrDetails(index);
-                        }}
-                        style={{
-                          minWidth: 58,
-                          padding: "4px 5px",
-                          borderRadius: 7,
-                          border: "1px solid rgba(147,211,230,.38)",
-                          background: "rgba(27,147,227,.22)",
-                          color: "#eefaff",
-                          fontSize: 11,
-                          fontWeight: 900,
-                          cursor: "pointer",
-                        }}
-                        aria-label={`Abrir detalle del paquete VR de la fila ${index + 1}`}
-                      >
-                        Ver {visibleSelectedCount}/{detailIndexes.length}
-                      </button> : readOnly ? <strong style={{ color: "#d7e0e5" }}>NA</strong> : <span className="muted">—</span>}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                      {existing ? (
+                        <strong style={{ color: "#b9d7e5", fontSize: 10 }}>Guardado</strong>
+                      ) : bajaMode ? (
+                        <strong style={{ color: "#ffe0a8", fontSize: 11 }}>BAJA</strong>
+                      ) : readOnly ? (
+                        <strong style={{ color: "#d7e0e5" }}>NA</strong>
+                      ) : (
+                        <>
+                          {isVrGroup ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onOpenVrDetails(index);
+                              }}
+                              style={{
+                                minWidth: 58,
+                                padding: "4px 5px",
+                                borderRadius: 7,
+                                border: "1px solid rgba(147,211,230,.38)",
+                                background: "rgba(27,147,227,.22)",
+                                color: "#eefaff",
+                                fontSize: 11,
+                                fontWeight: 900,
+                                cursor: "pointer",
+                              }}
+                              aria-label={`Abrir detalle del paquete VR de la fila ${index + 1}`}
+                            >
+                              Ver {visibleSelectedCount}/{detailIndexes.length}
+                            </button>
+                          ) : null}
+
+                          <button
+                            type="button"
+                            disabled={loading || saving || state !== "valid" || !individualSaveIndexes.has(index)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onSaveRow(index);
+                            }}
+                            style={{
+                              minWidth: 58,
+                              padding: "4px 5px",
+                              borderRadius: 7,
+                              border: "1px solid rgba(147,178,92,.55)",
+                              background: state === "valid"
+                                ? "rgba(94,128,25,.34)"
+                                : "rgba(255,255,255,.06)",
+                              color: state === "valid" ? "#dff1bc" : "rgba(255,255,255,.45)",
+                              fontSize: 10,
+                              fontWeight: 900,
+                              cursor: loading || saving || state !== "valid" || !individualSaveIndexes.has(index) ? "not-allowed" : "pointer",
+                            }}
+                            aria-label={`Guardar individualmente la fila ${index + 1}`}
+                            title={
+                              state !== "valid"
+                                ? "Completa y corrige la fila antes de guardarla"
+                                : individualSaveIndexes.has(index)
+                                  ? "Guardar solo esta fila"
+                                  : "Guarda primero el correlativo anterior de esta clase"
+                            }
+                          >
+                            Guardar
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                   {COLUMNS.map((column) => {
@@ -2500,6 +2571,27 @@ export default function FixAssetsNew() {
   const invalidCount = selectedItems.filter(({ index }) => states[index] === "invalid").length;
   const canSave = selectedItems.length > 0 && invalidCount === 0 && !loading && !saving;
 
+  const individualSaveIndexes = useMemo(() => {
+    const result = new Set<number>();
+
+    selectedItems.forEach(({ index }) => {
+      if (states[index] !== "valid") return;
+
+      const code = drafts[index]?.asset_code.trim() || "";
+      if (!/^\d{7}$/.test(code)) return;
+
+      const classCode = code.slice(0, 3);
+      const suffix = Number(code.slice(3));
+      const nextSuffix = (classMaxSuffix.get(classCode) || 0) + 1;
+
+      if (suffix === nextSuffix) {
+        result.add(index);
+      }
+    });
+
+    return result;
+  }, [selectedItems, states, drafts, classMaxSuffix]);
+
   const catalogueLastMatch = useMemo(() => {
     const prefix = activeCodePrefix.trim();
     if (!prefix) return null;
@@ -2609,8 +2701,18 @@ export default function FixAssetsNew() {
     setIsError(false);
   }, []);
 
-  async function save() {
-    if (!canSave) return;
+  async function saveItems(itemsToSave: NewAssetItem[]) {
+    if (
+      !itemsToSave.length
+      || loading
+      || saving
+      || itemsToSave.some(({ index }) => states[index] !== "valid")
+    ) {
+      return;
+    }
+
+    const selectedItems = itemsToSave;
+
     setSaving(true);
     setMessage("");
     setIsError(false);
@@ -2674,6 +2776,7 @@ export default function FixAssetsNew() {
         serial_number: upperOrNull(draft.serial_number),
         color: null,
         cost_center_code: costCenterCode(draft.cost_center_code) || null,
+        comp_date: dateOnly(row.comp_date) || null,
         acquisition_date: dateOnly(row.comp_date) || null,
         operation_date: firstDayNextMonth(row.comp_date) || null,
         disposal_date: null,
@@ -2743,6 +2846,9 @@ export default function FixAssetsNew() {
             model: draft.model.trim() || null,
             serial_number: draft.serial_number.trim() || null,
             cost_center_code: draft.cost_center_code.trim() || null,
+            comp_date: dateOnly(row.comp_date) || null,
+            acquisition_date: dateOnly(row.comp_date) || null,
+            operation_date: firstDayNextMonth(row.comp_date) || null,
             depreciation_method: draft.depreciation_method.trim() || null,
             asset_comment: draft.asset_comment.trim() || null,
             asset_ini_cost_pen: assetIniCostPen,
@@ -2782,6 +2888,25 @@ export default function FixAssetsNew() {
     }
   }
 
+  async function save() {
+    if (!canSave) return;
+    await saveItems(selectedItems);
+  }
+
+  async function saveOne(index: number) {
+    const item = selectedItems.find((candidate) => candidate.index === index);
+
+    if (
+      !item
+      || states[index] !== "valid"
+      || !individualSaveIndexes.has(index)
+    ) {
+      return;
+    }
+
+    await saveItems([item]);
+  }
+
   const hasExpandedPanel = detailIndex != null || vrDetailIndex != null;
 
   return (
@@ -2815,6 +2940,9 @@ export default function FixAssetsNew() {
           drafts={drafts}
           states={states}
           loading={loading}
+          saving={saving}
+          individualSaveIndexes={individualSaveIndexes}
+          onSaveRow={saveOne}
           onCommit={updateDraft}
           onCodeActivity={handleCodeActivity}
           onFocusDetails={focusDetails}
@@ -2831,6 +2959,9 @@ export default function FixAssetsNew() {
           drafts={drafts}
           states={states}
           loading={loading}
+          saving={saving}
+          individualSaveIndexes={individualSaveIndexes}
+          onSaveRow={saveOne}
           onCommit={updateDraft}
           onCodeActivity={handleCodeActivity}
           onFocusDetails={focusDetails}
