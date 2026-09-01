@@ -168,6 +168,13 @@ type ReclassDraft = {
   asset_comment: string;
 };
 
+type ReclassTarget = {
+  id: number;
+  draft: ReclassDraft;
+  amount_pen: string;
+  amount_usd: string;
+};
+
 type MappingDraft = { deprec_rate_pct: string };
 
 const EDITABLE = [
@@ -1109,6 +1116,34 @@ function emptyReclassDraft(): ReclassDraft {
   };
 }
 
+function emptyReclassTarget(id = 1): ReclassTarget {
+  return {
+    id,
+    draft: emptyReclassDraft(),
+    amount_pen: "0.00",
+    amount_usd: "0.00",
+  };
+}
+
+function moneyCents(value: unknown) {
+  const clean = text(value).trim().replace(/,/g, "");
+  if (!clean) return 0;
+  const parsed = Number(clean);
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+}
+
+function centsAmount(cents: number) {
+  return (cents / 100).toFixed(2);
+}
+
+function validReclassAmount(value: string) {
+  const clean = value.trim();
+  if (!clean) return false;
+  return /^(?:\d{1,14}(?:\.\d{0,2})?|\.\d{1,2})$/.test(clean)
+    && Number.isFinite(Number(clean))
+    && Number(clean) >= 0;
+}
+
 function decimalDraft(value: string, maxIntegerDigits: number, maxDecimals = 6) {
   const normalized = value.replace(",", ".").replace(/[^0-9.-]/g, "");
   const negative = normalized.startsWith("-");
@@ -1340,7 +1375,7 @@ export default function FixAssetsCat() {
   const [codePrefixByAccount, setCodePrefixByAccount] = useState<Record<string, string>>({});
   const [selectedReclassCodes, setSelectedReclassCodes] = useState<Set<string>>(new Set());
   const [selectedAssetAction, setSelectedAssetAction] = useState<"TRASLADO" | "BAJA">("TRASLADO");
-  const [reclassDraft, setReclassDraft] = useState<ReclassDraft>(emptyReclassDraft);
+  const [reclassTargets, setReclassTargets] = useState<ReclassTarget[]>([emptyReclassTarget()]);
   const [reclassifying, setReclassifying] = useState(false);
   const [disposing, setDisposing] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -1517,7 +1552,7 @@ export default function FixAssetsCat() {
       setCodePrefixByAccount(nextCodePrefixByAccount);
       setSelectedReclassCodes(new Set());
       setSelectedAssetAction("TRASLADO");
-      setReclassDraft(emptyReclassDraft());
+      setReclassTargets([emptyReclassTarget()]);
       setVrDetailAssetCode(null);
       setDrafts(nextDrafts);
       setOriginals(nextDrafts);
@@ -1574,15 +1609,18 @@ export default function FixAssetsCat() {
     selectedReclassCodes.has(text(row.asset_code).trim())
   )), [rows, selectedReclassCodes]);
 
-  const reclassTotalPen = useMemo(() => reclassSelectedRows.reduce(
-    (total, row) => total + assetMovementAmount(row, "pen"),
+  const reclassTotalPenCents = useMemo(() => reclassSelectedRows.reduce(
+    (total, row) => total + moneyCents(assetMovementAmount(row, "pen")),
     0
   ), [reclassSelectedRows]);
 
-  const reclassTotalUsd = useMemo(() => reclassSelectedRows.reduce(
-    (total, row) => total + assetMovementAmount(row, "usd"),
+  const reclassTotalUsdCents = useMemo(() => reclassSelectedRows.reduce(
+    (total, row) => total + moneyCents(assetMovementAmount(row, "usd")),
     0
   ), [reclassSelectedRows]);
+
+  const reclassTotalPen = reclassTotalPenCents / 100;
+  const reclassTotalUsd = reclassTotalUsdCents / 100;
 
   const reclassCapexOptions = useMemo(() => Array.from(new Set(
     rows
@@ -1599,37 +1637,97 @@ export default function FixAssetsCat() {
   const reclassAccountCodes = useMemo(() => Object.keys(codePrefixByAccount)
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [codePrefixByAccount]);
 
-  const reclassProposedCode = useMemo(() => {
-    const prefix = codePrefixByAccount[reclassDraft.origin_account_code.trim()] || "";
-    if (!/^\d{3}$/.test(prefix)) return "";
+  const reclassProposedCodes = useMemo(() => {
+    const maxSuffixByPrefix: Record<string, number> = {};
 
-    let maxSuffix = 0;
     rows.forEach((row) => {
       const code = text(row.asset_code).trim();
-      if (!/^\d{7}$/.test(code) || code.slice(0, 3) !== prefix) return;
-      maxSuffix = Math.max(maxSuffix, Number(code.slice(3)));
+      if (!/^\d{7}$/.test(code)) return;
+
+      const prefix = code.slice(0, 3);
+      maxSuffixByPrefix[prefix] = Math.max(
+        maxSuffixByPrefix[prefix] || 0,
+        Number(code.slice(3))
+      );
     });
 
-    const nextSuffix = maxSuffix + 1;
-    return nextSuffix <= 9999
-      ? `${prefix}${String(nextSuffix).padStart(4, "0")}`
-      : "";
-  }, [rows, codePrefixByAccount, reclassDraft.origin_account_code]);
+    const nextSuffixByPrefix: Record<string, number> = {};
 
-  const reclassOperationDate = useMemo(
-    () => firstDayNextMonth(reclassDraft.acquisition_date),
-    [reclassDraft.acquisition_date]
+    return reclassTargets.map((target) => {
+      const prefix = codePrefixByAccount[target.draft.origin_account_code.trim()] || "";
+      if (!/^\d{3}$/.test(prefix)) return "";
+
+      const nextSuffix = nextSuffixByPrefix[prefix]
+        ?? ((maxSuffixByPrefix[prefix] || 0) + 1);
+
+      nextSuffixByPrefix[prefix] = nextSuffix + 1;
+
+      return nextSuffix <= 9999
+        ? `${prefix}${String(nextSuffix).padStart(4, "0")}`
+        : "";
+    });
+  }, [rows, codePrefixByAccount, reclassTargets]);
+
+  const reclassOperationDates = useMemo(
+    () => reclassTargets.map((target) => firstDayNextMonth(target.draft.acquisition_date)),
+    [reclassTargets]
   );
+
+  const reclassAllocatedPenCents = useMemo(() => reclassTargets.reduce(
+    (total, target) => total + moneyCents(target.amount_pen),
+    0
+  ), [reclassTargets]);
+
+  const reclassAllocatedUsdCents = useMemo(() => reclassTargets.reduce(
+    (total, target) => total + moneyCents(target.amount_usd),
+    0
+  ), [reclassTargets]);
+
+  const reclassRemainingPenCents = reclassTotalPenCents - reclassAllocatedPenCents;
+  const reclassRemainingUsdCents = reclassTotalUsdCents - reclassAllocatedUsdCents;
+  const reclassAmountsMatch = reclassRemainingPenCents === 0 && reclassRemainingUsdCents === 0;
+
+  useEffect(() => {
+    if (reclassTargets.length !== 1) return;
+
+    const amountPen = centsAmount(reclassTotalPenCents);
+    const amountUsd = centsAmount(reclassTotalUsdCents);
+
+    setReclassTargets((current) => {
+      if (current.length !== 1) return current;
+      if (
+        current[0].amount_pen === amountPen
+        && current[0].amount_usd === amountUsd
+      ) {
+        return current;
+      }
+
+      return [{
+        ...current[0],
+        amount_pen: amountPen,
+        amount_usd: amountUsd,
+      }];
+    });
+  }, [reclassTargets.length, reclassTotalPenCents, reclassTotalUsdCents]);
 
   const canReclassify = selectedAssetAction === "TRASLADO"
     && reclassSelectedRows.length > 0
     && editedCodes.length === 0
-    && Boolean(reclassProposedCode)
-    && Boolean(reclassDraft.origin_account_code.trim())
-    && Boolean(reclassDraft.acquisition_date)
-    && Boolean(reclassOperationDate)
-    && Boolean(costCenterCode(reclassDraft.cost_center_code))
-    && Object.prototype.hasOwnProperty.call(cecoByCode, costCenterCode(reclassDraft.cost_center_code))
+    && reclassTargets.length > 0
+    && reclassAmountsMatch
+    && reclassTargets.every((target, index) => (
+      Boolean(reclassProposedCodes[index])
+      && Boolean(target.draft.origin_account_code.trim())
+      && Boolean(target.draft.acquisition_date)
+      && Boolean(reclassOperationDates[index])
+      && Boolean(costCenterCode(target.draft.cost_center_code))
+      && Object.prototype.hasOwnProperty.call(
+        cecoByCode,
+        costCenterCode(target.draft.cost_center_code)
+      )
+      && validReclassAmount(target.amount_pen)
+      && validReclassAmount(target.amount_usd)
+    ))
     && !loading
     && !saving
     && !reclassifying
@@ -2173,17 +2271,24 @@ export default function FixAssetsCat() {
         next.add(code);
 
         if (current.size === 0) {
-          setReclassDraft((draft) => ({
-            ...draft,
-            origin_account_code: text(row.origin_account_code).trim(),
-          }));
+          setReclassTargets((currentTargets) => currentTargets.map((target, index) => (
+            index === 0
+              ? {
+                  ...target,
+                  draft: {
+                    ...target.draft,
+                    origin_account_code: text(row.origin_account_code).trim(),
+                  },
+                }
+              : target
+          )));
         }
       } else {
         next.delete(code);
 
         if (next.size === 0) {
           setSelectedAssetAction("TRASLADO");
-          setReclassDraft(emptyReclassDraft());
+          setReclassTargets([emptyReclassTarget()]);
         }
       }
 
@@ -2192,6 +2297,80 @@ export default function FixAssetsCat() {
 
     setMessage("");
     setIsError(false);
+  }
+
+  function updateReclassTargetDraft(
+    id: number,
+    field: keyof ReclassDraft,
+    value: string
+  ) {
+    setReclassTargets((current) => current.map((target) => (
+      target.id === id
+        ? {
+            ...target,
+            draft: {
+              ...target.draft,
+              [field]: value,
+            },
+          }
+        : target
+    )));
+  }
+
+  function updateReclassTargetAmount(
+    id: number,
+    field: "amount_pen" | "amount_usd",
+    value: string
+  ) {
+    setReclassTargets((current) => current.map((target) => (
+      target.id === id
+        ? {
+            ...target,
+            [field]: decimalDraft(value, 14, 2),
+          }
+        : target
+    )));
+  }
+
+  function addReclassTarget() {
+    setReclassTargets((current) => {
+      const nextId = Math.max(0, ...current.map((target) => target.id)) + 1;
+      return [...current, emptyReclassTarget(nextId)];
+    });
+  }
+
+  function removeReclassTarget(id: number) {
+    setReclassTargets((current) => (
+      current.length <= 1
+        ? current
+        : current.filter((target) => target.id !== id)
+    ));
+  }
+
+  function autoAssignReclassAmounts() {
+    setReclassTargets((current) => {
+      if (!current.length) return current;
+
+      const distribute = (totalCents: number) => {
+        const sign = totalCents < 0 ? -1 : 1;
+        const absolute = Math.abs(totalCents);
+        const base = Math.floor(absolute / current.length);
+        const remainder = absolute % current.length;
+
+        return current.map((_, index) => (
+          sign * (base + (index < remainder ? 1 : 0))
+        ));
+      };
+
+      const pen = distribute(reclassTotalPenCents);
+      const usd = distribute(reclassTotalUsdCents);
+
+      return current.map((target, index) => ({
+        ...target,
+        amount_pen: centsAmount(pen[index]),
+        amount_usd: centsAmount(usd[index]),
+      }));
+    });
   }
 
   async function executeReclassification() {
@@ -2205,36 +2384,40 @@ export default function FixAssetsCat() {
       await apiPost("/api/actfij/catalogue/reclassify", {
         source_rows: reclassSelectedRows.map((row) => ({
           asset_code: text(row.asset_code).trim(),
-          asset_final_value_pen: assetMovementAmount(row, "pen"),
-          asset_final_value_usd: assetMovementAmount(row, "usd"),
         })),
-        new_asset: {
-          asset_code: reclassProposedCode,
-          origin_account_code: reclassDraft.origin_account_code.trim(),
-          capex_code: upperOrNull(reclassDraft.capex_code),
-          asset_description: upperOrNull(reclassDraft.asset_description),
-          cost_center_code: costCenterCode(reclassDraft.cost_center_code),
-          acquisition_date: reclassDraft.acquisition_date,
-          operation_date: reclassOperationDate,
-          location_name: upperOrNull(reclassDraft.location_name),
-          assigned_to: upperOrNull(reclassDraft.assigned_to),
-          area_name: upperOrNull(reclassDraft.area_name),
-          brand: upperOrNull(reclassDraft.brand),
-          model: upperOrNull(reclassDraft.model),
-          serial_number: upperOrNull(reclassDraft.serial_number),
-          color: upperOrNull(reclassDraft.color),
-          depreciation_method: upperOrNull(reclassDraft.depreciation_method),
-          asset_situation: upperOrNull(reclassDraft.asset_situation) || "OPERATIVO",
-          asset_comment: upperOrNull(reclassDraft.asset_comment),
-        },
+        new_assets: reclassTargets.map((target, index) => ({
+          asset_code: reclassProposedCodes[index],
+          origin_account_code: target.draft.origin_account_code.trim(),
+          ...(target.draft.capex_code.trim()
+            ? { capex_code: upperOrNull(target.draft.capex_code) }
+            : {}),
+          asset_description: upperOrNull(target.draft.asset_description),
+          cost_center_code: costCenterCode(target.draft.cost_center_code),
+          acquisition_date: target.draft.acquisition_date,
+          operation_date: reclassOperationDates[index],
+          location_name: upperOrNull(target.draft.location_name),
+          assigned_to: upperOrNull(target.draft.assigned_to),
+          area_name: upperOrNull(target.draft.area_name),
+          brand: upperOrNull(target.draft.brand),
+          model: upperOrNull(target.draft.model),
+          serial_number: upperOrNull(target.draft.serial_number),
+          color: upperOrNull(target.draft.color),
+          depreciation_method: upperOrNull(target.draft.depreciation_method),
+          asset_situation: upperOrNull(target.draft.asset_situation) || "OPERATIVO",
+          asset_comment: upperOrNull(target.draft.asset_comment),
+          amount_pen: centsAmount(moneyCents(target.amount_pen)),
+          amount_usd: centsAmount(moneyCents(target.amount_usd)),
+        })),
       });
 
       const moved = reclassSelectedRows.length;
-      const newCode = reclassProposedCode;
+      const newCodes = reclassProposedCodes.join(", ");
 
       await load();
 
-      setMessage(`${moved} activo${moved === 1 ? "" : "s"} reclasificado${moved === 1 ? "" : "s"} al COD ${newCode}.`);
+      setMessage(
+        `${moved} activo${moved === 1 ? "" : "s"} reclasificado${moved === 1 ? "" : "s"} en ${reclassTargets.length} COD${reclassTargets.length === 1 ? "" : "s"}: ${newCodes}.`
+      );
     } catch (error) {
       setIsError(true);
       setMessage(error instanceof Error ? error.message : "No se pudo completar la reclasificación");
@@ -2716,7 +2899,7 @@ export default function FixAssetsCat() {
       ) : null}
 
       {reclassSelectedRows.length && selectedAssetAction === "TRASLADO" ? (
-        <section className="panel-inner" style={{ padding: 12, display: "grid", gap: 10, borderColor: "rgba(224,190,80,.58)", background: "rgba(102,91,34,.18)" }}>
+        <section className="panel-inner" style={{ padding: 12, display: "grid", gap: 12, borderColor: "rgba(224,190,80,.58)", background: "rgba(102,91,34,.18)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div>
               <strong>Traslado de activos</strong>
@@ -2725,164 +2908,306 @@ export default function FixAssetsCat() {
               </span>
             </div>
 
-            <Button
-              size="sm"
-              onClick={() => {
-                setSelectedReclassCodes(new Set());
-                setSelectedAssetAction("TRASLADO");
-                setReclassDraft(emptyReclassDraft());
-              }}
-              disabled={reclassifying || disposing}
-            >
-              Limpiar selección
-            </Button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Button
+                size="sm"
+                onClick={autoAssignReclassAmounts}
+                disabled={reclassifying || disposing || !reclassTargets.length}
+              >
+                Asignar automáticamente
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={addReclassTarget}
+                disabled={reclassifying || disposing}
+              >
+                + Añadir destino
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSelectedReclassCodes(new Set());
+                  setSelectedAssetAction("TRASLADO");
+                  setReclassTargets([emptyReclassTarget()]);
+                }}
+                disabled={reclassifying || disposing}
+              >
+                Limpiar selección
+              </Button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 8,
+              padding: 10,
+              borderRadius: 10,
+              border: reclassAmountsMatch
+                ? "1px solid rgba(147,178,92,.55)"
+                : "1px solid rgba(224,145,63,.70)",
+              background: reclassAmountsMatch
+                ? "rgba(94,128,25,.16)"
+                : "rgba(107,73,31,.18)",
+            }}
+          >
+            <div style={{ fontSize: 12 }}>
+              <strong>PEN asignado:</strong>{" "}
+              {formatAmountTotal(reclassAllocatedPenCents / 100)} / {formatAmountTotal(reclassTotalPen)}
+            </div>
+            <div style={{ fontSize: 12 }}>
+              <strong>PEN saldo:</strong>{" "}
+              {formatAmountTotal(reclassRemainingPenCents / 100)}
+            </div>
+            <div style={{ fontSize: 12 }}>
+              <strong>USD asignado:</strong>{" "}
+              {formatAmountTotal(reclassAllocatedUsdCents / 100)} / {formatAmountTotal(reclassTotalUsd)}
+            </div>
+            <div style={{ fontSize: 12 }}>
+              <strong>USD saldo:</strong>{" "}
+              {formatAmountTotal(reclassRemainingUsdCents / 100)}
+            </div>
           </div>
 
           <div className="muted" style={{ fontSize: 12 }}>
-            Los COD seleccionados recibirán fecha de baja {currentLimaDate()} y una reclasificación negativa por su valor final. El nuevo COD de traslado recibirá la suma positiva en PEN y USD.
+            Los COD seleccionados recibirán fecha de baja {currentLimaDate()} y una reclasificación negativa por su valor final. Los destinos deben sumar exactamente el total seleccionado en PEN y USD. Todos los montos se guardan a 2 decimales.
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-              COD propuesto
-              <input
-                className="input"
-                value={reclassProposedCode}
-                readOnly
-                style={{ height: 34, padding: "6px 8px" }}
-              />
-            </label>
+          <div style={{ display: "grid", gap: 12 }}>
+            {reclassTargets.map((target, targetIndex) => {
+              const targetCode = reclassProposedCodes[targetIndex] || "";
+              const operationDate = reclassOperationDates[targetIndex] || "";
 
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-              Cuenta origen *
-              <select
-                className="input"
-                value={reclassDraft.origin_account_code}
-                onChange={(event) => setReclassDraft((current) => ({
-                  ...current,
-                  origin_account_code: event.target.value,
-                }))}
-                style={{ height: 34, padding: "6px 8px" }}
-              >
-                <option value="">Seleccionar...</option>
-                {reclassAccountCodes.map((code) => (
-                  <option key={code} value={code}>
-                    {code}{accountDescriptionByCode[code] ? ` - ${accountDescriptionByCode[code]}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+              return (
+                <div
+                  key={target.id}
+                  className="panel-inner"
+                  style={{
+                    padding: 12,
+                    display: "grid",
+                    gap: 10,
+                    borderColor: "rgba(224,190,80,.42)",
+                    background: "rgba(38,44,27,.28)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 10, flexWrap: "wrap" }}>
+                    <div>
+                      <strong>Destino {targetIndex + 1}</strong>
+                      <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
+                        COD {targetCode || "pendiente"}
+                      </span>
+                    </div>
 
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-              Código CAPEX
-              <input
-                className="input"
-                list="fixassets-cat-reclass-capex-options"
-                value={reclassDraft.capex_code}
-                onChange={(event) => setReclassDraft((current) => ({
-                  ...current,
-                  capex_code: event.target.value.toLocaleUpperCase("es"),
-                }))}
-                style={{ height: 34, padding: "6px 8px" }}
-              />
-            </label>
+                    <div style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}>
+                      <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800, minWidth: 150 }}>
+                        Monto PEN *
+                        <input
+                          className="input"
+                          inputMode="decimal"
+                          value={target.amount_pen}
+                          onChange={(event) => updateReclassTargetAmount(
+                            target.id,
+                            "amount_pen",
+                            event.target.value
+                          )}
+                          style={{ height: 34, padding: "6px 8px", textAlign: "right" }}
+                        />
+                      </label>
 
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-              Centro de costo *
-              <input
-                className="input"
-                list="fixassets-cat-cost_center_code-options"
-                value={reclassDraft.cost_center_code}
-                onChange={(event) => setReclassDraft((current) => ({
-                  ...current,
-                  cost_center_code: costCenterCode(event.target.value),
-                }))}
-                style={{ height: 34, padding: "6px 8px" }}
-              />
-            </label>
+                      <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800, minWidth: 150 }}>
+                        Monto USD *
+                        <input
+                          className="input"
+                          inputMode="decimal"
+                          value={target.amount_usd}
+                          onChange={(event) => updateReclassTargetAmount(
+                            target.id,
+                            "amount_usd",
+                            event.target.value
+                          )}
+                          style={{ height: 34, padding: "6px 8px", textAlign: "right" }}
+                        />
+                      </label>
 
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-              Fecha adquisición *
-              <input
-                className="input"
-                type="date"
-                value={reclassDraft.acquisition_date}
-                onChange={(event) => setReclassDraft((current) => ({
-                  ...current,
-                  acquisition_date: event.target.value,
-                }))}
-                style={{ height: 34, padding: "6px 8px" }}
-              />
-            </label>
+                      {reclassTargets.length > 1 ? (
+                        <Button
+                          size="sm"
+                          onClick={() => removeReclassTarget(target.id)}
+                          disabled={reclassifying || disposing}
+                        >
+                          − Quitar
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
 
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-              Fecha operación
-              <input
-                className="input"
-                type="date"
-                value={reclassOperationDate}
-                readOnly
-                style={{ height: 34, padding: "6px 8px" }}
-              />
-            </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                      COD propuesto
+                      <input
+                        className="input"
+                        value={targetCode}
+                        readOnly
+                        style={{ height: 34, padding: "6px 8px" }}
+                      />
+                    </label>
 
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-              Descripción activo
-              <input
-                className="input"
-                value={reclassDraft.asset_description}
-                onChange={(event) => setReclassDraft((current) => ({
-                  ...current,
-                  asset_description: event.target.value,
-                }))}
-                style={{ height: 34, padding: "6px 8px" }}
-              />
-            </label>
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                      Cuenta origen *
+                      <select
+                        className="input"
+                        value={target.draft.origin_account_code}
+                        onChange={(event) => updateReclassTargetDraft(
+                          target.id,
+                          "origin_account_code",
+                          event.target.value
+                        )}
+                        style={{ height: 34, padding: "6px 8px" }}
+                      >
+                        <option value="">Seleccionar...</option>
+                        {reclassAccountCodes.map((code) => (
+                          <option key={code} value={code}>
+                            {code}{accountDescriptionByCode[code] ? ` - ${accountDescriptionByCode[code]}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-            {[
-              ["location_name", "Ubicación"],
-              ["assigned_to", "Asignado a"],
-              ["area_name", "Área"],
-              ["brand", "Marca"],
-              ["model", "Modelo"],
-              ["serial_number", "Serie"],
-              ["color", "Color"],
-              ["depreciation_method", "Método depreciación"],
-              ["asset_comment", "Comentario"],
-            ].map(([field, label]) => (
-              <label key={field} style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-                {label}
-                <input
-                  className="input"
-                  list={SUGGESTION_FIELD_SET.has(field as EditableKey) ? `fixassets-cat-${field}-options` : undefined}
-                  value={reclassDraft[field as keyof ReclassDraft]}
-                  onChange={(event) => setReclassDraft((current) => ({
-                    ...current,
-                    [field]: event.target.value,
-                  }))}
-                  style={{ height: 34, padding: "6px 8px" }}
-                />
-              </label>
-            ))}
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                      Código CAPEX
+                      <input
+                        className="input"
+                        list="fixassets-cat-reclass-capex-options"
+                        value={target.draft.capex_code}
+                        onChange={(event) => updateReclassTargetDraft(
+                          target.id,
+                          "capex_code",
+                          event.target.value.toLocaleUpperCase("es")
+                        )}
+                        style={{ height: 34, padding: "6px 8px" }}
+                      />
+                    </label>
 
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-              Situación
-              <select
-                className="input"
-                value={reclassDraft.asset_situation}
-                onChange={(event) => setReclassDraft((current) => ({
-                  ...current,
-                  asset_situation: event.target.value,
-                }))}
-                style={{ height: 34, padding: "6px 8px" }}
-              >
-                <option value="OPERATIVO">OPERATIVO</option>
-                <option value="DEPRECIADO">DEPRECIADO</option>
-              </select>
-            </label>
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                      Centro de costo *
+                      <input
+                        className="input"
+                        list="fixassets-cat-cost_center_code-options"
+                        value={target.draft.cost_center_code}
+                        onChange={(event) => updateReclassTargetDraft(
+                          target.id,
+                          "cost_center_code",
+                          costCenterCode(event.target.value)
+                        )}
+                        style={{ height: 34, padding: "6px 8px" }}
+                      />
+                    </label>
+
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                      Fecha adquisición *
+                      <input
+                        className="input"
+                        type="date"
+                        value={target.draft.acquisition_date}
+                        onChange={(event) => updateReclassTargetDraft(
+                          target.id,
+                          "acquisition_date",
+                          event.target.value
+                        )}
+                        style={{ height: 34, padding: "6px 8px" }}
+                      />
+                    </label>
+
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                      Fecha operación
+                      <input
+                        className="input"
+                        type="date"
+                        value={operationDate}
+                        readOnly
+                        style={{ height: 34, padding: "6px 8px" }}
+                      />
+                    </label>
+
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                      Descripción activo
+                      <input
+                        className="input"
+                        value={target.draft.asset_description}
+                        onChange={(event) => updateReclassTargetDraft(
+                          target.id,
+                          "asset_description",
+                          event.target.value
+                        )}
+                        style={{ height: 34, padding: "6px 8px" }}
+                      />
+                    </label>
+
+                    {[
+                      ["location_name", "Ubicación"],
+                      ["assigned_to", "Asignado a"],
+                      ["area_name", "Área"],
+                      ["brand", "Marca"],
+                      ["model", "Modelo"],
+                      ["serial_number", "Serie"],
+                      ["color", "Color"],
+                      ["depreciation_method", "Método depreciación"],
+                      ["asset_comment", "Comentario"],
+                    ].map(([field, label]) => (
+                      <label key={field} style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                        {label}
+                        <input
+                          className="input"
+                          list={SUGGESTION_FIELD_SET.has(field as EditableKey) ? `fixassets-cat-${field}-options` : undefined}
+                          value={target.draft[field as keyof ReclassDraft]}
+                          onChange={(event) => updateReclassTargetDraft(
+                            target.id,
+                            field as keyof ReclassDraft,
+                            event.target.value
+                          )}
+                          style={{ height: 34, padding: "6px 8px" }}
+                        />
+                      </label>
+                    ))}
+
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                      Situación
+                      <select
+                        className="input"
+                        value={target.draft.asset_situation}
+                        onChange={(event) => updateReclassTargetDraft(
+                          target.id,
+                          "asset_situation",
+                          event.target.value
+                        )}
+                        style={{ height: 34, padding: "6px 8px" }}
+                      >
+                        <option value="OPERATIVO">OPERATIVO</option>
+                        <option value="DEPRECIADO">DEPRECIADO</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 800,
+                color: reclassAmountsMatch ? "inherit" : "#e4a35d",
+              }}
+            >
+              {reclassAmountsMatch
+                ? "Distribución cuadrada en PEN y USD."
+                : "La distribución todavía no cuadra exactamente con el total seleccionado."}
+            </span>
+
             <Button
               size="sm"
               variant="primary"
@@ -2891,11 +3216,12 @@ export default function FixAssetsCat() {
             >
               {reclassifying
                 ? "Reclasificando..."
-                : `Confirmar reclasificación → ${reclassProposedCode || "sin COD"}`}
+                : `Confirmar reclasificación (${reclassTargets.length} destino${reclassTargets.length === 1 ? "" : "s"})`}
             </Button>
           </div>
         </section>
       ) : null}
+
 
       {reclassSelectedRows.length && selectedAssetAction === "BAJA" ? (
         <section
@@ -2921,7 +3247,7 @@ export default function FixAssetsCat() {
               onClick={() => {
                 setSelectedReclassCodes(new Set());
                 setSelectedAssetAction("TRASLADO");
-                setReclassDraft(emptyReclassDraft());
+                setReclassTargets([emptyReclassTarget()]);
               }}
               disabled={disposing}
             >
