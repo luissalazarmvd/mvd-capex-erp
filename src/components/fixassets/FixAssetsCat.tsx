@@ -2029,7 +2029,21 @@ export default function FixAssetsCat() {
         );
 
         if (String(column.key).endsWith("_date")) {
-          return dateOnly(value);
+          const isoDate = dateOnly(value);
+
+          if (!isoDate) {
+            return "";
+          }
+
+          const [year, month, day] = isoDate
+            .split("-")
+            .map(Number);
+
+          return new Date(
+            year,
+            month - 1,
+            day
+          );
         }
 
         if (catalogueExcelFilterKind(column.key) === "number") {
@@ -2064,11 +2078,17 @@ export default function FixAssetsCat() {
       return "";
     });
 
-    const ws = XLSX.utils.aoa_to_sheet([
-      headers,
-      ...data,
-      totalRow,
-    ]);
+    const ws = XLSX.utils.aoa_to_sheet(
+      [
+        headers,
+        ...data,
+        totalRow,
+      ],
+      {
+        cellDates: true,
+        dateNF: "dd/mm/yyyy",
+      }
+    );
 
     ws["!cols"] = displayColumns.map((column) => ({
       wch: Math.max(
