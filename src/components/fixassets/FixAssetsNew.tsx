@@ -1998,14 +1998,30 @@ export default function FixAssetsNew() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const years = useMemo(() => Array.from(new Set([
+  const years = useMemo(() => Array.from(new Set<string>([
     initialPeriod.year,
-    ...rows.map((row) => monthOf(row.comp_date)?.year).filter((value): value is string => Boolean(value)),
-  ].filter((value): value is string => Boolean(value) && value <= initialPeriod.year))).sort().reverse(), [rows, initialPeriod.year]);
+    ...rows
+      .map((row) => monthOf(row.comp_date)?.year)
+      .filter((value): value is string => Boolean(value)),
+  ]))
+    .filter((value) => (
+      value >= "2026"
+      && value <= initialPeriod.year
+    ))
+    .sort()
+    .reverse(),
+  [rows, initialPeriod.year]);
 
   const monthOptions = useMemo(() => MONTHS
-    .map((label, index) => ({ value: String(index + 1).padStart(2, "0"), label }))
-    .filter((option) => year < initialPeriod.year || (year === initialPeriod.year && option.value <= initialPeriod.month)),
+    .map((label, index) => ({
+      value: String(index + 1).padStart(2, "0"),
+      label,
+    }))
+    .filter((option) => {
+      if (year === "2026" && option.value < "08") return false;
+      if (year === initialPeriod.year && option.value > initialPeriod.month) return false;
+      return true;
+    }),
   [year, initialPeriod.year, initialPeriod.month]);
 
   const classMaxSuffix = useMemo(() => {
