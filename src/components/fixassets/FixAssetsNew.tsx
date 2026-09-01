@@ -236,8 +236,8 @@ function isVrDocument(row: Pick<VetaRow, "document_type">) {
   return documentType(row) === "VR";
 }
 
-function isBajaAnnex(row: Pick<VetaRow, "annex_description">) {
-  return /\bBAJA\b/.test(identityPart(row.annex_description));
+function isBajaDescription(row: Pick<VetaRow, "line_description">) {
+  return /\bBAJA\b/.test(identityPart(row.line_description));
 }
 
 function identityPart(value: unknown) {
@@ -304,7 +304,7 @@ function buildNewAssetItems(
   const vrSlotByKey = new Map<string, number>();
 
   items.forEach((item) => {
-    if (!isVrDocument(item.row)) {
+    if (!isVrDocument(item.row) || isBajaDescription(item.row)) {
       slots.push({ kind: "single", item });
       return;
     }
@@ -329,8 +329,8 @@ function buildNewAssetItems(
         detailIndexes: [slot.item.index],
         selectedDetailIndexes: [slot.item.index],
         isVrGroup: false,
-        isBaja: isBajaAnnex(slot.item.row),
-        readOnly: isNaDocument(slot.item.row),
+        isBaja: isBajaDescription(slot.item.row),
+        readOnly: isNaDocument(slot.item.row) || isBajaDescription(slot.item.row),
       };
     }
 
@@ -349,7 +349,7 @@ function buildNewAssetItems(
       detailIndexes: slot.members.map(({ index }) => index),
       selectedDetailIndexes: selectedMembers.map(({ index }) => index),
       isVrGroup: true,
-      isBaja: slot.members.some(({ row }) => isBajaAnnex(row)),
+      isBaja: false,
       readOnly: false,
     };
   });
@@ -1283,8 +1283,6 @@ type NewRowsTableProps = {
   onFocusDetails: (index: number) => void;
   onOpenDetails: (index: number) => void;
   onOpenVrDetails: (index: number) => void;
-  onToggleBaja: (index: number) => void;
-  bajaSelectedIndexes: ReadonlySet<number>;
   focusedDetailIndex: number | null;
   existingByIndex: ReadonlyMap<number, CatalogueRow>;
   storedVrCountByIndex: ReadonlyMap<number, number>;
@@ -1302,8 +1300,6 @@ const NewRowsTable = memo(function NewRowsTable({
   onFocusDetails,
   onOpenDetails,
   onOpenVrDetails,
-  onToggleBaja,
-  bajaSelectedIndexes,
   focusedDetailIndex,
   existingByIndex,
   storedVrCountByIndex,
@@ -1535,20 +1531,19 @@ const NewRowsTable = memo(function NewRowsTable({
                 } = item;
                 const draft = displayDraft(item, drafts);
                 const existing = readOnly ? null : existingByIndex.get(index) || null;
-                const bajaSelected = bajaSelectedIndexes.has(index);
-                const bajaMode = isBaja || bajaSelected;
+                const bajaMode = isBaja;
                 const visibleSelectedCount = existing && storedVrCountByIndex.has(index)
                   ? storedVrCountByIndex.get(index) || 0
                   : selectedDetailIndexes.length;
-                const locked = Boolean(existing) || readOnly || bajaMode;
+                const locked = Boolean(existing) || readOnly;
                 const state = locked ? "idle" : states[index] || "idle";
                 const focused = !locked && focusedDetailIndex === index;
                 const background = existing
                   ? "rgba(2,35,52,.82)"
-                  : readOnly
-                    ? "rgba(67,78,86,.48)"
-                    : bajaMode
-                      ? "rgba(123,79,31,.42)"
+                  : bajaMode
+                    ? "rgba(123,79,31,.42)"
+                    : readOnly
+                      ? "rgba(67,78,86,.48)"
                       : state === "invalid"
                         ? "rgba(216,93,39,.32)"
                         : focused
@@ -1558,10 +1553,10 @@ const NewRowsTable = memo(function NewRowsTable({
                             : undefined;
                 const title = existing
                   ? `Ya existe en catálogo como ${text(existing.asset_code)}`
-                  : readOnly
-                    ? "Tipo de documento NA: fila informativa, sin COD y fuera del guardado."
-                    : bajaMode
-                      ? "Fila de BAJA: no genera COD ni entra al guardado de altas."
+                  : bajaMode
+                    ? "Descripción activo contiene BAJA: fila informativa, sin COD y fuera del guardado."
+                    : readOnly
+                      ? "Tipo de documento NA: fila informativa, sin COD y fuera del guardado."
                       : isVrGroup
                         ? `Paquete VR: ${visibleSelectedCount} de ${detailIndexes.length} líneas seleccionadas.`
                         : undefined;
@@ -1582,10 +1577,10 @@ const NewRowsTable = memo(function NewRowsTable({
                       zIndex: 22,
                       background: existing
                         ? "#052b3d"
-                        : readOnly
-                          ? "#394851"
-                          : bajaMode
-                            ? "#6b491f"
+                        : bajaMode
+                          ? "#6b491f"
+                          : readOnly
+                            ? "#394851"
                             : focused
                               ? "#155a78"
                               : "#0b4d6b",
@@ -1594,14 +1589,6 @@ const NewRowsTable = memo(function NewRowsTable({
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                      <input
-                        type="checkbox"
-                        checked={bajaSelected}
-                        disabled={readOnly || Boolean(existing) || loading}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={() => onToggleBaja(index)}
-                        aria-label={`Seleccionar fila ${index + 1} para BAJA`}
-                      />
                       {bajaMode ? <strong style={{ color: "#ffe0a8", fontSize: 11 }}>BAJA</strong> : isVrGroup ? <button
                         type="button"
                         onClick={(event) => {
@@ -1947,10 +1934,7 @@ export default function FixAssetsNew() {
   const [detailIndex, setDetailIndex] = useState<number | null>(null);
   const [vrDetailIndex, setVrDetailIndex] = useState<number | null>(null);
   const [excludedVrIndexes, setExcludedVrIndexes] = useState<Set<number>>(new Set());
-  const [bajaSelectedIndexes, setBajaSelectedIndexes] = useState<Set<number>>(new Set());
-  const [bajaPanelOpen, setBajaPanelOpen] = useState(false);
-  const [bajaTargetCode, setBajaTargetCode] = useState("");
-  const [bajaSaving, setBajaSaving] = useState(false);
+  const [skippedCodeIndexes, setSkippedCodeIndexes] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -2002,9 +1986,7 @@ export default function FixAssetsNew() {
       setDetailIndex(null);
       setVrDetailIndex(null);
       setExcludedVrIndexes(new Set());
-      setBajaSelectedIndexes(new Set());
-      setBajaPanelOpen(false);
-      setBajaTargetCode("");
+      setSkippedCodeIndexes(new Set());
       setIsError(false);
     } catch (error) {
       setIsError(true);
@@ -2087,16 +2069,6 @@ export default function FixAssetsNew() {
     return result;
   }, [vetaVrRows]);
 
-  const bajaStoredSourceKeys = useMemo(() => {
-    const result = new Set<string>();
-    vetaVrRows.forEach((row) => {
-      if (identityPart(row.map_type) === "BAJA") {
-        result.add(vetaVrDetailIdentity(row));
-      }
-    });
-    return result;
-  }, [vetaVrRows]);
-
   const catalogueCecoCodes = useMemo(() => Array.from(new Set(
     catalogueRows
       .map((row) => costCenterCode(text(row.cost_center_code)))
@@ -2139,8 +2111,8 @@ export default function FixAssetsNew() {
         return false;
       }
 
-      return !bajaStoredSourceKeys.has(vetaVrDetailIdentity(row));
-    }), [rows, year, monthFrom, monthTo, bajaStoredSourceKeys]);
+      return true;
+    }), [rows, year, monthFrom, monthTo]);
 
   const normalSourceRows = useMemo(
     () => filteredRows.filter(({ row }) => !text(row.capex_code).trim()),
@@ -2281,10 +2253,10 @@ export default function FixAssetsNew() {
   const codeValidationItems = useMemo(() => displayedItems.filter((item) => (
     !item.readOnly
     && !item.isBaja
-    && !bajaSelectedIndexes.has(item.index)
+    && !skippedCodeIndexes.has(item.index)
     && !existingByIndex.has(item.index)
     && (!item.isVrGroup || item.selectedDetailIndexes.length > 0)
-  )), [displayedItems, bajaSelectedIndexes, existingByIndex]);
+  )), [displayedItems, skippedCodeIndexes, existingByIndex]);
 
   const codeCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -2313,8 +2285,7 @@ export default function FixAssetsNew() {
 
       rows.forEach((row, index) => {
         const mustClearCode = isNaDocument(row)
-          || isBajaAnnex(row)
-          || bajaSelectedIndexes.has(index)
+          || isBajaDescription(row)
           || (currentVrDetailIndexes.has(index) && !currentVrMasterIndexes.has(index));
 
         if (mustClearCode && next[index]?.asset_code) {
@@ -2325,7 +2296,7 @@ export default function FixAssetsNew() {
       });
 
       displayedItems.forEach((item) => {
-        const itemMustClearCode = item.isBaja || bajaSelectedIndexes.has(item.index);
+        const itemMustClearCode = item.isBaja || item.readOnly;
 
         if (itemMustClearCode && next[item.index]?.asset_code) {
           next[item.index] = { ...next[item.index], asset_code: "" };
@@ -2359,13 +2330,13 @@ export default function FixAssetsNew() {
 
       return changed ? next : current;
     });
-  }, [displayedItems, rows, bajaSelectedIndexes]);
+  }, [displayedItems, rows]);
 
   const codeCandidates = useMemo(() => displayedItems
     .filter((item) => (
       !item.readOnly
       && !item.isBaja
-      && !bajaSelectedIndexes.has(item.index)
+      && !skippedCodeIndexes.has(item.index)
       && !existingByIndex.has(item.index)
       && (!item.isVrGroup || item.selectedDetailIndexes.length > 0)
     ))
@@ -2386,7 +2357,7 @@ export default function FixAssetsNew() {
         { numeric: true, sensitivity: "base" }
       );
       return glosaOrder || a.item.index - b.item.index;
-    }), [displayedItems, bajaSelectedIndexes, existingByIndex, codePrefixByAccount]);
+    }), [displayedItems, skippedCodeIndexes, existingByIndex, codePrefixByAccount]);
 
   useEffect(() => {
     if (loading) return;
@@ -2499,11 +2470,11 @@ export default function FixAssetsNew() {
   const selectedItems = useMemo(() => displayedItems.filter((item) => (
     !item.readOnly
     && !item.isBaja
-    && !bajaSelectedIndexes.has(item.index)
+    && !skippedCodeIndexes.has(item.index)
     && !existingByIndex.has(item.index)
     && Boolean(drafts[item.index]?.asset_code.trim())
     && (!item.isVrGroup || item.selectedDetailIndexes.length > 0)
-  )), [displayedItems, bajaSelectedIndexes, drafts, existingByIndex]);
+  )), [displayedItems, skippedCodeIndexes, drafts, existingByIndex]);
 
   const selectedIndexes = useMemo(
     () => selectedItems.map(({ index }) => index),
@@ -2511,53 +2482,7 @@ export default function FixAssetsNew() {
   );
 
   const invalidCount = selectedItems.filter(({ index }) => states[index] === "invalid").length;
-  const canSave = selectedItems.length > 0 && invalidCount === 0 && !loading && !saving && !bajaSaving;
-
-  const bajaSelectedItem = useMemo(() => {
-    const selectedIndex = Array.from(bajaSelectedIndexes)[0];
-    if (selectedIndex == null) return null;
-    return displayedItems.find((item) => item.index === selectedIndex) || null;
-  }, [bajaSelectedIndexes, displayedItems]);
-
-  const bajaTargetOptions = useMemo(() => Array.from(
-    new Map(
-      catalogueRows
-        .map((row) => {
-          const code = text(row.asset_code).trim();
-          return [code, row] as const;
-        })
-        .filter(([code]) => Boolean(code))
-    ).values()
-  ).sort((a, b) => (
-    text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true })
-  )), [catalogueRows]);
-
-  const bajaTargetAssetCode = useMemo(() => (
-    bajaTargetCode.match(/^\s*(\d{7})/)?.[1] || ""
-  ), [bajaTargetCode]);
-
-  const bajaTargetRow = useMemo(() => {
-    if (!bajaTargetAssetCode) return null;
-    return catalogueRows.find(
-      (row) => text(row.asset_code).trim() === bajaTargetAssetCode
-    ) || null;
-  }, [bajaTargetAssetCode, catalogueRows]);
-
-  const bajaSourceDraft = bajaSelectedItem
-    ? displayDraft(bajaSelectedItem, drafts)
-    : null;
-
-  const bajaSourcePen = finiteNumber(bajaSourceDraft?.pen_amount) || 0;
-  const bajaSourceUsd = finiteNumber(bajaSourceDraft?.usd_amount) || 0;
-
-  const canExecuteBaja = Boolean(
-    bajaSelectedItem
-    && bajaTargetRow
-    && /^\d{7}$/.test(bajaTargetAssetCode)
-    && !loading
-    && !saving
-    && !bajaSaving
-  );
+  const canSave = selectedItems.length > 0 && invalidCount === 0 && !loading && !saving;
 
   const catalogueLastMatch = useMemo(() => {
     const prefix = activeCodePrefix.trim();
@@ -2582,7 +2507,22 @@ export default function FixAssetsNew() {
   }, [activeCodePrefix, activeCodeIndex, classMaxSuffix, drafts, existingCodes]);
 
   const updateDraft = useCallback((index: number, field: keyof Draft, value: string) => {
-    if (field === "asset_code") autoCodeIndexesRef.current.delete(index);
+    if (field === "asset_code") {
+      autoCodeIndexesRef.current.delete(index);
+
+      setSkippedCodeIndexes((current) => {
+        const next = new Set(current);
+
+        if (value.trim()) {
+          next.delete(index);
+        } else {
+          next.add(index);
+        }
+
+        return next;
+      });
+    }
+
     setDrafts((current) => ({ ...current, [index]: { ...current[index], [field]: value } }));
     setMessage("");
   }, []);
@@ -2652,65 +2592,6 @@ export default function FixAssetsNew() {
     setMessage("");
     setIsError(false);
   }, []);
-
-  const toggleBajaSelection = useCallback((index: number) => {
-    setBajaSelectedIndexes((current) => (
-      current.has(index)
-        ? new Set<number>()
-        : new Set<number>([index])
-    ));
-    setBajaPanelOpen(false);
-    setBajaTargetCode("");
-    setDetailIndex(null);
-    setVrDetailIndex(null);
-    setMessage("");
-    setIsError(false);
-  }, []);
-
-  async function executeBaja() {
-    if (!canExecuteBaja || !bajaSelectedItem || !bajaTargetRow) return;
-
-    setBajaSaving(true);
-    setMessage("");
-    setIsError(false);
-
-    try {
-      const sourceDescription = text(bajaSelectedItem.row.line_description).trim() || `fila ${bajaSelectedItem.index + 1}`;
-      const targetCode = text(bajaTargetRow.asset_code).trim();
-
-      await apiPost("/api/actfij/catalogue/dispose-from-veta", {
-        target_asset_code: targetCode,
-        pen_amount: bajaSourcePen,
-        usd_amount: bajaSourceUsd,
-        source_row: {
-          account_code: bajaSelectedItem.row.account_code,
-          account_description: bajaSelectedItem.row.account_description,
-          comp_date: dateOnly(bajaSelectedItem.row.comp_date) || null,
-          subjournal_code: bajaSelectedItem.row.subjournal_code,
-          voucher_number: bajaSelectedItem.row.voucher_number,
-          annex_code: bajaSelectedItem.row.annex_code,
-          annex_description: bajaSelectedItem.row.annex_description,
-          document_type: bajaSelectedItem.row.document_type,
-          document_number: bajaSelectedItem.row.document_number,
-          document_date: dateOnly(bajaSelectedItem.row.document_date) || null,
-          voucher_description: bajaSelectedItem.row.voucher_description,
-          line_description: bajaSelectedItem.row.line_description,
-          debit_credit: bajaSelectedItem.row.debit_credit,
-          usd_amount: bajaSourceUsd,
-          pen_amount: bajaSourcePen,
-        },
-      });
-
-      await load();
-
-      setMessage(`BAJA aplicada desde ${sourceDescription} al COD ${targetCode}.`);
-    } catch (error) {
-      setIsError(true);
-      setMessage(error instanceof Error ? error.message : "No se pudo registrar la baja");
-    } finally {
-      setBajaSaving(false);
-    }
-  }
 
   async function save() {
     if (!canSave) return;
@@ -2899,15 +2780,8 @@ export default function FixAssetsNew() {
           <Select label="Año" value={year} onChange={(event) => { const value = event.target.value; setYear(value); if (value === initialPeriod.year) { if (monthFrom > initialPeriod.month) setMonthFrom(initialPeriod.month); if (monthTo > initialPeriod.month) setMonthTo(initialPeriod.month); } }} options={years.map((value) => ({ value, label: value }))} placeholder="Todos" style={{ minWidth: 110 }} />
           <Select label="Mes desde" value={monthFrom} onChange={(event) => { const value = event.target.value; setMonthFrom(value); if (value > monthTo) setMonthTo(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
           <Select label="Mes hasta" value={monthTo} onChange={(event) => { const value = event.target.value; setMonthTo(value); if (value < monthFrom) setMonthFrom(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
-          <FixAssetsAudit disabled={loading || saving || bajaSaving} />
-          <Button size="sm" onClick={() => void load()} disabled={loading || saving || bajaSaving}>{loading ? "Cargando..." : "Refrescar"}</Button>
-          <Button
-            size="sm"
-            onClick={() => setBajaPanelOpen(true)}
-            disabled={!bajaSelectedItem || loading || saving || bajaSaving}
-          >
-            BAJA{bajaSelectedItem ? " (1)" : ""}
-          </Button>
+          <FixAssetsAudit disabled={loading || saving} />
+          <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${selectedIndexes.length})`}</Button>
         </div>
       </div>
@@ -2920,7 +2794,7 @@ export default function FixAssetsNew() {
       <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
         <NewRowsTable
           title="Activos normales"
-          subtitle="Las filas VR aparecen agrupadas; usa Ver para revisar o excluir líneas del paquete. Las filas con BAJA en descripción anexo no generan COD."
+          subtitle="Las VR sin BAJA aparecen agrupadas; usa Ver para revisar o excluir líneas del paquete. Las filas con BAJA en Descripción activo se muestran solo como referencia y no entran al guardado."
           items={normalRows}
           drafts={drafts}
           states={states}
@@ -2930,15 +2804,13 @@ export default function FixAssetsNew() {
           onFocusDetails={focusDetails}
           onOpenDetails={openDetails}
           onOpenVrDetails={openVrDetails}
-          onToggleBaja={toggleBajaSelection}
-          bajaSelectedIndexes={bajaSelectedIndexes}
           focusedDetailIndex={detailIndex}
           existingByIndex={existingByIndex}
           storedVrCountByIndex={storedVrCountByIndex}
         />
         <NewRowsTable
           title="Activos CAPEX"
-          subtitle="Ordenados por Código CAPEX. Las VR se muestran como un solo paquete por agrupación. Las filas con BAJA en descripción anexo no generan COD."
+          subtitle="Ordenados por Código CAPEX. Solo las VR sin BAJA se agrupan. Las filas con BAJA en Descripción activo se muestran individualmente y no entran al guardado."
           items={capexRows}
           drafts={drafts}
           states={states}
@@ -2948,117 +2820,11 @@ export default function FixAssetsNew() {
           onFocusDetails={focusDetails}
           onOpenDetails={openDetails}
           onOpenVrDetails={openVrDetails}
-          onToggleBaja={toggleBajaSelection}
-          bajaSelectedIndexes={bajaSelectedIndexes}
           focusedDetailIndex={detailIndex}
           existingByIndex={existingByIndex}
           storedVrCountByIndex={storedVrCountByIndex}
         />
       </div>
-
-      {bajaPanelOpen && bajaSelectedItem ? (
-        <section
-          className="panel-inner"
-          style={{
-            padding: 12,
-            display: "grid",
-            gap: 10,
-            borderColor: "rgba(224,145,63,.7)",
-            background: "rgba(107,73,31,.2)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-            <div>
-              <strong>BAJA de activo existente</strong>
-              <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
-                Origen: {text(bajaSelectedItem.row.line_description) || `fila ${bajaSelectedItem.index + 1}`} · PEN {twoDecimals(bajaSourcePen, false)} · USD {twoDecimals(bajaSourceUsd, false)}
-              </span>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                setBajaPanelOpen(false);
-                setBajaTargetCode("");
-              }}
-              disabled={bajaSaving}
-            >
-              Cerrar
-            </Button>
-          </div>
-
-          <label style={{ display: "grid", gap: 5, maxWidth: 520, fontSize: 12, fontWeight: 800 }}>
-            COD activo existente *
-            <input
-              className="input"
-              list="fixassets-new-baja-target-options"
-              value={bajaTargetCode}
-              onChange={(event) => setBajaTargetCode(event.target.value)}
-              placeholder="Escribe COD o descripción del activo"
-              autoComplete="off"
-              style={{ height: 34, padding: "6px 8px" }}
-            />
-          </label>
-
-          <datalist id="fixassets-new-baja-target-options">
-            {bajaTargetOptions.map((row) => {
-              const code = text(row.asset_code).trim();
-              const description = text(row.asset_description).trim();
-
-              return (
-                <option
-                  key={code}
-                  value={description ? `${code} - ${description}` : code}
-                />
-              );
-            })}
-          </datalist>
-
-          {bajaTargetAssetCode && !bajaTargetRow ? (
-            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
-              El COD ingresado no existe en catálogo.
-            </div>
-          ) : null}
-
-          {bajaTargetRow ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
-              {[
-                ["COD", bajaTargetRow.asset_code],
-                ["Origen", bajaTargetRow.source_name],
-                ["Descripción", bajaTargetRow.asset_description],
-                ["Cuenta", bajaTargetRow.origin_account_code],
-                ["Descripción cuenta", bajaTargetRow.origin_account_desc],
-                ["Código CAPEX", bajaTargetRow.capex_code],
-                ["Centro de costo", bajaTargetRow.cost_center_code],
-                ["Descripción CECO", bajaTargetRow.cost_center_desc],
-                ["Situación", bajaTargetRow.asset_situation],
-                ["Fecha adquisición", dateOnly(bajaTargetRow.acquisition_date)],
-                ["Fecha operación", dateOnly(bajaTargetRow.operation_date)],
-                ["Fecha baja actual", dateOnly(bajaTargetRow.disposal_date)],
-                ["Valor final PEN", twoDecimals(bajaTargetRow.asset_final_value_pen, false)],
-                ["Valor final USD", twoDecimals(bajaTargetRow.asset_final_value_usd, false)],
-                ["Saldo PEN", twoDecimals(bajaTargetRow.asset_balance_pen, false)],
-                ["Saldo USD", twoDecimals(bajaTargetRow.asset_balance_usd, false)],
-              ].map(([label, value]) => (
-                <div key={String(label)} style={{ padding: 8, border: "1px solid rgba(216,238,255,.14)", borderRadius: 7 }}>
-                  <div className="muted" style={{ fontSize: 10, fontWeight: 800 }}>{label}</div>
-                  <div style={{ marginTop: 2, fontSize: 12, fontWeight: 800 }}>{text(value) || "—"}</div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => void executeBaja()}
-              disabled={!canExecuteBaja}
-            >
-              {bajaSaving ? "Aplicando BAJA..." : "Aceptar BAJA"}
-            </Button>
-          </div>
-        </section>
-      ) : null}
 
       <div className="muted" style={{ fontSize: 12 }}>
         Mostrando {displayedItems.length} filas master desde {filteredRows.length} de {rows.length} líneas fuente: {normalRows.length} normales y {capexRows.length} CAPEX.

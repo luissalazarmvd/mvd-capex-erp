@@ -1294,8 +1294,10 @@ export default function FixAssetsCat() {
   const [accountRows, setAccountRows] = useState<AccountRow[]>([]);
   const [codePrefixByAccount, setCodePrefixByAccount] = useState<Record<string, string>>({});
   const [selectedReclassCodes, setSelectedReclassCodes] = useState<Set<string>>(new Set());
+  const [selectedAssetAction, setSelectedAssetAction] = useState<"TRASLADO" | "BAJA">("TRASLADO");
   const [reclassDraft, setReclassDraft] = useState<ReclassDraft>(emptyReclassDraft);
   const [reclassifying, setReclassifying] = useState(false);
+  const [disposing, setDisposing] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
   const [page, setPage] = useState(1);
@@ -1438,6 +1440,7 @@ export default function FixAssetsCat() {
       setAccountRows(nextAccountRows);
       setCodePrefixByAccount(nextCodePrefixByAccount);
       setSelectedReclassCodes(new Set());
+      setSelectedAssetAction("TRASLADO");
       setReclassDraft(emptyReclassDraft());
       setVrDetailAssetCode(null);
       setDrafts(nextDrafts);
@@ -1481,7 +1484,8 @@ export default function FixAssetsCat() {
     && selectedReclassCodes.size === 0
     && !loading
     && !saving
-    && !reclassifying;
+    && !reclassifying
+    && !disposing;
 
   const reclassSelectedRows = useMemo(() => rows.filter((row) => (
     selectedReclassCodes.has(text(row.asset_code).trim())
@@ -1534,7 +1538,8 @@ export default function FixAssetsCat() {
     [reclassDraft.acquisition_date]
   );
 
-  const canReclassify = reclassSelectedRows.length > 0
+  const canReclassify = selectedAssetAction === "TRASLADO"
+    && reclassSelectedRows.length > 0
     && editedCodes.length === 0
     && Boolean(reclassProposedCode)
     && Boolean(reclassDraft.origin_account_code.trim())
@@ -1545,7 +1550,21 @@ export default function FixAssetsCat() {
     && Object.prototype.hasOwnProperty.call(cecoByCode, costCenterCode(reclassDraft.cost_center_code))
     && !loading
     && !saving
-    && !reclassifying;
+    && !reclassifying
+    && !disposing;
+
+  const selectedAlreadyDisposedCount = reclassSelectedRows.filter(
+    (row) => Boolean(dateOnly(row.disposal_date))
+  ).length;
+
+  const canDispose = selectedAssetAction === "BAJA"
+    && reclassSelectedRows.length > 0
+    && editedCodes.length === 0
+    && selectedAlreadyDisposedCount === 0
+    && !loading
+    && !saving
+    && !reclassifying
+    && !disposing;
 
   const catalogueCecoCodes = useMemo(() => Array.from(new Set(
     rows
@@ -2063,6 +2082,7 @@ export default function FixAssetsCat() {
         next.delete(code);
 
         if (next.size === 0) {
+          setSelectedAssetAction("TRASLADO");
           setReclassDraft(emptyReclassDraft());
         }
       }
@@ -2120,6 +2140,42 @@ export default function FixAssetsCat() {
       setMessage(error instanceof Error ? error.message : "No se pudo completar la reclasificación");
     } finally {
       setReclassifying(false);
+    }
+  }
+
+  async function executeDisposal() {
+    if (!canDispose) return;
+
+    setDisposing(true);
+    setMessage("");
+    setIsError(false);
+
+    try {
+      const assetCodes = reclassSelectedRows.map(
+        (row) => text(row.asset_code).trim()
+      );
+
+      await apiPost("/api/actfij/catalogue/dispose", {
+        asset_codes: assetCodes,
+      });
+
+      const disposed = assetCodes.length;
+
+      await load();
+
+      setMessage(
+        `${disposed} activo${disposed === 1 ? "" : "s"} dado${disposed === 1 ? "" : "s"} de baja. `
+        + "El valor final PEN y USD fue registrado en negativo en Var. baja."
+      );
+    } catch (error) {
+      setIsError(true);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo completar la baja"
+      );
+    } finally {
+      setDisposing(false);
     }
   }
 
@@ -2182,14 +2238,27 @@ export default function FixAssetsCat() {
           <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>Edita los datos maestros; solo se enviarán las filas modificadas.</div>
         </div>
         <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
-          <FixAssetsAudit disabled={loading || saving || reclassifying} />
-          <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving || reclassifying}>Actualizar mapping</Button>
-          <Button size="sm" onClick={() => setShowDetail((current) => !current)} disabled={loading || saving || reclassifying}>{showDetail ? "Ocultar detalle" : "Mostrar detalle"}</Button>
-          <Button size="sm" onClick={exportExcel} disabled={loading || saving || !visibleRows.length}>Exportar Excel ({visibleRows.length})</Button>
-          <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setPage(1); }} disabled={loading || saving}>Limpiar filtros</Button>
-          <Button size="sm" onClick={() => void load()} disabled={loading || saving || reclassifying}>{loading ? "Cargando..." : "Refrescar"}</Button>
-          <Button size="sm" onClick={() => void executeReclassification()} disabled={!canReclassify}>
-            {reclassifying ? "Reclasificando..." : `Reclasificar costos (${reclassSelectedRows.length})`}
+          <FixAssetsAudit disabled={loading || saving || reclassifying || disposing} />
+          <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving || reclassifying || disposing}>Actualizar mapping</Button>
+          <Button size="sm" onClick={() => setShowDetail((current) => !current)} disabled={loading || saving || reclassifying || disposing}>{showDetail ? "Ocultar detalle" : "Mostrar detalle"}</Button>
+          <Button size="sm" onClick={exportExcel} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar Excel ({visibleRows.length})</Button>
+          <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setPage(1); }} disabled={loading || saving || reclassifying || disposing}>Limpiar filtros</Button>
+          <Button size="sm" onClick={() => void load()} disabled={loading || saving || reclassifying || disposing}>{loading ? "Cargando..." : "Refrescar"}</Button>
+          <Button
+            size="sm"
+            variant={selectedAssetAction === "TRASLADO" ? "primary" : undefined}
+            onClick={() => setSelectedAssetAction("TRASLADO")}
+            disabled={!reclassSelectedRows.length || loading || saving || reclassifying || disposing}
+          >
+            Traslado ({reclassSelectedRows.length})
+          </Button>
+          <Button
+            size="sm"
+            variant={selectedAssetAction === "BAJA" ? "primary" : undefined}
+            onClick={() => setSelectedAssetAction("BAJA")}
+            disabled={!reclassSelectedRows.length || loading || saving || reclassifying || disposing}
+          >
+            Baja ({reclassSelectedRows.length})
           </Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${editedCodes.length})`}</Button>
         </div>
@@ -2282,16 +2351,20 @@ export default function FixAssetsCat() {
                       zIndex: 24,
                       padding: 5,
                       textAlign: "center",
-                      background: reclassSelected ? "#665b22" : "#0b4d6b",
+                      background: reclassSelected
+                        ? selectedAssetAction === "BAJA"
+                          ? "#6b491f"
+                          : "#665b22"
+                        : "#0b4d6b",
                     }}
                   >
                     <input
                       type="checkbox"
                       checked={reclassSelected}
-                      disabled={loading || saving || reclassifying}
+                      disabled={loading || saving || reclassifying || disposing}
                       onChange={() => toggleReclassSelection(row)}
                       onClick={(event) => event.stopPropagation()}
-                      aria-label={`Seleccionar ${code} para reclasificación`}
+                      aria-label={`Seleccionar ${code} para traslado o baja`}
                     />
                   </td>
                   {displayColumns.map((column, columnIndex) => {
@@ -2311,7 +2384,9 @@ export default function FixAssetsCat() {
                       : edited
                         ? "#3d6948"
                         : reclassSelected
-                          ? "#665b22"
+                          ? selectedAssetAction === "BAJA"
+                            ? "#6b491f"
+                            : "#665b22"
                           : vrFocused
                             ? "#155a78"
                             : catalogueColumnBodyBackground(columnIndex);
@@ -2516,11 +2591,11 @@ export default function FixAssetsCat() {
         </section>
       ) : null}
 
-      {reclassSelectedRows.length ? (
+      {reclassSelectedRows.length && selectedAssetAction === "TRASLADO" ? (
         <section className="panel-inner" style={{ padding: 12, display: "grid", gap: 10, borderColor: "rgba(224,190,80,.58)", background: "rgba(102,91,34,.18)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div>
-              <strong>Reclasificación de costos</strong>
+              <strong>Traslado de activos</strong>
               <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
                 {reclassSelectedRows.length} activo{reclassSelectedRows.length === 1 ? "" : "s"} · PEN {formatAmountTotal(reclassTotalPen)} · USD {formatAmountTotal(reclassTotalUsd)}
               </span>
@@ -2530,16 +2605,17 @@ export default function FixAssetsCat() {
               size="sm"
               onClick={() => {
                 setSelectedReclassCodes(new Set());
+                setSelectedAssetAction("TRASLADO");
                 setReclassDraft(emptyReclassDraft());
               }}
-              disabled={reclassifying}
+              disabled={reclassifying || disposing}
             >
               Limpiar selección
             </Button>
           </div>
 
           <div className="muted" style={{ fontSize: 12 }}>
-            Los COD seleccionados recibirán fecha de baja {currentLimaDate()} y una reclasificación negativa por su valor final. El nuevo COD recibirá la suma positiva en PEN y USD.
+            Los COD seleccionados recibirán fecha de baja {currentLimaDate()} y una reclasificación negativa por su valor final. El nuevo COD de traslado recibirá la suma positiva en PEN y USD.
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
@@ -2692,6 +2768,86 @@ export default function FixAssetsCat() {
               {reclassifying
                 ? "Reclasificando..."
                 : `Confirmar reclasificación → ${reclassProposedCode || "sin COD"}`}
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
+      {reclassSelectedRows.length && selectedAssetAction === "BAJA" ? (
+        <section
+          className="panel-inner"
+          style={{
+            padding: 12,
+            display: "grid",
+            gap: 10,
+            borderColor: "rgba(224,145,63,.7)",
+            background: "rgba(107,73,31,.2)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <strong>Baja de activos</strong>
+              <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
+                {reclassSelectedRows.length} activo{reclassSelectedRows.length === 1 ? "" : "s"} · PEN {formatAmountTotal(reclassTotalPen)} · USD {formatAmountTotal(reclassTotalUsd)}
+              </span>
+            </div>
+
+            <Button
+              size="sm"
+              onClick={() => {
+                setSelectedReclassCodes(new Set());
+                setSelectedAssetAction("TRASLADO");
+                setReclassDraft(emptyReclassDraft());
+              }}
+              disabled={disposing}
+            >
+              Limpiar selección
+            </Button>
+          </div>
+
+          <div className="muted" style={{ fontSize: 12 }}>
+            Se tomará el Valor final actual de cada COD seleccionado y se registrará su negativo en Var. baja PEN y Var. baja USD del periodo contable activo. No se crea un nuevo activo ni se genera movimiento Veta VR.
+          </div>
+
+          {selectedAlreadyDisposedCount ? (
+            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
+              {selectedAlreadyDisposedCount} activo{selectedAlreadyDisposedCount === 1 ? "" : "s"} seleccionado{selectedAlreadyDisposedCount === 1 ? "" : "s"} ya tiene{selectedAlreadyDisposedCount === 1 ? "" : "n"} fecha de baja. Quítalo de la selección antes de continuar.
+            </div>
+          ) : null}
+
+          <div style={{ overflow: "auto", border: "1px solid rgba(216,238,255,.14)", borderRadius: 8 }}>
+            <Table disableScrollWrapper>
+              <thead>
+                <tr>
+                  <th className="capex-th">COD</th>
+                  <th className="capex-th">Descripción</th>
+                  <th className="capex-th">Valor final PEN</th>
+                  <th className="capex-th">Valor final USD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reclassSelectedRows.map((row) => (
+                  <tr key={text(row.asset_code)} className="capex-tr">
+                    <td className="capex-td">{text(row.asset_code)}</td>
+                    <td className="capex-td">{text(row.asset_description)}</td>
+                    <td className="capex-td" style={{ textAlign: "right" }}>{twoDecimals(row.asset_final_value_pen)}</td>
+                    <td className="capex-td" style={{ textAlign: "right" }}>{twoDecimals(row.asset_final_value_usd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void executeDisposal()}
+              disabled={!canDispose}
+            >
+              {disposing
+                ? "Dando de baja..."
+                : `Confirmar baja (${reclassSelectedRows.length})`}
             </Button>
           </div>
         </section>

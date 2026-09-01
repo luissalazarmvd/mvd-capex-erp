@@ -57,7 +57,7 @@ const TABLE_OPTIONS = [
   { value: "stg.finance_actfij_catalogue", label: "Catálogo" },
   { value: "stg.finance_actfij_deprec", label: "Depreciación" },
   { value: "stg.finance_actfij_mapping", label: "Mapping" },
-  { value: "stg.finance_actfij_veta_vr", label: "Veta VR / Bajas" },
+  { value: "stg.finance_actfij_veta_vr", label: "Veta VR" },
 ];
 
 const OPERATION_OPTIONS: { value: AuditOperation; label: string }[] = [
@@ -690,6 +690,18 @@ export default function FixAssetsAudit({
           </section>
 
           <style jsx global>{`
+            .fixassets-audit-modal select.input {
+              background: #0b4d6b !important;
+              color: #f4fbff !important;
+              border-color: rgba(147,211,230,.30) !important;
+              color-scheme: dark;
+            }
+
+            .fixassets-audit-modal select.input option {
+              background: #0b4d6b !important;
+              color: #f4fbff !important;
+            }
+
             @media (max-width: 1050px) {
               .fixassets-audit-content {
                 grid-template-columns: minmax(0, 1fr) !important;
