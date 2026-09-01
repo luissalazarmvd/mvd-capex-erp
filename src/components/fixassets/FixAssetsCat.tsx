@@ -2172,6 +2172,7 @@ export default function FixAssetsCat() {
     }
   }
 
+  
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
