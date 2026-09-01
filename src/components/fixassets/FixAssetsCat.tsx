@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
-import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
 import { FastCellInput } from "./FastCellInput";
 
@@ -96,6 +95,7 @@ type DeprRow = {
 
 type VetaVrRow = {
   asset_code: string | null;
+  map_type: string | null;
   account_code: string | null;
   account_description: string | null;
   comp_date: string | null;
@@ -1018,22 +1018,28 @@ function dateOnly(value: unknown) {
   return text(value).slice(0, 10);
 }
 
-function monthOf(value: unknown) {
-  const match = dateOnly(value).match(/^(\d{4})-(\d{2})/);
-  return match ? { year: match[1], month: match[2] } : null;
-}
-
-function currentLimaYearMonth() {
+function currentLimaAccountingPeriod() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Lima",
     year: "numeric",
     month: "2-digit",
+    day: "2-digit",
   }).formatToParts(new Date());
 
-  const year = parts.find((part) => part.type === "year")?.value || "";
-  const month = parts.find((part) => part.type === "month")?.value || "";
+  let year = Number(parts.find((part) => part.type === "year")?.value || "0");
+  let month = Number(parts.find((part) => part.type === "month")?.value || "1");
+  const day = Number(parts.find((part) => part.type === "day")?.value || "1");
 
-  return year && month ? `${year}-${month}` : "";
+  if (day <= 10) {
+    month -= 1;
+
+    if (month === 0) {
+      month = 12;
+      year -= 1;
+    }
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}`;
 }
 
 function currentLimaDate() {
@@ -1291,11 +1297,6 @@ export default function FixAssetsCat() {
   const [reclassifying, setReclassifying] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [originals, setOriginals] = useState<Record<string, Draft>>({});
-  const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
-  const [acquisitionYear, setAcquisitionYear] = useState("");
-  const [acquisitionMonthFrom, setAcquisitionMonthFrom] = useState("01");
-  const [acquisitionMonthTo, setAcquisitionMonthTo] = useState("12");
   const [page, setPage] = useState(1);
   const [columnFilters, setColumnFilters] = useState<Partial<Record<CatalogueColumnKey, ExcelColumnFilter>>>({});
   const [excelSort, setExcelSort] = useState<{ key: CatalogueColumnKey; direction: ExcelSortDirection } | null>(null);
@@ -1350,20 +1351,8 @@ export default function FixAssetsCat() {
         ? deprecResponse.rows as DeprRow[]
         : [];
 
-      const latestPeriodFromData = nextDeprecRows.reduce((latest, row) => {
-        const period = dateOnly(row.period_date).slice(0, 7);
-
-        if (!/^\d{4}-\d{2}$/.test(period)) {
-          return latest;
-        }
-
-        return !latest || period > latest
-          ? period
-          : latest;
-      }, "");
-
       const currentDeprecPeriod =
-        latestPeriodFromData || currentLimaYearMonth();
+        currentLimaAccountingPeriod();
 
       const currentDeprecYear =
         currentDeprecPeriod.slice(0, 4);
@@ -1394,16 +1383,29 @@ export default function FixAssetsCat() {
         const penKey =
           `monthly_depr_${monthToken}_pen` as MonthlyDeprecKey;
 
-        const hideLatestVirtual =
+        const sourceName =
+          text(row.source_name).trim().toUpperCase();
+
+        const hideCurrentUsd =
           period === currentDeprecPeriod
-          && text(row.source_name).trim().toUpperCase() === "VIRTUAL";
+          && (
+            sourceName === "VIRTUAL"
+            || sourceName === "WEB_PEN"
+          );
+
+        const hideCurrentPen =
+          period === currentDeprecPeriod
+          && (
+            sourceName === "VIRTUAL"
+            || sourceName === "WEB_USD"
+          );
 
         monthlyByAsset[code] = {
           ...(monthlyByAsset[code] || {}),
-          [usdKey]: hideLatestVirtual
+          [usdKey]: hideCurrentUsd
             ? null
             : row.depreciation_amount_usd,
-          [penKey]: hideLatestVirtual
+          [penKey]: hideCurrentPen
             ? null
             : row.depreciation_amount_pen,
         };
@@ -1453,9 +1455,19 @@ export default function FixAssetsCat() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const vrAssetCodes = useMemo(() => new Set(
+    vetaVrRows
+      .filter((row) => text(row.map_type).trim().toUpperCase() === "VR")
+      .map((row) => text(row.asset_code).trim())
+      .filter(Boolean)
+  ), [vetaVrRows]);
+
   const vrDetailRows = useMemo(() => (
     vrDetailAssetCode
-      ? vetaVrRows.filter((row) => text(row.asset_code).trim() === vrDetailAssetCode)
+      ? vetaVrRows.filter((row) => (
+          text(row.asset_code).trim() === vrDetailAssetCode
+          && text(row.map_type).trim().toUpperCase() === "VR"
+        ))
       : []
   ), [vetaVrRows, vrDetailAssetCode]);
 
@@ -1533,10 +1545,6 @@ export default function FixAssetsCat() {
     && !loading
     && !saving
     && !reclassifying;
-
-  const acquisitionYears = useMemo(() => Array.from(new Set(
-    rows.map((row) => monthOf(row.acquisition_date)?.year).filter((value): value is string => Boolean(value))
-  )).sort().reverse(), [rows]);
 
   const catalogueCecoCodes = useMemo(() => Array.from(new Set(
     rows
@@ -1620,60 +1628,7 @@ export default function FixAssetsCat() {
     );
   }, [columns, showDetail]);
 
-  const baseVisibleRows = useMemo(() => {
-    const needle = deferredQuery
-      .trim()
-      .toLocaleLowerCase("es");
-
-    return rows.filter((row) => {
-      const code = text(row.asset_code);
-      const draft = drafts[code] || toDraft(row);
-
-      const acquisition = monthOf(
-        draft.acquisition_date
-        || row.acquisition_date
-      );
-
-      const matchesAcquisition =
-        !acquisitionYear
-        || Boolean(
-          acquisition
-          && acquisition.year === acquisitionYear
-          && acquisition.month >= acquisitionMonthFrom
-          && acquisition.month <= acquisitionMonthTo
-        );
-
-      if (!matchesAcquisition) {
-        return false;
-      }
-
-      if (!needle) {
-        return true;
-      }
-
-      return columns.some((column) =>
-        text(
-          catalogueExcelFilterValue(
-            row,
-            draft,
-            column.key,
-            cecoByCode
-          )
-        )
-          .toLocaleLowerCase("es")
-          .includes(needle)
-      );
-    });
-  }, [
-    rows,
-    drafts,
-    deferredQuery,
-    acquisitionYear,
-    acquisitionMonthFrom,
-    acquisitionMonthTo,
-    cecoByCode,
-    columns,
-  ]);
+  const baseVisibleRows = rows;
 
   const excelColumnValues = useMemo(() => {
     const result: Partial<
@@ -1825,10 +1780,6 @@ export default function FixAssetsCat() {
   useEffect(() => {
     setPage(1);
   }, [
-    deferredQuery,
-    acquisitionYear,
-    acquisitionMonthFrom,
-    acquisitionMonthTo,
     columnFilters,
     excelSort,
   ]);
@@ -2180,10 +2131,9 @@ export default function FixAssetsCat() {
     try {
       const payloads = editedCodes.map((code) => {
         const draft = drafts[code];
-        const sourceRow = rows.find((row) => text(row.asset_code).trim() === code);
         return {
           asset_code: code,
-          source_name: text(sourceRow?.source_name).trim() || "WEB",
+          source_name: "WEB",
           location_name: upperOrNull(draft.location_name),
           capex_code: upperOrNull(draft.capex_code),
           asset_description: upperOrNull(draft.asset_description),
@@ -2230,13 +2180,6 @@ export default function FixAssetsCat() {
           <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>Edita los datos maestros; solo se enviarán las filas modificadas.</div>
         </div>
         <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
-          <Select label="Año adquisición" value={acquisitionYear} onChange={(event) => setAcquisitionYear(event.target.value)} options={acquisitionYears.map((value) => ({ value, label: value }))} placeholder="Todos" style={{ minWidth: 135 }} />
-          <Select label="Mes desde" value={acquisitionMonthFrom} onChange={(event) => { const value = event.target.value; setAcquisitionMonthFrom(value); if (value > acquisitionMonthTo) setAcquisitionMonthTo(value); }} options={MONTHS.map((label, index) => ({ value: String(index + 1).padStart(2, "0"), label }))} placeholder="" style={{ minWidth: 145 }} />
-          <Select label="Mes hasta" value={acquisitionMonthTo} onChange={(event) => { const value = event.target.value; setAcquisitionMonthTo(value); if (value < acquisitionMonthFrom) setAcquisitionMonthFrom(value); }} options={MONTHS.map((label, index) => ({ value: String(index + 1).padStart(2, "0"), label }))} placeholder="" style={{ minWidth: 145 }} />
-          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
-            Buscar en toda la tabla
-            <FastCellInput className="input" value={query} onCommit={setQuery} onLiveChange={setQuery} placeholder="COD, descripción, área..." style={{ width: 270, height: 34, padding: "6px 10px" }} />
-          </label>
           <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving || reclassifying}>Actualizar mapping</Button>
           <Button size="sm" onClick={() => setShowDetail((current) => !current)} disabled={loading || saving || reclassifying}>{showDetail ? "Ocultar detalle" : "Mostrar detalle"}</Button>
           <Button size="sm" onClick={exportExcel} disabled={loading || saving || !visibleRows.length}>Exportar Excel ({visibleRows.length})</Button>
@@ -2313,7 +2256,7 @@ export default function FixAssetsCat() {
                 const draft = drafts[code] || toDraft(row);
                 const edited = originals[code] ? changed(draft, originals[code]) : false;
                 const bad = edited && invalid(draft);
-                const hasVrDetail = text(row.source_name).trim().toUpperCase() === "VR";
+                const hasVrDetail = vrAssetCodes.has(code);
                 const vrFocused = vrDetailAssetCode === code;
                 const reclassSelected = selectedReclassCodes.has(code);
 

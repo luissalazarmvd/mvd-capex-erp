@@ -30,6 +30,7 @@ type VetaRow = {
 
 type VetaVrStoredRow = {
   asset_code: string | null;
+  map_type: string | null;
   account_code: string | null;
   subjournal_code: string | null;
   voucher_number: string | null;
@@ -2065,6 +2066,7 @@ export default function FixAssetsNew() {
   const vetaVrAssetCodeByDetail = useMemo(() => {
     const result = new Map<string, string>();
     vetaVrRows.forEach((row) => {
+      if (identityPart(row.map_type) !== "VR") return;
       const code = text(row.asset_code).trim();
       if (code) result.set(vetaVrDetailIdentity(row), code);
     });
@@ -2074,8 +2076,21 @@ export default function FixAssetsNew() {
   const vetaVrStoredUpdateKeys = useMemo(() => {
     const result = new Set<string>();
     vetaVrRows.forEach((row) => {
-      if (text(row.asset_code).trim()) {
+      if (
+        identityPart(row.map_type) === "VR"
+        && text(row.asset_code).trim()
+      ) {
         result.add(vetaVrUpdateIdentity(row));
+      }
+    });
+    return result;
+  }, [vetaVrRows]);
+
+  const bajaStoredSourceKeys = useMemo(() => {
+    const result = new Set<string>();
+    vetaVrRows.forEach((row) => {
+      if (identityPart(row.map_type) === "BAJA") {
+        result.add(vetaVrDetailIdentity(row));
       }
     });
     return result;
@@ -2113,8 +2128,18 @@ export default function FixAssetsNew() {
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => {
       const value = monthOf(row.comp_date);
-      return Boolean(value && value.year === year && value.month >= monthFrom && value.month <= monthTo);
-    }), [rows, year, monthFrom, monthTo]);
+
+      if (
+        !value
+        || value.year !== year
+        || value.month < monthFrom
+        || value.month > monthTo
+      ) {
+        return false;
+      }
+
+      return !bajaStoredSourceKeys.has(vetaVrDetailIdentity(row));
+    }), [rows, year, monthFrom, monthTo, bajaStoredSourceKeys]);
 
   const normalSourceRows = useMemo(
     () => filteredRows.filter(({ row }) => !text(row.capex_code).trim()),
@@ -2656,6 +2681,23 @@ export default function FixAssetsNew() {
         target_asset_code: targetCode,
         pen_amount: bajaSourcePen,
         usd_amount: bajaSourceUsd,
+        source_row: {
+          account_code: bajaSelectedItem.row.account_code,
+          account_description: bajaSelectedItem.row.account_description,
+          comp_date: dateOnly(bajaSelectedItem.row.comp_date) || null,
+          subjournal_code: bajaSelectedItem.row.subjournal_code,
+          voucher_number: bajaSelectedItem.row.voucher_number,
+          annex_code: bajaSelectedItem.row.annex_code,
+          annex_description: bajaSelectedItem.row.annex_description,
+          document_type: bajaSelectedItem.row.document_type,
+          document_number: bajaSelectedItem.row.document_number,
+          document_date: dateOnly(bajaSelectedItem.row.document_date) || null,
+          voucher_description: bajaSelectedItem.row.voucher_description,
+          line_description: bajaSelectedItem.row.line_description,
+          debit_credit: bajaSelectedItem.row.debit_credit,
+          usd_amount: bajaSourceUsd,
+          pen_amount: bajaSourcePen,
+        },
       });
 
       await load();
@@ -2765,6 +2807,7 @@ export default function FixAssetsNew() {
           ...current,
           ...vrDetailPayloads.map((row) => ({
             asset_code: row.asset_code,
+            map_type: "VR",
             account_code: row.account_code,
             subjournal_code: row.subjournal_code,
             voucher_number: row.voucher_number,
