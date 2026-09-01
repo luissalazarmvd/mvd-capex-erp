@@ -7,6 +7,7 @@ import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
 import { FastCellInput } from "./FastCellInput";
+import FixAssetsAudit from "./FixAssetsAudit";
 
 type VetaRow = {
   account_code: string | null;
@@ -2898,6 +2899,7 @@ export default function FixAssetsNew() {
           <Select label="Año" value={year} onChange={(event) => { const value = event.target.value; setYear(value); if (value === initialPeriod.year) { if (monthFrom > initialPeriod.month) setMonthFrom(initialPeriod.month); if (monthTo > initialPeriod.month) setMonthTo(initialPeriod.month); } }} options={years.map((value) => ({ value, label: value }))} placeholder="Todos" style={{ minWidth: 110 }} />
           <Select label="Mes desde" value={monthFrom} onChange={(event) => { const value = event.target.value; setMonthFrom(value); if (value > monthTo) setMonthTo(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
           <Select label="Mes hasta" value={monthTo} onChange={(event) => { const value = event.target.value; setMonthTo(value); if (value < monthFrom) setMonthFrom(value); }} options={monthOptions} placeholder="" style={{ minWidth: 145 }} />
+          <FixAssetsAudit disabled={loading || saving || bajaSaving} />
           <Button size="sm" onClick={() => void load()} disabled={loading || saving || bajaSaving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button
             size="sm"

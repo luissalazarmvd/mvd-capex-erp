@@ -7,6 +7,7 @@ import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
 import { FastCellInput } from "./FastCellInput";
+import FixAssetsAudit from "./FixAssetsAudit";
 
 type DeprRow = {
   asset_code: string | null;
@@ -2182,6 +2183,7 @@ export default function FixAssetsDepr() {
           <Button size="sm" onClick={() => { setSelectedKeys(new Set()); setCurrencyMode((current) => current === "PEN" ? "USD" : "PEN"); }} disabled={loading || saving}>{currencyMode === "PEN" ? "Ver en USD" : "Ver en PEN"}</Button>
           <Button size="sm" onClick={() => setShowAdjustments((current) => !current)} disabled={loading || saving}>{showAdjustments ? "Ocultar ajustes" : "Mostrar ajustes"}</Button>
           <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); }} disabled={loading || saving}>Limpiar filtros</Button>
+          <FixAssetsAudit disabled={loading || saving} />
           <Button size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button size="sm" onClick={() => void deleteSentCurrency()} disabled={!canDelete}>{saving ? "Procesando..." : `Borrar WEB ${currencyMode} (${deletableVisibleRows.length})`}</Button>
           <Button size="sm" variant="primary" onClick={() => void save()} disabled={!canSave}>{saving ? "Guardando..." : `Guardar (${selectedIds.length})`}</Button>

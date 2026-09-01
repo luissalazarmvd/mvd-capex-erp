@@ -7,6 +7,7 @@ import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
 import { FastCellInput } from "./FastCellInput";
+import FixAssetsAudit from "./FixAssetsAudit";
 
 type ExportRow = {
   period_date: string | null;
@@ -819,6 +820,8 @@ export default function FixAssetsExport() {
             placeholder="Selecciona"
             style={{ minWidth: 150 }}
           />
+
+          <FixAssetsAudit disabled={loading} />
 
           <Button
             size="sm"

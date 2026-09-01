@@ -7,6 +7,7 @@ import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 import { FastCellInput } from "./FastCellInput";
+import FixAssetsAudit from "./FixAssetsAudit";
 
 type CatalogueRow = {
   asset_code: string | null;
@@ -2172,7 +2173,7 @@ export default function FixAssetsCat() {
     }
   }
 
-  
+
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
@@ -2181,6 +2182,7 @@ export default function FixAssetsCat() {
           <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>Edita los datos maestros; solo se enviarán las filas modificadas.</div>
         </div>
         <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
+          <FixAssetsAudit disabled={loading || saving || reclassifying} />
           <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving || reclassifying}>Actualizar mapping</Button>
           <Button size="sm" onClick={() => setShowDetail((current) => !current)} disabled={loading || saving || reclassifying}>{showDetail ? "Ocultar detalle" : "Mostrar detalle"}</Button>
           <Button size="sm" onClick={exportExcel} disabled={loading || saving || !visibleRows.length}>Exportar Excel ({visibleRows.length})</Button>
