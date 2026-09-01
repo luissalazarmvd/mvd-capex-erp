@@ -2007,12 +2007,26 @@ export default function FixAssetsCat() {
     );
   }, [pageCount]);
 
-  function exportExcel() {
-    if (!visibleRows.length || !displayColumns.length) {
+  function exportExcel(currency: "ALL" | "PEN" | "USD" = "ALL") {
+    const exportColumns = displayColumns.filter((column) => {
+      const key = String(column.key).toLowerCase();
+
+      if (currency === "PEN") {
+        return !key.endsWith("_usd");
+      }
+
+      if (currency === "USD") {
+        return !key.endsWith("_pen");
+      }
+
+      return true;
+    });
+
+    if (!visibleRows.length || !exportColumns.length) {
       return;
     }
 
-    const headers = displayColumns.map(
+    const headers = exportColumns.map(
       (column) => column.label
     );
 
@@ -2020,7 +2034,7 @@ export default function FixAssetsCat() {
       const code = text(row.asset_code);
       const draft = drafts[code] || toDraft(row);
 
-      return displayColumns.map((column) => {
+      return exportColumns.map((column) => {
         const value = catalogueExcelFilterValue(
           row,
           draft,
@@ -2066,7 +2080,7 @@ export default function FixAssetsCat() {
       });
     });
 
-    const totalRow = displayColumns.map((column) => {
+    const totalRow = exportColumns.map((column) => {
       if (column.key === "asset_code") {
         return "TOTAL";
       }
@@ -2090,14 +2104,14 @@ export default function FixAssetsCat() {
       }
     );
 
-    ws["!cols"] = displayColumns.map((column) => ({
+    ws["!cols"] = exportColumns.map((column) => ({
       wch: Math.max(
         12,
         Math.round(column.width / 7)
       ),
     }));
 
-    if (displayColumns.length && visibleRows.length) {
+    if (exportColumns.length && visibleRows.length) {
       ws["!autofilter"] = {
         ref: XLSX.utils.encode_range({
           s: {
@@ -2106,7 +2120,7 @@ export default function FixAssetsCat() {
           },
           e: {
             r: visibleRows.length,
-            c: displayColumns.length - 1,
+            c: exportColumns.length - 1,
           },
         }),
       };
@@ -2119,7 +2133,7 @@ export default function FixAssetsCat() {
     ) {
       const excelRow = rowIndex + 2;
 
-      displayColumns.forEach(
+      exportColumns.forEach(
         (column, columnIndex) => {
           if (
             catalogueExcelFilterKind(column.key)
@@ -2173,9 +2187,14 @@ export default function FixAssetsCat() {
       (part) => part.type === "day"
     )?.value || "";
 
+    const currencySuffix =
+      currency === "ALL"
+        ? ""
+        : `_${currency.toLowerCase()}`;
+
     XLSX.writeFile(
       wb,
-      `catalogo_activos_${year}-${month}-${day}.xlsx`
+      `catalogo_activos${currencySuffix}_${year}-${month}-${day}.xlsx`
     );
   }
 
@@ -2544,7 +2563,9 @@ export default function FixAssetsCat() {
           <FixAssetsAudit disabled={loading || saving || reclassifying || disposing} />
           <Button size="sm" onClick={() => void openMappingPreview()} disabled={loading || saving || reclassifying || disposing}>Actualizar mapping</Button>
           <Button size="sm" onClick={() => setShowDetail((current) => !current)} disabled={loading || saving || reclassifying || disposing}>{showDetail ? "Ocultar detalle" : "Mostrar detalle"}</Button>
-          <Button size="sm" onClick={exportExcel} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar Excel ({visibleRows.length})</Button>
+          <Button size="sm" onClick={() => exportExcel("PEN")} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar PEN ({visibleRows.length})</Button>
+          <Button size="sm" onClick={() => exportExcel("USD")} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar USD ({visibleRows.length})</Button>
+          <Button size="sm" onClick={() => exportExcel("ALL")} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar Todo ({visibleRows.length})</Button>
           <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setShowReadyOnly(false); setPage(1); }} disabled={loading || saving || reclassifying || disposing}>Limpiar filtros</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving || reclassifying || disposing}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button
