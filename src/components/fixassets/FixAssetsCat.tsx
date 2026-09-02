@@ -18,6 +18,7 @@ type CatalogueRow = {
   capex_code: string | null;
   subjournal_code: string | null;
   voucher_number: string | null;
+  sequence_number: string | null;
   annex_code: string | null;
   annex_description: string | null;
   document_number: string | null;
@@ -104,6 +105,7 @@ type VetaVrRow = {
   comp_date: string | null;
   subjournal_code: string | null;
   voucher_number: string | null;
+  sequence_number: string | null;
   annex_code: string | null;
   annex_description: string | null;
   document_type: string | null;
@@ -114,6 +116,24 @@ type VetaVrRow = {
   debit_credit: string | null;
   usd_amount: number | string | null;
   pen_amount: number | string | null;
+};
+
+type VetaSourceRow = {
+  subjournal_code: string | null;
+  voucher_number: string | null;
+  sequence_number: string | null;
+  annex_code: string | null;
+  document_number: string | null;
+  document_date: string | null;
+};
+
+type SoftPoRow = {
+  ruc: string | null;
+  supplier_name: string | null;
+  invoice_num: string | null;
+  po_num: string | null;
+  po_date: string | null;
+  po_total_us: number | string | null;
 };
 
 type MonthlyDeprecCurrency = "usd" | "pen";
@@ -241,6 +261,7 @@ const COLUMNS_BEFORE_MONTHLY: CatalogueColumn[] = [
   { key: "capex_code", label: "Código CAPEX", width: 135 },
   { key: "subjournal_code", label: "Subdiario", width: 105 },
   { key: "voucher_number", label: "Comprobante", width: 125 },
+  { key: "sequence_number", label: "Secuencia", width: 95 },
   { key: "annex_code", label: "Código anexo", width: 120 },
   { key: "annex_description", label: "Descripción anexo", width: 220 },
   { key: "document_number", label: "Nro. documento", width: 145 },
@@ -1049,6 +1070,29 @@ function dateOnly(value: unknown) {
   return text(value).slice(0, 10);
 }
 
+function accountingSourceIdentity(
+  row: Pick<CatalogueRow | VetaSourceRow, "subjournal_code" | "voucher_number" | "sequence_number" | "annex_code" | "document_number">
+) {
+  const parts = [
+    row.subjournal_code,
+    row.voucher_number,
+    row.sequence_number,
+    row.annex_code,
+    row.document_number,
+  ].map((value) => text(value).trim().toLocaleUpperCase("es"));
+
+  return parts.some(Boolean) ? parts.join("\u001f") : "";
+}
+
+function poDocumentIdentity(ruc: unknown, invoiceNumber: unknown) {
+  const rucPart = text(ruc).trim().toLocaleUpperCase("es");
+  const invoicePart = text(invoiceNumber).trim().toLocaleUpperCase("es");
+
+  return rucPart && invoicePart
+    ? `${rucPart}\u001f${invoicePart}`
+    : "";
+}
+
 function currentLimaAccountingPeriod() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Lima",
@@ -1387,6 +1431,7 @@ export default function FixAssetsCat() {
   const [showDetail, setShowDetail] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [capexExporting, setCapexExporting] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [mappingOpen, setMappingOpen] = useState(false);
@@ -2007,6 +2052,327 @@ export default function FixAssetsCat() {
     );
   }, [pageCount]);
 
+  async function exportCapexReport() {
+    if (
+      capexExporting
+      || loading
+      || saving
+      || reclassifying
+      || disposing
+    ) {
+      return;
+    }
+
+    setCapexExporting(true);
+    setMessage("");
+    setIsError(false);
+
+    try {
+      const [softPoResponse, vetaResponse] = await Promise.all([
+        apiGet("/api/actfij/soft-po"),
+        apiGet("/api/actfij/veta"),
+      ]);
+
+      const softPoRows = Array.isArray(softPoResponse?.rows)
+        ? softPoResponse.rows as SoftPoRow[]
+        : [];
+
+      const vetaRows = Array.isArray(vetaResponse?.rows)
+        ? vetaResponse.rows as VetaSourceRow[]
+        : [];
+
+      const poByDocument = new Map<string, SoftPoRow>();
+
+      softPoRows.forEach((row) => {
+        const key = poDocumentIdentity(
+          row.ruc,
+          row.invoice_num
+        );
+
+        if (key && !poByDocument.has(key)) {
+          poByDocument.set(key, row);
+        }
+      });
+
+      const vetaBySource = new Map<string, VetaSourceRow>();
+
+      vetaRows.forEach((row) => {
+        const key = accountingSourceIdentity(row);
+
+        if (key && !vetaBySource.has(key)) {
+          vetaBySource.set(key, row);
+        }
+      });
+
+      const grouped = new Map<
+        string,
+        Map<string, CatalogueDisplayRow[]>
+      >();
+
+      rows.forEach((row) => {
+        const assetCode = text(row.asset_code).trim();
+        const draft = drafts[assetCode] || toDraft(row);
+        const capexCode = draft.capex_code
+          .trim()
+          .toLocaleUpperCase("es");
+
+        if (!capexCode) {
+          return;
+        }
+
+        const poKey = poDocumentIdentity(
+          row.annex_code,
+          row.document_number
+        );
+
+        const poNum = text(
+          poByDocument.get(poKey)?.po_num
+        ).trim() || "SIN MAPEO";
+
+        let byPo = grouped.get(capexCode);
+
+        if (!byPo) {
+          byPo = new Map<string, CatalogueDisplayRow[]>();
+          grouped.set(capexCode, byPo);
+        }
+
+        const currentRows = byPo.get(poNum) || [];
+        currentRows.push(row);
+        byPo.set(poNum, currentRows);
+      });
+
+      if (!grouped.size) {
+        setIsError(true);
+        setMessage("No hay códigos CAPEX para exportar.");
+        return;
+      }
+
+      const workbook = XLSX.utils.book_new();
+      const usedSheetNames = new Set<string>();
+
+      const capexEntries = Array.from(grouped.entries())
+        .sort(([left], [right]) =>
+          left.localeCompare(
+            right,
+            undefined,
+            { numeric: true }
+          )
+        );
+
+      capexEntries.forEach(([capexCode, byPo]) => {
+        const sheetRows: Array<Array<string | number | Date>> = [];
+        const osHeaderRows: number[] = [];
+        const dataRows: number[] = [];
+
+        Array.from(byPo.entries())
+          .sort(([left], [right]) =>
+            left.localeCompare(
+              right,
+              undefined,
+              { numeric: true }
+            )
+          )
+          .forEach(([poNum, assetRows]) => {
+            osHeaderRows.push(sheetRows.length);
+
+            sheetRows.push([
+              `O.S.${poNum}`,
+            ]);
+
+            sheetRows.push([
+              "Fecha documento",
+              "Subdiario",
+              "RUC",
+              "Proveedor",
+              "Nro. documento",
+              "Descripción activo",
+              "Valor final USD",
+              "Valor final PEN",
+            ]);
+
+            assetRows
+              .slice()
+              .sort((left, right) => {
+                const leftSource =
+                  vetaBySource.get(
+                    accountingSourceIdentity(left)
+                  );
+
+                const rightSource =
+                  vetaBySource.get(
+                    accountingSourceIdentity(right)
+                  );
+
+                return (
+                  dateOnly(leftSource?.document_date)
+                    .localeCompare(
+                      dateOnly(rightSource?.document_date)
+                    )
+                  || text(left.document_number)
+                    .localeCompare(
+                      text(right.document_number),
+                      undefined,
+                      { numeric: true }
+                    )
+                );
+              })
+              .forEach((row) => {
+                const assetCode =
+                  text(row.asset_code).trim();
+
+                const draft =
+                  drafts[assetCode] || toDraft(row);
+
+                const vetaRow =
+                  vetaBySource.get(
+                    accountingSourceIdentity(row)
+                  );
+
+                const poRow =
+                  poByDocument.get(
+                    poDocumentIdentity(
+                      row.annex_code,
+                      row.document_number
+                    )
+                  );
+
+                const isoDate =
+                  dateOnly(vetaRow?.document_date);
+
+                const dateMatch =
+                  isoDate.match(
+                    /^(\d{4})-(\d{2})-(\d{2})$/
+                  );
+
+                const documentDate =
+                  dateMatch
+                    ? new Date(
+                        Number(dateMatch[1]),
+                        Number(dateMatch[2]) - 1,
+                        Number(dateMatch[3])
+                      )
+                    : "";
+
+                sheetRows.push([
+                  documentDate,
+                  text(row.subjournal_code),
+                  text(poRow?.ruc || row.annex_code),
+                  text(row.annex_description),
+                  text(row.document_number),
+                  draft.asset_description.trim(),
+                  assetMovementAmount(row, "usd"),
+                  assetMovementAmount(row, "pen"),
+                ]);
+
+                dataRows.push(
+                  sheetRows.length - 1
+                );
+              });
+
+            sheetRows.push([]);
+          });
+
+        const worksheet = XLSX.utils.aoa_to_sheet(
+          sheetRows,
+          {
+            cellDates: true,
+            dateNF: "dd/mm/yyyy",
+          }
+        );
+
+        worksheet["!cols"] = [
+          { wch: 16 },
+          { wch: 12 },
+          { wch: 16 },
+          { wch: 34 },
+          { wch: 20 },
+          { wch: 46 },
+          { wch: 18 },
+          { wch: 18 },
+        ];
+
+        worksheet["!merges"] = osHeaderRows.map(
+          (rowIndex) => ({
+            s: {
+              r: rowIndex,
+              c: 0,
+            },
+            e: {
+              r: rowIndex,
+              c: 7,
+            },
+          })
+        );
+
+        dataRows.forEach((rowIndex) => {
+          const excelRow = rowIndex + 1;
+          const dateCell = worksheet[`A${excelRow}`];
+
+          if (dateCell) {
+            dateCell.z = "dd/mm/yyyy";
+          }
+
+          ["G", "H"].forEach((column) => {
+            const cell =
+              worksheet[`${column}${excelRow}`];
+
+            if (cell?.t === "n") {
+              cell.z = "#,##0.00";
+            }
+          });
+        });
+
+        const cleanedBaseName =
+          capexCode
+            .replace(/[\\/?*\[\]:]/g, "-")
+            .trim()
+            .slice(0, 31)
+          || "CAPEX";
+
+        let sheetName = cleanedBaseName;
+        let suffix = 2;
+
+        while (usedSheetNames.has(sheetName)) {
+          const tail = `_${suffix}`;
+
+          sheetName =
+            `${cleanedBaseName.slice(
+              0,
+              31 - tail.length
+            )}${tail}`;
+
+          suffix += 1;
+        }
+
+        usedSheetNames.add(sheetName);
+
+        XLSX.utils.book_append_sheet(
+          workbook,
+          worksheet,
+          sheetName
+        );
+      });
+
+      XLSX.writeFile(
+        workbook,
+        `reporte_capex_${currentLimaDate() || "export"}.xlsx`
+      );
+
+      setMessage(
+        `Reporte CAPEX exportado: ${grouped.size} hoja${grouped.size === 1 ? "" : "s"}.`
+      );
+    } catch (error) {
+      setIsError(true);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo exportar el reporte CAPEX."
+      );
+    } finally {
+      setCapexExporting(false);
+    }
+  }
+
   function exportExcel(currency: "ALL" | "PEN" | "USD" = "ALL") {
     const exportColumns = displayColumns.filter((column) => {
       const key = String(column.key).toLowerCase();
@@ -2566,6 +2932,7 @@ export default function FixAssetsCat() {
           <Button size="sm" onClick={() => exportExcel("PEN")} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar PEN ({visibleRows.length})</Button>
           <Button size="sm" onClick={() => exportExcel("USD")} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar USD ({visibleRows.length})</Button>
           <Button size="sm" onClick={() => exportExcel("ALL")} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar Todo ({visibleRows.length})</Button>
+          <Button size="sm" onClick={() => void exportCapexReport()} disabled={loading || saving || reclassifying || disposing || capexExporting || !rows.some((row) => text(row.capex_code).trim())}>{capexExporting ? "Exportando CAPEX..." : "Exportar Reporte CAPEX"}</Button>
           <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setShowReadyOnly(false); setPage(1); }} disabled={loading || saving || reclassifying || disposing}>Limpiar filtros</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving || reclassifying || disposing}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button
@@ -2886,6 +3253,7 @@ export default function FixAssetsCat() {
                       "Fecha contable",
                       "Subdiario",
                       "Comprobante",
+                      "Secuencia",
                       "Código anexo",
                       "Descripción anexo",
                       "Tipo doc.",
@@ -2906,7 +3274,7 @@ export default function FixAssetsCat() {
                 <tbody>
                   {vrDetailRows.map((detail, detailIndex) => (
                     <tr
-                      key={`${text(detail.asset_code)}|${text(detail.account_code)}|${text(detail.subjournal_code)}|${text(detail.voucher_number)}|${text(detail.annex_code)}|${text(detail.document_number)}|${detailIndex}`}
+                      key={`${text(detail.asset_code)}|${text(detail.account_code)}|${text(detail.subjournal_code)}|${text(detail.voucher_number)}|${text(detail.sequence_number)}|${text(detail.annex_code)}|${text(detail.document_number)}|${detailIndex}`}
                       className="capex-tr"
                     >
                       <td className="capex-td">{text(detail.asset_code)}</td>
@@ -2915,6 +3283,7 @@ export default function FixAssetsCat() {
                       <td className="capex-td">{dateOnly(detail.comp_date)}</td>
                       <td className="capex-td">{text(detail.subjournal_code)}</td>
                       <td className="capex-td">{text(detail.voucher_number)}</td>
+                      <td className="capex-td">{text(detail.sequence_number)}</td>
                       <td className="capex-td">{text(detail.annex_code)}</td>
                       <td className="capex-td">{text(detail.annex_description)}</td>
                       <td className="capex-td">{text(detail.document_type)}</td>
@@ -2929,7 +3298,7 @@ export default function FixAssetsCat() {
                   ))}
                   {!vrDetailRows.length ? (
                     <tr>
-                      <td className="capex-td" colSpan={16}>No hay detalle VR para este COD.</td>
+                      <td className="capex-td" colSpan={17}>No hay detalle VR para este COD.</td>
                     </tr>
                   ) : null}
                 </tbody>

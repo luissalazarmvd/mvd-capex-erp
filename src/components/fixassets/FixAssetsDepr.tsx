@@ -14,6 +14,7 @@ type DeprRow = {
   source_name: string | null;
   asset_description: string | null;
   period_date: string | null;
+  operation_date: string | null;
   asset_base_value: number | string | null;
   depreciation_base_pen: number | string | null;
   applied_rate_pct: number | string | null;
@@ -55,6 +56,7 @@ type CatalogueReferenceRow = {
   origin_account_code: string | null;
   asset_situation: string | null;
   cost_center_code: string | null;
+  operation_date: string | null;
   exc_rate: number | string | null;
 };
 
@@ -1170,8 +1172,11 @@ function isCurrencySent(row: DeprRow, currencyMode: CurrencyMode) {
 
 function canEditDepreciationRow(row: DeprRow, editablePeriod: string, currencyMode: CurrencyMode) {
   const assetType = canonicalAssetType(row.asset_type);
+  const operationPeriod = text(row.operation_date).slice(0, 7);
+
   if (!assetType || assetType === "No deprecia") return false;
   if (text(row.period_date).slice(0, 7) !== editablePeriod) return false;
+  if (operationPeriod && operationPeriod > editablePeriod) return false;
   if (assetType !== "LR") return true;
   return !isCurrencySent(row, currencyMode);
 }
@@ -1295,10 +1300,19 @@ export default function FixAssetsDepr() {
         apiGet("/api/actfij/mapping"),
         apiGet("/api/actfij/catalogue"),
       ]);
-      const nextRows = (Array.isArray(response?.rows) ? response.rows as DeprRow[] : [])
-        .sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }));
       const nextMappingRows = Array.isArray(mappingResponse?.rows) ? mappingResponse.rows as MappingRow[] : [];
       const catalogueRows = Array.isArray(catalogueResponse?.rows) ? catalogueResponse.rows as CatalogueReferenceRow[] : [];
+      const operationDates = catalogueRows.reduce<Record<string, string>>((current, row) => {
+        const assetCode = text(row.asset_code).trim();
+        if (assetCode) current[assetCode] = text(row.operation_date).slice(0, 10);
+        return current;
+      }, {});
+      const nextRows = (Array.isArray(response?.rows) ? response.rows as DeprRow[] : [])
+        .map((row) => ({
+          ...row,
+          operation_date: operationDates[text(row.asset_code).trim()] || null,
+        }))
+        .sort((a, b) => text(a.asset_code).localeCompare(text(b.asset_code), undefined, { numeric: true }));
       const nextAssetOrigins = catalogueRows.reduce<Record<string, string>>((current, row) => {
         const assetCode = text(row.asset_code).trim();
         const originAccount = text(row.origin_account_code).trim();

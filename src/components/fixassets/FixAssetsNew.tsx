@@ -15,6 +15,7 @@ type VetaRow = {
   comp_date: string | null;
   subjournal_code: string | null;
   voucher_number: string | null;
+  sequence_number: string | null;
   annex_code: string | null;
   annex_description: string | null;
   document_type: string | null;
@@ -35,6 +36,7 @@ type VetaVrStoredRow = {
   account_code: string | null;
   subjournal_code: string | null;
   voucher_number: string | null;
+  sequence_number: string | null;
   annex_code: string | null;
   document_number: string | null;
   line_description: string | null;
@@ -51,6 +53,7 @@ type CatalogueRow = {
   capex_code?: string | null;
   subjournal_code?: string | null;
   voucher_number?: string | null;
+  sequence_number?: string | null;
   annex_code?: string | null;
   document_number?: string | null;
   assigned_to?: string | null;
@@ -154,6 +157,7 @@ const COLUMNS: Array<{ key: TableColumnKey; label: string; width: number }> = [
   { key: "comp_date", label: "Fecha contable", width: 125 },
   { key: "subjournal_code", label: "Subdiario", width: 105 },
   { key: "voucher_number", label: "Comprobante", width: 125 },
+  { key: "sequence_number", label: "Secuencia", width: 95 },
   { key: "annex_code", label: "Código anexo", width: 120 },
   { key: "annex_description", label: "Descripción anexo", width: 220 },
   { key: "document_type", label: "Tipo doc.", width: 105 },
@@ -193,18 +197,26 @@ function firstDayNextMonth(value: unknown) {
   return `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
 }
 
-function sourceIdentity(row: Pick<VetaRow | CatalogueRow, "subjournal_code" | "voucher_number" | "annex_code" | "document_number">) {
-  const parts = [row.subjournal_code, row.voucher_number, row.annex_code, row.document_number].map((value) => text(value).trim());
+function sourceIdentity(row: Pick<VetaRow | CatalogueRow, "subjournal_code" | "voucher_number" | "sequence_number" | "annex_code" | "document_number">) {
+  const parts = [
+    row.subjournal_code,
+    row.voucher_number,
+    row.sequence_number,
+    row.annex_code,
+    row.document_number,
+  ].map((value) => text(value).trim());
+
   return parts.some(Boolean) ? parts.join("\u001f") : "";
 }
 
 function vetaVrDetailIdentity(
-  row: Pick<VetaRow | VetaVrStoredRow, "account_code" | "subjournal_code" | "voucher_number" | "annex_code" | "document_number" | "line_description">
+  row: Pick<VetaRow | VetaVrStoredRow, "account_code" | "subjournal_code" | "voucher_number" | "sequence_number" | "annex_code" | "document_number" | "line_description">
 ) {
   return [
     row.account_code,
     row.subjournal_code,
     row.voucher_number,
+    row.sequence_number,
     row.annex_code,
     row.document_number,
     row.line_description,
@@ -212,13 +224,14 @@ function vetaVrDetailIdentity(
 }
 
 function vetaVrUpdateIdentity(
-  row: Pick<VetaVrStoredRow, "asset_code" | "account_code" | "subjournal_code" | "voucher_number" | "annex_code" | "document_number" | "line_description">
+  row: Pick<VetaVrStoredRow, "asset_code" | "account_code" | "subjournal_code" | "voucher_number" | "sequence_number" | "annex_code" | "document_number" | "line_description">
 ) {
   return [
     row.asset_code,
     row.account_code,
     row.subjournal_code,
     row.voucher_number,
+    row.sequence_number,
     row.annex_code,
     row.document_number,
     row.line_description,
@@ -249,6 +262,7 @@ function vrGroupIdentityParts(
   accountCode: unknown,
   subjournalCode: unknown,
   voucherNumber: unknown,
+  sequenceNumber: unknown,
   annexCode: unknown,
   capexCode: unknown
 ) {
@@ -257,6 +271,7 @@ function vrGroupIdentityParts(
     identityPart(accountCode),
     identityPart(subjournalCode),
     identityPart(voucherNumber),
+    identityPart(sequenceNumber),
     identityPart(annexCode),
     capex ? `CAPEX:${capex}` : "NORMAL",
   ].join("\u001e");
@@ -267,7 +282,8 @@ function vrGroupIdentity(row: VetaRow) {
     row.account_code,
     row.subjournal_code,
     row.voucher_number,
-    row.annex_code,
+    row.sequence_number,
+    row.annex_code, 
     row.capex_code
   );
 }
@@ -277,6 +293,7 @@ function catalogueVrGroupIdentity(row: CatalogueRow) {
     row.origin_account_code,
     row.subjournal_code,
     row.voucher_number,
+    row.sequence_number,
     row.annex_code,
     row.capex_code
   );
@@ -1876,6 +1893,7 @@ const VrDetailPanel = memo(function VrDetailPanel({
       >
         <span><strong>Subdiario:</strong> {text(item.row.subjournal_code) || "—"}</span>
         <span><strong>Comprobante:</strong> {text(item.row.voucher_number) || "—"}</span>
+        <span><strong>Secuencia:</strong> {text(item.row.sequence_number) || "—"}</span>
         <span><strong>Anexo:</strong> {text(item.row.annex_code) || "—"}</span>
         <span><strong>Total PEN:</strong> {totalPen}</span>
         <span><strong>Total USD:</strong> {totalUsd}</span>
@@ -2725,6 +2743,7 @@ export default function FixAssetsNew() {
             comp_date: dateOnly(row.comp_date) || null,
             subjournal_code: row.subjournal_code,
             voucher_number: row.voucher_number,
+            sequence_number: row.sequence_number,
             annex_code: row.annex_code,
             annex_description: row.annex_description,
             document_type: row.document_type,
@@ -2757,6 +2776,7 @@ export default function FixAssetsNew() {
         capex_code: upperOrNull(draft.capex_code),
         subjournal_code: row.subjournal_code,
         voucher_number: row.voucher_number,
+        sequence_number: row.sequence_number,
         annex_code: row.annex_code,
         annex_description: row.annex_description,
         document_number: row.document_number,
@@ -2807,6 +2827,7 @@ export default function FixAssetsNew() {
             account_code: row.account_code,
             subjournal_code: row.subjournal_code,
             voucher_number: row.voucher_number,
+            sequence_number: row.sequence_number,
             annex_code: row.annex_code,
             document_number: row.document_number,
             line_description: row.line_description,
@@ -2832,6 +2853,7 @@ export default function FixAssetsNew() {
             capex_code: draft.capex_code.trim() || null,
             subjournal_code: row.subjournal_code,
             voucher_number: row.voucher_number,
+            sequence_number: row.sequence_number,
             annex_code: row.annex_code,
             document_number: row.document_number,
             location_name: draft.location_name.trim() || null,
