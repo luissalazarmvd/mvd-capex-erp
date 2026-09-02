@@ -742,13 +742,8 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
     legacyMonthlyMinutes: 20,
     legacyRowMinutes: 10,
     currentMonthlyMinutes: 2,
-    monthlySalaryPen: 8000,
-    monthlyHours: 192,
-    exchangeRate: 3.5,
+    hourlyRateUsd: 10,
   });
-  const hourlyRateUsd = assumptions.monthlyHours > 0 && assumptions.exchangeRate > 0
-    ? assumptions.monthlySalaryPen / assumptions.monthlyHours / assumptions.exchangeRate
-    : 0;
 
   const result = useMemo(() => {
     const from = inputDate(range.from) || ANALYSIS_START;
@@ -778,7 +773,7 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
         period: tr(lang, "Before implementation", "Avant mise en œuvre"),
         workload: `${number(rowCount)} ${tr(lang, "records", "enregistrements")}`,
         beforeMh: legacyMh,
-        beforeUsd: legacyMh * hourlyRateUsd,
+        beforeUsd: legacyMh * assumptions.hourlyRateUsd,
         currentMh: null,
         currentUsd: null,
         savedMh: null,
@@ -790,11 +785,11 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
         period: start < CUT.actfij ? tr(lang, "Current · from 2 Sep", "Actuel · dès le 2 sept.") : tr(lang, "Current", "Actuel"),
         workload: `${number(rowCount)} ${tr(lang, "records", "enregistrements")}`,
         beforeMh: legacyMh,
-        beforeUsd: legacyMh * hourlyRateUsd,
+        beforeUsd: legacyMh * assumptions.hourlyRateUsd,
         currentMh,
-        currentUsd: currentMh * hourlyRateUsd,
+        currentUsd: currentMh * assumptions.hourlyRateUsd,
         savedMh: legacyMh - currentMh,
-        savedUsd: (legacyMh - currentMh) * hourlyRateUsd,
+        savedUsd: (legacyMh - currentMh) * assumptions.hourlyRateUsd,
         segment: "current",
         fullSegment: isFullMonth,
       });
@@ -806,13 +801,13 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
       chart,
       tr(lang, "Average records / active month", "Moyenne d’enregistrements / mois actif"),
       `${number(mean(monthlyRowCounts.filter((count) => count > 0)), 1)} ${tr(lang, "records/month", "enregistrements/mois")}`,
-      `${number(selected.length)} ${tr(lang, "total records", "enregistrements au total")} · ${money(hourlyRateUsd, 2)}/${tr(lang, "MH", "HP")}`
+      `${number(selected.length)} ${tr(lang, "total records", "enregistrements au total")} · ${money(assumptions.hourlyRateUsd, 2)}/${tr(lang, "MH", "HP")}`
     );
     const fullCurrent = monthly.filter((row) => row.segment === "current" && row.fullSegment);
     const current = fullCurrent.length ? fullCurrent : monthly.filter((row) => row.segment === "current");
     calculated.avgUsd = mean(current.map((row) => Number(row.savedUsd)));
     return calculated;
-  }, [analysisEnd, assumptions, hourlyRateUsd, lang, range.from, range.to, rows]);
+  }, [analysisEnd, assumptions, lang, range.from, range.to, rows]);
 
   useEffect(() => reportMetric(onResult, result), [onResult, result]);
 
@@ -822,14 +817,11 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
       <NumberField label={tr(lang, "Legacy monthly preparation · min/month", "Préparation historique · min/mois")} value={assumptions.legacyMonthlyMinutes} step={1} onChange={(value) => setAssumptions((current) => ({ ...current, legacyMonthlyMinutes: value }))} />
       <NumberField label={tr(lang, "Legacy processing · min/record", "Traitement historique · min/enregistrement")} value={assumptions.legacyRowMinutes} step={1} onChange={(value) => setAssumptions((current) => ({ ...current, legacyRowMinutes: value }))} />
       <NumberField label={tr(lang, "Current process · min/month", "Processus actuel · min/mois")} value={assumptions.currentMonthlyMinutes} step={1} onChange={(value) => setAssumptions((current) => ({ ...current, currentMonthlyMinutes: value }))} />
-      <NumberField label={tr(lang, "Monthly salary · PEN", "Salaire mensuel · PEN")} value={assumptions.monthlySalaryPen} step={100} onChange={(value) => setAssumptions((current) => ({ ...current, monthlySalaryPen: value }))} />
-      <NumberField label={tr(lang, "Working hours · h/month", "Heures de travail · h/mois")} value={assumptions.monthlyHours} step={1} onChange={(value) => setAssumptions((current) => ({ ...current, monthlyHours: value }))} />
-      <NumberField label={tr(lang, "Exchange rate · PEN/USD", "Taux de change · PEN/USD")} value={assumptions.exchangeRate} step={0.01} onChange={(value) => setAssumptions((current) => ({ ...current, exchangeRate: value }))} />
-      <ReadOnlyField label={tr(lang, "Derived labor cost · USD/MH", "Coût du travail calculé · USD/HP")} value={hourlyRateUsd} />
+      <NumberField label={tr(lang, "Labor cost · USD/MH", "Coût du travail · USD/HP")} value={assumptions.hourlyRateUsd} onChange={(value) => setAssumptions((current) => ({ ...current, hourlyRateUsd: value }))} />
     </div>
   </>;
 
-  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "From 2 September 2026 onward, the legacy equivalent is tracked from the actual number of rows in each document-date month even though the manual process is no longer performed.", "À partir du 2 septembre 2026, l’équivalent historique est suivi selon le nombre réel de lignes de chaque mois de date de document, même si le processus manuel n’est plus exécuté.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. API rows are grouped by document_date month. For each month, the legacy equivalent is 20 minutes plus 10 minutes multiplied by that month’s row count; the current process is 2 minutes regardless of row count. The USD hourly rate is derived from the editable S/ 8,000 monthly salary, working hours and PEN/USD exchange rate.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. Les lignes API sont regroupées par mois de document_date. Pour chaque mois, l’équivalent historique est de 20 minutes plus 10 minutes multipliées par le nombre de lignes du mois ; le processus actuel prend 2 minutes, quel que soit le nombre de lignes. Le coût horaire en USD est calculé à partir du salaire mensuel modifiable de S/ 8 000, des heures de travail et du taux PEN/USD.")} open={open} onToggle={onToggle} />;
+  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "From 2 September 2026 onward, the legacy equivalent is tracked from the actual number of rows in each document-date month even though the manual process is no longer performed.", "À partir du 2 septembre 2026, l’équivalent historique est suivi selon le nombre réel de lignes de chaque mois de date de document, même si le processus manuel n’est plus exécuté.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. API rows are grouped by document_date month. For each month, the legacy equivalent is 20 minutes plus 10 minutes multiplied by that month’s row count; the current process is 2 minutes regardless of row count. Labor savings are valued using the editable USD hourly rate, initially set to USD 10/MH.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. Les lignes API sont regroupées par mois de document_date. Pour chaque mois, l’équivalent historique est de 20 minutes plus 10 minutes multipliées par le nombre de lignes du mois ; le processus actuel prend 2 minutes, quel que soit le nombre de lignes. Les économies de travail sont valorisées avec le coût horaire modifiable en USD, initialement fixé à 10 USD/HP.")} open={open} onToggle={onToggle} />;
 }
 
 function CdmProject({ rows, open, onToggle, onResult, lang }: { rows: EntriesRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
