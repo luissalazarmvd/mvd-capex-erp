@@ -268,19 +268,11 @@ function identityPart(value: unknown) {
 
 function vrGroupIdentityParts(
   accountCode: unknown,
-  subjournalCode: unknown,
-  voucherNumber: unknown,
-  sequenceNumber: unknown,
-  annexCode: unknown,
   capexCode: unknown
 ) {
   const capex = identityPart(capexCode);
   return [
     identityPart(accountCode),
-    identityPart(subjournalCode),
-    identityPart(voucherNumber),
-    identityPart(sequenceNumber),
-    identityPart(annexCode),
     capex ? `CAPEX:${capex}` : "NORMAL",
   ].join("\u001e");
 }
@@ -288,10 +280,6 @@ function vrGroupIdentityParts(
 function vrGroupIdentity(row: VetaRow) {
   return vrGroupIdentityParts(
     row.account_code,
-    row.subjournal_code,
-    row.voucher_number,
-    row.sequence_number,
-    row.annex_code, 
     row.capex_code
   );
 }
@@ -299,10 +287,6 @@ function vrGroupIdentity(row: VetaRow) {
 function catalogueVrGroupIdentity(row: CatalogueRow) {
   return vrGroupIdentityParts(
     row.origin_account_code,
-    row.subjournal_code,
-    row.voucher_number,
-    row.sequence_number,
-    row.annex_code,
     row.capex_code
   );
 }
@@ -2173,6 +2157,7 @@ export default function FixAssetsNew() {
   const catalogueByVrGroup = useMemo(() => {
     const result = new Map<string, CatalogueRow>();
     catalogueRows.forEach((row) => {
+      if (identityPart(row.source_name) !== "VR") return;
       const key = catalogueVrGroupIdentity(row);
       if (key) result.set(key, row);
     });
