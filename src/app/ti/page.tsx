@@ -796,17 +796,24 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
       chart.push({ month, legacy: legacyMh, current: isBefore ? legacyMh : currentMh, volume: rowCount });
     });
 
-    const calculated = finishResult(
+    const representativeRows = mean(monthlyRowCounts.filter((count) => count > 0));
+    const runRateBeforeMh = (assumptions.legacyMonthlyMinutes + representativeRows * assumptions.legacyRowMinutes) / 60;
+    const runRateCurrentMh = assumptions.currentMonthlyMinutes / 60;
+    const runRateSavedMh = runRateBeforeMh - runRateCurrentMh;
+    return finishResult(
       monthly,
       chart,
       tr(lang, "Average records / active month", "Moyenne d’enregistrements / mois actif"),
-      `${number(mean(monthlyRowCounts.filter((count) => count > 0)), 1)} ${tr(lang, "records/month", "enregistrements/mois")}`,
-      `${number(selected.length)} ${tr(lang, "total records", "enregistrements au total")} · ${money(assumptions.hourlyRateUsd, 2)}/${tr(lang, "MH", "HP")}`
+      `${number(representativeRows, 1)} ${tr(lang, "records/month", "enregistrements/mois")}`,
+      `${number(selected.length)} ${tr(lang, "total records", "enregistrements au total")} · ${money(assumptions.hourlyRateUsd, 2)}/${tr(lang, "MH", "HP")}`,
+      {
+        avgBefore: runRateBeforeMh,
+        avgCurrent: runRateCurrentMh,
+        avgSaved: runRateSavedMh,
+        avgUsd: runRateSavedMh * assumptions.hourlyRateUsd,
+        optimization: runRateBeforeMh > 0 ? runRateSavedMh / runRateBeforeMh * 100 : Number.NaN,
+      }
     );
-    const fullCurrent = monthly.filter((row) => row.segment === "current" && row.fullSegment);
-    const current = fullCurrent.length ? fullCurrent : monthly.filter((row) => row.segment === "current");
-    calculated.avgUsd = mean(current.map((row) => Number(row.savedUsd)));
-    return calculated;
   }, [analysisEnd, assumptions, lang, range.from, range.to, rows]);
 
   useEffect(() => reportMetric(onResult, result), [onResult, result]);
@@ -821,7 +828,7 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
     </div>
   </>;
 
-  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "From 2 September 2026 onward, the legacy equivalent is tracked from the actual number of rows in each document-date month even though the manual process is no longer performed.", "À partir du 2 septembre 2026, l’équivalent historique est suivi selon le nombre réel de lignes de chaque mois de date de document, même si le processus manuel n’est plus exécuté.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. API rows are grouped by document_date month. For each month, the legacy equivalent is 20 minutes plus 10 minutes multiplied by that month’s row count; the current process is 2 minutes regardless of row count. Labor savings are valued using the editable USD hourly rate, initially set to USD 10/MH.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. Les lignes API sont regroupées par mois de document_date. Pour chaque mois, l’équivalent historique est de 20 minutes plus 10 minutes multipliées par le nombre de lignes du mois ; le processus actuel prend 2 minutes, quel que soit le nombre de lignes. Les économies de travail sont valorisées avec le coût horaire modifiable en USD, initialement fixé à 10 USD/HP.")} open={open} onToggle={onToggle} />;
+  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "The monthly and annualized run-rate uses the average row count of active document-date months, while the table continues to show each month’s actual volume.", "Le rythme mensuel et annualisé utilise le nombre moyen de lignes des mois actifs selon la date du document, tandis que le tableau continue d’afficher le volume réel de chaque mois.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. API rows are grouped by document_date month. For each month, the legacy equivalent is 20 minutes plus 10 minutes multiplied by that month’s row count; the current process is 2 minutes regardless of row count. The summary run-rate applies the average active-month row count consistently to before labor, savings, optimization and annualization. Labor savings are valued using the editable USD hourly rate, initially set to USD 10/MH.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. Les lignes API sont regroupées par mois de document_date. Pour chaque mois, l’équivalent historique est de 20 minutes plus 10 minutes multipliées par le nombre de lignes du mois ; le processus actuel prend 2 minutes, quel que soit le nombre de lignes. Le résumé applique uniformément le nombre moyen de lignes des mois actifs au travail avant, aux économies, à l’optimisation et à l’annualisation. Les économies de travail sont valorisées avec le coût horaire modifiable en USD, initialement fixé à 10 USD/HP.")} open={open} onToggle={onToggle} />;
 }
 
 function CdmProject({ rows, open, onToggle, onResult, lang }: { rows: EntriesRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
