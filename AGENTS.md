@@ -2,6 +2,18 @@
 
 Aplica a todo el repositorio. Leer este archivo una vez y luego abrir únicamente los archivos relacionados con la tarea. Mantener aquí arquitectura, contratos y reglas de negocio durables; no documentar detalles triviales de implementación.
 
+## Inicio obligatorio y navegación eficiente
+
+Al comenzar cada tarea en este repositorio:
+
+1. Leer este `AGENTS.md` una sola vez.
+2. Leer `docs/REPOSITORY_MAP.md` antes de buscar o abrir código.
+3. Usar el mapa para limitar la inspección a la ruta, componente, librería y endpoint del flujo solicitado.
+4. Abrir primero la página y el componente principal del flujo; después localizar con `rg` únicamente sus llamadas API, tipos y reglas importadas.
+5. No recorrer todo `src`, `.next`, `node_modules`, archivos generados ni el lockfile salvo que la tarea sea transversal o cambie dependencias.
+
+Si una modificación cambia rutas, ownership de módulos, entrypoints, endpoints principales o comandos de verificación, actualizar también `docs/REPOSITORY_MAP.md`. Las reglas de negocio durables continúan documentándose en este archivo.
+
 ## Stack y reglas generales
 
 - Next.js 16.1 App Router + React 19 + TypeScript estricto.
@@ -67,6 +79,14 @@ IGAFOM y padrón de proveedores. Preservar claves y validaciones existentes.
 
 ### TI
 Página principal `src/app/ti/page.tsx`, tickets, feedback, copiloto IA y búsqueda técnica. Los proxies pueden degradar a respuestas vacías/dummy sin romper UI.
+
+El portafolio de eficiencia se presenta íntegramente en inglés y francés. Para la iniciativa ejecutada `Fixed Assets & Depreciation Platform`:
+
+- Fuente: `GET /api/dti/actfij-fin`; agrupar filas por mes de `document_date`.
+- Proceso anterior: 20 min de preparación por mes + 10 min por fila; proceso actual: 2 min por mes sin depender del número de filas.
+- La referencia laboral editable inicia en USD 10/MH y el resumen usa el promedio de filas de los meses activos.
+- El sistema anterior costaba USD 3,827.54 al año y fue pagado hasta 2025. En 2026 se reconoce el importe anual completo como costo evitado, equivalente a USD 318.96/mes solo para combinar run-rates; no se registra como gasto real en las filas históricas mensuales de 2026.
+- La tabla mensual conserva su fila de totales para volumen, MH y ahorro laboral; el costo evitado del sistema se presenta por separado y se incluye en el ahorro anual total.
 
 ---
 

@@ -15,7 +15,8 @@ const CUT = {
   log: new Date(2026, 4, 11),
   ro: new Date(2026, 3, 1),
 };
-const FIXED_ASSETS_COMPARABLE_SYSTEM_USD_MONTH = 3827.54;
+const FIXED_ASSETS_COMPARABLE_SYSTEM_USD_YEAR = 3827.54;
+const FIXED_ASSETS_COMPARABLE_SYSTEM_USD_MONTH = FIXED_ASSETS_COMPARABLE_SYSTEM_USD_YEAR / 12;
 
 type Lang = "en" | "fr";
 type PortfolioYear = 2026 | 2027;
@@ -863,17 +864,17 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
 
   const comparableSystemSavings = <div className="ti-compare">
     <div className="ti-compare-head">
-      <strong>{tr(lang, "Comparable-system cost benchmark", "Référence de coût d’un système comparable")}</strong>
-      <span>{tr(lang, "Benchmark only: this amount was not paid in any month of 2026 and is not added to the historical monthly table.", "Référence uniquement : ce montant n’a été payé pendant aucun mois de 2026 et n’est pas ajouté au tableau mensuel historique.")}</span>
+      <strong>{tr(lang, "Prior-system cost avoided", "Coût de l’ancien système évité")}</strong>
+      <span>{tr(lang, "This annual saving is recognized in 2026 because the prior system was paid through 2025. It is a cost avoided in 2026, not an actual 2026 expense, so it is not assigned to the historical monthly rows.", "Cette économie annuelle est comptabilisée en 2026 car l’ancien système a été payé jusqu’en 2025. Il s’agit d’un coût évité en 2026, et non d’une dépense réelle de 2026 ; elle n’est donc pas affectée aux lignes mensuelles historiques.")}</span>
     </div>
     <div className="ti-compare-grid">
-      <div className="ti-compare-box"><div className="ti-label">{tr(lang, "Comparable system avoided · USD/month", "Système comparable évité · USD/mois")}</div><div className="ti-compare-value">{money(FIXED_ASSETS_COMPARABLE_SYSTEM_USD_MONTH, 2)}</div></div>
-      <div className="ti-compare-box good"><div className="ti-label">{tr(lang, "Total estimated savings · USD/month", "Économies totales estimées · USD/mois")}</div><div className="ti-compare-value">{money(result.avgUsd, 2)}</div><div className="ti-sub">{tr(lang, "Labor + comparable system", "Travail + système comparable")}</div></div>
-      <div className="ti-compare-box good"><div className="ti-label">{tr(lang, "Annualized total savings · USD/year", "Économies totales annualisées · USD/an")}</div><div className="ti-compare-value">{money(result.avgUsd * 12, 2)}</div></div>
+      <div className="ti-compare-box"><div className="ti-label">{tr(lang, "Prior-system cost avoided · USD/year", "Coût de l’ancien système évité · USD/an")}</div><div className="ti-compare-value">{money(FIXED_ASSETS_COMPARABLE_SYSTEM_USD_YEAR, 2)}</div></div>
+      <div className="ti-compare-box"><div className="ti-label">{tr(lang, "Monthly equivalent · USD/month", "Équivalent mensuel · USD/mois")}</div><div className="ti-compare-value">{money(FIXED_ASSETS_COMPARABLE_SYSTEM_USD_MONTH, 2)}</div><div className="ti-sub">{tr(lang, "Annual avoided cost ÷ 12", "Coût annuel évité ÷ 12")}</div></div>
+      <div className="ti-compare-box good"><div className="ti-label">{tr(lang, "Total estimated savings · USD/year", "Économies totales estimées · USD/an")}</div><div className="ti-compare-value">{money(result.avgUsd * 12, 2)}</div><div className="ti-sub">{tr(lang, "Labor savings + prior-system cost avoided", "Économies de travail + coût de l’ancien système évité")}</div></div>
     </div>
   </div>;
 
-  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "The monthly and annualized run-rate uses the average row count of active document-date months. The comparable-system benchmark is an avoided alternative cost, not a 2026 historical expense.", "Le rythme mensuel et annualisé utilise le nombre moyen de lignes des mois actifs selon la date du document. La référence du système comparable est un coût alternatif évité, et non une dépense historique de 2026.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. API rows are grouped by document_date month. For each month, the legacy labor equivalent is 20 minutes plus 10 minutes multiplied by that month’s row count; the current process is 2 minutes regardless of row count. The summary applies the average active-month row count consistently. Total savings add a USD 3,827.54 monthly comparable-system benchmark to labor savings, without assigning that benchmark as an actual expense to any prior month of 2026.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. Les lignes API sont regroupées par mois de document_date. Pour chaque mois, l’équivalent de travail historique est de 20 minutes plus 10 minutes multipliées par le nombre de lignes du mois ; le processus actuel prend 2 minutes, quel que soit le nombre de lignes. Le résumé applique uniformément le nombre moyen de lignes des mois actifs. Les économies totales ajoutent une référence mensuelle de 3 827,54 USD pour un système comparable aux économies de travail, sans attribuer cette référence comme dépense réelle à un mois antérieur de 2026.")} open={open} onToggle={onToggle} extra={comparableSystemSavings} showTotals />;
+  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "The monthly and annualized labor run-rate uses the average row count of active document-date months. The prior-system annual cost is recognized as an avoided cost in 2026, but not as an actual expense in the historical monthly rows.", "Le rythme mensuel et annualisé du travail utilise le nombre moyen de lignes des mois actifs selon la date du document. Le coût annuel de l’ancien système est comptabilisé comme coût évité en 2026, mais pas comme dépense réelle dans les lignes mensuelles historiques.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. API rows are grouped by document_date month. For each month, the legacy labor equivalent is 20 minutes plus 10 minutes multiplied by that month’s row count; the current process is 2 minutes regardless of row count. The summary applies the average active-month row count consistently. Total annual savings add the USD 3,827.54 prior-system cost paid through 2025 as an avoided 2026 cost, without assigning it as an actual expense to any month of 2026.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. Les lignes API sont regroupées par mois de document_date. Pour chaque mois, l’équivalent de travail historique est de 20 minutes plus 10 minutes multipliées par le nombre de lignes du mois ; le processus actuel prend 2 minutes, quel que soit le nombre de lignes. Le résumé applique uniformément le nombre moyen de lignes des mois actifs. Les économies annuelles totales ajoutent le coût de 3 827,54 USD de l’ancien système, payé jusqu’en 2025, comme coût évité en 2026, sans l’attribuer comme dépense réelle à un mois de 2026.")} open={open} onToggle={onToggle} extra={comparableSystemSavings} showTotals />;
 }
 
 function CdmProject({ rows, open, onToggle, onResult, lang }: { rows: EntriesRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
@@ -1553,7 +1554,7 @@ export default function TiPage() {
         "Costo por hora estimado (USD/HH)": exportNumber(estimatedHourlyRate),
         "USD antes al mes (potencial)": null,
         "USD después al mes (potencial)": null,
-        "Ahorro sistema comparable (USD/mes)": exportNumber(metric && year === 2026 ? metric.additionalMonthlyUsd : 0),
+        "Ahorro sistema anterior (USD/año)": exportNumber(metric && year === 2026 && metric.additionalMonthlyUsd !== undefined ? metric.additionalMonthlyUsd * 12 : 0),
         "Optimización (%)": exportNumber(metric ? (year === 2027 ? 0 : metric.optimization) : null),
         "Ahorro anualizado estimado (USD)": exportNumber(metric ? (year === 2027 ? 0 : metric.avgUsd * 12) : null),
       };
@@ -1571,7 +1572,7 @@ export default function TiPage() {
       "Costo por hora estimado (USD/HH)": null,
       "USD antes al mes (potencial)": null,
       "USD después al mes (potencial)": null,
-      "Ahorro sistema comparable (USD/mes)": null,
+      "Ahorro sistema anterior (USD/año)": null,
       "Optimización (%)": year === 2026 ? 43.2 : 0,
       "Ahorro anualizado estimado (USD)": year === 2026 ? 24941 : 0,
     };
@@ -1590,7 +1591,7 @@ export default function TiPage() {
         "Costo por hora estimado (USD/HH)": exportNumber(metric?.estimatedHourlyRate),
         "USD antes al mes (potencial)": null,
         "USD después al mes (potencial)": null,
-        "Ahorro sistema comparable (USD/mes)": null,
+        "Ahorro sistema anterior (USD/año)": null,
         "Optimización (%)": exportNumber(metric ? (year === 2027 ? 0 : metric.optimization) : null),
         "Ahorro anualizado estimado (USD)": exportNumber(metric ? (year === 2027 ? 0 : metric.annualUsd) : null),
       };
@@ -1608,7 +1609,7 @@ export default function TiPage() {
       "Costo por hora estimado (USD/HH)": null,
       "USD antes al mes (potencial)": year === 2027 ? potentialMetric.afterUsd : potentialMetric.beforeUsd,
       "USD después al mes (potencial)": potentialMetric.afterUsd,
-      "Ahorro sistema comparable (USD/mes)": null,
+      "Ahorro sistema anterior (USD/año)": null,
       "Optimización (%)": year === 2027 ? 0 : potentialMetric.optimization,
       "Ahorro anualizado estimado (USD)": year === 2027 ? 0 : potentialMetric.annualUsd,
     };
