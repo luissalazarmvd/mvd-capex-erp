@@ -2790,7 +2790,10 @@ export default function FixAssetsNew() {
 
       for (let start = 0; start < cataloguePayloads.length; start += 100) {
         const chunk = cataloguePayloads.slice(start, start + 100);
-        await apiPost("/api/actfij/catalogue/insert", { rows: chunk });
+        await apiPost("/api/actfij/catalogue/insert", {
+          rows: chunk,
+          register_acquisition: true,
+        });
         saved += chunk.length;
       }
 
