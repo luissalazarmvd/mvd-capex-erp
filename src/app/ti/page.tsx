@@ -8,6 +8,7 @@ import { logoutAndReturnToPortal } from "@/src/lib/logout";
 
 const ANALYSIS_START = new Date(2026, 0, 1);
 const CUT = {
+  actfij: new Date(2026, 8, 2),
   cdm: new Date(2026, 6, 20),
   fin: new Date(2026, 3, 1),
   fcs: new Date(2026, 0, 19),
@@ -44,6 +45,7 @@ type FinanceRow = {
 
 type FcsRow = { lot: string; entryDate: Date | null };
 type LogisticsRow = { reqDate: Date | null; responsible: string };
+type FixedAssetFinanceRow = { documentDate: Date | null };
 type MlRow = {
   campaignId: string;
   campaignDate: Date | null;
@@ -92,9 +94,15 @@ type PortfolioMetric = Pick<
   "avgBefore" | "avgCurrent" | "avgSaved" | "avgUsd" | "optimization" | "totalSaved" | "totalUsd"
 >;
 
-type ProjectKey = "cdm" | "fin" | "fcs" | "log" | "ro";
+type ProjectKey = "actfij" | "cdm" | "fin" | "fcs" | "log" | "ro";
 
 const EXECUTED_PROJECTS: Record<ProjectKey, { name: string; description: string; area: string; keyUser: string }> = {
+  actfij: {
+    name: "Fixed Assets & Depreciation Platform",
+    description: "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.",
+    area: "Finance",
+    keyUser: "Manuel Negreiros",
+  },
   cdm: {
     name: "Lot Entries & Uploads",
     description: "A weighing-scale automation that creates and inserts the lot file automatically, eliminating manual registration and its associated waiting time.",
@@ -722,6 +730,120 @@ function DelayChart({ rows, baseline, lang }: { rows: EntriesRow[]; baseline: nu
   );
 }
 
+function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: FixedAssetFinanceRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
+  const latest = useMemo(() => latestDate(rows.map((row) => row.documentDate)), [rows]);
+  const analysisEnd = useMemo(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return latest && latest > today ? latest : today;
+  }, [latest]);
+  const range = useRange(analysisEnd);
+  const [assumptions, setAssumptions] = useState({
+    legacyMonthlyMinutes: 20,
+    legacyRowMinutes: 6,
+    currentMonthlyMinutes: 2,
+    monthlySalaryPen: 8000,
+    monthlyHours: 192,
+    exchangeRate: 3.5,
+  });
+  const hourlyRateUsd = assumptions.monthlyHours > 0 && assumptions.exchangeRate > 0
+    ? assumptions.monthlySalaryPen / assumptions.monthlyHours / assumptions.exchangeRate
+    : 0;
+
+  const result = useMemo(() => {
+    const from = inputDate(range.from) || ANALYSIS_START;
+    const to = inputDate(range.to, true) || analysisEnd;
+    const selected = rows.filter((row) => row.documentDate && row.documentDate >= from && row.documentDate <= to);
+    const monthly: MonthlyRow[] = [];
+    const chart: ChartPoint[] = [];
+
+    monthsFrom(from, to).forEach((month) => {
+      const { start, end } = monthBounds(month);
+      const monthStart = new Date(Math.max(start.getTime(), from.getTime()));
+      const monthEnd = new Date(Math.min(end.getTime(), to.getTime()));
+      const daysInMonth = end.getDate();
+      const preEnd = new Date(Math.min(monthEnd.getTime(), CUT.actfij.getTime() - 1));
+      const currentStart = new Date(Math.max(monthStart.getTime(), CUT.actfij.getTime()));
+      const preRows = selected.filter((row) => inPeriod(row.documentDate, monthStart, preEnd));
+      const currentRows = selected.filter((row) => inPeriod(row.documentDate, currentStart, monthEnd));
+      const preDays = preEnd >= monthStart ? overlapDays(monthStart, preEnd, start, end) : 0;
+      const currentDays = monthEnd >= currentStart ? overlapDays(currentStart, monthEnd, start, end) : 0;
+      const preMonthlyMinutes = assumptions.legacyMonthlyMinutes * preDays / daysInMonth;
+      const currentLegacyMinutes = assumptions.legacyMonthlyMinutes * currentDays / daysInMonth;
+      const currentProcessMinutes = assumptions.currentMonthlyMinutes * currentDays / daysInMonth;
+      const preMh = (preMonthlyMinutes + preRows.length * assumptions.legacyRowMinutes) / 60;
+      const currentLegacyMh = (currentLegacyMinutes + currentRows.length * assumptions.legacyRowMinutes) / 60;
+      const currentMh = currentProcessMinutes / 60;
+
+      if (preDays > 0) {
+        monthly.push({
+          month,
+          period: end < CUT.actfij ? tr(lang, "Before implementation", "Avant mise en œuvre") : tr(lang, "Before · until 1 Sep", "Avant · jusqu’au 1er sept."),
+          workload: `${number(preRows.length)} ${tr(lang, "records", "enregistrements")}`,
+          beforeMh: preMh,
+          beforeUsd: preMh * hourlyRateUsd,
+          currentMh: null,
+          currentUsd: null,
+          savedMh: null,
+          savedUsd: null,
+          segment: "before",
+          fullSegment: monthStart <= start && monthEnd >= end && end < CUT.actfij,
+        });
+      }
+      if (currentDays > 0) {
+        monthly.push({
+          month,
+          period: start >= CUT.actfij ? tr(lang, "Current", "Actuel") : tr(lang, "Current · from 2 Sep", "Actuel · dès le 2 sept."),
+          workload: `${number(currentRows.length)} ${tr(lang, "records", "enregistrements")}`,
+          beforeMh: currentLegacyMh,
+          beforeUsd: currentLegacyMh * hourlyRateUsd,
+          currentMh,
+          currentUsd: currentMh * hourlyRateUsd,
+          savedMh: currentLegacyMh - currentMh,
+          savedUsd: (currentLegacyMh - currentMh) * hourlyRateUsd,
+          segment: "current",
+          fullSegment: start >= CUT.actfij && monthStart <= start && monthEnd >= end,
+        });
+      }
+      chart.push({
+        month,
+        legacy: preMh + currentLegacyMh,
+        current: preDays > 0 || currentDays > 0 ? preMh + currentMh : null,
+        volume: preRows.length + currentRows.length,
+      });
+    });
+
+    const calculated = finishResult(
+      monthly,
+      chart,
+      tr(lang, "Finance records analyzed", "Enregistrements Finance analysés"),
+      `${number(selected.length)} ${tr(lang, "records", "enregistrements")}`,
+      `${tr(lang, "Derived labor cost", "Coût du travail calculé")}: ${money(hourlyRateUsd, 2)}/${tr(lang, "MH", "HP")}`
+    );
+    const fullCurrent = monthly.filter((row) => row.segment === "current" && row.fullSegment);
+    const current = fullCurrent.length ? fullCurrent : monthly.filter((row) => row.segment === "current");
+    calculated.avgUsd = mean(current.map((row) => Number(row.savedUsd)));
+    return calculated;
+  }, [analysisEnd, assumptions, hourlyRateUsd, lang, range.from, range.to, rows]);
+
+  useEffect(() => reportMetric(onResult, result), [onResult, result]);
+
+  const controls = <>
+    <DateFields {...range} lang={lang} />
+    <div className="ti-controls assumptions">
+      <NumberField label={tr(lang, "Legacy monthly preparation · min/month", "Préparation historique · min/mois")} value={assumptions.legacyMonthlyMinutes} step={1} onChange={(value) => setAssumptions((current) => ({ ...current, legacyMonthlyMinutes: value }))} />
+      <NumberField label={tr(lang, "Legacy processing · min/record", "Traitement historique · min/enregistrement")} value={assumptions.legacyRowMinutes} step={1} onChange={(value) => setAssumptions((current) => ({ ...current, legacyRowMinutes: value }))} />
+      <NumberField label={tr(lang, "Current process · min/month", "Processus actuel · min/mois")} value={assumptions.currentMonthlyMinutes} step={1} onChange={(value) => setAssumptions((current) => ({ ...current, currentMonthlyMinutes: value }))} />
+      <NumberField label={tr(lang, "Monthly salary · PEN", "Salaire mensuel · PEN")} value={assumptions.monthlySalaryPen} step={100} onChange={(value) => setAssumptions((current) => ({ ...current, monthlySalaryPen: value }))} />
+      <NumberField label={tr(lang, "Working hours · h/month", "Heures de travail · h/mois")} value={assumptions.monthlyHours} step={1} onChange={(value) => setAssumptions((current) => ({ ...current, monthlyHours: value }))} />
+      <NumberField label={tr(lang, "Exchange rate · PEN/USD", "Taux de change · PEN/USD")} value={assumptions.exchangeRate} step={0.01} onChange={(value) => setAssumptions((current) => ({ ...current, exchangeRate: value }))} />
+      <ReadOnlyField label={tr(lang, "Derived labor cost · USD/MH", "Coût du travail calculé · USD/HP")} value={hourlyRateUsd} />
+    </div>
+  </>;
+
+  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "From 2 September 2026 onward, the legacy equivalent is tracked from actual document-date volumes even though the manual process is no longer performed.", "À partir du 2 septembre 2026, l’équivalent historique est suivi selon les volumes réels par date de document, même si le processus manuel n’est plus exécuté.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. The legacy equivalent is 20 minutes per month plus 6 minutes per API row; the current process is 2 minutes per month regardless of row count. Monthly fixed time is prorated for partial months. The USD hourly rate is derived from the editable S/ 8,000 monthly salary, working hours and PEN/USD exchange rate.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. L’équivalent historique est de 20 minutes par mois plus 6 minutes par ligne API ; le processus actuel prend 2 minutes par mois, quel que soit le nombre de lignes. Le temps fixe mensuel est calculé au prorata pour les mois partiels. Le coût horaire en USD est calculé à partir du salaire mensuel modifiable de S/ 8 000, des heures de travail et du taux PEN/USD.")} open={open} onToggle={onToggle} />;
+}
+
 function CdmProject({ rows, open, onToggle, onResult, lang }: { rows: EntriesRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
   const latest = useMemo(() => latestDate(rows.map((row) => row.entryDate)), [rows]);
   const range = useRange(latest);
@@ -1275,11 +1397,11 @@ function PortfolioSection({ title, subtitle, category, children, onExpand, onCol
 export default function TiPage() {
   const [lang, setLang] = useState<Lang>("en");
   const [year, setYear] = useState<PortfolioYear>(2026);
-  const [data, setData] = useState<{ entries: EntriesRow[]; finance: FinanceRow[]; fcs: FcsRow[]; logistics: LogisticsRow[]; ml: MlRow[] }>({ entries: [], finance: [], fcs: [], logistics: [], ml: [] });
+  const [data, setData] = useState<{ fixedAssets: FixedAssetFinanceRow[]; entries: EntriesRow[]; finance: FinanceRow[]; fcs: FcsRow[]; logistics: LogisticsRow[]; ml: MlRow[] }>({ fixedAssets: [], entries: [], finance: [], fcs: [], logistics: [], ml: [] });
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  const [open, setOpen] = useState<Record<string, boolean>>({ cdm: false, fin: false, fcs: false, log: false, ro: false, autodesk: false, ml: false });
+  const [open, setOpen] = useState<Record<string, boolean>>({ actfij: false, cdm: false, fin: false, fcs: false, log: false, ro: false, autodesk: false, ml: false });
   const [metrics, setMetrics] = useState<Partial<Record<ProjectKey, PortfolioMetric>>>({});
   const [projectionMetrics, setProjectionMetrics] = useState<Record<string, ProjectionMetric>>({});
   const [potentialMetric, setPotentialMetric] = useState<PotentialMetric>({
@@ -1294,15 +1416,16 @@ export default function TiPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const endpoints = [
-      ["entries", "/api/dti/entries-up"], ["finance", "/api/dti/trace-fin"], ["fcs", "/api/dti/fcs-non"], ["logistics", "/api/dti/trace-log"], ["ml", "/api/dti/ref-ml"],
+      ["fixedAssets", "/api/dti/actfij-fin"], ["entries", "/api/dti/entries-up"], ["finance", "/api/dti/trace-fin"], ["fcs", "/api/dti/fcs-non"], ["logistics", "/api/dti/trace-log"], ["ml", "/api/dti/ref-ml"],
     ] as const;
     const responses = await Promise.allSettled(endpoints.map(([, path]) => apiGet(path)));
-    const next = { entries: [] as EntriesRow[], finance: [] as FinanceRow[], fcs: [] as FcsRow[], logistics: [] as LogisticsRow[], ml: [] as MlRow[] };
+    const next = { fixedAssets: [] as FixedAssetFinanceRow[], entries: [] as EntriesRow[], finance: [] as FinanceRow[], fcs: [] as FcsRow[], logistics: [] as LogisticsRow[], ml: [] as MlRow[] };
     const nextErrors: string[] = [];
     responses.forEach((response, index) => {
       const [key, path] = endpoints[index];
       if (response.status === "rejected") { nextErrors.push(`${path}: ${response.reason instanceof Error ? response.reason.message : "error de conexión"}`); return; }
       const raw = Array.isArray(response.value?.rows) ? response.value.rows as Array<Record<string, unknown>> : [];
+      if (key === "fixedAssets") next.fixedAssets = raw.map((row) => ({ documentDate: toDate(row.document_date) })).filter((row) => row.documentDate && row.documentDate >= ANALYSIS_START);
       if (key === "entries") next.entries = raw.map((row) => { const entryDatetime = toDate(row.entry_datetime), uploadDatetime = toDate(row.upload_datetime); return { entryDate: toDate(row.entry_date) || entryDatetime, entryDatetime, uploadDatetime, lot: text(row.lot_number), miner: text(row.miner), department: text(row.department), delaySeconds: entryDatetime && uploadDatetime ? (uploadDatetime.getTime() - entryDatetime.getTime()) / 1000 : Number.NaN }; }).filter((row) => (row.lot || row.entryDate) && (!row.entryDate || row.entryDate >= ANALYSIS_START));
       if (key === "finance") next.finance = raw.map((row) => ({ lot: text(row.lot), entryDate: toDate(row.entry_date), valuationDate: toDate(row.valuation_date), docDate: toDate(row.doc_date), hasAu: has(row.au_usd), hasDoc: has(row.doc_number) })).filter((row) => (row.lot || row.entryDate) && (!row.entryDate || row.entryDate >= ANALYSIS_START));
       if (key === "fcs") next.fcs = raw.map((row) => ({ lot: text(row.lot), entryDate: toDate(row.entry_date) })).filter((row) => (row.lot || row.entryDate) && (!row.entryDate || row.entryDate >= ANALYSIS_START));
@@ -1312,6 +1435,8 @@ export default function TiPage() {
     setData(next); setErrors(nextErrors); setUpdatedAt(new Date()); setLoading(false);
   }, []);
 
+  // The initial client-side API refresh intentionally owns this loading state.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   const updateMetric = useCallback((key: ProjectKey, metric: PortfolioMetric) => {
@@ -1516,7 +1641,7 @@ export default function TiPage() {
     year,
   ]);
 
-  const executedKeys = ["cdm", "fin", "fcs", "log", "ro", "autodesk"];
+  const executedKeys = ["actfij", "cdm", "fin", "fcs", "log", "ro", "autodesk"];
   const projectedKeys = PROJECTED_PROJECTS.map((project) => `projected-${project.key}`);
   const setCategoryOpen = (keys: string[], value: boolean) =>
     setOpen((current) => ({ ...current, ...Object.fromEntries(keys.map((key) => [key, value])) }));
@@ -1538,10 +1663,11 @@ export default function TiPage() {
         <section className="ti-portfolio">
           <div className="ti-portfolio-head"><div><h2>{tr(lang, `${year} portfolio savings overview`, `Vue d’ensemble des économies du portefeuille ${year}`)}</h2><p>{year === 2026 ? tr(lang, "Comparable annualized view across executed, projected and potential initiatives. Executed combines validated run-rate savings and Autodesk; projected uses editable planning assumptions; potential uses the ML benchmark.", "Vue annualisée comparable des initiatives exécutées, projetées et potentielles. Les économies exécutées combinent le rythme validé et Autodesk ; les projections utilisent des hypothèses modifiables ; le potentiel utilise la référence ML.") : tr(lang, "The optimized result of every 2026 project is the 2027 baseline. Before and after are therefore equal until a new improvement is registered.", "Le résultat optimisé de chaque projet 2026 constitue la référence 2027. Les états avant et après sont donc identiques jusqu’à l’enregistrement d’une nouvelle amélioration.")}</p></div></div>
           <div className="ti-portfolio-grid four"><div className="green"><span>{tr(lang, "Executed savings · USD/year", "Économies exécutées · USD/an")}</span><strong>{money(displayedExecutedAnnual)}</strong><small>{number(displayedExecutedMh, 2)} {tr(lang, "MH/month saved + Autodesk", "HP/mois économisées + Autodesk")}</small></div><div><span>{tr(lang, "Projected savings · USD/year", "Économies projetées · USD/an")}</span><strong>{money(displayedProjectedAnnual)}</strong><small>{number(displayedProjectedMh, 2)} {tr(lang, "projected MH/month", "HP/mois projetées")}</small></div><div className="gold"><span>{tr(lang, "Potential savings · USD/year", "Économies potentielles · USD/an")}</span><strong>{money(displayedPotentialAnnual)}</strong><small>{tr(lang, "ML annualized potential", "Potentiel ML annualisé")}</small></div><div className="total"><span>{tr(lang, "Unified savings · USD/year", "Économies unifiées · USD/an")}</span><strong>{money(unifiedAnnual)}</strong><small>{tr(lang, "Executed + projected + potential", "Exécutées + projetées + potentielles")}</small></div></div>
-          <div className="ti-source-status"><span className={data.entries.length ? "ok" : "bad"}>entries-up · {number(data.entries.length)} {tr(lang, "rows", "lignes")}</span><span className={data.finance.length ? "ok" : "bad"}>trace-fin · {number(data.finance.length)} {tr(lang, "rows", "lignes")}</span><span className={data.fcs.length ? "ok" : "bad"}>fcs-non · {number(data.fcs.length)} {tr(lang, "rows", "lignes")}</span><span className={data.logistics.length ? "ok" : "bad"}>trace-log · {number(data.logistics.length)} {tr(lang, "rows", "lignes")}</span><span className={data.ml.length ? "ok" : "bad"}>ref-ml · {number(data.ml.length)} {tr(lang, "rows", "lignes")}</span><span className="ok">RO · {tr(lang, "validated assumptions", "hypothèses validées")}</span></div>
+          <div className="ti-source-status"><span className={data.fixedAssets.length ? "ok" : "bad"}>actfij-fin · {number(data.fixedAssets.length)} {tr(lang, "rows", "lignes")}</span><span className={data.entries.length ? "ok" : "bad"}>entries-up · {number(data.entries.length)} {tr(lang, "rows", "lignes")}</span><span className={data.finance.length ? "ok" : "bad"}>trace-fin · {number(data.finance.length)} {tr(lang, "rows", "lignes")}</span><span className={data.fcs.length ? "ok" : "bad"}>fcs-non · {number(data.fcs.length)} {tr(lang, "rows", "lignes")}</span><span className={data.logistics.length ? "ok" : "bad"}>trace-log · {number(data.logistics.length)} {tr(lang, "rows", "lignes")}</span><span className={data.ml.length ? "ok" : "bad"}>ref-ml · {number(data.ml.length)} {tr(lang, "rows", "lignes")}</span><span className="ok">RO · {tr(lang, "validated assumptions", "hypothèses validées")}</span></div>
           {updatedAt ? <div className="ti-updated">{tr(lang, "Last query", "Dernière requête")}: {updatedAt.toLocaleString(lang === "fr" ? "fr-FR" : "en-US")}</div> : null}
         </section>
         <PortfolioSection lang={lang} category="01" title={tr(lang, "Executed", "Exécutés")} subtitle={tr(lang, "Implemented initiatives with observed or validated savings.", "Initiatives mises en œuvre avec des économies observées ou validées.")} onExpand={() => setCategoryOpen(executedKeys, true)} onCollapse={() => setCategoryOpen(executedKeys, false)}>
+          <FixedAssetsProject lang={lang} rows={data.fixedAssets} open={open.actfij} onToggle={(value) => setProjectOpen("actfij", value)} onResult={(metric) => updateMetric("actfij", metric)} />
           <CdmProject lang={lang} rows={data.entries} open={open.cdm} onToggle={(value) => setProjectOpen("cdm", value)} onResult={(metric) => updateMetric("cdm", metric)} />
           <FinProject lang={lang} rows={data.finance} open={open.fin} onToggle={(value) => setProjectOpen("fin", value)} onResult={(metric) => updateMetric("fin", metric)} />
           <FcsProject lang={lang} rows={data.fcs} open={open.fcs} onToggle={(value) => setProjectOpen("fcs", value)} onResult={(metric) => updateMetric("fcs", metric)} />
