@@ -15,6 +15,7 @@ const CUT = {
   log: new Date(2026, 4, 11),
   ro: new Date(2026, 3, 1),
 };
+const FIXED_ASSETS_COMPARABLE_SYSTEM_USD_MONTH = 3827.54;
 
 type Lang = "en" | "fr";
 type PortfolioYear = 2026 | 2027;
@@ -80,6 +81,8 @@ type ProjectResult = {
   avgCurrent: number;
   avgSaved: number;
   avgUsd: number;
+  laborAvgUsd?: number;
+  additionalMonthlyUsd?: number;
   optimization: number;
   totalSaved: number;
   totalUsd: number;
@@ -92,7 +95,7 @@ type ProjectResult = {
 
 type PortfolioMetric = Pick<
   ProjectResult,
-  "avgBefore" | "avgCurrent" | "avgSaved" | "avgUsd" | "optimization" | "totalSaved" | "totalUsd"
+  "avgBefore" | "avgCurrent" | "avgSaved" | "avgUsd" | "laborAvgUsd" | "additionalMonthlyUsd" | "optimization" | "totalSaved" | "totalUsd"
 >;
 
 type ProjectKey = "actfij" | "cdm" | "fin" | "fcs" | "log" | "ro";
@@ -325,7 +328,7 @@ function finishResult(
   extraLabel: string,
   extraValue: string,
   extraSub: string,
-  fixed?: Partial<Pick<ProjectResult, "avgBefore" | "avgCurrent" | "avgSaved" | "avgUsd" | "optimization">>
+  fixed?: Partial<Pick<ProjectResult, "avgBefore" | "avgCurrent" | "avgSaved" | "avgUsd" | "laborAvgUsd" | "additionalMonthlyUsd" | "optimization">>
 ): ProjectResult {
   const currentRows = rows.filter((row) => row.segment === "current");
   return {
@@ -333,6 +336,8 @@ function finishResult(
     avgCurrent: fixed?.avgCurrent ?? averageRun(rows, "currentMh", "current"),
     avgSaved: fixed?.avgSaved ?? averageRun(rows, "savedMh", "current"),
     avgUsd: fixed?.avgUsd ?? averageRun(currentRows, "savedMh", "current") * 0,
+    laborAvgUsd: fixed?.laborAvgUsd,
+    additionalMonthlyUsd: fixed?.additionalMonthlyUsd,
     optimization: fixed?.optimization ?? weightedOptimization(rows),
     totalSaved: sum(currentRows.map((row) => row.savedMh || 0)),
     totalUsd: sum(currentRows.map((row) => row.savedUsd || 0)),
@@ -368,6 +373,8 @@ function resultForYear(result: ProjectResult, year: PortfolioYear, lang: Lang): 
     avgCurrent: baselineMh,
     avgSaved: 0,
     avgUsd: 0,
+    laborAvgUsd: 0,
+    additionalMonthlyUsd: 0,
     optimization: 0,
     totalSaved: 0,
     totalUsd: 0,
@@ -385,6 +392,8 @@ function reportMetric(onResult: (metric: PortfolioMetric) => void, result: Proje
     avgCurrent: result.avgCurrent,
     avgSaved: result.avgSaved,
     avgUsd: result.avgUsd,
+    laborAvgUsd: result.laborAvgUsd,
+    additionalMonthlyUsd: result.additionalMonthlyUsd,
     optimization: result.optimization,
     totalSaved: result.totalSaved,
     totalUsd: result.totalUsd,
@@ -455,12 +464,14 @@ function DateFields({
 }
 
 function Kpis({ result, lang }: { result: ProjectResult; lang: Lang }) {
+  const laborMonthlyUsd = result.laborAvgUsd ?? result.avgUsd;
+  const includesAdditionalSavings = Boolean(result.additionalMonthlyUsd);
   const items = [
     [tr(lang, "Before labor · MH/month", "Travail avant · HP/mois"), `${number(result.avgBefore, 2)} ${tr(lang, "MH/month", "HP/mois")}`, tr(lang, "Average pre-implementation monthly workload", "Charge mensuelle moyenne avant mise en œuvre"), "gold"],
     [tr(lang, "Current labor · MH/month", "Travail actuel · HP/mois"), `${number(result.avgCurrent, 2)} ${tr(lang, "MH/month", "HP/mois")}`, tr(lang, "Average post-implementation monthly workload", "Charge mensuelle moyenne après mise en œuvre"), "cyan"],
     [tr(lang, "Labor optimization · %", "Optimisation du travail · %"), percent(result.optimization), tr(lang, "Post-cut reduction vs. legacy equivalent", "Réduction après coupure vs. équivalent historique"), "green"],
-    [tr(lang, "Labor cost saved · USD/month", "Coût du travail économisé · USD/mois"), money(result.avgUsd), tr(lang, "Average post-implementation run-rate", "Rythme moyen après mise en œuvre"), "green"],
-    [tr(lang, "Annualized labor savings · USD/year", "Économies de travail annualisées · USD/an"), money(result.avgUsd * 12), tr(lang, "Monthly run-rate × 12", "Rythme mensuel × 12"), "green"],
+    [tr(lang, "Labor cost saved · USD/month", "Coût du travail économisé · USD/mois"), money(laborMonthlyUsd), tr(lang, "Average post-implementation run-rate", "Rythme moyen après mise en œuvre"), "green"],
+    [includesAdditionalSavings ? tr(lang, "Annualized total savings · USD/year", "Économies totales annualisées · USD/an") : tr(lang, "Annualized labor savings · USD/year", "Économies de travail annualisées · USD/an"), money(result.avgUsd * 12), includesAdditionalSavings ? tr(lang, "Labor + comparable-system benchmark", "Travail + référence d’un système comparable") : tr(lang, "Monthly run-rate × 12", "Rythme mensuel × 12"), "green"],
     [result.extraLabel, result.extraValue, result.extraSub, "blue"],
   ];
   return (
@@ -819,6 +830,7 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
     const runRateBeforeMh = (assumptions.legacyMonthlyMinutes + representativeRows * assumptions.legacyRowMinutes) / 60;
     const runRateCurrentMh = assumptions.currentMonthlyMinutes / 60;
     const runRateSavedMh = runRateBeforeMh - runRateCurrentMh;
+    const laborRunRateUsd = runRateSavedMh * assumptions.hourlyRateUsd;
     return finishResult(
       monthly,
       chart,
@@ -829,7 +841,9 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
         avgBefore: runRateBeforeMh,
         avgCurrent: runRateCurrentMh,
         avgSaved: runRateSavedMh,
-        avgUsd: runRateSavedMh * assumptions.hourlyRateUsd,
+        avgUsd: laborRunRateUsd + FIXED_ASSETS_COMPARABLE_SYSTEM_USD_MONTH,
+        laborAvgUsd: laborRunRateUsd,
+        additionalMonthlyUsd: FIXED_ASSETS_COMPARABLE_SYSTEM_USD_MONTH,
         optimization: runRateBeforeMh > 0 ? runRateSavedMh / runRateBeforeMh * 100 : Number.NaN,
       }
     );
@@ -847,7 +861,19 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
     </div>
   </>;
 
-  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "The monthly and annualized run-rate uses the average row count of active document-date months, while the table continues to show each month’s actual volume.", "Le rythme mensuel et annualisé utilise le nombre moyen de lignes des mois actifs selon la date du document, tandis que le tableau continue d’afficher le volume réel de chaque mois.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. API rows are grouped by document_date month. For each month, the legacy equivalent is 20 minutes plus 10 minutes multiplied by that month’s row count; the current process is 2 minutes regardless of row count. The summary run-rate applies the average active-month row count consistently to before labor, savings, optimization and annualization. Labor savings are valued using the editable USD hourly rate, initially set to USD 10/MH.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. Les lignes API sont regroupées par mois de document_date. Pour chaque mois, l’équivalent historique est de 20 minutes plus 10 minutes multipliées par le nombre de lignes du mois ; le processus actuel prend 2 minutes, quel que soit le nombre de lignes. Le résumé applique uniformément le nombre moyen de lignes des mois actifs au travail avant, aux économies, à l’optimisation et à l’annualisation. Les économies de travail sont valorisées avec le coût horaire modifiable en USD, initialement fixé à 10 USD/HP.")} open={open} onToggle={onToggle} showTotals />;
+  const comparableSystemSavings = <div className="ti-compare">
+    <div className="ti-compare-head">
+      <strong>{tr(lang, "Comparable-system cost benchmark", "Référence de coût d’un système comparable")}</strong>
+      <span>{tr(lang, "Benchmark only: this amount was not paid in any month of 2026 and is not added to the historical monthly table.", "Référence uniquement : ce montant n’a été payé pendant aucun mois de 2026 et n’est pas ajouté au tableau mensuel historique.")}</span>
+    </div>
+    <div className="ti-compare-grid">
+      <div className="ti-compare-box"><div className="ti-label">{tr(lang, "Comparable system avoided · USD/month", "Système comparable évité · USD/mois")}</div><div className="ti-compare-value">{money(FIXED_ASSETS_COMPARABLE_SYSTEM_USD_MONTH, 2)}</div></div>
+      <div className="ti-compare-box good"><div className="ti-label">{tr(lang, "Total estimated savings · USD/month", "Économies totales estimées · USD/mois")}</div><div className="ti-compare-value">{money(result.avgUsd, 2)}</div><div className="ti-sub">{tr(lang, "Labor + comparable system", "Travail + système comparable")}</div></div>
+      <div className="ti-compare-box good"><div className="ti-label">{tr(lang, "Annualized total savings · USD/year", "Économies totales annualisées · USD/an")}</div><div className="ti-compare-value">{money(result.avgUsd * 12, 2)}</div></div>
+    </div>
+  </div>;
+
+  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "The monthly and annualized run-rate uses the average row count of active document-date months. The comparable-system benchmark is an avoided alternative cost, not a 2026 historical expense.", "Le rythme mensuel et annualisé utilise le nombre moyen de lignes des mois actifs selon la date du document. La référence du système comparable est un coût alternatif évité, et non une dépense historique de 2026.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. API rows are grouped by document_date month. For each month, the legacy labor equivalent is 20 minutes plus 10 minutes multiplied by that month’s row count; the current process is 2 minutes regardless of row count. The summary applies the average active-month row count consistently. Total savings add a USD 3,827.54 monthly comparable-system benchmark to labor savings, without assigning that benchmark as an actual expense to any prior month of 2026.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. Les lignes API sont regroupées par mois de document_date. Pour chaque mois, l’équivalent de travail historique est de 20 minutes plus 10 minutes multipliées par le nombre de lignes du mois ; le processus actuel prend 2 minutes, quel que soit le nombre de lignes. Le résumé applique uniformément le nombre moyen de lignes des mois actifs. Les économies totales ajoutent une référence mensuelle de 3 827,54 USD pour un système comparable aux économies de travail, sans attribuer cette référence comme dépense réelle à un mois antérieur de 2026.")} open={open} onToggle={onToggle} extra={comparableSystemSavings} showTotals />;
 }
 
 function CdmProject({ rows, open, onToggle, onResult, lang }: { rows: EntriesRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
@@ -1513,7 +1539,7 @@ export default function TiPage() {
       const project = EXECUTED_PROJECTS[key];
       const savedMh = metric && year === 2026 ? metric.avgSaved : 0;
       const estimatedHourlyRate = metric && metric.avgSaved !== 0
-        ? metric.avgUsd / metric.avgSaved
+        ? (metric.laborAvgUsd ?? metric.avgUsd) / metric.avgSaved
         : null;
       return {
         Tipo: "Ejecutado",
@@ -1527,6 +1553,7 @@ export default function TiPage() {
         "Costo por hora estimado (USD/HH)": exportNumber(estimatedHourlyRate),
         "USD antes al mes (potencial)": null,
         "USD después al mes (potencial)": null,
+        "Ahorro sistema comparable (USD/mes)": exportNumber(metric && year === 2026 ? metric.additionalMonthlyUsd : 0),
         "Optimización (%)": exportNumber(metric ? (year === 2027 ? 0 : metric.optimization) : null),
         "Ahorro anualizado estimado (USD)": exportNumber(metric ? (year === 2027 ? 0 : metric.avgUsd * 12) : null),
       };
@@ -1544,6 +1571,7 @@ export default function TiPage() {
       "Costo por hora estimado (USD/HH)": null,
       "USD antes al mes (potencial)": null,
       "USD después al mes (potencial)": null,
+      "Ahorro sistema comparable (USD/mes)": null,
       "Optimización (%)": year === 2026 ? 43.2 : 0,
       "Ahorro anualizado estimado (USD)": year === 2026 ? 24941 : 0,
     };
@@ -1562,6 +1590,7 @@ export default function TiPage() {
         "Costo por hora estimado (USD/HH)": exportNumber(metric?.estimatedHourlyRate),
         "USD antes al mes (potencial)": null,
         "USD después al mes (potencial)": null,
+        "Ahorro sistema comparable (USD/mes)": null,
         "Optimización (%)": exportNumber(metric ? (year === 2027 ? 0 : metric.optimization) : null),
         "Ahorro anualizado estimado (USD)": exportNumber(metric ? (year === 2027 ? 0 : metric.annualUsd) : null),
       };
@@ -1579,6 +1608,7 @@ export default function TiPage() {
       "Costo por hora estimado (USD/HH)": null,
       "USD antes al mes (potencial)": year === 2027 ? potentialMetric.afterUsd : potentialMetric.beforeUsd,
       "USD después al mes (potencial)": potentialMetric.afterUsd,
+      "Ahorro sistema comparable (USD/mes)": null,
       "Optimización (%)": year === 2027 ? 0 : potentialMetric.optimization,
       "Ahorro anualizado estimado (USD)": year === 2027 ? 0 : potentialMetric.annualUsd,
     };
@@ -1601,10 +1631,11 @@ export default function TiPage() {
       { wch: 35 },
       { wch: 31 },
       { wch: 33 },
+      { wch: 38 },
       { wch: 18 },
       { wch: 38 },
     ];
-    detailSheet["!autofilter"] = { ref: detailSheet["!ref"] || "A1:M1" };
+    detailSheet["!autofilter"] = { ref: detailSheet["!ref"] || "A1:N1" };
 
     const detailRange = XLSX.utils.decode_range(detailSheet["!ref"] || "A1:M1");
     for (let row = 1; row <= detailRange.e.r; row += 1) {
@@ -1612,11 +1643,11 @@ export default function TiPage() {
         const cell = detailSheet[XLSX.utils.encode_cell({ r: row, c: column })];
         if (cell) cell.z = "0.00";
       });
-      [8, 9, 10, 12].forEach((column) => {
+      [8, 9, 10, 11, 13].forEach((column) => {
         const cell = detailSheet[XLSX.utils.encode_cell({ r: row, c: column })];
         if (cell) cell.z = "$#,##0.00";
       });
-      const optimizationCell = detailSheet[XLSX.utils.encode_cell({ r: row, c: 11 })];
+      const optimizationCell = detailSheet[XLSX.utils.encode_cell({ r: row, c: 12 })];
       if (optimizationCell) optimizationCell.z = "0.00";
     }
 
