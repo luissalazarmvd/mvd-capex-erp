@@ -754,63 +754,49 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
     const from = inputDate(range.from) || ANALYSIS_START;
     const to = inputDate(range.to, true) || analysisEnd;
     const selected = rows.filter((row) => row.documentDate && row.documentDate >= from && row.documentDate <= to);
+    const rowsByMonth = new Map<string, number>();
+    selected.forEach((row) => {
+      if (!row.documentDate) return;
+      const month = monthKey(row.documentDate);
+      rowsByMonth.set(month, (rowsByMonth.get(month) || 0) + 1);
+    });
     const monthly: MonthlyRow[] = [];
     const chart: ChartPoint[] = [];
 
     monthsFrom(from, to).forEach((month) => {
       const { start, end } = monthBounds(month);
-      const monthStart = new Date(Math.max(start.getTime(), from.getTime()));
-      const monthEnd = new Date(Math.min(end.getTime(), to.getTime()));
-      const daysInMonth = end.getDate();
-      const preEnd = new Date(Math.min(monthEnd.getTime(), CUT.actfij.getTime() - 1));
-      const currentStart = new Date(Math.max(monthStart.getTime(), CUT.actfij.getTime()));
-      const preRows = selected.filter((row) => inPeriod(row.documentDate, monthStart, preEnd));
-      const currentRows = selected.filter((row) => inPeriod(row.documentDate, currentStart, monthEnd));
-      const preDays = preEnd >= monthStart ? overlapDays(monthStart, preEnd, start, end) : 0;
-      const currentDays = monthEnd >= currentStart ? overlapDays(currentStart, monthEnd, start, end) : 0;
-      const preMonthlyMinutes = assumptions.legacyMonthlyMinutes * preDays / daysInMonth;
-      const currentLegacyMinutes = assumptions.legacyMonthlyMinutes * currentDays / daysInMonth;
-      const currentProcessMinutes = assumptions.currentMonthlyMinutes * currentDays / daysInMonth;
-      const preMh = (preMonthlyMinutes + preRows.length * assumptions.legacyRowMinutes) / 60;
-      const currentLegacyMh = (currentLegacyMinutes + currentRows.length * assumptions.legacyRowMinutes) / 60;
-      const currentMh = currentProcessMinutes / 60;
+      const rowCount = rowsByMonth.get(month) || 0;
+      const legacyMh = (assumptions.legacyMonthlyMinutes + rowCount * assumptions.legacyRowMinutes) / 60;
+      const currentMh = assumptions.currentMonthlyMinutes / 60;
+      const isBefore = end < CUT.actfij;
+      const isFullMonth = start >= from && end <= to;
 
-      if (preDays > 0) {
-        monthly.push({
-          month,
-          period: end < CUT.actfij ? tr(lang, "Before implementation", "Avant mise en œuvre") : tr(lang, "Before · until 1 Sep", "Avant · jusqu’au 1er sept."),
-          workload: `${number(preRows.length)} ${tr(lang, "records", "enregistrements")}`,
-          beforeMh: preMh,
-          beforeUsd: preMh * hourlyRateUsd,
-          currentMh: null,
-          currentUsd: null,
-          savedMh: null,
-          savedUsd: null,
-          segment: "before",
-          fullSegment: monthStart <= start && monthEnd >= end && end < CUT.actfij,
-        });
-      }
-      if (currentDays > 0) {
-        monthly.push({
-          month,
-          period: start >= CUT.actfij ? tr(lang, "Current", "Actuel") : tr(lang, "Current · from 2 Sep", "Actuel · dès le 2 sept."),
-          workload: `${number(currentRows.length)} ${tr(lang, "records", "enregistrements")}`,
-          beforeMh: currentLegacyMh,
-          beforeUsd: currentLegacyMh * hourlyRateUsd,
-          currentMh,
-          currentUsd: currentMh * hourlyRateUsd,
-          savedMh: currentLegacyMh - currentMh,
-          savedUsd: (currentLegacyMh - currentMh) * hourlyRateUsd,
-          segment: "current",
-          fullSegment: start >= CUT.actfij && monthStart <= start && monthEnd >= end,
-        });
-      }
-      chart.push({
+      monthly.push(isBefore ? {
         month,
-        legacy: preMh + currentLegacyMh,
-        current: preDays > 0 || currentDays > 0 ? preMh + currentMh : null,
-        volume: preRows.length + currentRows.length,
+        period: tr(lang, "Before implementation", "Avant mise en œuvre"),
+        workload: `${number(rowCount)} ${tr(lang, "records", "enregistrements")}`,
+        beforeMh: legacyMh,
+        beforeUsd: legacyMh * hourlyRateUsd,
+        currentMh: null,
+        currentUsd: null,
+        savedMh: null,
+        savedUsd: null,
+        segment: "before",
+        fullSegment: isFullMonth,
+      } : {
+        month,
+        period: start < CUT.actfij ? tr(lang, "Current · from 2 Sep", "Actuel · dès le 2 sept.") : tr(lang, "Current", "Actuel"),
+        workload: `${number(rowCount)} ${tr(lang, "records", "enregistrements")}`,
+        beforeMh: legacyMh,
+        beforeUsd: legacyMh * hourlyRateUsd,
+        currentMh,
+        currentUsd: currentMh * hourlyRateUsd,
+        savedMh: legacyMh - currentMh,
+        savedUsd: (legacyMh - currentMh) * hourlyRateUsd,
+        segment: "current",
+        fullSegment: isFullMonth,
       });
+      chart.push({ month, legacy: legacyMh, current: isBefore ? legacyMh : currentMh, volume: rowCount });
     });
 
     const calculated = finishResult(
@@ -841,7 +827,7 @@ function FixedAssetsProject({ rows, open, onToggle, onResult, lang }: { rows: Fi
     </div>
   </>;
 
-  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "From 2 September 2026 onward, the legacy equivalent is tracked from actual document-date volumes even though the manual process is no longer performed.", "À partir du 2 septembre 2026, l’équivalent historique est suivi selon les volumes réels par date de document, même si le processus manuel n’est plus exécuté.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. The legacy equivalent is 20 minutes per month plus 6 minutes per API row; the current process is 2 minutes per month regardless of row count. Monthly fixed time is prorated for partial months. The USD hourly rate is derived from the editable S/ 8,000 monthly salary, working hours and PEN/USD exchange rate.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. L’équivalent historique est de 20 minutes par mois plus 6 minutes par ligne API ; le processus actuel prend 2 minutes par mois, quel que soit le nombre de lignes. Le temps fixe mensuel est calculé au prorata pour les mois partiels. Le coût horaire en USD est calculé à partir du salaire mensuel modifiable de S/ 8 000, des heures de travail et du taux PEN/USD.")} open={open} onToggle={onToggle} />;
+  return <ProjectCard lang={lang} name={tr(lang, "Fixed Assets & Depreciation Platform", "Plateforme des immobilisations et des amortissements")} icon="FA" area={tr(lang, "Finance", "Finance")} keyUser="Manuel Negreiros" implementation="02/09/2026" description={tr(lang, "A platform for fixed-asset and depreciation management, integrated with Concar and Softcom and supporting direct exports for upload to Concar.", "Une plateforme de gestion des immobilisations et des amortissements, intégrée à Concar et Softcom et permettant l’exportation directe pour chargement dans Concar.")} solution={tr(lang, "The platform centralizes fixed assets and depreciation, connects the Concar and Softcom workflows, and generates files ready for direct upload to Concar.", "La plateforme centralise les immobilisations et les amortissements, relie les flux Concar et Softcom et génère des fichiers prêts à être chargés directement dans Concar.")} source="GET /api/dti/actfij-fin" rowCount={rows.length} result={result} controls={controls} note={tr(lang, "From 2 September 2026 onward, the legacy equivalent is tracked from the actual number of rows in each document-date month even though the manual process is no longer performed.", "À partir du 2 septembre 2026, l’équivalent historique est suivi selon le nombre réel de lignes de chaque mois de date de document, même si le processus manuel n’est plus exécuté.")} chartTitle={tr(lang, "Fixed Assets & Depreciation · legacy vs. current MH by month", "Immobilisations et amortissements · HP historiques vs. actuelles par mois")} method={tr(lang, "History starts on 01/01/2026 and implementation on 02/09/2026. API rows are grouped by document_date month. For each month, the legacy equivalent is 20 minutes plus 6 minutes multiplied by that month’s row count; the current process is 2 minutes regardless of row count. The USD hourly rate is derived from the editable S/ 8,000 monthly salary, working hours and PEN/USD exchange rate.", "L’historique débute le 01/01/2026 et la mise en œuvre le 02/09/2026. Les lignes API sont regroupées par mois de document_date. Pour chaque mois, l’équivalent historique est de 20 minutes plus 6 minutes multipliées par le nombre de lignes du mois ; le processus actuel prend 2 minutes, quel que soit le nombre de lignes. Le coût horaire en USD est calculé à partir du salaire mensuel modifiable de S/ 8 000, des heures de travail et du taux PEN/USD.")} open={open} onToggle={onToggle} />;
 }
 
 function CdmProject({ rows, open, onToggle, onResult, lang }: { rows: EntriesRow[]; open: boolean; onToggle: (open: boolean) => void; onResult: (metric: PortfolioMetric) => void; lang: Lang }) {
