@@ -1111,10 +1111,16 @@ function rateFromDepreciation(row: DeprRow, draft: Draft, currencyMode: Currency
     return draft.applied_rate_pct;
   }
 
+  const numericAmount = Number(amount);
+
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return draft.applied_rate_pct;
+  }
+
   const finalValue = derived(row, draft, currencyMode).asset_final_value;
   if (!finalValue) return draft.applied_rate_pct;
 
-  return precise((Number(amount) * 12) / finalValue);
+  return precise((numericAmount * 12) / finalValue);
 }
 
 function period(value: unknown) {
@@ -1217,7 +1223,7 @@ function MultiSelectFilter<T extends string>({
   return (
     <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
       <span>{label}</span>
-      <details ref={detailsRef} style={{ position: "relative", minWidth, zIndex: 80 }}>
+      <details ref={detailsRef} style={{ position: "relative", minWidth, zIndex: 200 }}>
         <summary
           className="input"
           onClick={(event) => { if (disabled) event.preventDefault(); }}
@@ -1226,7 +1232,7 @@ function MultiSelectFilter<T extends string>({
           <span>{summary}</span>
           <span aria-hidden="true">▾</span>
         </summary>
-        <div className="panel-inner" style={{ position: "absolute", top: 38, left: 0, minWidth: "100%", width: "max-content", maxWidth: 360, maxHeight: 280, overflow: "auto", zIndex: 90, padding: 8, background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 28px rgba(0,0,0,.38)" }}>
+        <div className="panel-inner" style={{ position: "absolute", top: 38, left: 0, minWidth: "100%", width: "max-content", maxWidth: 360, maxHeight: 280, overflow: "auto", zIndex: 210, padding: 8, background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 28px rgba(0,0,0,.38)" }}>
           <button
             type="button"
             className="input"

@@ -51,6 +51,7 @@ type CatalogueRow = {
   origin_account_code?: string | null;
   origin_account_desc?: string | null;
   capex_code?: string | null;
+  po_num?: string | null;
   subjournal_code?: string | null;
   voucher_number?: string | null;
   sequence_number?: string | null;
@@ -88,10 +89,17 @@ type MappingRow = {
   correlative_start: string | null;
 };
 
+type SoftPoRow = {
+  ruc: string | null;
+  invoice_num: string | null;
+  po_num: string | null;
+};
+
 type Draft = {
   asset_code: string;
   line_description: string;
   capex_code: string;
+  po_num: string;
   usd_amount: string;
   pen_amount: string;
   exc_rate: string;
@@ -413,11 +421,18 @@ function costCenterCode(value: string) {
   return raw.toLocaleUpperCase("es").replace(/[^0-9A-Z]/g, "").slice(0, 6);
 }
 
+function poDocumentIdentity(annexCode: unknown, documentNumber: unknown) {
+  const annex = text(annexCode).trim().toUpperCase();
+  const document = text(documentNumber).trim().toUpperCase();
+  return annex && document ? `${annex}|${document}` : "";
+}
+
 function draftFrom(row: VetaRow): Draft {
   return {
     asset_code: "",
     line_description: text(row.line_description),
     capex_code: text(row.capex_code),
+    po_num: "",
     usd_amount: twoDecimals(row.usd_amount),
     pen_amount: twoDecimals(row.pen_amount),
     exc_rate: twoDecimals(row.exc_rate),
@@ -1302,7 +1317,7 @@ function nextAvailableCode(
 }
 
 const EXTRA_FIELDS = [
-  ["location_name", "Ubicación"], ["assigned_to", "Asignado a"], ["area_name", "Área"],
+  ["po_num", "O.S."], ["location_name", "Ubicación"], ["assigned_to", "Asignado a"], ["area_name", "Área"],
   ["brand", "Marca"], ["model", "Modelo"], ["serial_number", "Serie"],
   ["cost_center_code", "Centro de costo"], ["depreciation_method", "Método de depreciación"],
   ["asset_comment", "Comentario"],
@@ -2033,16 +2048,19 @@ export default function FixAssetsNew() {
     setLoading(true);
     setMessage("");
     try {
-      const [veta, vetaVr, catalogue, ceco, mapping] = await Promise.all([
+      const [veta, vetaVr, catalogue, ceco, mapping, softPo] = await Promise.all([
         apiGet("/api/actfij/veta"),
         apiGet("/api/actfij/veta-vr"),
         apiGet("/api/actfij/catalogue"),
         apiGet("/api/actfij/ceco"),
         apiGet("/api/actfij/mapping"),
+        apiGet("/api/actfij/soft-po"),
       ]);
-      const nextRows = Array.isArray(veta?.rows) ? (veta.rows as VetaRow[]) : [];
+      const nextRows = (Array.isArray(veta?.rows) ? (veta.rows as VetaRow[]) : [])
+        .filter((row) => dateOnly(row.comp_date) >= "2026-01-01");
       const nextVetaVrRows = Array.isArray(vetaVr?.rows) ? (vetaVr.rows as VetaVrStoredRow[]) : [];
       const nextCatalogue = Array.isArray(catalogue?.rows) ? catalogue.rows as CatalogueRow[] : [];
+      const nextSoftPoRows = Array.isArray(softPo?.rows) ? softPo.rows as SoftPoRow[] : [];
       const nextCecoByCode = (Array.isArray(ceco?.rows) ? ceco.rows as CecoRow[] : [])
         .reduce<Record<string, string>>((current, row) => {
           const code = costCenterCode(text(row.cost_center_code));
@@ -2056,8 +2074,28 @@ export default function FixAssetsNew() {
           if (accountCode && /^\d{3}$/.test(prefix)) current[accountCode] = prefix;
           return current;
         }, {});
+      const poByDocument = new Map<string, string>();
+
+      nextSoftPoRows.forEach((row) => {
+        const key = poDocumentIdentity(row.ruc, row.invoice_num);
+        const poNum = text(row.po_num).trim();
+
+        if (key && poNum && !poByDocument.has(key)) {
+          poByDocument.set(key, poNum);
+        }
+      });
+
       const nextDrafts: Record<number, Draft> = {};
-      nextRows.forEach((row, index) => { nextDrafts[index] = draftFrom(row); });
+
+      nextRows.forEach((row, index) => {
+        const draft = draftFrom(row);
+        draft.po_num =
+          poByDocument.get(
+            poDocumentIdentity(row.annex_code, row.document_number)
+          ) || "";
+        nextDrafts[index] = draft;
+      });
+
       autoCodeIndexesRef.current.clear();
       setRows(nextRows);
       setVetaVrRows(nextVetaVrRows);
@@ -2107,7 +2145,6 @@ export default function FixAssetsNew() {
       label,
     }))
     .filter((option) => {
-      if (year === "2026" && option.value < "08") return false;
       if (year === initialPeriod.year && option.value > initialPeriod.month) return false;
       return true;
     }),
@@ -2774,6 +2811,7 @@ export default function FixAssetsNew() {
         location_name: upperOrNull(draft.location_name),
         origin_account_code: row.account_code,
         capex_code: upperOrNull(draft.capex_code),
+        po_num: upperOrNull(draft.po_num),
         subjournal_code: row.subjournal_code,
         voucher_number: row.voucher_number,
         sequence_number: row.sequence_number,
@@ -2851,6 +2889,7 @@ export default function FixAssetsNew() {
             asset_description: draft.line_description.trim() || null,
             origin_account_code: row.account_code,
             capex_code: draft.capex_code.trim() || null,
+            po_num: draft.po_num.trim() || null,
             subjournal_code: row.subjournal_code,
             voucher_number: row.voucher_number,
             sequence_number: row.sequence_number,

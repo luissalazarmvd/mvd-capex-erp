@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
 import { FastCellInput } from "./FastCellInput";
 import FixAssetsAudit from "./FixAssetsAudit";
@@ -16,6 +17,7 @@ type CatalogueRow = {
   origin_account_code: string | null;
   origin_account_desc: string | null;
   capex_code: string | null;
+  po_num: string | null;
   subjournal_code: string | null;
   voucher_number: string | null;
   sequence_number: string | null;
@@ -123,6 +125,7 @@ type VetaSourceRow = {
   voucher_number: string | null;
   sequence_number: string | null;
   annex_code: string | null;
+  annex_description: string | null;
   document_number: string | null;
   document_date: string | null;
 };
@@ -198,13 +201,22 @@ type ReclassTarget = {
 type MappingDraft = { deprec_rate_pct: string };
 
 const EDITABLE = [
-  "location_name", "capex_code", "asset_description", "asset_type", "assigned_to",
+  "location_name", "capex_code", "po_num", "subjournal_code", "voucher_number",
+  "sequence_number", "annex_code", "document_number", "asset_description", "asset_type", "assigned_to",
   "area_name", "brand", "model", "serial_number", "color", "cost_center_code",
   "acquisition_date", "operation_date", "disposal_date", "exc_rate",
   "asset_ini_cost_pen", "asset_ini_cost_usd", "depreciation_method", "asset_situation", "asset_comment",
 ] as const satisfies readonly (keyof CatalogueRow)[];
 type EditableKey = (typeof EDITABLE)[number];
-type Draft = Record<EditableKey, string>;
+type Draft = Record<EditableKey, string> & { annex_description: string };
+
+const HISTORIC_ACCOUNTING_FIELDS = new Set<EditableKey>([
+  "subjournal_code",
+  "voucher_number",
+  "sequence_number",
+  "annex_code",
+  "document_number",
+]);
 
 type ExcelFilterKind = "text" | "number" | "date";
 type ExcelSortDirection = "asc" | "desc";
@@ -259,6 +271,7 @@ const COLUMNS_BEFORE_MONTHLY: CatalogueColumn[] = [
   { key: "origin_account_code", label: "Cuenta origen", width: 125 },
   { key: "origin_account_desc", label: "Descripción cuenta", width: 220 },
   { key: "capex_code", label: "Código CAPEX", width: 135 },
+  { key: "po_num", label: "O.S.", width: 115 },
   { key: "subjournal_code", label: "Subdiario", width: 105 },
   { key: "voucher_number", label: "Comprobante", width: 125 },
   { key: "sequence_number", label: "Secuencia", width: 95 },
@@ -1367,6 +1380,10 @@ function catalogueExcelFilterValue(
       : "";
   }
 
+  if (key === "annex_description") {
+    return draft.annex_description;
+  }
+
   if (EDITABLE.includes(key as EditableKey)) {
     return draft[key as EditableKey];
   }
@@ -1383,6 +1400,7 @@ function toDraft(row: CatalogueRow): Draft {
       ? twoDecimals(row[key])
       : text(row[key]);
   });
+  draft.annex_description = text(row.annex_description);
   return draft;
 }
 
@@ -1411,6 +1429,9 @@ function validMappingRate(value: string) {
 
 export default function FixAssetsCat() {
   const [rows, setRows] = useState<CatalogueDisplayRow[]>([]);
+  const [vetaRows, setVetaRows] = useState<VetaSourceRow[]>([]);
+  const [softPoRows, setSoftPoRows] = useState<SoftPoRow[]>([]);
+  const [manualPoCodes, setManualPoCodes] = useState<Set<string>>(new Set());
   const [vetaVrRows, setVetaVrRows] = useState<VetaVrRow[]>([]);
   const [vrDetailAssetCode, setVrDetailAssetCode] = useState<string | null>(null);
   const [deprecCurrentPeriod, setDeprecCurrentPeriod] = useState("");
@@ -1447,13 +1468,15 @@ export default function FixAssetsCat() {
     setLoading(true);
     setMessage("");
     try {
-      const [response, cecoResponse, deprecResponse, vetaVrResponse, accountResponse, mappingResponse] = await Promise.all([
+      const [response, cecoResponse, deprecResponse, vetaVrResponse, accountResponse, mappingResponse, vetaResponse, softPoResponse] = await Promise.all([
         apiGet("/api/actfij/catalogue"),
         apiGet("/api/actfij/ceco"),
         apiGet("/api/actfij/deprec"),
         apiGet("/api/actfij/veta-vr"),
         apiGet("/api/actfij/account"),
         apiGet("/api/actfij/mapping"),
+        apiGet("/api/actfij/veta"),
+        apiGet("/api/actfij/soft-po"),
       ]);
 
       const nextCatalogueRows = Array.isArray(response?.rows)
@@ -1462,6 +1485,14 @@ export default function FixAssetsCat() {
 
       const nextVetaVrRows = Array.isArray(vetaVrResponse?.rows)
         ? vetaVrResponse.rows as VetaVrRow[]
+        : [];
+
+      const nextVetaRows = Array.isArray(vetaResponse?.rows)
+        ? vetaResponse.rows as VetaSourceRow[]
+        : [];
+
+      const nextSoftPoRows = Array.isArray(softPoResponse?.rows)
+        ? softPoResponse.rows as SoftPoRow[]
         : [];
 
       const nextAccountRows = Array.isArray(accountResponse?.rows)
@@ -1583,13 +1614,43 @@ export default function FixAssetsCat() {
           return current;
         }, {});
 
+      const poByDocument = new Map<string, SoftPoRow>();
+
+      nextSoftPoRows.forEach((row) => {
+        const key = poDocumentIdentity(row.ruc, row.invoice_num);
+        if (key && !poByDocument.has(key)) {
+          poByDocument.set(key, row);
+        }
+      });
+
       const nextDrafts: Record<string, Draft> = {};
+      const nextOriginals: Record<string, Draft> = {};
+      const nextManualPoCodes = new Set<string>();
 
       nextRows.forEach((row) => {
-        nextDrafts[text(row.asset_code)] = toDraft(row);
+        const code = text(row.asset_code);
+        const original = toDraft(row);
+        const mappedPo = text(
+          poByDocument.get(
+            poDocumentIdentity(row.annex_code, row.document_number)
+          )?.po_num
+        ).trim();
+
+        if (original.po_num.trim() && original.po_num.trim() !== mappedPo) {
+          nextManualPoCodes.add(code);
+        }
+
+        nextOriginals[code] = original;
+        nextDrafts[code] = {
+          ...original,
+          po_num: original.po_num.trim() || mappedPo,
+        };
       });
 
       setRows(nextRows);
+      setVetaRows(nextVetaRows);
+      setSoftPoRows(nextSoftPoRows);
+      setManualPoCodes(nextManualPoCodes);
       setVetaVrRows(nextVetaVrRows);
       setDeprecCurrentPeriod(currentDeprecPeriod);
       setCecoByCode(nextCecoByCode);
@@ -1600,7 +1661,7 @@ export default function FixAssetsCat() {
       setReclassTargets([emptyReclassTarget()]);
       setVrDetailAssetCode(null);
       setDrafts(nextDrafts);
-      setOriginals(nextDrafts);
+      setOriginals(nextOriginals);
       setColumnFilters({});
       setExcelSort(null);
       setShowReadyOnly(false);
@@ -1731,6 +1792,11 @@ export default function FixAssetsCat() {
   const reclassRemainingPenCents = reclassTotalPenCents - reclassAllocatedPenCents;
   const reclassRemainingUsdCents = reclassTotalUsdCents - reclassAllocatedUsdCents;
   const reclassAmountsMatch = reclassRemainingPenCents === 0 && reclassRemainingUsdCents === 0;
+  const reclassTargetsHavePositiveAmounts = reclassTargets.length === 1
+    || reclassTargets.every((target) => (
+      moneyCents(target.amount_pen) > 0
+      && moneyCents(target.amount_usd) > 0
+    ));
 
   useEffect(() => {
     if (reclassTargets.length !== 1) return;
@@ -1760,6 +1826,7 @@ export default function FixAssetsCat() {
     && editedCodes.length === 0
     && reclassTargets.length > 0
     && reclassAmountsMatch
+    && reclassTargetsHavePositiveAmounts
     && reclassTargets.every((target, index) => (
       Boolean(reclassProposedCodes[index])
       && Boolean(target.draft.origin_account_code.trim())
@@ -2120,12 +2187,27 @@ export default function FixAssetsCat() {
           return;
         }
 
+        const balanceUsd = text(row.asset_balance_usd).trim()
+          ? numericAmount(row.asset_balance_usd)
+          : assetMovementAmount(row, "usd");
+
+        const balancePen = text(row.asset_balance_pen).trim()
+          ? numericAmount(row.asset_balance_pen)
+          : assetMovementAmount(row, "pen");
+
+        if (
+          Math.round(balanceUsd * 100) === 0
+          && Math.round(balancePen * 100) === 0
+        ) {
+          return;
+        }
+
         const poKey = poDocumentIdentity(
-          row.annex_code,
-          row.document_number
+          draft.annex_code,
+          draft.document_number
         );
 
-        const poNum = text(
+        const poNum = draft.po_num.trim() || text(
           poByDocument.get(poKey)?.po_num
         ).trim() || "SIN MAPEO";
 
@@ -2182,6 +2264,7 @@ export default function FixAssetsCat() {
             sheetRows.push([
               "Fecha documento",
               "Subdiario",
+              "Comprobante",
               "RUC",
               "Proveedor",
               "Nro. documento",
@@ -2225,14 +2308,21 @@ export default function FixAssetsCat() {
 
                 const vetaRow =
                   vetaBySource.get(
-                    accountingSourceIdentity(row)
+                    accountingSourceIdentity({
+                      ...row,
+                      subjournal_code: draft.subjournal_code,
+                      voucher_number: draft.voucher_number,
+                      sequence_number: draft.sequence_number,
+                      annex_code: draft.annex_code,
+                      document_number: draft.document_number,
+                    })
                   );
 
                 const poRow =
                   poByDocument.get(
                     poDocumentIdentity(
-                      row.annex_code,
-                      row.document_number
+                      draft.annex_code,
+                      draft.document_number
                     )
                   );
 
@@ -2255,10 +2345,11 @@ export default function FixAssetsCat() {
 
                 sheetRows.push([
                   documentDate,
-                  text(row.subjournal_code),
-                  text(poRow?.ruc || row.annex_code),
-                  text(row.annex_description),
-                  text(row.document_number),
+                  draft.subjournal_code.trim(),
+                  draft.voucher_number.trim(),
+                  text(poRow?.ruc || draft.annex_code),
+                  draft.annex_description.trim(),
+                  draft.document_number.trim(),
                   draft.asset_description.trim(),
                   assetMovementAmount(row, "usd"),
                   assetMovementAmount(row, "pen"),
@@ -2284,6 +2375,7 @@ export default function FixAssetsCat() {
           { wch: 16 },
           { wch: 12 },
           { wch: 16 },
+          { wch: 16 },
           { wch: 34 },
           { wch: 20 },
           { wch: 46 },
@@ -2299,7 +2391,7 @@ export default function FixAssetsCat() {
             },
             e: {
               r: rowIndex,
-              c: 7,
+              c: 8,
             },
           })
         );
@@ -2312,7 +2404,7 @@ export default function FixAssetsCat() {
             dateCell.z = "dd/mm/yyyy";
           }
 
-          ["G", "H"].forEach((column) => {
+          ["H", "I"].forEach((column) => {
             const cell =
               worksheet[`${column}${excelRow}`];
 
@@ -2565,7 +2657,82 @@ export default function FixAssetsCat() {
   }
 
   function update(code: string, key: EditableKey, value: string) {
-    setDrafts((current) => ({ ...current, [code]: { ...current[code], [key]: value } }));
+    if (key === "po_num") {
+      setManualPoCodes((current) => {
+        const next = new Set(current);
+        next.add(code);
+        return next;
+      });
+    }
+
+    setDrafts((current) => {
+      const currentDraft = current[code];
+      if (!currentDraft) return current;
+
+      const nextDraft: Draft = {
+        ...currentDraft,
+        [key]: value,
+      };
+
+      const row = rows.find((item) => text(item.asset_code) === code);
+      const isHistoric = text(row?.source_name).trim().toUpperCase() === "HISTORIC";
+
+      if (isHistoric && HISTORIC_ACCOUNTING_FIELDS.has(key)) {
+        const subjournal = nextDraft.subjournal_code.trim().toUpperCase();
+        const voucher = nextDraft.voucher_number.trim().toUpperCase();
+        const sequence = nextDraft.sequence_number.trim().toUpperCase();
+        const annex = nextDraft.annex_code.trim().toUpperCase();
+        const document = nextDraft.document_number.trim().toUpperCase();
+
+        if (subjournal && voucher && sequence) {
+          let candidates = vetaRows.filter((item) => (
+            text(item.subjournal_code).trim().toUpperCase() === subjournal
+            && text(item.voucher_number).trim().toUpperCase() === voucher
+            && text(item.sequence_number).trim().toUpperCase() === sequence
+          ));
+
+          if (annex) {
+            const annexMatches = candidates.filter((item) =>
+              text(item.annex_code).trim().toUpperCase() === annex
+            );
+            if (annexMatches.length) candidates = annexMatches;
+          }
+
+          if (document) {
+            const documentMatches = candidates.filter((item) =>
+              text(item.document_number).trim().toUpperCase() === document
+            );
+            if (documentMatches.length) candidates = documentMatches;
+          }
+
+          if (candidates.length === 1) {
+            nextDraft.annex_code = text(candidates[0].annex_code).trim();
+            nextDraft.annex_description = text(candidates[0].annex_description).trim();
+          }
+        }
+      }
+
+      if (HISTORIC_ACCOUNTING_FIELDS.has(key) && !manualPoCodes.has(code)) {
+        const poKey = poDocumentIdentity(
+          nextDraft.annex_code,
+          nextDraft.document_number
+        );
+
+        const mappedPo = text(
+          softPoRows.find((item) =>
+            poDocumentIdentity(item.ruc, item.invoice_num) === poKey
+          )?.po_num
+        ).trim();
+
+        nextDraft.po_num = mappedPo;
+      }
+
+      return {
+        ...current,
+        [code]: nextDraft,
+      };
+    });
+
     setPage(1);
     setMessage("");
   }
@@ -2876,11 +3043,20 @@ export default function FixAssetsCat() {
     try {
       const payloads = editedCodes.map((code) => {
         const draft = drafts[code];
+        const row = rows.find((item) => text(item.asset_code) === code);
+
         return {
           asset_code: code,
-          source_name: "WEB",
+          source_name: text(row?.source_name).trim().toUpperCase() || "WEB",
           location_name: upperOrNull(draft.location_name),
           capex_code: upperOrNull(draft.capex_code),
+          po_num: upperOrNull(draft.po_num),
+          subjournal_code: upperOrNull(draft.subjournal_code),
+          voucher_number: upperOrNull(draft.voucher_number),
+          sequence_number: upperOrNull(draft.sequence_number),
+          annex_code: upperOrNull(draft.annex_code),
+          annex_description: upperOrNull(draft.annex_description),
+          document_number: upperOrNull(draft.document_number),
           asset_description: upperOrNull(draft.asset_description),
           asset_type: draft.asset_type.trim() || null,
           assigned_to: upperOrNull(draft.assigned_to),
@@ -3083,8 +3259,19 @@ export default function FixAssetsCat() {
                     />
                   </td>
                   {displayColumns.map((column, columnIndex) => {
-                    const editable = EDITABLE.includes(column.key as EditableKey) && column.key !== "asset_type";
+                    const sourceName = text(row.source_name).trim().toUpperCase();
                     const key = column.key as EditableKey;
+                    const historicAccountingEditable =
+                      sourceName === "HISTORIC"
+                      && HISTORIC_ACCOUNTING_FIELDS.has(key);
+                    const editable =
+                      column.key === "po_num"
+                      || historicAccountingEditable
+                      || (
+                        EDITABLE.includes(key)
+                        && !HISTORIC_ACCOUNTING_FIELDS.has(key)
+                        && column.key !== "asset_type"
+                      );
                     const value = catalogueExcelFilterValue(
                       row,
                       draft,
@@ -3465,26 +3652,21 @@ export default function FixAssetsCat() {
                       />
                     </label>
 
-                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-                      Cuenta origen *
-                      <select
-                        className="input"
-                        value={target.draft.origin_account_code}
-                        onChange={(event) => updateReclassTargetDraft(
-                          target.id,
-                          "origin_account_code",
-                          event.target.value
-                        )}
-                        style={{ height: 34, padding: "6px 8px" }}
-                      >
-                        <option value="">Seleccionar...</option>
-                        {reclassAccountCodes.map((code) => (
-                          <option key={code} value={code}>
-                            {code}{accountDescriptionByCode[code] ? ` - ${accountDescriptionByCode[code]}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <Select
+                      label="Cuenta origen *"
+                      value={target.draft.origin_account_code}
+                      onChange={(event) => updateReclassTargetDraft(
+                        target.id,
+                        "origin_account_code",
+                        event.target.value
+                      )}
+                      options={reclassAccountCodes.map((code) => ({
+                        value: code,
+                        label: `${code}${accountDescriptionByCode[code] ? ` - ${accountDescriptionByCode[code]}` : ""}`,
+                      }))}
+                      placeholder="Seleccionar..."
+                      style={{ minWidth: 190 }}
+                    />
 
                     <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
                       Código CAPEX
@@ -3583,22 +3765,20 @@ export default function FixAssetsCat() {
                       </label>
                     ))}
 
-                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
-                      Situación
-                      <select
-                        className="input"
-                        value={target.draft.asset_situation}
-                        onChange={(event) => updateReclassTargetDraft(
-                          target.id,
-                          "asset_situation",
-                          event.target.value
-                        )}
-                        style={{ height: 34, padding: "6px 8px" }}
-                      >
-                        <option value="OPERATIVO">OPERATIVO</option>
-                        <option value="DEPRECIADO">DEPRECIADO</option>
-                      </select>
-                    </label>
+                    <Select
+                      label="Situación"
+                      value={target.draft.asset_situation}
+                      onChange={(event) => updateReclassTargetDraft(
+                        target.id,
+                        "asset_situation",
+                        event.target.value
+                      )}
+                      options={[
+                        { value: "OPERATIVO", label: "OPERATIVO" },
+                        { value: "DEPRECIADO", label: "DEPRECIADO" },
+                      ]}
+                      style={{ minWidth: 190 }}
+                    />
                   </div>
                 </div>
               );
@@ -3610,12 +3790,16 @@ export default function FixAssetsCat() {
               style={{
                 fontSize: 12,
                 fontWeight: 800,
-                color: reclassAmountsMatch ? "inherit" : "#e4a35d",
+                color: reclassAmountsMatch && reclassTargetsHavePositiveAmounts
+                  ? "inherit"
+                  : "#e4a35d",
               }}
             >
-              {reclassAmountsMatch
-                ? "Distribución cuadrada en PEN y USD."
-                : "La distribución todavía no cuadra exactamente con el total seleccionado."}
+              {!reclassAmountsMatch
+                ? "La distribución todavía no cuadra exactamente con el total seleccionado."
+                : !reclassTargetsHavePositiveAmounts
+                  ? "En reclasificación múltiple, cada destino debe tener montos PEN y USD mayores a 0."
+                  : "Distribución cuadrada en PEN y USD."}
             </span>
 
             <Button
