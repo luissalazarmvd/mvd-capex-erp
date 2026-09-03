@@ -114,11 +114,12 @@ Mantener UI compacta azul petróleo, headers/identificadores sticky y scroll int
 
 - `GET /api/actfij/veta`: fuente de nuevos activos.
 - `GET /api/actfij/veta-vr` y `POST /api/actfij/veta-vr/insert`: detalle VR.
+- `GET /api/actfij/soft-po`: relación de órdenes de servicio con el origen contable.
 - `GET /api/actfij/catalogue` y `POST /api/actfij/catalogue/insert`: catálogo.
 - `POST /api/actfij/catalogue/reclassify`: traslado/reclasificación.
 - `POST /api/actfij/catalogue/dispose`: baja.
 - `GET /api/actfij/deprec`, `POST /api/actfij/deprec/insert`, `POST /api/actfij/deprec/delete`: depreciación.
-- `/api/actfij/mapping`: mapping de cuenta, tasa, tipo de activo y `correlative_start`.
+- `GET /api/actfij/mapping` y `POST /api/actfij/mapping/insert`: mapping de cuenta, tasa, tipo de activo y `correlative_start`.
 - `/api/actfij/ceco`: maestro de centros de costo.
 - `/api/actfij/account`: maestro de cuentas.
 - `/api/actfij/deprec/export` y `/deprec/export/detail`: provisión Concar.
@@ -127,7 +128,7 @@ Mantener UI compacta azul petróleo, headers/identificadores sticky y scroll int
 
 ## Nuevos Activos
 
-`FixAssetsNew.tsx` carga Veta, catálogo, VR, CECO y mapping.
+`FixAssetsNew.tsx` carga Veta desde 2026, catálogo, VR, CECO, mapping y órdenes de servicio de `soft-po`.
 
 ### Clasificación de filas
 
@@ -137,9 +138,14 @@ Mantener UI compacta azul petróleo, headers/identificadores sticky y scroll int
 - Las demás filas son altas normales.
 
 Una fila ya existente por identidad de origen queda bloqueada:
-`subjournal_code + voucher_number + annex_code + document_number`.
+`subjournal_code + voucher_number + sequence_number + annex_code + document_number`.
 
-Para VR también se controla el detalle ya mapeado para no volver a enviarlo.
+Para VR:
+- las filas sin `BAJA` se agrupan por `account_code + capex_code`; la ausencia de CAPEX forma el grupo normal de la cuenta;
+- el detalle ya persistido en `veta-vr` tiene prioridad para resolver el COD existente;
+- el fallback por grupo solo considera filas de catálogo con `source_name = VR`.
+
+`po_num` se propone desde `soft-po` usando la misma identidad contable completa de cinco campos; no volver a vincular únicamente por proveedor/documento.
 
 ### COD
 
@@ -186,12 +192,13 @@ Al crear catálogo:
 
 Filtros tipo Excel por columna.
 En columnas numéricas los valores del selector se redondean/agruparán a 2 decimales.
+Las tablas de activos normales y CAPEX permiten ocultar independientemente las filas ya guardadas; si todas sus filas quedan ocultas, el panel correspondiente se contrae.
 
 ---
 
 ## Catálogo
 
-`FixAssetsCat.tsx` carga catálogo, depreciación auxiliar, VR, CECO, cuentas y mapping.
+`FixAssetsCat.tsx` carga catálogo, depreciación auxiliar, VR, Veta, `soft-po`, CECO, cuentas y mapping.
 
 Mantiene `originals` y `drafts` por `asset_code`; página de 100 filas.
 
@@ -225,6 +232,13 @@ Principales editables:
 
 CECO muestra descripción pero el payload conserva el código.
 
+### Históricos y órdenes de servicio
+
+`po_num` es editable. Al cargar, si está vacío, se completa desde `soft-po` solo por identidad contable completa:
+`subjournal_code + voucher_number + sequence_number + annex_code + document_number`.
+
+Para filas `source_name = HISTORIC` también son editables esos cinco campos contables. Los campos que el usuario va modificando, incluido `po_num`, se acumulan como criterios de búsqueda; solo cuando existe un único registro distinto en `soft-po` se autocompletan OS, subdiario, comprobante, secuencia, anexo, descripción del anexo y documento. No completar si la coincidencia es ambigua.
+
 ### Filas modificadas
 
 - Una modificación válida se marca verde.
@@ -257,8 +271,14 @@ Respetar siempre las validaciones del backend para correlativo, cuenta, CECO, fe
 ### Mapping
 
 `Actualizar mapping` permite editar `deprec_rate_pct`.
-Usa `/api/actfij/mapping` y guarda por lotes.
+Consulta `/api/actfij/mapping`, guarda mediante `/api/actfij/mapping/insert` por lotes y recarga el catálogo después de guardar.
 No modificar otras columnas desde ese modal salvo cambio explícito de requerimiento.
+
+### Exportaciones del catálogo
+
+- Los Excel PEN, USD y completo exportan las filas visibles.
+- El reporte CAPEX omite activos con saldo cero en ambas monedas, crea una hoja por `capex_code` y agrupa por `po_num`.
+- Para el reporte CAPEX, la OS se resuelve desde el draft, luego por `soft-po` usando la identidad contable completa y finalmente como `SIN MAPEO`; Veta aporta la fecha de documento por esa misma identidad.
 
 ---
 
@@ -330,6 +350,10 @@ Preview PEN:
 
 USD usa la misma lógica con los campos USD disponibles; no inventar campos USD inexistentes.
 
+Un saldo final negativo en la moneda activa, evaluado a 2 decimales, invalida la fila aunque no esté seleccionada: se muestra en rojo, entra al contador/filtro de inválidas y no puede enviarse.
+
+La tasa derivada desde la depreciación puede sincronizarse para periodos históricos al cambiar de moneda, pero no debe sobrescribir `applied_rate_pct` del periodo editable.
+
 `Correctas para enviar` muestra y filtra las filas válidas pendientes.
 
 Guardar usa `{ currency, rows }` en lotes de hasta 100.
@@ -395,8 +419,10 @@ Regla:
 - `acquisition_date` sí puede modificarse posteriormente.
 
 `source_name` identifica tanto origen como estado de carga. No reemplazarlo indiscriminadamente:
-- catálogo: `WEB`, `VR`, `TRASLADO`
-- depreciación: `WEB[_PEN|_USD]`, lifecycle BAJA/RECLA y variantes por moneda/BOTH.
+- catálogo: `WEB`, `VR`, `TRASLADO`, `HISTORIC`
+- depreciación: `VIRTUAL`, `WEB[_PEN|_USD]`, lifecycle BAJA/RECLA y variantes por moneda/BOTH.
+
+Las filas de depreciación `VIRTUAL` no cuentan como historial real; en el periodo vigente tampoco deben presentarse como una moneda ya cargada.
 
 Antes de modificar vistas SQL o endpoints revisar cómo cada `source_name` participa en Depreciación y Exportación.
 

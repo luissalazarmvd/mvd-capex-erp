@@ -45,6 +45,7 @@ Este archivo es el índice operativo que debe leerse inmediatamente después de 
 - Tabla editable: revisar el componente completo del flujo, su separación original/draft y `FastCellInput` cuando exista; no inferir reglas desde otra tabla.
 - TI: comenzar y, salvo importaciones explícitas, permanecer en `src/app/ti/page.tsx`.
 - Activos Fijos: abrir solo el componente de la subruta solicitada y luego los endpoints `/api/actfij/*` que ese componente invoque.
+- Activos Fijos, identidad contable u OS: revisar juntos `FixAssetsNew.tsx` y `FixAssetsCat.tsx`; ambos relacionan Veta, catálogo y `soft-po` mediante subdiario, comprobante, secuencia, anexo y documento.
 
 Ejemplos útiles:
 
