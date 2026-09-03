@@ -1324,6 +1324,7 @@ type NewRowsTableProps = {
   existingByIndex: ReadonlyMap<number, CatalogueRow>;
   storedVrCountByIndex: ReadonlyMap<number, number>;
   collapsed: boolean;
+  onExpandCollapsed?: () => void;
 };
 
 const NewRowsTable = memo(function NewRowsTable({
@@ -1345,6 +1346,7 @@ const NewRowsTable = memo(function NewRowsTable({
   existingByIndex,
   storedVrCountByIndex,
   collapsed,
+  onExpandCollapsed,
 }: NewRowsTableProps) {
   const [columnFilters, setColumnFilters] = useState<
     Partial<Record<TableColumnKey, ExcelColumnFilter>>
@@ -1471,16 +1473,27 @@ const NewRowsTable = memo(function NewRowsTable({
           </div>
         </div>
 
-        <Button
-          size="sm"
-          onClick={() => {
-            setColumnFilters({});
-            setExcelSort(null);
-          }}
-          disabled={!hasExcelFilters}
-        >
-          Limpiar filtros
-        </Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {collapsed && onExpandCollapsed ? (
+            <Button
+              size="sm"
+              onClick={onExpandCollapsed}
+            >
+              Mostrar añadidos
+            </Button>
+          ) : null}
+
+          <Button
+            size="sm"
+            onClick={() => {
+              setColumnFilters({});
+              setExcelSort(null);
+            }}
+            disabled={!hasExcelFilters}
+          >
+            Limpiar filtros
+          </Button>
+        </div>
       </div>
       <div className="panel-inner fixassets-new-table-grid" style={{ overflow: collapsed ? "hidden" : "auto", height: collapsed ? 0 : "100%", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
@@ -2022,6 +2035,7 @@ export default function FixAssetsNew() {
   const [vrDetailIndex, setVrDetailIndex] = useState<number | null>(null);
   const [excludedVrIndexes, setExcludedVrIndexes] = useState<Set<number>>(new Set());
   const [skippedCodeIndexes, setSkippedCodeIndexes] = useState<Set<number>>(new Set());
+  const [showCompletedNormalRows, setShowCompletedNormalRows] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -2360,6 +2374,19 @@ export default function FixAssetsNew() {
       && savableNormalRows.every((item) => existingByIndex.has(item.index))
     );
   }, [normalRows, existingByIndex]);
+
+  const normalRowsCollapsed =
+    normalRowsAllAdded && !showCompletedNormalRows;
+
+  useEffect(() => {
+    setShowCompletedNormalRows(false);
+  }, [year, monthFrom, monthTo]);
+
+  useEffect(() => {
+    if (!normalRowsAllAdded) {
+      setShowCompletedNormalRows(false);
+    }
+  }, [normalRowsAllAdded]);
 
   const storedVrCountByIndex = useMemo(() => {
     const result = new Map<number, number>();
@@ -3026,7 +3053,7 @@ export default function FixAssetsNew() {
         {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD fuera de la clase mapeada, existente/duplicado, correlativo saltado, formato inválido o monto incorrecto.</div> : null}
       </div>
 
-      <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: normalRowsAllAdded ? "auto minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
+      <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: normalRowsCollapsed ? "auto minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
         <NewRowsTable
           title="Activos normales"
           subtitle="Las VR sin BAJA aparecen agrupadas; usa Ver para revisar o excluir líneas del paquete. Las filas con BAJA en Descripción activo se muestran solo como referencia y no entran al guardado."
@@ -3045,7 +3072,8 @@ export default function FixAssetsNew() {
           focusedDetailIndex={detailIndex}
           existingByIndex={existingByIndex}
           storedVrCountByIndex={storedVrCountByIndex}
-          collapsed={normalRowsAllAdded}
+          collapsed={normalRowsCollapsed}
+          onExpandCollapsed={() => setShowCompletedNormalRows(true)}
         />
         <NewRowsTable
           title="Activos CAPEX"
