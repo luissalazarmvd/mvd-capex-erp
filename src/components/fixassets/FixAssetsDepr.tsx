@@ -999,9 +999,34 @@ function invalidForCurrency(draft: Draft, currencyMode: CurrencyMode) {
   return CURRENCY_EDITABLE_KEYS[currencyMode].some((key) => !validOptionalNumber(draft[key], key));
 }
 
+function roundedBalance(value: number) {
+  const rounded = Math.round(
+    (value + Math.sign(value || 1) * Number.EPSILON) * 100
+  ) / 100;
+
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+function balanceBeforePeriodForCurrency(row: DeprRow, draft: Draft, currencyMode: CurrencyMode) {
+  const finalValue = derived(row, draft, currencyMode).asset_final_value;
+  const depreciationBase = currencyMode === "PEN"
+    ? num(row.depreciation_base_pen)
+    : num(row.depreciation_base_usd);
+  const depreciationAdjustments = currencyMode === "PEN"
+    ? num(draft.reclass_depr_pen) + num(draft.adjustment_depr_pen) + num(draft.disposal_depr_pen)
+    : num(draft.disposal_depr_usd);
+
+  return finalValue - depreciationBase - depreciationAdjustments;
+}
+
+function zeroBalanceBeforePeriodForCurrency(row: DeprRow, draft: Draft, currencyMode: CurrencyMode) {
+  const balance = balanceBeforePeriodForCurrency(row, draft, currencyMode);
+  return Math.abs(roundedBalance(balance)) <= 0.01;
+}
+
 function negativeBalanceForCurrency(row: DeprRow, draft: Draft, currencyMode: CurrencyMode) {
   const balance = derived(row, draft, currencyMode).asset_balance_pen;
-  return Number(balance.toFixed(2)) < 0;
+  return roundedBalance(balance) < -0.01;
 }
 
 function rowInvalidForCurrency(row: DeprRow, draft: Draft, currencyMode: CurrencyMode) {
@@ -1098,13 +1123,13 @@ function recalculateDepreciation(row: DeprRow, draft: Draft, currencyMode: Curre
   }
 
   const finalValue = derived(row, draft, currencyMode).asset_final_value;
-  const depreciationBase = currencyMode === "PEN"
-    ? num(row.depreciation_base_pen)
-    : num(row.depreciation_base_usd);
-  const depreciationAdjustments = currencyMode === "PEN"
-    ? num(draft.reclass_depr_pen) + num(draft.adjustment_depr_pen) + num(draft.disposal_depr_pen)
-    : num(draft.disposal_depr_usd);
-  const availableBeforePeriod = Math.max(0, finalValue - depreciationBase - depreciationAdjustments);
+  const availableBeforePeriod = balanceBeforePeriodForCurrency(row, draft, currencyMode);
+
+  if (roundedBalance(availableBeforePeriod) <= 0.01) {
+    draft[amountKey] = precise(0);
+    return;
+  }
+
   const calculated = finalValue * (Number(rate) / 12);
   draft[amountKey] = precise(Math.min(calculated, availableBeforePeriod));
 }
@@ -1193,6 +1218,7 @@ function canEditDepreciationRow(row: DeprRow, editablePeriod: string, currencyMo
   if (!assetType || assetType === "No deprecia") return false;
   if (text(row.period_date).slice(0, 7) !== editablePeriod) return false;
   if (operationPeriod && operationPeriod > editablePeriod) return false;
+  if (zeroBalanceBeforePeriodForCurrency(row, toDraft(row), currencyMode)) return false;
   if (assetType !== "LR") return true;
   return !isCurrencySent(row, currencyMode);
 }
@@ -1690,10 +1716,11 @@ export default function FixAssetsDepr() {
         currencyMode
       );
 
-      if (sourceSent) loaded += 1;
-      else pending += 1;
-
       const draft = drafts[id] || toDraft(row);
+      const selectable = canEditDepreciationRow(row, editablePeriod, currencyMode);
+
+      if (sourceSent) loaded += 1;
+      else if (selectable) pending += 1;
 
       if (negativeBalanceForCurrency(row, draft, currencyMode)) {
         invalidCount += 1;
@@ -1720,6 +1747,7 @@ export default function FixAssetsDepr() {
     selectedKeys,
     drafts,
     currencyMode,
+    editablePeriod,
   ]);
 
   const visibleRows = useMemo(
@@ -1741,7 +1769,8 @@ export default function FixAssetsDepr() {
         }
 
         if (statusFilter === "pending") {
-          return !sourceSent;
+          return !sourceSent
+            && canEditDepreciationRow(row, editablePeriod, currencyMode);
         }
 
         if (statusFilter === "invalid") {
@@ -1769,6 +1798,7 @@ export default function FixAssetsDepr() {
       selectedKeys,
       drafts,
       currencyMode,
+      editablePeriod,
     ]
   );
 

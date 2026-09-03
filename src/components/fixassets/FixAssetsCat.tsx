@@ -2263,8 +2263,8 @@ export default function FixAssetsCat() {
           : assetMovementAmount(row, "pen");
 
         if (
-          Math.round(balanceUsd * 100) === 0
-          && Math.round(balancePen * 100) === 0
+          Math.abs(Math.round(balanceUsd * 100)) <= 1
+          && Math.abs(Math.round(balancePen * 100)) <= 1
         ) {
           return;
         }
