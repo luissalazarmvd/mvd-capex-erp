@@ -1395,6 +1395,8 @@ export default function FixAssetsDepr() {
       const next = { ...current };
 
       rows.forEach((row) => {
+        if (text(row.period_date).slice(0, 7) === editablePeriod) return;
+
         const id = rowKey(row);
         const draft = current[id] || toDraft(row);
         const rate = rateFromDepreciation(row, draft, currencyMode);
@@ -1413,6 +1415,8 @@ export default function FixAssetsDepr() {
       const next = { ...current };
 
       rows.forEach((row) => {
+        if (text(row.period_date).slice(0, 7) === editablePeriod) return;
+
         const id = rowKey(row);
         const draft = current[id] || toDraft(row);
         const rate = rateFromDepreciation(row, draft, currencyMode);
@@ -1425,7 +1429,7 @@ export default function FixAssetsDepr() {
 
       return changed ? next : current;
     });
-  }, [rows, currencyMode]);
+  }, [rows, currencyMode, editablePeriod]);
 
   const years = useMemo(() => Array.from(new Set(
     rows.map((row) => period(row.period_date)?.year).filter((value): value is string => Boolean(value))

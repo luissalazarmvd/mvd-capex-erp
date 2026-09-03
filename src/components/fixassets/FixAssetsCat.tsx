@@ -2886,6 +2886,7 @@ export default function FixAssetsCat() {
         editedMappingCodes.forEach((code) => { next[code] = { ...mappingDrafts[code] }; });
         return next;
       });
+      await load();
       setMappingMessage(`${saved} tasa${saved === 1 ? "" : "s"} de depreciación actualizada${saved === 1 ? "" : "s"}.`);
     } catch (error) {
       setMappingError(true);
