@@ -137,6 +137,7 @@ type SoftPoRow = {
   voucher_number: string | null;
   sequence_number: string | null;
   annex_code: string | null;
+  annex_description: string | null;
   document_type: string | null;
   document_number: string | null;
   document_date: string | null;
@@ -2778,6 +2779,9 @@ export default function FixAssetsCat() {
 
           nextDraft.annex_code =
             text(candidate.annex_code).trim();
+
+          nextDraft.annex_description =
+            text(candidate.annex_description).trim();
 
           nextDraft.document_number =
             text(candidate.document_number).trim();
