@@ -1324,7 +1324,8 @@ type NewRowsTableProps = {
   existingByIndex: ReadonlyMap<number, CatalogueRow>;
   storedVrCountByIndex: ReadonlyMap<number, number>;
   collapsed: boolean;
-  onExpandCollapsed?: () => void;
+  hideSaved: boolean;
+  onToggleSaved: () => void;
 };
 
 const NewRowsTable = memo(function NewRowsTable({
@@ -1346,7 +1347,8 @@ const NewRowsTable = memo(function NewRowsTable({
   existingByIndex,
   storedVrCountByIndex,
   collapsed,
-  onExpandCollapsed,
+  hideSaved,
+  onToggleSaved,
 }: NewRowsTableProps) {
   const [columnFilters, setColumnFilters] = useState<
     Partial<Record<TableColumnKey, ExcelColumnFilter>>
@@ -1390,6 +1392,8 @@ const NewRowsTable = memo(function NewRowsTable({
       const { row, index, readOnly } = item;
       const draft = displayDraft(item, drafts);
       const existing = readOnly ? null : existingByIndex.get(index) || null;
+
+      if (hideSaved && existing) return false;
 
       return (
         Object.entries(columnFilters) as Array<
@@ -1444,6 +1448,7 @@ const NewRowsTable = memo(function NewRowsTable({
     existingByIndex,
     columnFilters,
     excelSort,
+    hideSaved,
   ]);
 
   const hasExcelFilters =
@@ -1474,14 +1479,12 @@ const NewRowsTable = memo(function NewRowsTable({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {collapsed && onExpandCollapsed ? (
-            <Button
-              size="sm"
-              onClick={onExpandCollapsed}
-            >
-              Mostrar añadidos
-            </Button>
-          ) : null}
+          <Button
+            size="sm"
+            onClick={onToggleSaved}
+          >
+            {hideSaved ? "Mostrar guardados" : "Ocultar guardados"}
+          </Button>
 
           <Button
             size="sm"
@@ -2035,7 +2038,8 @@ export default function FixAssetsNew() {
   const [vrDetailIndex, setVrDetailIndex] = useState<number | null>(null);
   const [excludedVrIndexes, setExcludedVrIndexes] = useState<Set<number>>(new Set());
   const [skippedCodeIndexes, setSkippedCodeIndexes] = useState<Set<number>>(new Set());
-  const [showCompletedNormalRows, setShowCompletedNormalRows] = useState(false);
+  const [hideSavedNormalRows, setHideSavedNormalRows] = useState(false);
+  const [hideSavedCapexRows, setHideSavedCapexRows] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -2363,30 +2367,27 @@ export default function FixAssetsNew() {
     vetaVrAssetCodeByDetail,
   ]);
 
-  const normalRowsAllAdded = useMemo(() => {
-    const savableNormalRows = normalRows.filter((item) => (
-      !item.readOnly
-      && !item.isBaja
-    ));
+  const normalRowsCollapsed = useMemo(
+    () => (
+      hideSavedNormalRows
+      && normalRows.length > 0
+      && normalRows.every(
+        (item) => !item.readOnly && existingByIndex.has(item.index)
+      )
+    ),
+    [hideSavedNormalRows, normalRows, existingByIndex]
+  );
 
-    return (
-      savableNormalRows.length > 0
-      && savableNormalRows.every((item) => existingByIndex.has(item.index))
-    );
-  }, [normalRows, existingByIndex]);
-
-  const normalRowsCollapsed =
-    normalRowsAllAdded && !showCompletedNormalRows;
-
-  useEffect(() => {
-    setShowCompletedNormalRows(false);
-  }, [year, monthFrom, monthTo]);
-
-  useEffect(() => {
-    if (!normalRowsAllAdded) {
-      setShowCompletedNormalRows(false);
-    }
-  }, [normalRowsAllAdded]);
+  const capexRowsCollapsed = useMemo(
+    () => (
+      hideSavedCapexRows
+      && capexRows.length > 0
+      && capexRows.every(
+        (item) => !item.readOnly && existingByIndex.has(item.index)
+      )
+    ),
+    [hideSavedCapexRows, capexRows, existingByIndex]
+  );
 
   const storedVrCountByIndex = useMemo(() => {
     const result = new Map<number, number>();
@@ -3053,7 +3054,22 @@ export default function FixAssetsNew() {
         {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD fuera de la clase mapeada, existente/duplicado, correlativo saltado, formato inválido o monto incorrecto.</div> : null}
       </div>
 
-      <div className="fixassets-new-tables" style={{ display: "grid", gridTemplateRows: normalRowsCollapsed ? "auto minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, minHeight: 0 }}>
+      <div
+        className="fixassets-new-tables"
+        style={{
+          display: "grid",
+          gridTemplateRows:
+            normalRowsCollapsed && capexRowsCollapsed
+              ? "auto auto"
+              : normalRowsCollapsed
+                ? "auto minmax(0, 1fr)"
+                : capexRowsCollapsed
+                  ? "minmax(0, 1fr) auto"
+                  : "minmax(0, 1fr) minmax(0, 1fr)",
+          gap: 8,
+          minHeight: 0,
+        }}
+      >
         <NewRowsTable
           title="Activos normales"
           subtitle="Las VR sin BAJA aparecen agrupadas; usa Ver para revisar o excluir líneas del paquete. Las filas con BAJA en Descripción activo se muestran solo como referencia y no entran al guardado."
@@ -3073,7 +3089,8 @@ export default function FixAssetsNew() {
           existingByIndex={existingByIndex}
           storedVrCountByIndex={storedVrCountByIndex}
           collapsed={normalRowsCollapsed}
-          onExpandCollapsed={() => setShowCompletedNormalRows(true)}
+          hideSaved={hideSavedNormalRows}
+          onToggleSaved={() => setHideSavedNormalRows((current) => !current)}
         />
         <NewRowsTable
           title="Activos CAPEX"
@@ -3093,7 +3110,9 @@ export default function FixAssetsNew() {
           focusedDetailIndex={detailIndex}
           existingByIndex={existingByIndex}
           storedVrCountByIndex={storedVrCountByIndex}
-          collapsed={false}
+          collapsed={capexRowsCollapsed}
+          hideSaved={hideSavedCapexRows}
+          onToggleSaved={() => setHideSavedCapexRows((current) => !current)}
         />
       </div>
 
