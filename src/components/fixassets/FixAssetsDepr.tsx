@@ -999,6 +999,16 @@ function invalidForCurrency(draft: Draft, currencyMode: CurrencyMode) {
   return CURRENCY_EDITABLE_KEYS[currencyMode].some((key) => !validOptionalNumber(draft[key], key));
 }
 
+function negativeBalanceForCurrency(row: DeprRow, draft: Draft, currencyMode: CurrencyMode) {
+  const balance = derived(row, draft, currencyMode).asset_balance_pen;
+  return Number(balance.toFixed(2)) < 0;
+}
+
+function rowInvalidForCurrency(row: DeprRow, draft: Draft, currencyMode: CurrencyMode) {
+  return invalidForCurrency(draft, currencyMode)
+    || negativeBalanceForCurrency(row, draft, currencyMode);
+}
+
 function currencyField(key: keyof DeprRow, currencyMode: CurrencyMode): keyof DeprRow | null {
   if (currencyMode === "PEN") return key;
   if (key === "reclass_depr_pen" || key === "adjustment_depr_pen") return null;
@@ -1679,9 +1689,14 @@ export default function FixAssetsDepr() {
       if (sourceSent) loaded += 1;
       else pending += 1;
 
-      if (!selectedKeys.has(id)) return;
-
       const draft = drafts[id] || toDraft(row);
+
+      if (negativeBalanceForCurrency(row, draft, currencyMode)) {
+        invalidCount += 1;
+        return;
+      }
+
+      if (!selectedKeys.has(id)) return;
 
       if (invalidForCurrency(draft, currencyMode)) {
         invalidCount += 1;
@@ -1704,11 +1719,14 @@ export default function FixAssetsDepr() {
   ]);
 
   const visibleRows = useMemo(
-    () =>
-      excelFilteredRows.filter((row) => {
+    () => {
+      const filtered = excelFilteredRows.filter((row) => {
+        const id = rowKey(row);
+        const draft = drafts[id] || toDraft(row);
+        const negativeBalance = negativeBalanceForCurrency(row, draft, currencyMode);
+
         if (statusFilter === "all") return true;
 
-        const id = rowKey(row);
         const sourceSent = isCurrencySent(
           row,
           currencyMode
@@ -1722,16 +1740,25 @@ export default function FixAssetsDepr() {
           return !sourceSent;
         }
 
-        if (!selectedKeys.has(id)) {
-          return false;
+        if (statusFilter === "invalid") {
+          return negativeBalance
+            || (
+              selectedKeys.has(id)
+              && invalidForCurrency(draft, currencyMode)
+            );
         }
 
-        const draft = drafts[id] || toDraft(row);
+        return selectedKeys.has(id)
+          && !rowInvalidForCurrency(row, draft, currencyMode);
+      });
 
-        return statusFilter === "invalid"
-          ? invalidForCurrency(draft, currencyMode)
-          : !invalidForCurrency(draft, currencyMode);
-      }),
+      return [...filtered].sort((a, b) => {
+        const aDraft = drafts[rowKey(a)] || toDraft(a);
+        const bDraft = drafts[rowKey(b)] || toDraft(b);
+        return Number(negativeBalanceForCurrency(b, bDraft, currencyMode))
+          - Number(negativeBalanceForCurrency(a, aDraft, currencyMode));
+      });
+    },
     [
       excelFilteredRows,
       statusFilter,
@@ -1801,7 +1828,12 @@ export default function FixAssetsDepr() {
     [rows, editablePeriod, currencyMode]
   );
   const selectedIds = useMemo(() => Array.from(selectedKeys).filter((id) => editableRowIds.has(id)), [selectedKeys, editableRowIds]);
-  const invalidKeys = selectedIds.filter((key) => !drafts[key] || invalidForCurrency(drafts[key], currencyMode));
+  const invalidKeys = selectedIds.filter((key) => {
+    const row = rows.find((candidate) => rowKey(candidate) === key);
+    return !row
+      || !drafts[key]
+      || rowInvalidForCurrency(row, drafts[key], currencyMode);
+  });
   const deletableVisibleRows = useMemo(
     () => visibleRows.filter((row) =>
       text(row.period_date).slice(0, 7) === editablePeriod
@@ -2102,6 +2134,7 @@ export default function FixAssetsDepr() {
         if (!row || !canEditDepreciationRow(row, editablePeriod, currencyMode)) return [];
 
         const draft = drafts[id];
+        if (rowInvalidForCurrency(row, draft, currencyMode)) return [];
         const common = {
           asset_code: text(row.asset_code).trim(),
           period_date: text(row.period_date).slice(0, 10),
@@ -2418,7 +2451,8 @@ export default function FixAssetsDepr() {
                 const selectableRow = canEditDepreciationRow(row, editablePeriod, currencyMode);
                 const selected = selectableRow && selectedKeys.has(id);
                 const focused = historyRowId === id;
-                const bad = selected && invalidForCurrency(draft, currencyMode);
+                const bad = negativeBalanceForCurrency(row, draft, currencyMode)
+                  || (selected && invalidForCurrency(draft, currencyMode));
                 const calculated = derived(row, draft, currencyMode);
                 const background = bad
                   ? "rgba(216,93,39,.32)"
