@@ -90,8 +90,11 @@ type MappingRow = {
 };
 
 type SoftPoRow = {
-  ruc: string | null;
-  invoice_num: string | null;
+  subjournal_code: string | null;
+  voucher_number: string | null;
+  sequence_number: string | null;
+  annex_code: string | null;
+  document_number: string | null;
   po_num: string | null;
 };
 
@@ -205,7 +208,7 @@ function firstDayNextMonth(value: unknown) {
   return `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
 }
 
-function sourceIdentity(row: Pick<VetaRow | CatalogueRow, "subjournal_code" | "voucher_number" | "sequence_number" | "annex_code" | "document_number">) {
+function sourceIdentity(row: Pick<VetaRow | CatalogueRow | SoftPoRow, "subjournal_code" | "voucher_number" | "sequence_number" | "annex_code" | "document_number">) {
   const parts = [
     row.subjournal_code,
     row.voucher_number,
@@ -403,12 +406,6 @@ function upperOrNull(value: string) {
 function costCenterCode(value: string) {
   const raw = value.trim().split(/\s+-\s+/, 1)[0] || "";
   return raw.toLocaleUpperCase("es").replace(/[^0-9A-Z]/g, "").slice(0, 6);
-}
-
-function poDocumentIdentity(annexCode: unknown, documentNumber: unknown) {
-  const annex = text(annexCode).trim().toUpperCase();
-  const document = text(documentNumber).trim().toUpperCase();
-  return annex && document ? `${annex}|${document}` : "";
 }
 
 function draftFrom(row: VetaRow): Draft {
@@ -2058,14 +2055,14 @@ export default function FixAssetsNew() {
           if (accountCode && /^\d{3}$/.test(prefix)) current[accountCode] = prefix;
           return current;
         }, {});
-      const poByDocument = new Map<string, string>();
+      const poBySource = new Map<string, string>();
 
       nextSoftPoRows.forEach((row) => {
-        const key = poDocumentIdentity(row.ruc, row.invoice_num);
+        const key = sourceIdentity(row);
         const poNum = text(row.po_num).trim();
 
-        if (key && poNum && !poByDocument.has(key)) {
-          poByDocument.set(key, poNum);
+        if (key && poNum && !poBySource.has(key)) {
+          poBySource.set(key, poNum);
         }
       });
 
@@ -2073,10 +2070,7 @@ export default function FixAssetsNew() {
 
       nextRows.forEach((row, index) => {
         const draft = draftFrom(row);
-        draft.po_num =
-          poByDocument.get(
-            poDocumentIdentity(row.annex_code, row.document_number)
-          ) || "";
+        draft.po_num = poBySource.get(sourceIdentity(row)) || "";
         nextDrafts[index] = draft;
       });
 

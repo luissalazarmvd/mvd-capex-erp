@@ -131,9 +131,18 @@ type VetaSourceRow = {
 };
 
 type SoftPoRow = {
-  ruc: string | null;
-  supplier_name: string | null;
-  invoice_num: string | null;
+  account_code: string | null;
+  comp_date: string | null;
+  subjournal_code: string | null;
+  voucher_number: string | null;
+  sequence_number: string | null;
+  annex_code: string | null;
+  document_type: string | null;
+  document_number: string | null;
+  document_date: string | null;
+  debit_credit: string | null;
+  usd_amount: number | string | null;
+  pen_amount: number | string | null;
   po_num: string | null;
   po_date: string | null;
   po_total_us: number | string | null;
@@ -217,6 +226,21 @@ const HISTORIC_ACCOUNTING_FIELDS = new Set<EditableKey>([
   "annex_code",
   "document_number",
 ]);
+
+const HISTORIC_LINK_KEYS = [
+  "po_num",
+  "subjournal_code",
+  "voucher_number",
+  "sequence_number",
+  "annex_code",
+  "document_number",
+] as const;
+
+type HistoricLinkKey = (typeof HISTORIC_LINK_KEYS)[number];
+
+const HISTORIC_LINK_FIELDS = new Set<EditableKey>(
+  HISTORIC_LINK_KEYS
+);
 
 type ExcelFilterKind = "text" | "number" | "date";
 type ExcelSortDirection = "asc" | "desc";
@@ -1084,7 +1108,10 @@ function dateOnly(value: unknown) {
 }
 
 function accountingSourceIdentity(
-  row: Pick<CatalogueRow | VetaSourceRow, "subjournal_code" | "voucher_number" | "sequence_number" | "annex_code" | "document_number">
+  row: Pick<
+    CatalogueRow | VetaSourceRow | SoftPoRow,
+    "subjournal_code" | "voucher_number" | "sequence_number" | "annex_code" | "document_number"
+  >
 ) {
   const parts = [
     row.subjournal_code,
@@ -1097,13 +1124,54 @@ function accountingSourceIdentity(
   return parts.some(Boolean) ? parts.join("\u001f") : "";
 }
 
-function poDocumentIdentity(ruc: unknown, invoiceNumber: unknown) {
-  const rucPart = text(ruc).trim().toLocaleUpperCase("es");
-  const invoicePart = text(invoiceNumber).trim().toLocaleUpperCase("es");
+function historicLinkValue(value: unknown) {
+  return text(value).trim().toLocaleUpperCase("es");
+}
 
-  return rucPart && invoicePart
-    ? `${rucPart}\u001f${invoicePart}`
-    : "";
+function softPoLinkIdentity(row: SoftPoRow) {
+  return HISTORIC_LINK_KEYS
+    .map((key) => historicLinkValue(row[key]))
+    .join("\u001f");
+}
+
+function uniqueSoftPoCandidate(
+  rows: SoftPoRow[],
+  draft: Draft,
+  activeKeys: ReadonlySet<HistoricLinkKey>
+) {
+  const filters = Array.from(activeKeys)
+    .map((key) => ({
+      key,
+      value: historicLinkValue(draft[key]),
+    }))
+    .filter((item) => item.value);
+
+  if (!filters.length) return null;
+
+  const unique = new Map<string, SoftPoRow>();
+
+  for (const row of rows) {
+    const matches = filters.every(
+      ({ key, value }) =>
+        historicLinkValue(row[key]) === value
+    );
+
+    if (!matches) continue;
+
+    const identity = softPoLinkIdentity(row);
+
+    if (!unique.has(identity)) {
+      unique.set(identity, row);
+    }
+
+    if (unique.size > 1) {
+      return null;
+    }
+  }
+
+  return unique.size === 1
+    ? Array.from(unique.values())[0]
+    : null;
 }
 
 function currentLimaAccountingPeriod() {
@@ -1431,7 +1499,9 @@ export default function FixAssetsCat() {
   const [rows, setRows] = useState<CatalogueDisplayRow[]>([]);
   const [vetaRows, setVetaRows] = useState<VetaSourceRow[]>([]);
   const [softPoRows, setSoftPoRows] = useState<SoftPoRow[]>([]);
-  const [manualPoCodes, setManualPoCodes] = useState<Set<string>>(new Set());
+  const historicLookupFieldsRef = useRef<
+    Map<string, Set<HistoricLinkKey>>
+  >(new Map());
   const [vetaVrRows, setVetaVrRows] = useState<VetaVrRow[]>([]);
   const [vrDetailAssetCode, setVrDetailAssetCode] = useState<string | null>(null);
   const [deprecCurrentPeriod, setDeprecCurrentPeriod] = useState("");
@@ -1614,43 +1684,42 @@ export default function FixAssetsCat() {
           return current;
         }, {});
 
-      const poByDocument = new Map<string, SoftPoRow>();
+      const poBySource = new Map<string, SoftPoRow>();
 
       nextSoftPoRows.forEach((row) => {
-        const key = poDocumentIdentity(row.ruc, row.invoice_num);
-        if (key && !poByDocument.has(key)) {
-          poByDocument.set(key, row);
+        const key = accountingSourceIdentity(row);
+
+        if (key && !poBySource.has(key)) {
+          poBySource.set(key, row);
         }
       });
 
       const nextDrafts: Record<string, Draft> = {};
       const nextOriginals: Record<string, Draft> = {};
-      const nextManualPoCodes = new Set<string>();
 
       nextRows.forEach((row) => {
         const code = text(row.asset_code);
         const original = toDraft(row);
+
         const mappedPo = text(
-          poByDocument.get(
-            poDocumentIdentity(row.annex_code, row.document_number)
+          poBySource.get(
+            accountingSourceIdentity(row)
           )?.po_num
         ).trim();
 
-        if (original.po_num.trim() && original.po_num.trim() !== mappedPo) {
-          nextManualPoCodes.add(code);
-        }
-
         nextOriginals[code] = original;
+
         nextDrafts[code] = {
           ...original,
           po_num: original.po_num.trim() || mappedPo,
         };
       });
 
+      historicLookupFieldsRef.current.clear();
+
       setRows(nextRows);
       setVetaRows(nextVetaRows);
       setSoftPoRows(nextSoftPoRows);
-      setManualPoCodes(nextManualPoCodes);
       setVetaVrRows(nextVetaVrRows);
       setDeprecCurrentPeriod(currentDeprecPeriod);
       setCecoByCode(nextCecoByCode);
@@ -1728,7 +1797,7 @@ export default function FixAssetsCat() {
   const reclassTotalPen = reclassTotalPenCents / 100;
   const reclassTotalUsd = reclassTotalUsdCents / 100;
 
-  const reclassCapexOptions = useMemo(() => Array.from(new Set(
+  const reclassCapexOptions = useMemo(() => Array.from(new Set<string>(
     rows
       .map((row) => text(row.capex_code).trim())
       .filter((value): value is string => Boolean(value))
@@ -1858,7 +1927,7 @@ export default function FixAssetsCat() {
     && !reclassifying
     && !disposing;
 
-  const catalogueCecoCodes = useMemo(() => Array.from(new Set(
+  const catalogueCecoCodes = useMemo(() => Array.from(new Set<string>(
     rows
       .map((row) => costCenterCode(text(row.cost_center_code)))
       .filter((code) => Boolean(code) && Object.prototype.hasOwnProperty.call(cecoByCode, code))
@@ -2148,16 +2217,13 @@ export default function FixAssetsCat() {
         ? vetaResponse.rows as VetaSourceRow[]
         : [];
 
-      const poByDocument = new Map<string, SoftPoRow>();
+      const poBySource = new Map<string, SoftPoRow>();
 
       softPoRows.forEach((row) => {
-        const key = poDocumentIdentity(
-          row.ruc,
-          row.invoice_num
-        );
+        const key = accountingSourceIdentity(row);
 
-        if (key && !poByDocument.has(key)) {
-          poByDocument.set(key, row);
+        if (key && !poBySource.has(key)) {
+          poBySource.set(key, row);
         }
       });
 
@@ -2202,14 +2268,19 @@ export default function FixAssetsCat() {
           return;
         }
 
-        const poKey = poDocumentIdentity(
-          draft.annex_code,
-          draft.document_number
-        );
+        const poKey = accountingSourceIdentity({
+          ...row,
+          subjournal_code: draft.subjournal_code,
+          voucher_number: draft.voucher_number,
+          sequence_number: draft.sequence_number,
+          annex_code: draft.annex_code,
+          document_number: draft.document_number,
+        });
 
-        const poNum = draft.po_num.trim() || text(
-          poByDocument.get(poKey)?.po_num
-        ).trim() || "SIN MAPEO";
+        const poNum =
+          draft.po_num.trim()
+          || text(poBySource.get(poKey)?.po_num).trim()
+          || "SIN MAPEO";
 
         let byPo = grouped.get(capexCode);
 
@@ -2318,14 +2389,6 @@ export default function FixAssetsCat() {
                     })
                   );
 
-                const poRow =
-                  poByDocument.get(
-                    poDocumentIdentity(
-                      draft.annex_code,
-                      draft.document_number
-                    )
-                  );
-
                 const isoDate =
                   dateOnly(vetaRow?.document_date);
 
@@ -2347,7 +2410,7 @@ export default function FixAssetsCat() {
                   documentDate,
                   draft.subjournal_code.trim(),
                   draft.voucher_number.trim(),
-                  text(poRow?.ruc || draft.annex_code),
+                  draft.annex_code.trim(),
                   draft.annex_description.trim(),
                   draft.document_number.trim(),
                   draft.asset_description.trim(),
@@ -2657,74 +2720,70 @@ export default function FixAssetsCat() {
   }
 
   function update(code: string, key: EditableKey, value: string) {
-    if (key === "po_num") {
-      setManualPoCodes((current) => {
-        const next = new Set(current);
-        next.add(code);
-        return next;
-      });
-    }
+    const row = rows.find(
+      (item) => text(item.asset_code) === code
+    );
+
+    const isHistoric =
+      text(row?.source_name).trim().toUpperCase() === "HISTORIC";
 
     setDrafts((current) => {
       const currentDraft = current[code];
-      if (!currentDraft) return current;
+
+      if (!currentDraft) {
+        return current;
+      }
 
       const nextDraft: Draft = {
         ...currentDraft,
         [key]: value,
       };
 
-      const row = rows.find((item) => text(item.asset_code) === code);
-      const isHistoric = text(row?.source_name).trim().toUpperCase() === "HISTORIC";
+      if (
+        isHistoric
+        && HISTORIC_LINK_FIELDS.has(key)
+      ) {
+        const linkKey = key as HistoricLinkKey;
 
-      if (isHistoric && HISTORIC_ACCOUNTING_FIELDS.has(key)) {
-        const subjournal = nextDraft.subjournal_code.trim().toUpperCase();
-        const voucher = nextDraft.voucher_number.trim().toUpperCase();
-        const sequence = nextDraft.sequence_number.trim().toUpperCase();
-        const annex = nextDraft.annex_code.trim().toUpperCase();
-        const document = nextDraft.document_number.trim().toUpperCase();
+        const currentFields =
+          historicLookupFieldsRef.current.get(code)
+          || new Set<HistoricLinkKey>();
 
-        if (subjournal && voucher && sequence) {
-          let candidates = vetaRows.filter((item) => (
-            text(item.subjournal_code).trim().toUpperCase() === subjournal
-            && text(item.voucher_number).trim().toUpperCase() === voucher
-            && text(item.sequence_number).trim().toUpperCase() === sequence
-          ));
+        const nextFields = new Set<HistoricLinkKey>(currentFields);
+        nextFields.add(linkKey);
 
-          if (annex) {
-            const annexMatches = candidates.filter((item) =>
-              text(item.annex_code).trim().toUpperCase() === annex
-            );
-            if (annexMatches.length) candidates = annexMatches;
-          }
-
-          if (document) {
-            const documentMatches = candidates.filter((item) =>
-              text(item.document_number).trim().toUpperCase() === document
-            );
-            if (documentMatches.length) candidates = documentMatches;
-          }
-
-          if (candidates.length === 1) {
-            nextDraft.annex_code = text(candidates[0].annex_code).trim();
-            nextDraft.annex_description = text(candidates[0].annex_description).trim();
-          }
-        }
-      }
-
-      if (HISTORIC_ACCOUNTING_FIELDS.has(key) && !manualPoCodes.has(code)) {
-        const poKey = poDocumentIdentity(
-          nextDraft.annex_code,
-          nextDraft.document_number
+        historicLookupFieldsRef.current.set(
+          code,
+          nextFields
         );
 
-        const mappedPo = text(
-          softPoRows.find((item) =>
-            poDocumentIdentity(item.ruc, item.invoice_num) === poKey
-          )?.po_num
-        ).trim();
+        const candidate = uniqueSoftPoCandidate(
+          softPoRows,
+          nextDraft,
+          nextFields
+        );
 
-        nextDraft.po_num = mappedPo;
+        if (candidate) {
+          nextDraft.po_num =
+            text(candidate.po_num).trim();
+
+          nextDraft.subjournal_code =
+            text(candidate.subjournal_code).trim();
+
+          nextDraft.voucher_number =
+            text(candidate.voucher_number).trim();
+
+          nextDraft.sequence_number =
+            text(candidate.sequence_number).trim();
+
+          nextDraft.annex_code =
+            text(candidate.annex_code).trim();
+
+          nextDraft.document_number =
+            text(candidate.document_number).trim();
+
+          historicLookupFieldsRef.current.delete(code);
+        }
       }
 
       return {
@@ -2735,6 +2794,7 @@ export default function FixAssetsCat() {
 
     setPage(1);
     setMessage("");
+    setIsError(false);
   }
 
   function commitCostCenter(assetCode: string, value: string) {
