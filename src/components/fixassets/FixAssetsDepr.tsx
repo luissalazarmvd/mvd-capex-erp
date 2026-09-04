@@ -946,6 +946,12 @@ function precise(value: number) {
   return value.toFixed(6);
 }
 
+function normalizedDepreciationRate(value: unknown) {
+  const rate = Number(value);
+  if (!Number.isFinite(rate)) return null;
+  return Math.abs(rate) > 1 ? rate / 100 : rate;
+}
+
 function displayNumber(value: unknown) {
   if (value == null || value === "") return "";
   const parsed = Number(value);
@@ -1130,7 +1136,14 @@ function recalculateDepreciation(row: DeprRow, draft: Draft, currencyMode: Curre
     return;
   }
 
-  const calculated = finalValue * (Number(rate) / 12);
+  const normalizedRate = normalizedDepreciationRate(rate);
+
+  if (normalizedRate === null) {
+    draft[amountKey] = "";
+    return;
+  }
+
+  const calculated = finalValue * (normalizedRate / 12);
   draft[amountKey] = precise(Math.min(calculated, availableBeforePeriod));
 }
 
