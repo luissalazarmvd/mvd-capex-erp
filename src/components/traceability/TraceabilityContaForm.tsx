@@ -77,6 +77,10 @@ type GetResp<T> = {
 
 type TraceabilityTargetRow = {
   office_name: string | null;
+  target_tms_pro: NumericValue;
+  target_lot_usd_pro: NumericValue;
+  target_tms_add: NumericValue;
+  target_lot_usd_add: NumericValue;
   target_tms: NumericValue;
   target_lot_usd: NumericValue;
   target_period: string | null;
@@ -90,8 +94,10 @@ type TargetGetResp = {
 
 type EditableTargetRow = {
   office_name: string;
-  target_tms: string;
-  target_lot_usd: string;
+  target_tms_pro: string;
+  target_lot_usd_pro: string;
+  target_tms_add: string;
+  target_lot_usd_add: string;
 };
 
 type Column = {
@@ -335,7 +341,7 @@ export default function TraceabilityContaForm() {
   const [targetMessageKind, setTargetMessageKind] = useState<"error" | "success">("error");
   const [targetHistory, setTargetHistory] = useState<TraceabilityTargetRow[]>([]);
   const [targetRows, setTargetRows] = useState<EditableTargetRow[]>([]);
-  const [focusedTargetLotUsdOffice, setFocusedTargetLotUsdOffice] = useState<string | null>(null);
+  const [focusedTargetLotUsdCell, setFocusedTargetLotUsdCell] = useState<string | null>(null);
   const [targetYear, setTargetYear] = useState(initialTargetPeriod.year);
   const [targetMonth, setTargetMonth] = useState(initialTargetPeriod.month);
 
@@ -429,8 +435,18 @@ export default function TraceabilityContaForm() {
         const row = rowsByOffice.get(officeName);
         return {
           office_name: officeName,
-          target_tms: targetValueToInput(row?.target_tms ?? null),
-          target_lot_usd: targetValueToInput(row?.target_lot_usd ?? null),
+          target_tms_pro: targetValueToInput(
+            row?.target_tms_pro ?? row?.target_tms ?? null
+          ),
+          target_lot_usd_pro: targetValueToInput(
+            row?.target_lot_usd_pro ?? row?.target_lot_usd ?? null
+          ),
+          target_tms_add: targetValueToInput(
+            row ? (row.target_tms_add ?? 0) : null
+          ),
+          target_lot_usd_add: targetValueToInput(
+            row ? (row.target_lot_usd_add ?? 0) : null
+          ),
         };
       })
     );
@@ -458,7 +474,7 @@ export default function TraceabilityContaForm() {
     setTargetMonth(current.month);
     setTargetHistory([]);
     setTargetRows([]);
-    setFocusedTargetLotUsdOffice(null);
+    setFocusedTargetLotUsdCell(null);
     setTargetMessage(null);
     setTargetPreviewOpen(true);
     void loadTargetHistory();
@@ -484,7 +500,11 @@ export default function TraceabilityContaForm() {
 
   function editTarget(
     officeName: string,
-    field: "target_tms" | "target_lot_usd",
+    field:
+      | "target_tms_pro"
+      | "target_lot_usd_pro"
+      | "target_tms_add"
+      | "target_lot_usd_add",
     value: string
   ) {
     setTargetRows((current) =>
@@ -499,28 +519,50 @@ export default function TraceabilityContaForm() {
     targetRows.length > 0 &&
     targetRows.every(
       (row) =>
-        parseTargetValue(row.target_tms) !== null &&
-        parseTargetValue(row.target_lot_usd) !== null
+        parseTargetValue(row.target_tms_pro) !== null &&
+        parseTargetValue(row.target_lot_usd_pro) !== null &&
+        parseTargetValue(row.target_tms_add) !== null &&
+        parseTargetValue(row.target_lot_usd_add) !== null
     );
 
   const targetTotals = useMemo(() => {
-    let targetTms = 0;
-    let targetLotUsd = 0;
-    let targetTmsValid = targetRows.length > 0;
-    let targetLotUsdValid = targetRows.length > 0;
+    let targetTmsPro = 0;
+    let targetLotUsdPro = 0;
+    let targetTmsAdd = 0;
+    let targetLotUsdAdd = 0;
+    let valid = targetRows.length > 0;
 
     targetRows.forEach((row) => {
-      const parsedTms = parseTargetValue(row.target_tms);
-      const parsedLotUsd = parseTargetValue(row.target_lot_usd);
+      const parsedTmsPro = parseTargetValue(row.target_tms_pro);
+      const parsedLotUsdPro = parseTargetValue(row.target_lot_usd_pro);
+      const parsedTmsAdd = parseTargetValue(row.target_tms_add);
+      const parsedLotUsdAdd = parseTargetValue(row.target_lot_usd_add);
 
-      if (parsedTms === null) targetTmsValid = false;
-      else targetTms += parsedTms;
+      if (
+        parsedTmsPro === null ||
+        parsedLotUsdPro === null ||
+        parsedTmsAdd === null ||
+        parsedLotUsdAdd === null
+      ) {
+        valid = false;
+        return;
+      }
 
-      if (parsedLotUsd === null) targetLotUsdValid = false;
-      else targetLotUsd += parsedLotUsd;
+      targetTmsPro += parsedTmsPro;
+      targetLotUsdPro += parsedLotUsdPro;
+      targetTmsAdd += parsedTmsAdd;
+      targetLotUsdAdd += parsedLotUsdAdd;
     });
 
-    return { targetTms, targetLotUsd, targetTmsValid, targetLotUsdValid };
+    return {
+      targetTmsPro,
+      targetLotUsdPro,
+      targetTmsAdd,
+      targetLotUsdAdd,
+      targetTms: targetTmsPro + targetTmsAdd,
+      targetLotUsd: targetLotUsdPro + targetLotUsdAdd,
+      valid,
+    };
   }, [targetRows]);
 
   async function saveTargets() {
@@ -535,8 +577,10 @@ export default function TraceabilityContaForm() {
           try {
             await apiPost("/api/traceability/conta/target/insert", {
               office_name: row.office_name,
-              target_tms: parseTargetValue(row.target_tms),
-              target_lot_usd: parseTargetValue(row.target_lot_usd),
+              target_tms_pro: parseTargetValue(row.target_tms_pro),
+              target_lot_usd_pro: parseTargetValue(row.target_lot_usd_pro),
+              target_tms_add: parseTargetValue(row.target_tms_add),
+              target_lot_usd_add: parseTargetValue(row.target_lot_usd_add),
               target_period: selectedTargetPeriod,
             });
           } catch (error: unknown) {
@@ -1111,7 +1155,31 @@ export default function TraceabilityContaForm() {
                       className="capex-th"
                       style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
                     >
+                      Target TMS Pro
+                    </th>
+                    <th
+                      className="capex-th"
+                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                    >
+                      Target TMS Add
+                    </th>
+                    <th
+                      className="capex-th"
+                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                    >
                       Target TMS
+                    </th>
+                    <th
+                      className="capex-th"
+                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                    >
+                      Target lote USD Pro
+                    </th>
+                    <th
+                      className="capex-th"
+                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                    >
+                      Target lote USD Add
                     </th>
                     <th
                       className="capex-th"
@@ -1124,8 +1192,18 @@ export default function TraceabilityContaForm() {
 
                 <tbody>
                   {targetRows.map((row, rowIndex) => {
-                    const tmsValid = parseTargetValue(row.target_tms) !== null;
-                    const lotUsdValid = parseTargetValue(row.target_lot_usd) !== null;
+                    const tmsPro = parseTargetValue(row.target_tms_pro);
+                    const tmsAdd = parseTargetValue(row.target_tms_add);
+                    const lotUsdPro = parseTargetValue(row.target_lot_usd_pro);
+                    const lotUsdAdd = parseTargetValue(row.target_lot_usd_add);
+                    const tmsProValid = tmsPro !== null;
+                    const tmsAddValid = tmsAdd !== null;
+                    const lotUsdProValid = lotUsdPro !== null;
+                    const lotUsdAddValid = lotUsdAdd !== null;
+                    const tmsTotal =
+                      tmsPro !== null && tmsAdd !== null ? tmsPro + tmsAdd : null;
+                    const lotUsdTotal =
+                      lotUsdPro !== null && lotUsdAdd !== null ? lotUsdPro + lotUsdAdd : null;
                     const rowBackground =
                       rowIndex % 2 === 0 ? "rgba(255,255,255,.035)" : "rgba(255,255,255,.07)";
 
@@ -1137,55 +1215,155 @@ export default function TraceabilityContaForm() {
                         >
                           {row.office_name}
                         </td>
+
                         <td className="capex-td" style={{ ...cellStyle, background: rowBackground }}>
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={row.target_tms}
+                            value={row.target_tms_pro}
                             onChange={(event) =>
-                              editTarget(row.office_name, "target_tms", event.target.value)
+                              editTarget(row.office_name, "target_tms_pro", event.target.value)
                             }
                             disabled={targetSaving}
-                            aria-invalid={!tmsValid}
-                            title={tmsValid ? "" : "Ingresa un número válido con hasta 6 decimales"}
+                            aria-invalid={!tmsProValid}
+                            title={tmsProValid ? "" : "Ingresa un número válido con hasta 6 decimales"}
                             style={{
                               ...inputStyle,
-                              minWidth: 180,
+                              minWidth: 150,
                               width: "100%",
-                              borderColor: tmsValid
+                              borderColor: tmsProValid
                                 ? "rgba(216,238,255,.18)"
                                 : "rgba(216,93,39,.85)",
-                              background: tmsValid ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.12)",
+                              background: tmsProValid
+                                ? "rgba(0,0,0,.10)"
+                                : "rgba(216,93,39,.12)",
                             }}
                           />
                         </td>
+
+                        <td className="capex-td" style={{ ...cellStyle, background: rowBackground }}>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={row.target_tms_add}
+                            onChange={(event) =>
+                              editTarget(row.office_name, "target_tms_add", event.target.value)
+                            }
+                            disabled={targetSaving}
+                            aria-invalid={!tmsAddValid}
+                            title={tmsAddValid ? "" : "Ingresa un número válido con hasta 6 decimales"}
+                            style={{
+                              ...inputStyle,
+                              minWidth: 150,
+                              width: "100%",
+                              borderColor: tmsAddValid
+                                ? "rgba(216,238,255,.18)"
+                                : "rgba(216,93,39,.85)",
+                              background: tmsAddValid
+                                ? "rgba(0,0,0,.10)"
+                                : "rgba(216,93,39,.12)",
+                            }}
+                          />
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellStyle, background: rowBackground }}>
+                          <div
+                            style={{
+                              ...inputStyle,
+                              minWidth: 150,
+                              width: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "flex-end",
+                              background: "rgba(255,255,255,.06)",
+                            }}
+                          >
+                            {tmsTotal === null ? "—" : formatTargetNumber(tmsTotal)}
+                          </div>
+                        </td>
+
                         <td className="capex-td" style={{ ...cellStyle, background: rowBackground }}>
                           <input
                             type="text"
                             inputMode="decimal"
                             value={
-                              focusedTargetLotUsdOffice === row.office_name
-                                ? row.target_lot_usd
-                                : formatTargetUsdInput(row.target_lot_usd)
+                              focusedTargetLotUsdCell === `${row.office_name}:pro`
+                                ? row.target_lot_usd_pro
+                                : formatTargetUsdInput(row.target_lot_usd_pro)
                             }
-                            onFocus={() => setFocusedTargetLotUsdOffice(row.office_name)}
-                            onBlur={() => setFocusedTargetLotUsdOffice(null)}
+                            onFocus={() => setFocusedTargetLotUsdCell(`${row.office_name}:pro`)}
+                            onBlur={() => setFocusedTargetLotUsdCell(null)}
                             onChange={(event) =>
-                              editTarget(row.office_name, "target_lot_usd", event.target.value)
+                              editTarget(row.office_name, "target_lot_usd_pro", event.target.value)
                             }
                             disabled={targetSaving}
-                            aria-invalid={!lotUsdValid}
-                            title={lotUsdValid ? "" : "Ingresa un número válido con hasta 6 decimales"}
+                            aria-invalid={!lotUsdProValid}
+                            title={
+                              lotUsdProValid ? "" : "Ingresa un número válido con hasta 6 decimales"
+                            }
                             style={{
                               ...inputStyle,
-                              minWidth: 180,
+                              minWidth: 170,
                               width: "100%",
-                              borderColor: lotUsdValid
+                              borderColor: lotUsdProValid
                                 ? "rgba(216,238,255,.18)"
                                 : "rgba(216,93,39,.85)",
-                              background: lotUsdValid ? "rgba(0,0,0,.10)" : "rgba(216,93,39,.12)",
+                              background: lotUsdProValid
+                                ? "rgba(0,0,0,.10)"
+                                : "rgba(216,93,39,.12)",
                             }}
                           />
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellStyle, background: rowBackground }}>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={
+                              focusedTargetLotUsdCell === `${row.office_name}:add`
+                                ? row.target_lot_usd_add
+                                : formatTargetUsdInput(row.target_lot_usd_add)
+                            }
+                            onFocus={() => setFocusedTargetLotUsdCell(`${row.office_name}:add`)}
+                            onBlur={() => setFocusedTargetLotUsdCell(null)}
+                            onChange={(event) =>
+                              editTarget(row.office_name, "target_lot_usd_add", event.target.value)
+                            }
+                            disabled={targetSaving}
+                            aria-invalid={!lotUsdAddValid}
+                            title={
+                              lotUsdAddValid ? "" : "Ingresa un número válido con hasta 6 decimales"
+                            }
+                            style={{
+                              ...inputStyle,
+                              minWidth: 170,
+                              width: "100%",
+                              borderColor: lotUsdAddValid
+                                ? "rgba(216,238,255,.18)"
+                                : "rgba(216,93,39,.85)",
+                              background: lotUsdAddValid
+                                ? "rgba(0,0,0,.10)"
+                                : "rgba(216,93,39,.12)",
+                            }}
+                          />
+                        </td>
+
+                        <td className="capex-td" style={{ ...cellStyle, background: rowBackground }}>
+                          <div
+                            style={{
+                              ...inputStyle,
+                              minWidth: 170,
+                              width: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "flex-end",
+                              background: "rgba(255,255,255,.06)",
+                            }}
+                          >
+                            {lotUsdTotal === null
+                              ? "—"
+                              : `$${formatTargetNumber(lotUsdTotal)}`}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1193,7 +1371,7 @@ export default function TraceabilityContaForm() {
 
                   {targetLoading ? (
                     <tr className="capex-tr">
-                      <td className="capex-td" colSpan={3} style={{ ...cellStyle, fontWeight: 900 }}>
+                      <td className="capex-td" colSpan={7} style={{ ...cellStyle, fontWeight: 900 }}>
                         Cargando targets…
                       </td>
                     </tr>
@@ -1201,7 +1379,7 @@ export default function TraceabilityContaForm() {
 
                   {!targetLoading && targetRows.length === 0 ? (
                     <tr className="capex-tr">
-                      <td className="capex-td" colSpan={3} style={{ ...cellStyle, fontWeight: 900 }}>
+                      <td className="capex-td" colSpan={7} style={{ ...cellStyle, fontWeight: 900 }}>
                         No se encontraron oficinas en el historial de targets.
                       </td>
                     </tr>
@@ -1238,7 +1416,41 @@ export default function TraceabilityContaForm() {
                           textAlign: "right",
                         }}
                       >
-                        {targetTotals.targetTmsValid
+                        {targetTotals.valid
+                          ? formatTargetNumber(targetTotals.targetTmsPro)
+                          : "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellStyle,
+                          position: "sticky",
+                          bottom: 0,
+                          zIndex: 10,
+                          background: "rgb(6, 77, 121)",
+                          fontWeight: 900,
+                          borderTop: "2px solid rgba(216,238,255,.35)",
+                          textAlign: "right",
+                        }}
+                      >
+                        {targetTotals.valid
+                          ? formatTargetNumber(targetTotals.targetTmsAdd)
+                          : "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellStyle,
+                          position: "sticky",
+                          bottom: 0,
+                          zIndex: 10,
+                          background: "rgb(6, 77, 121)",
+                          fontWeight: 900,
+                          borderTop: "2px solid rgba(216,238,255,.35)",
+                          textAlign: "right",
+                        }}
+                      >
+                        {targetTotals.valid
                           ? formatTargetNumber(targetTotals.targetTms)
                           : "—"}
                       </td>
@@ -1255,7 +1467,41 @@ export default function TraceabilityContaForm() {
                           textAlign: "right",
                         }}
                       >
-                        {targetTotals.targetLotUsdValid
+                        {targetTotals.valid
+                          ? `$${formatTargetNumber(targetTotals.targetLotUsdPro)}`
+                          : "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellStyle,
+                          position: "sticky",
+                          bottom: 0,
+                          zIndex: 10,
+                          background: "rgb(6, 77, 121)",
+                          fontWeight: 900,
+                          borderTop: "2px solid rgba(216,238,255,.35)",
+                          textAlign: "right",
+                        }}
+                      >
+                        {targetTotals.valid
+                          ? `$${formatTargetNumber(targetTotals.targetLotUsdAdd)}`
+                          : "—"}
+                      </td>
+                      <td
+                        className="capex-td"
+                        style={{
+                          ...cellStyle,
+                          position: "sticky",
+                          bottom: 0,
+                          zIndex: 10,
+                          background: "rgb(6, 77, 121)",
+                          fontWeight: 900,
+                          borderTop: "2px solid rgba(216,238,255,.35)",
+                          textAlign: "right",
+                        }}
+                      >
+                        {targetTotals.valid
                           ? `$${formatTargetNumber(targetTotals.targetLotUsd)}`
                           : "—"}
                       </td>
