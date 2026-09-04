@@ -1413,50 +1413,6 @@ export default function FixAssetsDepr() {
 
   useEffect(() => { void load(); }, [load]);
 
-  useEffect(() => {
-    if (!rows.length) return;
-
-    setDrafts((current) => {
-      let changed = false;
-      const next = { ...current };
-
-      rows.forEach((row) => {
-        if (text(row.period_date).slice(0, 7) === editablePeriod) return;
-
-        const id = rowKey(row);
-        const draft = current[id] || toDraft(row);
-        const rate = rateFromDepreciation(row, draft, currencyMode);
-
-        if (draft.applied_rate_pct !== rate) {
-          next[id] = { ...draft, applied_rate_pct: rate };
-          changed = true;
-        }
-      });
-
-      return changed ? next : current;
-    });
-
-    setOriginals((current) => {
-      let changed = false;
-      const next = { ...current };
-
-      rows.forEach((row) => {
-        if (text(row.period_date).slice(0, 7) === editablePeriod) return;
-
-        const id = rowKey(row);
-        const draft = current[id] || toDraft(row);
-        const rate = rateFromDepreciation(row, draft, currencyMode);
-
-        if (draft.applied_rate_pct !== rate) {
-          next[id] = { ...draft, applied_rate_pct: rate };
-          changed = true;
-        }
-      });
-
-      return changed ? next : current;
-    });
-  }, [rows, currencyMode, editablePeriod]);
-
   const years = useMemo(() => Array.from(new Set(
     rows.map((row) => period(row.period_date)?.year).filter((value): value is string => Boolean(value))
   )).sort().reverse(), [rows]);
