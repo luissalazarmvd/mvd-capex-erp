@@ -208,6 +208,8 @@ type ReclassTarget = {
   amount_usd: string;
 };
 
+type AdjustmentTargetVariable = "" | "ACQUISITION" | "RECLASS";
+
 type MappingDraft = { deprec_rate_pct: string };
 
 const EDITABLE = [
@@ -1510,8 +1512,10 @@ export default function FixAssetsCat() {
   const [accountRows, setAccountRows] = useState<AccountRow[]>([]);
   const [codePrefixByAccount, setCodePrefixByAccount] = useState<Record<string, string>>({});
   const [selectedReclassCodes, setSelectedReclassCodes] = useState<Set<string>>(new Set());
-  const [selectedAssetAction, setSelectedAssetAction] = useState<"TRASLADO" | "BAJA">("TRASLADO");
+  const [selectedAssetAction, setSelectedAssetAction] = useState<"TRASLADO" | "AJUSTE" | "BAJA">("TRASLADO");
   const [reclassTargets, setReclassTargets] = useState<ReclassTarget[]>([emptyReclassTarget()]);
+  const [adjustTargetCode, setAdjustTargetCode] = useState("");
+  const [adjustTargetVariable, setAdjustTargetVariable] = useState<AdjustmentTargetVariable>("");
   const [reclassifying, setReclassifying] = useState(false);
   const [disposing, setDisposing] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -1729,6 +1733,8 @@ export default function FixAssetsCat() {
       setSelectedReclassCodes(new Set());
       setSelectedAssetAction("TRASLADO");
       setReclassTargets([emptyReclassTarget()]);
+      setAdjustTargetCode("");
+      setAdjustTargetVariable("");
       setVrDetailAssetCode(null);
       setDrafts(nextDrafts);
       setOriginals(nextOriginals);
@@ -1797,6 +1803,23 @@ export default function FixAssetsCat() {
 
   const reclassTotalPen = reclassTotalPenCents / 100;
   const reclassTotalUsd = reclassTotalUsdCents / 100;
+
+  const adjustmentTargetOptions = useMemo(() => rows
+    .filter((row) => {
+      const code = text(row.asset_code).trim();
+      return Boolean(code)
+        && !selectedReclassCodes.has(code)
+        && !dateOnly(row.disposal_date);
+    })
+    .sort((a, b) => text(a.asset_code).localeCompare(
+      text(b.asset_code),
+      undefined,
+      { numeric: true }
+    )), [rows, selectedReclassCodes]);
+
+  const adjustmentTargetRow = useMemo(() => rows.find((row) => (
+    text(row.asset_code).trim() === adjustTargetCode.trim()
+  )) || null, [rows, adjustTargetCode]);
 
   const reclassCapexOptions = useMemo(() => Array.from(new Set<string>(
     rows
@@ -1891,6 +1914,18 @@ export default function FixAssetsCat() {
     });
   }, [reclassTargets.length, reclassTotalPenCents, reclassTotalUsdCents]);
 
+  useEffect(() => {
+    if (!selectedReclassCodes.size) {
+      if (adjustTargetCode) setAdjustTargetCode("");
+      if (adjustTargetVariable) setAdjustTargetVariable("");
+      return;
+    }
+
+    if (adjustTargetCode && selectedReclassCodes.has(adjustTargetCode.trim())) {
+      setAdjustTargetCode("");
+    }
+  }, [selectedReclassCodes, adjustTargetCode, adjustTargetVariable]);
+
   const canReclassify = selectedAssetAction === "TRASLADO"
     && reclassSelectedRows.length > 0
     && editedCodes.length === 0
@@ -1910,6 +1945,19 @@ export default function FixAssetsCat() {
       && validReclassAmount(target.amount_pen)
       && validReclassAmount(target.amount_usd)
     ))
+    && !loading
+    && !saving
+    && !reclassifying
+    && !disposing;
+
+  const canAdjust = selectedAssetAction === "AJUSTE"
+    && reclassSelectedRows.length > 0
+    && editedCodes.length === 0
+    && /^\d{7}$/.test(adjustTargetCode.trim())
+    && Boolean(adjustmentTargetRow)
+    && !selectedReclassCodes.has(adjustTargetCode.trim())
+    && !dateOnly(adjustmentTargetRow?.disposal_date)
+    && (adjustTargetVariable === "ACQUISITION" || adjustTargetVariable === "RECLASS")
     && !loading
     && !saving
     && !reclassifying
@@ -3063,6 +3111,43 @@ export default function FixAssetsCat() {
     }
   }
 
+  async function executeAdjustment() {
+    if (!canAdjust || !adjustmentTargetRow) return;
+
+    const destinationCode = text(adjustmentTargetRow.asset_code).trim();
+    const targetVariableLabel = adjustTargetVariable === "ACQUISITION"
+      ? "Var. Adquisición"
+      : "Var. Reclasificación";
+    const moved = reclassSelectedRows.length;
+    const amountPen = reclassTotalPen;
+    const amountUsd = reclassTotalUsd;
+
+    setReclassifying(true);
+    setMessage("");
+    setIsError(false);
+
+    try {
+      await apiPost("/api/actfij/catalogue/adjust", {
+        source_rows: reclassSelectedRows.map((row) => ({
+          asset_code: text(row.asset_code).trim(),
+        })),
+        destination_asset_code: destinationCode,
+        destination_var: adjustTargetVariable,
+      });
+
+      await load();
+
+      setMessage(
+        `${moved} activo${moved === 1 ? "" : "s"} ajustado${moved === 1 ? "" : "s"} al COD ${destinationCode}. ${targetVariableLabel}: PEN ${formatAmountTotal(amountPen)} · USD ${formatAmountTotal(amountUsd)}.`
+      );
+    } catch (error) {
+      setIsError(true);
+      setMessage(error instanceof Error ? error.message : "No se pudo completar el ajuste");
+    } finally {
+      setReclassifying(false);
+    }
+  }
+
   async function executeDisposal() {
     if (!canDispose) return;
 
@@ -3186,6 +3271,14 @@ export default function FixAssetsCat() {
           </Button>
           <Button
             size="sm"
+            variant={selectedAssetAction === "AJUSTE" ? "primary" : undefined}
+            onClick={() => setSelectedAssetAction("AJUSTE")}
+            disabled={!reclassSelectedRows.length || loading || saving || reclassifying || disposing}
+          >
+            Ajustes ({reclassSelectedRows.length})
+          </Button>
+          <Button
+            size="sm"
             variant={selectedAssetAction === "BAJA" ? "primary" : undefined}
             onClick={() => setSelectedAssetAction("BAJA")}
             disabled={!reclassSelectedRows.length || loading || saving || reclassifying || disposing}
@@ -3237,6 +3330,20 @@ export default function FixAssetsCat() {
 
       <datalist id="fixassets-cat-reclass-capex-options">
         {reclassCapexOptions.map((value) => <option key={value} value={value} />)}
+      </datalist>
+
+      <datalist id="fixassets-cat-adjust-target-options">
+        {adjustmentTargetOptions.map((row) => {
+          const code = text(row.asset_code).trim();
+          const description = text(row.asset_description).trim();
+          return (
+            <option
+              key={code}
+              value={code}
+              label={`${code}${description ? ` - ${description}` : ""}`}
+            />
+          );
+        })}
       </datalist>
 
       <div className="panel-inner fixassets-cat-table" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
@@ -3320,7 +3427,7 @@ export default function FixAssetsCat() {
                       disabled={loading || saving || reclassifying || disposing}
                       onChange={() => toggleReclassSelection(row)}
                       onClick={(event) => event.stopPropagation()}
-                      aria-label={`Seleccionar ${code} para traslado o baja`}
+                      aria-label={`Seleccionar ${code} para traslado, ajuste o baja`}
                     />
                   </td>
                   {displayColumns.map((column, columnIndex) => {
@@ -3876,6 +3983,186 @@ export default function FixAssetsCat() {
               {reclassifying
                 ? "Reclasificando..."
                 : `Confirmar reclasificación (${reclassTargets.length} destino${reclassTargets.length === 1 ? "" : "s"})`}
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
+      {reclassSelectedRows.length && selectedAssetAction === "AJUSTE" ? (
+        <section
+          className="panel-inner"
+          style={{
+            padding: 12,
+            display: "grid",
+            gap: 12,
+            borderColor: "rgba(91,181,214,.62)",
+            background: "rgba(35,93,118,.20)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <strong>Ajuste entre activos</strong>
+              <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
+                {reclassSelectedRows.length} activo{reclassSelectedRows.length === 1 ? "" : "s"} · PEN {formatAmountTotal(reclassTotalPen)} · USD {formatAmountTotal(reclassTotalUsd)}
+              </span>
+            </div>
+
+            <Button
+              size="sm"
+              onClick={() => {
+                setSelectedReclassCodes(new Set());
+                setSelectedAssetAction("TRASLADO");
+                setReclassTargets([emptyReclassTarget()]);
+                setAdjustTargetCode("");
+                setAdjustTargetVariable("");
+              }}
+              disabled={reclassifying || disposing}
+            >
+              Limpiar selección
+            </Button>
+          </div>
+
+          <div className="muted" style={{ fontSize: 12 }}>
+            El valor final de los COD origen se registrará en negativo en Var. Reclasificación PEN y USD. El total se sumará a un único COD existente en la variable destino seleccionada.
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              COD destino *
+              <input
+                className="input"
+                list="fixassets-cat-adjust-target-options"
+                value={adjustTargetCode}
+                onChange={(event) => setAdjustTargetCode(event.target.value.trim())}
+                placeholder="Buscar COD - Descripción"
+                style={{ height: 34, padding: "6px 8px" }}
+              />
+            </label>
+
+            <Select
+              label="Variable destino *"
+              value={adjustTargetVariable}
+              onChange={(event) => setAdjustTargetVariable(
+                event.target.value as AdjustmentTargetVariable
+              )}
+              options={[
+                { value: "ACQUISITION", label: "Var. Adquisición" },
+                { value: "RECLASS", label: "Var. Reclasificación" },
+              ]}
+              placeholder="Seleccionar..."
+              style={{ minWidth: 210 }}
+            />
+
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              Monto PEN
+              <input
+                className="input"
+                value={formatAmountTotal(reclassTotalPen)}
+                readOnly
+                style={{ height: 34, padding: "6px 8px", textAlign: "right" }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              Monto USD
+              <input
+                className="input"
+                value={formatAmountTotal(reclassTotalUsd)}
+                readOnly
+                style={{ height: 34, padding: "6px 8px", textAlign: "right" }}
+              />
+            </label>
+          </div>
+
+          {adjustTargetCode && !adjustmentTargetRow ? (
+            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
+              El COD destino no existe en el catálogo.
+            </div>
+          ) : null}
+
+          {adjustmentTargetRow && selectedReclassCodes.has(text(adjustmentTargetRow.asset_code).trim()) ? (
+            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
+              El COD destino no puede ser uno de los COD origen seleccionados.
+            </div>
+          ) : null}
+
+          {adjustmentTargetRow && dateOnly(adjustmentTargetRow.disposal_date) ? (
+            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
+              El COD destino tiene fecha de baja y no puede recibir el ajuste.
+            </div>
+          ) : null}
+
+          {adjustmentTargetRow ? (
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                padding: 12,
+                borderRadius: 10,
+                border: "1px solid rgba(147,211,230,.30)",
+                background: "rgba(11,77,107,.28)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <strong>Activo destino existente</strong>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  Solo lectura
+                </span>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
+                {[
+                  ["COD", text(adjustmentTargetRow.asset_code)],
+                  ["Descripción", text(adjustmentTargetRow.asset_description)],
+                  [
+                    "Cuenta origen",
+                    `${text(adjustmentTargetRow.origin_account_code)}${text(adjustmentTargetRow.origin_account_desc).trim() ? ` - ${text(adjustmentTargetRow.origin_account_desc)}` : ""}`,
+                  ],
+                  ["Código CAPEX", text(adjustmentTargetRow.capex_code)],
+                  [
+                    "Centro de costo",
+                    `${costCenterCode(text(adjustmentTargetRow.cost_center_code))}${text(adjustmentTargetRow.cost_center_desc).trim() ? ` - ${text(adjustmentTargetRow.cost_center_desc)}` : ""}`,
+                  ],
+                  ["Tipo activo", text(adjustmentTargetRow.asset_type)],
+                  ["Fecha adquisición", dateOnly(adjustmentTargetRow.acquisition_date)],
+                  ["Fecha operación", dateOnly(adjustmentTargetRow.operation_date)],
+                  ["Ubicación", text(adjustmentTargetRow.location_name)],
+                  ["Asignado a", text(adjustmentTargetRow.assigned_to)],
+                  ["Área", text(adjustmentTargetRow.area_name)],
+                  ["Marca", text(adjustmentTargetRow.brand)],
+                  ["Modelo", text(adjustmentTargetRow.model)],
+                  ["Serie", text(adjustmentTargetRow.serial_number)],
+                  ["Color", text(adjustmentTargetRow.color)],
+                  ["Método depreciación", text(adjustmentTargetRow.depreciation_method)],
+                  ["Situación", text(adjustmentTargetRow.asset_situation)],
+                  ["Comentario", text(adjustmentTargetRow.asset_comment)],
+                  ["Valor actual PEN", twoDecimals(assetMovementAmount(adjustmentTargetRow, "pen"))],
+                  ["Valor actual USD", twoDecimals(assetMovementAmount(adjustmentTargetRow, "usd"))],
+                ].map(([label, value]) => (
+                  <label key={label} style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                    {label}
+                    <input
+                      className="input"
+                      value={value}
+                      readOnly
+                      style={{ height: 34, padding: "6px 8px" }}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void executeAdjustment()}
+              disabled={!canAdjust}
+            >
+              {reclassifying
+                ? "Ajustando..."
+                : `Confirmar ajuste a ${adjustTargetCode || "COD destino"}`}
             </Button>
           </div>
         </section>
