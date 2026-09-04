@@ -1147,6 +1147,7 @@ function recalculateDepreciation(row: DeprRow, draft: Draft, currencyMode: Curre
   draft[amountKey] = precise(Math.min(calculated, availableBeforePeriod));
 }
 
+
 function rateFromDepreciation(row: DeprRow, draft: Draft, currencyMode: CurrencyMode) {
   const amount = currencyMode === "PEN"
     ? draft.depreciation_amount_pen
