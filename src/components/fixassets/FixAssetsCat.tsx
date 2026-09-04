@@ -2616,7 +2616,7 @@ export default function FixAssetsCat() {
           const isoDate = dateOnly(value);
 
           if (!isoDate) {
-            return "";
+            return 0;
           }
 
           const [year, month, day] = isoDate
@@ -2636,7 +2636,7 @@ export default function FixAssetsCat() {
             .replace(/,/g, "");
 
           if (!clean) {
-            return "";
+            return 0;
           }
 
           const parsed = Number(clean);
@@ -2646,7 +2646,9 @@ export default function FixAssetsCat() {
             : text(value);
         }
 
-        return text(value);
+        const cleanText = text(value).trim();
+
+        return cleanText || 0;
       });
     });
 
