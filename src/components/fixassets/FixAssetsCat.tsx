@@ -1110,6 +1110,44 @@ function dateOnly(value: unknown) {
   return text(value).slice(0, 10);
 }
 
+function excelDateValue(value: unknown): number | string {
+  const isoDate = dateOnly(value);
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) {
+    return isoDate;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  if (year < 1900) {
+    return isoDate;
+  }
+
+  const utcMillis = Date.UTC(year, month - 1, day);
+  const checkedDate = new Date(utcMillis);
+
+  if (
+    checkedDate.getUTCFullYear() !== year
+    || checkedDate.getUTCMonth() !== month - 1
+    || checkedDate.getUTCDate() !== day
+  ) {
+    return isoDate;
+  }
+
+  const millisecondsPerDay = 86_400_000;
+  const excelEpoch = Date.UTC(1899, 11, 31);
+  const excelLeapYearOffset =
+    utcMillis >= Date.UTC(1900, 2, 1) ? 1 : 0;
+
+  return (
+    (utcMillis - excelEpoch) / millisecondsPerDay
+    + excelLeapYearOffset
+  );
+}
+
 function accountingSourceIdentity(
   row: Pick<
     CatalogueRow | VetaSourceRow | SoftPoRow,
@@ -2438,22 +2476,8 @@ export default function FixAssetsCat() {
                     })
                   );
 
-                const isoDate =
-                  dateOnly(vetaRow?.document_date);
-
-                const dateMatch =
-                  isoDate.match(
-                    /^(\d{4})-(\d{2})-(\d{2})$/
-                  );
-
                 const documentDate =
-                  dateMatch
-                    ? new Date(
-                        Number(dateMatch[1]),
-                        Number(dateMatch[2]) - 1,
-                        Number(dateMatch[3])
-                      )
-                    : "";
+                  excelDateValue(vetaRow?.document_date);
 
                 sheetRows.push([
                   documentDate,
@@ -2478,7 +2502,7 @@ export default function FixAssetsCat() {
         const worksheet = XLSX.utils.aoa_to_sheet(
           sheetRows,
           {
-            cellDates: true,
+            cellDates: false,
             dateNF: "dd/mm/yyyy",
           }
         );
@@ -2613,21 +2637,7 @@ export default function FixAssetsCat() {
         );
 
         if (String(column.key).endsWith("_date")) {
-          const isoDate = dateOnly(value);
-
-          if (!isoDate) {
-            return 0;
-          }
-
-          const [year, month, day] = isoDate
-            .split("-")
-            .map(Number);
-
-          return new Date(
-            year,
-            month - 1,
-            day
-          );
+          return excelDateValue(value);
         }
 
         if (catalogueExcelFilterKind(column.key) === "number") {
@@ -2671,7 +2681,7 @@ export default function FixAssetsCat() {
         totalRow,
       ],
       {
-        cellDates: true,
+        cellDates: false,
         dateNF: "dd/mm/yyyy",
       }
     );
@@ -2707,13 +2717,6 @@ export default function FixAssetsCat() {
 
       exportColumns.forEach(
         (column, columnIndex) => {
-          if (
-            catalogueExcelFilterKind(column.key)
-            !== "number"
-          ) {
-            return;
-          }
-
           const cellRef = `${XLSX.utils.encode_col(
             columnIndex
           )}${excelRow}`;
@@ -2724,7 +2727,14 @@ export default function FixAssetsCat() {
             return;
           }
 
-          cell.z = "0.00";
+          if (String(column.key).endsWith("_date")) {
+            cell.z = "dd/mm/yyyy";
+          } else if (
+            catalogueExcelFilterKind(column.key)
+            === "number"
+          ) {
+            cell.z = "0.00";
+          }
         }
       );
     }
