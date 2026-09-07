@@ -9,6 +9,7 @@ const NAV = [
   { href: "/traceability/entries", label: "Validar Datos" },
   { href: "/traceability/status", label: "Mineral No Disponible" },
   { href: "/traceability/conta", label: "Lotes Pagados" },
+  { href: "/traceability/cm-inputs", label: "CM Inputs" },
 ];
 
 export default function TraceabilityTopNav() {

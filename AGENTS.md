@@ -62,10 +62,12 @@ Campañas, consumos, entradas, producción, stock, mapping y ML.
 Endpoints bajo `/api/refineria/*`. Preservar relaciones campaña → consumo → stock/producción.
 
 ### Trazabilidad
-Rutas `upload`, `entries`, `status`, `conta`.
+Rutas `upload`, `entries`, `status`, `conta`, `cm-inputs`.
 Las tablas tienen filtros, edición, Excel y claves propias.
 `TraceabilityEntryForm` calcula TMS automáticamente si corresponde y tolera diferencia USD máxima absoluta de `0.02`.
 Guardar envía solo filas modificadas.
+
+`TraceabilityCmInputsForm` usa `GET /api/traceability/cm/entrydate`; solo `entry_date_2` es editable y el upsert `POST /api/traceability/cm/entrydate/insert` recibe `lot` y `entry_date_2`. Su mapping usa `GET /api/traceability/cm/ruccon-map` y `POST /api/traceability/cm/ruccon-map/insert`: `ruc + concession_code` son la identidad de solo lectura y se editan `office_name`, `zone_name` y `office_code`.
 
 ### Compliance
 Ruta `/compliance/downloads`. Mantener exactamente las columnas esperadas por los formatos Excel/PDF y contratos `/api/compliance/*`.
