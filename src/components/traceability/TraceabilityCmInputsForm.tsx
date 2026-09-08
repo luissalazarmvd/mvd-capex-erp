@@ -143,22 +143,27 @@ const MAPPING_COLUMNS: MappingColumn[] = [
   { key: "office_code", label: "Cód. oficina", editable: true, width: 180 },
 ];
 
+const OFFICE_DEFAULTS: Record<
+  string,
+  Pick<MappingDraft, "zone_name" | "office_code">
+> = {
+  ABANCAY: { zone_name: "Sur", office_code: "L" },
+  CARHUAMAYO: { zone_name: "Norte", office_code: "L" },
+  CHALA: { zone_name: "Sur Aqp", office_code: "C" },
+  CHIMBOTE: { zone_name: "Norte", office_code: "L" },
+  COLQUEMARCA: { zone_name: "Sur", office_code: "L" },
+  HUANCA: { zone_name: "Sur", office_code: "L" },
+  ISPACAS: { zone_name: "Sur Aqp", office_code: "P" },
+  JULIACA: { zone_name: "Sur", office_code: "L" },
+  "LAS LOMAS": { zone_name: "Norte", office_code: "L" },
+  NAZCA: { zone_name: "Sur", office_code: "L" },
+  PEDREGAL: { zone_name: "Sur Aqp", office_code: "P" },
+  SECOCHA: { zone_name: "Sur Aqp", office_code: "S" },
+  TRUJILLO: { zone_name: "Norte", office_code: "T" },
+};
+
 const MAPPING_OPTIONS: Record<keyof MappingDraft, readonly string[]> = {
-  office_name: [
-    "ABANCAY",
-    "CARHUAMAYO",
-    "CHALA",
-    "CHIMBOTE",
-    "COLQUEMARCA",
-    "HUANCA",
-    "ISPACAS",
-    "JULIACA",
-    "LAS LOMAS",
-    "NAZCA",
-    "PEDREGAL",
-    "SECOCHA",
-    "TRUJILLO",
-  ],
+  office_name: Object.keys(OFFICE_DEFAULTS),
   zone_name: ["Sur", "Norte", "Sur Aqp"],
   office_code: ["C", "L", "P", "S", "T"],
 };
@@ -1372,10 +1377,23 @@ export default function TraceabilityCmInputsForm() {
   }
 
   function updateMapping(key: string, field: keyof MappingDraft, value: string) {
-    setMappingDrafts((current) => ({
-      ...current,
-      [key]: { ...(current[key] ?? { office_name: "", zone_name: "", office_code: "" }), [field]: value },
-    }));
+    setMappingDrafts((current) => {
+      const currentDraft = current[key] ?? {
+        office_name: "",
+        zone_name: "",
+        office_code: "",
+      };
+      const officeDefaults = field === "office_name" ? OFFICE_DEFAULTS[value] : undefined;
+
+      return {
+        ...current,
+        [key]: {
+          ...currentDraft,
+          [field]: value,
+          ...(officeDefaults ?? {}),
+        },
+      };
+    });
     setMappingMessage(null);
   }
 

@@ -75,6 +75,8 @@ En el mapping CM, los valores editables están restringidos a estos catálogos:
 - `zone_name`: `Sur`, `Norte`, `Sur Aqp`.
 - `office_code`: `C`, `L`, `P`, `S`, `T`.
 
+Al seleccionar `office_name`, el formulario propone `zone_name` y `office_code` así: `ABANCAY→Sur/L`, `CARHUAMAYO→Norte/L`, `CHALA→Sur Aqp/C`, `CHIMBOTE→Norte/L`, `COLQUEMARCA→Sur/L`, `HUANCA→Sur/L`, `ISPACAS→Sur Aqp/P`, `JULIACA→Sur/L`, `LAS LOMAS→Norte/L`, `NAZCA→Sur/L`, `PEDREGAL→Sur Aqp/P`, `SECOCHA→Sur Aqp/S`, `TRUJILLO→Norte/T`. Zona y código continúan editables después de la propuesta automática.
+
 ### Compliance
 Ruta `/compliance/downloads`. Mantener exactamente las columnas esperadas por los formatos Excel/PDF y contratos `/api/compliance/*`.
 
