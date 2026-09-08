@@ -928,7 +928,7 @@ export default function TraceabilityCmInputsForm() {
       if (showEditedOnly && !editedLotSet.has(lot)) return false;
       if (!query) return true;
       return ENTRY_COLUMNS.some((column) =>
-        text(entryColumnValue(row, column.key, draftDates))
+        text(row[column.key])
           .toLocaleLowerCase("es")
           .includes(query)
       );
@@ -938,13 +938,13 @@ export default function TraceabilityCmInputsForm() {
     ENTRY_COLUMNS.forEach((column) => {
       values[column.key] = baseRows.map((row) =>
         excelFilterValue(
-          entryColumnValue(row, column.key, draftDates),
+          row[column.key],
           column.kind
         )
       );
     });
     return values;
-  }, [rows, search, dateFrom, dateTo, showEditedOnly, editedLotSet, draftDates]);
+  }, [rows, search, dateFrom, dateTo, showEditedOnly, editedLotSet]);
 
   useEffect(() => {
     setPage(1);
@@ -961,7 +961,7 @@ export default function TraceabilityCmInputsForm() {
       if (
         query &&
         !ENTRY_COLUMNS.some((column) =>
-          text(entryColumnValue(row, column.key, draftDates))
+          text(row[column.key])
             .toLocaleLowerCase("es")
             .includes(query)
         )
@@ -976,7 +976,7 @@ export default function TraceabilityCmInputsForm() {
       ).every(([columnKey, filter]) => {
         const column = ENTRY_COLUMNS.find((item) => item.key === columnKey);
         return matchesExcelFilter(
-          entryColumnValue(row, columnKey, draftDates),
+          row[columnKey],
           filter,
           column?.kind ?? "text"
         );
