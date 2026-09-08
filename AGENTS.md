@@ -87,6 +87,7 @@ Ruta `/compliance/downloads`. Mantener exactamente las columnas esperadas por lo
 ### Logística / Flota
 Logística usa `/api/logistics/*`.
 Flota separa Gestión y Unidades por scopes. No agregar campos obligatorios que el flujo actual permita completar independientemente.
+`FleetMgmForm` ofrece filtros tipo Excel en cada columna visible; evalúan los valores actuales de los drafts, normalizan los valores numéricos a 2 decimales y mantienen los filtros generales de fechas, estado y búsqueda.
 
 ### Sostenibilidad
 IGAFOM y padrón de proveedores. Preservar claves y validaciones existentes.
