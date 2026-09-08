@@ -104,6 +104,7 @@ type ExcelHeaderFilterProps = {
 const PAGE_SIZE = 100;
 const SAVE_CONCURRENCY = 20;
 const ISO_DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const EMPTY_EXCEL_FILTER: ExcelColumnFilter = {
   selected: null,
   operator: "none",
@@ -151,6 +152,36 @@ function dateText(value: unknown) {
   const normalized = text(value).trim();
   const match = normalized.match(ISO_DATE_PREFIX);
   return match?.[0] ?? normalized;
+}
+
+function todayInLima() {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Lima",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(new Date())
+      .map((part) => [part.type, part.value])
+  ) as Record<string, string>;
+
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function entryDate2Error(value: unknown, entryDate: unknown, maximumDate: string) {
+  const normalized = dateText(value);
+  if (!normalized) return null;
+  if (!ISO_DATE.test(normalized)) return "La fecha de ingreso 2 no es válida.";
+
+  const minimumDate = dateText(entryDate);
+  if (minimumDate && normalized < minimumDate) {
+    return `La fecha de ingreso 2 no puede ser anterior a ${minimumDate}.`;
+  }
+  if (normalized > maximumDate) {
+    return `La fecha de ingreso 2 no puede ser posterior a ${maximumDate}.`;
+  }
+  return null;
 }
 
 function displayValue(value: unknown, kind: EntryColumn["kind"]) {
@@ -842,6 +873,12 @@ export default function TraceabilityCmInputsForm() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [mappingOpen, mappingSaving]);
 
+  const maximumEntryDate2 = useMemo(todayInLima, []);
+  const entryRowsByLot = useMemo(
+    () => new Map(rows.map((row) => [rowLot(row), row])),
+    [rows]
+  );
+
   const editedLots = useMemo(
     () =>
       rows
@@ -853,6 +890,22 @@ export default function TraceabilityCmInputsForm() {
   );
 
   const editedLotSet = useMemo(() => new Set(editedLots), [editedLots]);
+  const entryDate2Errors = useMemo(() => {
+    const errors = new Map<string, string>();
+    editedLots.forEach((lot) => {
+      const error = entryDate2Error(
+        draftDates[lot],
+        entryRowsByLot.get(lot)?.entry_date,
+        maximumEntryDate2
+      );
+      if (error) errors.set(lot, error);
+    });
+    return errors;
+  }, [draftDates, editedLots, entryRowsByLot, maximumEntryDate2]);
+  const invalidEditedLots = useMemo(
+    () => editedLots.filter((lot) => entryDate2Errors.has(lot)),
+    [editedLots, entryDate2Errors]
+  );
 
   const entryDateBounds = useMemo(() => {
     const dates = rows.map((row) => dateText(row.entry_date)).filter(Boolean).sort();
@@ -1161,17 +1214,28 @@ export default function TraceabilityCmInputsForm() {
 
   function updateEntryDate(lot: string, value: string) {
     setDraftDates((current) => ({ ...current, [lot]: value }));
-    setMessage(null);
+    const error = entryDate2Error(
+      value,
+      entryRowsByLot.get(lot)?.entry_date,
+      maximumEntryDate2
+    );
+    setMessage(error ? `ERROR: lote ${lot}: ${error}` : null);
   }
 
   async function saveEntries() {
     if (!editedLots.length || saving) return;
+    if (invalidEditedLots.length) {
+      const firstLot = invalidEditedLots[0];
+      setMessage(
+        `ERROR: corrige ${invalidEditedLots.length} fila(s) inválida(s). Lote ${firstLot}: ${entryDate2Errors.get(firstLot)}`
+      );
+      return;
+    }
     setSaving(true);
     setMessage(null);
 
-    const rowsByLot = new Map(rows.map((row) => [rowLot(row), row]));
     const { fulfilled, rejected } = await settleInChunks(editedLots, async (lot) => {
-      if (!rowsByLot.has(lot)) throw new Error(`${lot}: lote no encontrado.`);
+      if (!entryRowsByLot.has(lot)) throw new Error(`${lot}: lote no encontrado.`);
       const response = (await apiPost("/api/traceability/cm/entrydate/insert", {
         lot,
         entry_date_2: dateText(draftDates[lot]) || null,
@@ -1371,6 +1435,24 @@ export default function TraceabilityCmInputsForm() {
           Editadas: {editedLots.length}
         </button>
 
+        {invalidEditedLots.length ? (
+          <div
+            role="status"
+            style={{
+              alignSelf: "center",
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(216,93,39,.55)",
+              background: "rgba(216,93,39,.18)",
+              color: "rgb(255,178,143)",
+              fontSize: 12,
+              fontWeight: 900,
+            }}
+          >
+            Inválidas: {invalidEditedLots.length}
+          </div>
+        ) : null}
+
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
           <label style={{ display: "grid", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 800 }}>F. ingreso desde</span>
@@ -1430,7 +1512,14 @@ export default function TraceabilityCmInputsForm() {
             size="sm"
             variant="primary"
             onClick={() => void saveEntries()}
-            disabled={loading || saving || editedLots.length === 0}
+            disabled={
+              loading || saving || editedLots.length === 0 || invalidEditedLots.length > 0
+            }
+            title={
+              invalidEditedLots.length
+                ? "Corrige las fechas inválidas antes de guardar."
+                : undefined
+            }
           >
             {saving ? "Guardando…" : "Guardar"}
           </Button>
@@ -1531,6 +1620,7 @@ export default function TraceabilityCmInputsForm() {
               {visibleRows.map((row) => {
                 const lot = rowLot(row);
                 const edited = editedLotSet.has(lot);
+                const dateError = entryDate2Errors.get(lot);
                 return (
                   <tr key={lot} className="capex-tr">
                     {ENTRY_COLUMNS.map((column) => (
@@ -1540,7 +1630,11 @@ export default function TraceabilityCmInputsForm() {
                         title={column.key === "entry_date_2" ? undefined : text(row[column.key])}
                         style={{
                           ...cellStyle,
-                          background: edited ? "rgba(94,128,25,.28)" : "rgba(0,0,0,.10)",
+                          background: dateError
+                            ? "rgba(216,93,39,.25)"
+                            : edited
+                              ? "rgba(94,128,25,.28)"
+                              : "rgba(0,0,0,.10)",
                           textAlign: column.kind === "number" ? "right" : "left",
                         }}
                       >
@@ -1548,10 +1642,23 @@ export default function TraceabilityCmInputsForm() {
                           <input
                             type="date"
                             value={draftDates[lot] ?? ""}
+                            min={dateText(row.entry_date) || undefined}
+                            max={maximumEntryDate2}
                             onChange={(event) => updateEntryDate(lot, event.target.value)}
                             disabled={loading || saving || !lot}
                             aria-label={`Fecha de ingreso 2 del lote ${lot}`}
-                            style={{ ...inputStyle, width: "100%", minWidth: 0 }}
+                            aria-invalid={Boolean(dateError)}
+                            title={
+                              dateError ??
+                              `Rango permitido: ${dateText(row.entry_date) || "sin mínimo"} a ${maximumEntryDate2}`
+                            }
+                            style={{
+                              ...inputStyle,
+                              width: "100%",
+                              minWidth: 0,
+                              borderColor: dateError ? "rgba(216,93,39,.90)" : undefined,
+                              background: dateError ? "rgba(216,93,39,.12)" : undefined,
+                            }}
                           />
                         ) : (
                           displayValue(row[column.key], column.kind)
