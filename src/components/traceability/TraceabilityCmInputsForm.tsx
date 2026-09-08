@@ -71,7 +71,6 @@ type MappingColumn = {
   label: string;
   editable: boolean;
   width: number;
-  maxLength?: number;
 };
 
 type SortDirection = "asc" | "desc";
@@ -139,10 +138,36 @@ const ENTRY_COLUMNS: EntryColumn[] = [
 const MAPPING_COLUMNS: MappingColumn[] = [
   { key: "ruc", label: "RUC", editable: false, width: 135 },
   { key: "concession_code", label: "Cód. concesión", editable: false, width: 180 },
-  { key: "office_name", label: "Oficina", editable: true, width: 210, maxLength: 50 },
-  { key: "zone_name", label: "Zona", editable: true, width: 180, maxLength: 20 },
-  { key: "office_code", label: "Cód. oficina", editable: true, width: 180, maxLength: 50 },
+  { key: "office_name", label: "Oficina", editable: true, width: 210 },
+  { key: "zone_name", label: "Zona", editable: true, width: 180 },
+  { key: "office_code", label: "Cód. oficina", editable: true, width: 180 },
 ];
+
+const MAPPING_OPTIONS: Record<keyof MappingDraft, readonly string[]> = {
+  office_name: [
+    "ABANCAY",
+    "CARHUAMAYO",
+    "CHALA",
+    "CHIMBOTE",
+    "COLQUEMARCA",
+    "HUANCA",
+    "ISPACAS",
+    "JULIACA",
+    "LAS LOMAS",
+    "NAZCA",
+    "PEDREGAL",
+    "SECOCHA",
+    "TRUJILLO",
+  ],
+  zone_name: ["Sur", "Norte", "Sur Aqp"],
+  office_code: ["C", "L", "P", "S", "T"],
+};
+
+const MAPPING_FIELD_LABELS: Record<keyof MappingDraft, string> = {
+  office_name: "Oficina",
+  zone_name: "Zona",
+  office_code: "Cód. oficina",
+};
 
 const numberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 3,
@@ -659,9 +684,9 @@ function mappingKey(row: Pick<RucConMapRow, "ruc" | "concession_code">) {
 
 function toMappingDraft(row: RucConMapRow): MappingDraft {
   return {
-    office_name: text(row.office_name),
-    zone_name: text(row.zone_name),
-    office_code: text(row.office_code),
+    office_name: text(row.office_name).trim(),
+    zone_name: text(row.zone_name).trim(),
+    office_code: text(row.office_code).trim(),
   };
 }
 
@@ -691,6 +716,19 @@ function sameMappingDraft(left: MappingDraft | undefined, right: MappingDraft | 
     left.zone_name === right.zone_name &&
     left.office_code === right.office_code
   );
+}
+
+function mappingDraftError(draft: MappingDraft | undefined) {
+  if (!draft) return "No se encontraron los datos editables del mapping.";
+
+  for (const field of Object.keys(MAPPING_OPTIONS) as Array<keyof MappingDraft>) {
+    const value = draft[field].trim();
+    if (value && !MAPPING_OPTIONS[field].includes(value)) {
+      return `${MAPPING_FIELD_LABELS[field]} debe ser uno de estos valores: ${MAPPING_OPTIONS[field].join(", ")}.`;
+    }
+  }
+
+  return null;
 }
 
 function optionalText(value: string) {
@@ -1039,6 +1077,20 @@ export default function TraceabilityCmInputsForm() {
     [editedMappingKeys]
   );
 
+  const mappingDraftErrors = useMemo(() => {
+    const errors = new Map<string, string>();
+    editedMappingKeys.forEach((key) => {
+      const error = mappingDraftError(mappingDrafts[key]);
+      if (error) errors.set(key, error);
+    });
+    return errors;
+  }, [editedMappingKeys, mappingDrafts]);
+
+  const invalidEditedMappingKeys = useMemo(
+    () => editedMappingKeys.filter((key) => mappingDraftErrors.has(key)),
+    [editedMappingKeys, mappingDraftErrors]
+  );
+
   const mappingExcelColumnValues = useMemo(() => {
     const query = mappingSearch.trim().toLocaleLowerCase("es");
     const baseRows = mappingRows.filter((row) => {
@@ -1329,6 +1381,16 @@ export default function TraceabilityCmInputsForm() {
 
   async function saveMapping() {
     if (!editedMappingKeys.length || mappingSaving) return;
+
+    if (invalidEditedMappingKeys.length) {
+      const key = invalidEditedMappingKeys[0];
+      const row = mappingRows.find((candidate) => mappingKey(candidate) === key);
+      setMappingMessage(
+        `ERROR: no se envió ningún mapping. ${text(row?.ruc).trim()} / ${text(row?.concession_code).trim()}: ${mappingDraftErrors.get(key)}`
+      );
+      return;
+    }
+
     setMappingSaving(true);
     setMappingMessage(null);
 
@@ -1342,6 +1404,11 @@ export default function TraceabilityCmInputsForm() {
         const concessionCode = text(row?.concession_code).trim();
         if (!row || !draft || !ruc || !concessionCode) {
           throw new Error("Mapping sin RUC o código de concesión.");
+        }
+
+        const validationError = mappingDraftError(draft);
+        if (validationError) {
+          throw new Error(`${ruc} / ${concessionCode}: ${validationError}`);
         }
 
         const response = (await apiPost("/api/traceability/cm/ruccon-map/insert", {
@@ -1769,6 +1836,11 @@ export default function TraceabilityCmInputsForm() {
               <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(147,178,92,.45)", background: editedMappingKeys.length ? "rgba(94,128,25,.24)" : "rgba(255,255,255,.06)", color: editedMappingKeys.length ? "rgb(174,202,125)" : "rgba(255,255,255,.8)", fontSize: 12, fontWeight: 900 }}>
                 Editadas: {editedMappingKeys.length}
               </div>
+              {invalidEditedMappingKeys.length ? (
+                <div role="status" style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(216,93,39,.55)", background: "rgba(216,93,39,.18)", color: "rgb(255,178,143)", fontSize: 12, fontWeight: 900 }}>
+                  Inválidas: {invalidEditedMappingKeys.length}
+                </div>
+              ) : null}
               <Button
                 type="button"
                 size="sm"
@@ -1844,25 +1916,58 @@ export default function TraceabilityCmInputsForm() {
                     const key = mappingKey(row);
                     const draft = mappingDrafts[key] ?? toMappingDraft(row);
                     const edited = editedMappingSet.has(key);
+                    const draftError = mappingDraftErrors.get(key);
                     return (
                       <tr key={key} className="capex-tr">
-                        {MAPPING_COLUMNS.map((column) => (
-                          <td key={column.key} className={`capex-td${!column.editable ? " capex-td-strong" : ""}`} style={{ ...cellStyle, background: edited ? "rgba(94,128,25,.28)" : "rgba(0,0,0,.10)" }}>
-                            {column.editable ? (
-                              <input
-                                type="text"
-                                value={draft[column.key as keyof MappingDraft]}
-                                maxLength={column.maxLength}
-                                onChange={(event) => updateMapping(key, column.key as keyof MappingDraft, event.target.value)}
-                                disabled={mappingLoading || mappingSaving}
-                                aria-label={`${column.label} para ${text(row.ruc)} / ${text(row.concession_code)}`}
-                                style={{ ...inputStyle, width: "100%", minWidth: 0 }}
-                              />
-                            ) : (
-                              <span title={text(row[column.key])}>{text(row[column.key]).trim() || "—"}</span>
-                            )}
-                          </td>
-                        ))}
+                        {MAPPING_COLUMNS.map((column) => {
+                          const field = column.key as keyof MappingDraft;
+                          const value = column.editable ? draft[field] : "";
+                          const options = column.editable ? MAPPING_OPTIONS[field] : [];
+                          const unsupportedValue = Boolean(value) && !options.includes(value);
+
+                          return (
+                            <td
+                              key={column.key}
+                              className={`capex-td${!column.editable ? " capex-td-strong" : ""}`}
+                              title={draftError ?? undefined}
+                              style={{
+                                ...cellStyle,
+                                background: draftError
+                                  ? "rgba(216,93,39,.25)"
+                                  : edited
+                                    ? "rgba(94,128,25,.28)"
+                                    : "rgba(0,0,0,.10)",
+                              }}
+                            >
+                              {column.editable ? (
+                                <select
+                                  value={value}
+                                  onChange={(event) => updateMapping(key, field, event.target.value)}
+                                  disabled={mappingLoading || mappingSaving}
+                                  aria-label={`${column.label} para ${text(row.ruc)} / ${text(row.concession_code)}`}
+                                  aria-invalid={Boolean(draftError)}
+                                  style={{
+                                    ...inputStyle,
+                                    width: "100%",
+                                    minWidth: 0,
+                                    borderColor: draftError ? "rgba(216,93,39,.90)" : undefined,
+                                    background: draftError ? "rgba(216,93,39,.12)" : undefined,
+                                  }}
+                                >
+                                  <option value="" disabled>— Seleccionar —</option>
+                                  {unsupportedValue ? (
+                                    <option value={value} disabled>{value} (no permitido)</option>
+                                  ) : null}
+                                  {options.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span title={text(row[column.key])}>{text(row[column.key]).trim() || "—"}</span>
+                              )}
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
@@ -1886,7 +1991,25 @@ export default function TraceabilityCmInputsForm() {
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Button type="button" size="sm" onClick={() => setMappingOpen(false)} disabled={mappingSaving}>Cancelar</Button>
-                <Button type="button" size="sm" variant="primary" onClick={() => void saveMapping()} disabled={mappingLoading || mappingSaving || editedMappingKeys.length === 0}>{mappingSaving ? "Guardando…" : "Guardar"}</Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  onClick={() => void saveMapping()}
+                  disabled={
+                    mappingLoading ||
+                    mappingSaving ||
+                    editedMappingKeys.length === 0 ||
+                    invalidEditedMappingKeys.length > 0
+                  }
+                  title={
+                    invalidEditedMappingKeys.length
+                      ? "Corrige los mappings marcados en rojo antes de guardar."
+                      : undefined
+                  }
+                >
+                  {mappingSaving ? "Guardando…" : "Guardar"}
+                </Button>
               </div>
             </div>
           </div>

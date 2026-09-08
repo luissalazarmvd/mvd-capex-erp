@@ -69,6 +69,12 @@ Guardar envía solo filas modificadas.
 
 `TraceabilityCmInputsForm` usa `GET /api/traceability/cm/entrydate`; solo `entry_date_2` es editable, no puede ser anterior a `entry_date` ni posterior a la fecha actual de Lima, y el upsert `POST /api/traceability/cm/entrydate/insert` recibe `lot` y `entry_date_2`. El POST debe volver a consultar el `entry_date` vigente del lote y rechazar la escritura antes del `MERGE` cuando la relación sea inválida; el frontend conserva además la validación inmediata y asocia cualquier rechazo del backend a la fila correspondiente. Mientras una fecha editada no se guarde, los filtros y la búsqueda continúan evaluando su valor persistido para mantener visible la fila bajo el filtro que la originó. Su mapping usa `GET /api/traceability/cm/ruccon-map` y `POST /api/traceability/cm/ruccon-map/insert`: `ruc + concession_code` son la identidad de solo lectura y se editan `office_name`, `zone_name` y `office_code`.
 
+En el mapping CM, los valores editables están restringidos a estos catálogos:
+
+- `office_name`: `ABANCAY`, `CARHUAMAYO`, `CHALA`, `CHIMBOTE`, `COLQUEMARCA`, `HUANCA`, `ISPACAS`, `JULIACA`, `LAS LOMAS`, `NAZCA`, `PEDREGAL`, `SECOCHA`, `TRUJILLO`.
+- `zone_name`: `Sur`, `Norte`, `Sur Aqp`.
+- `office_code`: `C`, `L`, `P`, `S`, `T`.
+
 ### Compliance
 Ruta `/compliance/downloads`. Mantener exactamente las columnas esperadas por los formatos Excel/PDF y contratos `/api/compliance/*`.
 
