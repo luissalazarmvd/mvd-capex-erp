@@ -2,10 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  saveCmEntryDates,
-  type SaveCmEntryDatesResult,
-} from "../../app/traceability/cm-inputs/actions";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import {
   cmDateText as dateText,
@@ -706,6 +702,14 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function entrySaveErrorMessage(error: unknown) {
+  const message = errorMessage(error).trim();
+  if (/fetch failed|failed to fetch|networkerror/i.test(message)) {
+    return "No se pudo conectar con la API de trazabilidad; el lote no fue guardado.";
+  }
+  return message || "La API rechazó el guardado sin indicar el motivo.";
+}
+
 async function settleInChunks<T>(
   items: T[],
   task: (item: T) => Promise<string>
@@ -733,6 +737,7 @@ export default function TraceabilityCmInputsForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [entrySaveErrors, setEntrySaveErrors] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -784,6 +789,7 @@ export default function TraceabilityCmInputsForm() {
       setRows(nextRows);
       setDraftDates(nextDrafts);
       setOriginalDates(nextOriginals);
+      setEntrySaveErrors({});
       setShowEditedOnly(false);
       setColumnFilters({});
       setHasManualSort(false);
@@ -794,6 +800,7 @@ export default function TraceabilityCmInputsForm() {
       setRows([]);
       setDraftDates({});
       setOriginalDates({});
+      setEntrySaveErrors({});
       setMessage(`ERROR: ${errorMessage(error)}`);
     } finally {
       setLoading(false);
@@ -878,11 +885,11 @@ export default function TraceabilityCmInputsForm() {
         draftDates[lot],
         row.entry_date,
         maximumEntryDate2
-      );
+      ) ?? entrySaveErrors[lot];
       if (error) errors.set(lot, error);
     });
     return errors;
-  }, [draftDates, maximumEntryDate2, rows]);
+  }, [draftDates, entrySaveErrors, maximumEntryDate2, rows]);
   const invalidEditedLots = useMemo(
     () => editedLots.filter((lot) => entryDate2Errors.has(lot)),
     [editedLots, entryDate2Errors]
@@ -1195,6 +1202,12 @@ export default function TraceabilityCmInputsForm() {
 
   function updateEntryDate(lot: string, value: string) {
     setDraftDates((current) => ({ ...current, [lot]: value }));
+    setEntrySaveErrors((current) => {
+      if (!current[lot]) return current;
+      const next = { ...current };
+      delete next[lot];
+      return next;
+    });
     const error = entryDate2Error(
       value,
       entryRowsByLot.get(lot)?.entry_date,
@@ -1225,14 +1238,38 @@ export default function TraceabilityCmInputsForm() {
     }
     setSaving(true);
     setMessage(null);
-
-    const result: SaveCmEntryDatesResult = await saveCmEntryDates(
-      pendingPayloads.map((payload) => ({
-        lot: payload.lot,
-        entry_date_2: payload.entryDate2,
-      }))
+    const failedByLot: Record<string, string> = {};
+    const { fulfilled, rejected } = await settleInChunks(
+      pendingPayloads,
+      async (payload) => {
+        try {
+          const response = (await apiPost(
+            "/api/traceability/cm/entrydate/insert",
+            {
+              lot: payload.lot,
+              entry_date_2: payload.entryDate2,
+            }
+          )) as SaveResponse;
+          if (!response.ok) {
+            throw new Error(response.error || "La API rechazó el guardado.");
+          }
+          return payload.lot;
+        } catch (error) {
+          const specificError = entrySaveErrorMessage(error);
+          failedByLot[payload.lot] = specificError;
+          throw new Error(`Lote ${payload.lot}: ${specificError}`);
+        }
+      }
     );
-    const { fulfilled, rejected } = result;
+
+    setEntrySaveErrors((current) => {
+      const next = { ...current };
+      fulfilled.forEach((lot) => delete next[lot]);
+      Object.entries(failedByLot).forEach(([lot, error]) => {
+        next[lot] = error;
+      });
+      return next;
+    });
 
     if (fulfilled.length) {
       const fulfilledSet = new Set(fulfilled);
