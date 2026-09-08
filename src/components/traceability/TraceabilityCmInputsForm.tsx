@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import {
   cmDateText as dateText,
@@ -197,6 +198,20 @@ function displayValue(value: unknown, kind: EntryColumn["kind"]) {
     return Number.isFinite(parsed) ? numberFormatter.format(parsed) : text(value);
   }
   return text(value).trim() || "—";
+}
+
+function excelDate(value: unknown) {
+  const parsed = parseIsoDate(value);
+  if (!parsed) return "";
+  const [year, month, day] = parsed.normalized.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function excelNumber(value: NumericValue) {
+  const normalized = text(value).trim();
+  if (!normalized) return "";
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : normalized;
 }
 
 function excelFilterValue(value: unknown, kind: ExcelFilterKind) {
@@ -1481,6 +1496,75 @@ export default function TraceabilityCmInputsForm() {
     setMappingSaving(false);
   }
 
+  function exportEntriesExcel() {
+    if (!rows.length) {
+      setMessage("ERROR: no hay filas cargadas para exportar.");
+      return;
+    }
+
+    try {
+      const exportRows = rows.map((row) => ({
+        Lote: text(row.lot).trim(),
+        "F. ingreso": excelDate(row.entry_date),
+        "F. ingreso 2": excelDate(row.entry_date_2),
+        Sacos: excelNumber(row.sack_qty),
+        Minero: row.miner_name ?? "",
+        Placa: row.plate ?? "",
+        RUC: row.ruc ?? "",
+        Concesión: row.concession_name ?? "",
+        "Cód. concesión": row.concession_code ?? "",
+        Distrito: row.district ?? "",
+        Provincia: row.province ?? "",
+        Departamento: row.department ?? "",
+        "Guía remitente": row.sender_guide_number ?? "",
+        Transportista: row.transport_name ?? "",
+        "Guía transportista": row.transport_guide_number ?? "",
+        TMH: excelNumber(row.tmh),
+        TMS: excelNumber(row.tms),
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(exportRows, { cellDates: true });
+
+      exportRows.forEach((_, index) => {
+        const excelRow = index + 2;
+        if (worksheet[`B${excelRow}`]) worksheet[`B${excelRow}`].z = "dd/mm/yyyy";
+        if (worksheet[`C${excelRow}`]) worksheet[`C${excelRow}`].z = "dd/mm/yyyy";
+        if (worksheet[`D${excelRow}`]) worksheet[`D${excelRow}`].z = "#,##0";
+        if (worksheet[`P${excelRow}`]) worksheet[`P${excelRow}`].z = "#,##0.000";
+        if (worksheet[`Q${excelRow}`]) worksheet[`Q${excelRow}`].z = "#,##0.000";
+      });
+
+      worksheet["!cols"] = [
+        { wch: 14 },
+        { wch: 13 },
+        { wch: 13 },
+        { wch: 10 },
+        { wch: 34 },
+        { wch: 18 },
+        { wch: 16 },
+        { wch: 34 },
+        { wch: 20 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 20 },
+        { wch: 34 },
+        { wch: 22 },
+        { wch: 14 },
+        { wch: 14 },
+      ];
+      worksheet["!autofilter"] = { ref: worksheet["!ref"] ?? "A1:Q1" };
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "CM Inputs");
+      XLSX.writeFile(workbook, `trazabilidad_cm_inputs_${todayInLima()}.xlsx`, {
+        cellDates: true,
+      });
+      setMessage(`OK: se exportaron ${exportRows.length} fila(s) a Excel.`);
+    } catch (error: unknown) {
+      setMessage(`ERROR: no se pudo exportar a Excel. ${errorMessage(error)}`);
+    }
+  }
+
   const inputStyle: React.CSSProperties = {
     border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
@@ -1625,6 +1709,14 @@ export default function TraceabilityCmInputsForm() {
           </Button>
           <Button type="button" size="sm" onClick={() => void loadEntries()} disabled={loading || saving}>
             {loading ? "Cargando…" : "Refrescar"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={exportEntriesExcel}
+            disabled={loading || saving || mappingSaving || rows.length === 0}
+          >
+            Exportar Excel
           </Button>
           <Button type="button" size="sm" onClick={openMapping} disabled={mappingSaving}>
             Actualizar mapeo
