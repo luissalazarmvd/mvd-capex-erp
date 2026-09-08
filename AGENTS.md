@@ -71,6 +71,8 @@ Guardar envía solo filas modificadas.
 
 La exportación Excel de CM Inputs incluye todas las filas cargadas por `GET /api/traceability/cm/entrydate` y todas las columnas de la tabla principal, independientemente de los filtros y la página visibles.
 
+Sin orden manual, CM Inputs muestra primero las filas sin `entry_date_2`, y su modal de mapping muestra primero las filas sin `office_name`. Una ordenación elegida desde los filtros Excel sustituye esa prioridad predeterminada.
+
 En el mapping CM, los valores editables están restringidos a estos catálogos:
 
 - `office_name`: `ABANCAY`, `CARHUAMAYO`, `CHALA`, `CHIMBOTE`, `COLQUEMARCA`, `HUANCA`, `ISPACAS`, `JULIACA`, `LAS LOMAS`, `NAZCA`, `PEDREGAL`, `SECOCHA`, `TRUJILLO`.

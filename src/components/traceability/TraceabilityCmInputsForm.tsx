@@ -1041,6 +1041,12 @@ export default function TraceabilityCmInputsForm() {
         const rightEdited = editedLotSet.has(rightLot);
         if (leftEdited !== rightEdited) return leftEdited ? -1 : 1;
 
+        if (!hasManualSort) {
+          const leftPending = !dateText(left.row.entry_date_2);
+          const rightPending = !dateText(right.row.entry_date_2);
+          if (leftPending !== rightPending) return leftPending ? -1 : 1;
+        }
+
         const leftValue = entryColumnValue(left.row, sortColumn.key, draftDates);
         const rightValue = entryColumnValue(right.row, sortColumn.key, draftDates);
         let result = 0;
@@ -1070,6 +1076,7 @@ export default function TraceabilityCmInputsForm() {
     showEditedOnly,
     editedLotSet,
     draftDates,
+    hasManualSort,
     sortKey,
     sortDirection,
     columnFilters,
@@ -1170,6 +1177,13 @@ export default function TraceabilityCmInputsForm() {
         const leftEdited = editedMappingSet.has(mappingKey(left));
         const rightEdited = editedMappingSet.has(mappingKey(right));
         if (leftEdited !== rightEdited) return leftEdited ? -1 : 1;
+
+        if (!hasMappingManualSort) {
+          const leftPending = !text(left.office_name).trim();
+          const rightPending = !text(right.office_name).trim();
+          if (leftPending !== rightPending) return leftPending ? -1 : 1;
+        }
+
         const leftDraft = mappingDrafts[mappingKey(left)] ?? toMappingDraft(left);
         const rightDraft = mappingDrafts[mappingKey(right)] ?? toMappingDraft(right);
         const result = text(
@@ -1189,6 +1203,7 @@ export default function TraceabilityCmInputsForm() {
     mappingSearch,
     mappingDrafts,
     editedMappingSet,
+    hasMappingManualSort,
     mappingColumnFilters,
     mappingSortKey,
     mappingSortDirection,
