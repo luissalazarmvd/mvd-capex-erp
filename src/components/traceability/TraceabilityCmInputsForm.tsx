@@ -881,15 +881,16 @@ export default function TraceabilityCmInputsForm() {
     rows.forEach((row) => {
       const lot = rowLot(row);
       if (!lot) return;
-      const error = entryDate2Error(
-        draftDates[lot],
-        row.entry_date,
-        maximumEntryDate2
+      const draftDate = dateText(draftDates[lot]);
+      const error = (
+        editedLotSet.has(lot) && !draftDate
+          ? "La fecha de ingreso 2 es obligatoria para guardar esta fila."
+          : entryDate2Error(draftDate, row.entry_date, maximumEntryDate2)
       ) ?? entrySaveErrors[lot];
       if (error) errors.set(lot, error);
     });
     return errors;
-  }, [draftDates, entrySaveErrors, maximumEntryDate2, rows]);
+  }, [draftDates, editedLotSet, entrySaveErrors, maximumEntryDate2, rows]);
   const invalidEditedLots = useMemo(
     () => editedLots.filter((lot) => entryDate2Errors.has(lot)),
     [editedLots, entryDate2Errors]
@@ -1208,11 +1209,14 @@ export default function TraceabilityCmInputsForm() {
       delete next[lot];
       return next;
     });
-    const error = entryDate2Error(
-      value,
-      entryRowsByLot.get(lot)?.entry_date,
-      maximumEntryDate2
-    );
+    const error =
+      !dateText(value) && dateText(originalDates[lot])
+        ? "La fecha de ingreso 2 es obligatoria para guardar esta fila."
+        : entryDate2Error(
+            value,
+            entryRowsByLot.get(lot)?.entry_date,
+            maximumEntryDate2
+          );
     setMessage(error ? `ERROR: lote ${lot}: ${error}` : null);
   }
 
@@ -1223,7 +1227,9 @@ export default function TraceabilityCmInputsForm() {
       const row = entryRowsByLot.get(lot);
       const entryDate2 = dateText(draftDates[lot]) || null;
       const error = row
-        ? entryDate2Error(entryDate2, row.entry_date, maximumEntryDate2)
+        ? entryDate2
+          ? entryDate2Error(entryDate2, row.entry_date, maximumEntryDate2)
+          : "La fecha de ingreso 2 es obligatoria para guardar esta fila."
         : "Lote no encontrado.";
       return { lot, entryDate2, entryDate: row?.entry_date, error };
     });
