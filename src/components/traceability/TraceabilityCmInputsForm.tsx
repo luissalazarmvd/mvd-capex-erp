@@ -1257,7 +1257,11 @@ export default function TraceabilityCmInputsForm() {
         } catch (error) {
           const specificError = entrySaveErrorMessage(error);
           failedByLot[payload.lot] = specificError;
-          throw new Error(`Lote ${payload.lot}: ${specificError}`);
+          throw new Error(
+            specificError.includes(payload.lot)
+              ? specificError
+              : `Lote ${payload.lot}: ${specificError}`
+          );
         }
       }
     );
