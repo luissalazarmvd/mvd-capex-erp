@@ -2,7 +2,17 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  saveCmEntryDates,
+  type SaveCmEntryDatesResult,
+} from "../../app/traceability/cm-inputs/actions";
 import { apiGet, apiPost } from "../../lib/apiClient";
+import {
+  cmDateText as dateText,
+  cmEntryDate2Error as entryDate2Error,
+  parseCmIsoDate as parseIsoDate,
+  todayInLima,
+} from "../../lib/traceability/cmEntryDate";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
 
@@ -103,8 +113,6 @@ type ExcelHeaderFilterProps = {
 
 const PAGE_SIZE = 100;
 const SAVE_CONCURRENCY = 20;
-const ISO_DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const EMPTY_EXCEL_FILTER: ExcelColumnFilter = {
   selected: null,
   operator: "none",
@@ -148,66 +156,11 @@ function text(value: unknown) {
   return value === null || value === undefined ? "" : String(value);
 }
 
-function dateText(value: unknown) {
-  const normalized = text(value).trim();
-  const match = normalized.match(ISO_DATE_PREFIX);
-  return match?.[0] ?? normalized;
-}
-
-function parseIsoDate(value: unknown) {
-  const normalized = dateText(value);
-  if (!ISO_DATE.test(normalized)) return null;
-
-  const timestamp = Date.parse(`${normalized}T00:00:00Z`);
-  if (!Number.isFinite(timestamp)) return null;
-  if (new Date(timestamp).toISOString().slice(0, 10) !== normalized) return null;
-
-  return { normalized, timestamp };
-}
-
 function displayDate(value: unknown) {
   const parsed = parseIsoDate(value);
   if (!parsed) return dateText(value) || "—";
   const [year, month, day] = parsed.normalized.split("-");
   return `${day}/${month}/${year}`;
-}
-
-function todayInLima() {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Lima",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    })
-      .formatToParts(new Date())
-      .map((part) => [part.type, part.value])
-  ) as Record<string, string>;
-
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
-function entryDate2Error(value: unknown, entryDate: unknown, maximumDate: string) {
-  if (!dateText(value)) return null;
-
-  const candidate = parseIsoDate(value);
-  if (!candidate) return "La fecha de ingreso 2 no es válida.";
-
-  const minimum = parseIsoDate(entryDate);
-  if (!minimum) {
-    return "La fecha de ingreso 1 no es válida; esta fila no se puede guardar.";
-  }
-
-  const maximum = parseIsoDate(maximumDate);
-  if (!maximum) return "No se pudo determinar la fecha máxima permitida.";
-
-  if (candidate.timestamp < minimum.timestamp) {
-    return `La fecha de ingreso 2 no puede ser anterior a ${displayDate(minimum.normalized)}.`;
-  }
-  if (candidate.timestamp > maximum.timestamp) {
-    return `La fecha de ingreso 2 no puede ser posterior a ${displayDate(maximum.normalized)}.`;
-  }
-  return null;
 }
 
 function displayValue(value: unknown, kind: EntryColumn["kind"]) {
@@ -1271,23 +1224,13 @@ export default function TraceabilityCmInputsForm() {
     setSaving(true);
     setMessage(null);
 
-    const { fulfilled, rejected } = await settleInChunks(pendingPayloads, async (payload) => {
-      const error = entryDate2Error(
-        payload.entryDate2,
-        payload.entryDate,
-        maximumEntryDate2
-      );
-      if (error) throw new Error(`${payload.lot}: ${error}`);
-
-      const response = (await apiPost("/api/traceability/cm/entrydate/insert", {
+    const result: SaveCmEntryDatesResult = await saveCmEntryDates(
+      pendingPayloads.map((payload) => ({
         lot: payload.lot,
         entry_date_2: payload.entryDate2,
-      })) as SaveResponse;
-      if (!response.ok) {
-        throw new Error(`${payload.lot}: ${response.error || "no se pudo guardar"}`);
-      }
-      return payload.lot;
-    });
+      }))
+    );
+    const { fulfilled, rejected } = result;
 
     if (fulfilled.length) {
       const fulfilledSet = new Set(fulfilled);
