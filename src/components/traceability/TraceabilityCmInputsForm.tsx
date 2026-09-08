@@ -871,16 +871,18 @@ export default function TraceabilityCmInputsForm() {
   const editedLotSet = useMemo(() => new Set(editedLots), [editedLots]);
   const entryDate2Errors = useMemo(() => {
     const errors = new Map<string, string>();
-    editedLots.forEach((lot) => {
+    rows.forEach((row) => {
+      const lot = rowLot(row);
+      if (!lot) return;
       const error = entryDate2Error(
         draftDates[lot],
-        entryRowsByLot.get(lot)?.entry_date,
+        row.entry_date,
         maximumEntryDate2
       );
       if (error) errors.set(lot, error);
     });
     return errors;
-  }, [draftDates, editedLots, entryRowsByLot, maximumEntryDate2]);
+  }, [draftDates, maximumEntryDate2, rows]);
   const invalidEditedLots = useMemo(
     () => editedLots.filter((lot) => entryDate2Errors.has(lot)),
     [editedLots, entryDate2Errors]
