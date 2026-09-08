@@ -154,6 +154,24 @@ function dateText(value: unknown) {
   return match?.[0] ?? normalized;
 }
 
+function parseIsoDate(value: unknown) {
+  const normalized = dateText(value);
+  if (!ISO_DATE.test(normalized)) return null;
+
+  const timestamp = Date.parse(`${normalized}T00:00:00Z`);
+  if (!Number.isFinite(timestamp)) return null;
+  if (new Date(timestamp).toISOString().slice(0, 10) !== normalized) return null;
+
+  return { normalized, timestamp };
+}
+
+function displayDate(value: unknown) {
+  const parsed = parseIsoDate(value);
+  if (!parsed) return dateText(value) || "—";
+  const [year, month, day] = parsed.normalized.split("-");
+  return `${day}/${month}/${year}`;
+}
+
 function todayInLima() {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {
@@ -170,22 +188,30 @@ function todayInLima() {
 }
 
 function entryDate2Error(value: unknown, entryDate: unknown, maximumDate: string) {
-  const normalized = dateText(value);
-  if (!normalized) return null;
-  if (!ISO_DATE.test(normalized)) return "La fecha de ingreso 2 no es válida.";
+  if (!dateText(value)) return null;
 
-  const minimumDate = dateText(entryDate);
-  if (minimumDate && normalized < minimumDate) {
-    return `La fecha de ingreso 2 no puede ser anterior a ${minimumDate}.`;
+  const candidate = parseIsoDate(value);
+  if (!candidate) return "La fecha de ingreso 2 no es válida.";
+
+  const minimum = parseIsoDate(entryDate);
+  if (!minimum) {
+    return "La fecha de ingreso 1 no es válida; esta fila no se puede guardar.";
   }
-  if (normalized > maximumDate) {
-    return `La fecha de ingreso 2 no puede ser posterior a ${maximumDate}.`;
+
+  const maximum = parseIsoDate(maximumDate);
+  if (!maximum) return "No se pudo determinar la fecha máxima permitida.";
+
+  if (candidate.timestamp < minimum.timestamp) {
+    return `La fecha de ingreso 2 no puede ser anterior a ${displayDate(minimum.normalized)}.`;
+  }
+  if (candidate.timestamp > maximum.timestamp) {
+    return `La fecha de ingreso 2 no puede ser posterior a ${displayDate(maximum.normalized)}.`;
   }
   return null;
 }
 
 function displayValue(value: unknown, kind: EntryColumn["kind"]) {
-  if (kind === "date") return dateText(value) || "—";
+  if (kind === "date") return displayDate(value);
   if (kind === "number") {
     if (value === null || value === undefined || text(value).trim() === "") return "—";
     const parsed = Number(value);
@@ -1224,24 +1250,43 @@ export default function TraceabilityCmInputsForm() {
 
   async function saveEntries() {
     if (!editedLots.length || saving) return;
-    if (invalidEditedLots.length) {
-      const firstLot = invalidEditedLots[0];
+
+    const pendingPayloads = editedLots.map((lot) => {
+      const row = entryRowsByLot.get(lot);
+      const entryDate2 = dateText(draftDates[lot]) || null;
+      const error = row
+        ? entryDate2Error(entryDate2, row.entry_date, maximumEntryDate2)
+        : "Lote no encontrado.";
+      return { lot, entryDate2, entryDate: row?.entry_date, error };
+    });
+    const invalidPayloads = pendingPayloads.filter((payload) => payload.error);
+
+    if (invalidPayloads.length) {
+      const firstInvalid = invalidPayloads[0];
       setMessage(
-        `ERROR: corrige ${invalidEditedLots.length} fila(s) inválida(s). Lote ${firstLot}: ${entryDate2Errors.get(firstLot)}`
+        `ERROR: no se envió ningún dato. Corrige ${invalidPayloads.length} fila(s) inválida(s). Lote ${firstInvalid.lot}: ${firstInvalid.error}`
       );
       return;
     }
     setSaving(true);
     setMessage(null);
 
-    const { fulfilled, rejected } = await settleInChunks(editedLots, async (lot) => {
-      if (!entryRowsByLot.has(lot)) throw new Error(`${lot}: lote no encontrado.`);
+    const { fulfilled, rejected } = await settleInChunks(pendingPayloads, async (payload) => {
+      const error = entryDate2Error(
+        payload.entryDate2,
+        payload.entryDate,
+        maximumEntryDate2
+      );
+      if (error) throw new Error(`${payload.lot}: ${error}`);
+
       const response = (await apiPost("/api/traceability/cm/entrydate/insert", {
-        lot,
-        entry_date_2: dateText(draftDates[lot]) || null,
+        lot: payload.lot,
+        entry_date_2: payload.entryDate2,
       })) as SaveResponse;
-      if (!response.ok) throw new Error(`${lot}: ${response.error || "no se pudo guardar"}`);
-      return lot;
+      if (!response.ok) {
+        throw new Error(`${payload.lot}: ${response.error || "no se pudo guardar"}`);
+      }
+      return payload.lot;
     });
 
     if (fulfilled.length) {
@@ -1650,7 +1695,7 @@ export default function TraceabilityCmInputsForm() {
                             aria-invalid={Boolean(dateError)}
                             title={
                               dateError ??
-                              `Rango permitido: ${dateText(row.entry_date) || "sin mínimo"} a ${maximumEntryDate2}`
+                              `Rango permitido: ${displayDate(row.entry_date)} a ${displayDate(maximumEntryDate2)}`
                             }
                             style={{
                               ...inputStyle,
