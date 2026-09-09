@@ -43,6 +43,7 @@ export async function POST(req: Request) {
         "sustainability",
         "fixassets",
         "fleet",
+        "trj_kardex",
         "ti",
       ].includes(area)
     ) {
@@ -67,6 +68,9 @@ export async function POST(req: Request) {
     const SUSTAINABILITY_PASSWORD = process.env.SUSTAINABILITY_PASSWORD || "";
     const FIXASSETS_PASSWORD = process.env.FIXASSETS_PASSWORD || "";
     const FLEET_PASSWORD_L2 = process.env.FLEET_PASSWORD_L2 || "";
+    const TRJKARDEX_PASSWORD_L1 = process.env.TRJKARDEX_PASSWORD_L1 || "";
+    const TRJKARDEX_PASSWORD_L2 = process.env.TRJKARDEX_PASSWORD_L2 || "";
+    const TRJKARDEX_PASSWORD_L3 = process.env.TRJKARDEX_PASSWORD_L3 || "";
     const DTI_PASSWORD = process.env.DTI_PASSWORD || "";
 
     let ok = false;
@@ -87,6 +91,32 @@ export async function POST(req: Request) {
       ok = true;
       scopes = ["fleet_mgmt", "fleet_units"];
       defaultPath = "/fleet/mgmt";
+    }
+
+    if (
+      area === "trj_kardex" &&
+      TRJKARDEX_PASSWORD_L1 &&
+      password === TRJKARDEX_PASSWORD_L1
+    ) {
+      ok = true;
+      scopes = ["trjkardex_guides", "trjkardex_quotes"];
+      defaultPath = "/kardex/guides";
+    } else if (
+      area === "trj_kardex" &&
+      TRJKARDEX_PASSWORD_L2 &&
+      password === TRJKARDEX_PASSWORD_L2
+    ) {
+      ok = true;
+      scopes = ["trjkardex_guides"];
+      defaultPath = "/kardex/guides";
+    } else if (
+      area === "trj_kardex" &&
+      TRJKARDEX_PASSWORD_L3 &&
+      password === TRJKARDEX_PASSWORD_L3
+    ) {
+      ok = true;
+      scopes = ["trjkardex_quotes"];
+      defaultPath = "/kardex/quotes";
     }
 
     if (!ok) {

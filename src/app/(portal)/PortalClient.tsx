@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui/Button";
 
@@ -15,7 +16,8 @@ type Area =
   | "logistics"
   | "sustainability"
   | "fixassets"
-  | "fleet";
+  | "fleet"
+  | "trj_kardex";
 
 export default function PortalClient() {
   const router = useRouter();
@@ -115,6 +117,8 @@ export default function PortalClient() {
           ? "/fixassets/new"
           : area === "fleet"
           ? j?.defaultPath || "/fleet/mgmt"
+          : area === "trj_kardex"
+          ? j?.defaultPath || "/kardex/guides"
           : "/ti"
       );
     } catch (error: unknown) {
@@ -146,7 +150,14 @@ export default function PortalClient() {
           textAlign: "center",
         }}
       >
-        <img src="/logo_mvd.png" alt="Veta Dorada" style={{ height: 58, marginBottom: 18 }} />
+        <Image
+          src="/logo_mvd.png"
+          alt="Veta Dorada"
+          width={171}
+          height={58}
+          priority
+          style={{ width: "auto", height: 58, marginBottom: 18 }}
+        />
 
         <h2 style={{ margin: "0 0 18px 0", fontWeight: 800 }}>Acceso MVD</h2>
 
@@ -198,6 +209,16 @@ export default function PortalClient() {
               disabled={checkingAccess || !hasInternalAccess}
             >
               Trazabilidad
+            </Button>
+
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              onClick={() => start("trj_kardex")}
+              disabled={checkingAccess || !hasInternalAccess}
+            >
+              Kardex TRJ
             </Button>
 
             <Button
@@ -277,6 +298,8 @@ export default function PortalClient() {
                 ? "Clave Logistics"
                 : area === "fleet"
                 ? "Clave Flota"
+                : area === "trj_kardex"
+                ? "Clave Kardex TRJ"
                 : area === "fixassets"
                 ? "Clave Activos Fijos y Depreciación"
                 : area === "sustainability"

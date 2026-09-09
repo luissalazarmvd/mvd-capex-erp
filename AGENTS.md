@@ -43,7 +43,10 @@ Login general mediante `/api/auth/login`, cookie `mvd_auth`, HMAC `AUTH_SECRET`,
 - Sostenibilidad: `sustainability` → `/sustainability/igafom`
 - Activos Fijos: `fixassets` → `/fixassets/new`
 - Flota: `fleet_mgmt|fleet_units` → `/fleet/mgmt`
+- Kardex TRJ: `trjkardex_guides|trjkardex_quotes` → `/kardex/guides` o `/kardex/quotes`
 - TI: `ti` → `/ti`
+
+Kardex TRJ usa tres niveles de acceso: `TRJKARDEX_PASSWORD_L1` habilita Guías y Valorización, `TRJKARDEX_PASSWORD_L2` habilita solo Guías y `TRJKARDEX_PASSWORD_L3` habilita solo Valorización.
 
 El portal `/` valida primero acceso corporativo mediante `/api/access-check`.
 
@@ -91,6 +94,9 @@ Flota separa Gestión y Unidades por scopes. No agregar campos obligatorios que 
 
 ### Sostenibilidad
 IGAFOM y padrón de proveedores. Preservar claves y validaciones existentes.
+
+### Kardex TRJ
+Rutas `/kardex/guides` y `/kardex/quotes`, con componentes en `src/components/trj-kardex`. Por ahora ambas vistas son placeholders sin contratos de backend.
 
 ### TI
 Página principal `src/app/ti/page.tsx`, tickets, feedback, copiloto IA y búsqueda técnica. Los proxies pueden degradar a respuestas vacías/dummy sin romper UI.
