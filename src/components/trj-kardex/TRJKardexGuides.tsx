@@ -384,6 +384,8 @@ const UBIGEO_PERU_URLS = {
 const SCALE = BigInt(1000000);
 const text = (value: unknown) => value == null ? "" : String(value);
 const code = (value: string) => value.trim().toUpperCase();
+const isCleanupLot = (value: string) =>
+  /^(?:\d{2}-)?LIMPIEZA$/.test(code(value));
 
 const DEFAULT_MVD_RUC = "20536126440";
 const DEFAULT_MVD_NAME = "MINERA VETA DORADA S.A.C.";
@@ -1386,8 +1388,28 @@ export default function TRJKardexGuides() {
   const selectedSgm = sgmByLot.get(code(newLot));
 
   const cleanupExists = guideLots.some(
-    (row) => code(row.lot) === "LIMPIEZA"
+    (row) => isCleanupLot(row.lot)
   );
+
+  const nextCleanupCorr = useMemo(() => {
+    const maxCorr = lots.reduce((max, row) => {
+      if (
+        !isCleanupLot(row.lot) ||
+        !/^\d{4}$/.test(row.lot_corr)
+      ) {
+        return max;
+      }
+
+      return Math.max(
+        max,
+        Number(row.lot_corr)
+      );
+    }, 0);
+
+    return maxCorr < 9999
+      ? String(maxCorr + 1).padStart(4, "0")
+      : null;
+  }, [lots]);
 
   const availableLots = sgm.filter(
     (row) =>
@@ -1605,10 +1627,20 @@ export default function TRJKardexGuides() {
       return "La salida inicial debe ser mayor a cero";
     }
 
-    if (code(lot) === "LIMPIEZA") {
-      return !old && cleanupExists
-        ? "Esta guía ya tiene LIMPIEZA"
-        : "";
+    if (isCleanupLot(lot)) {
+      if (!old && cleanupExists) {
+        return "Esta guía ya tiene LIMPIEZA";
+      }
+
+      if (!old && !draft.departure_date.trim()) {
+        return "Registra primero la fecha de salida de la guía";
+      }
+
+      if (!old && !nextCleanupCorr) {
+        return "Se agotaron los correlativos de LIMPIEZA";
+      }
+
+      return "";
     }
 
     if (!sgmByLot.has(code(lot))) {
@@ -2955,7 +2987,7 @@ export default function TRJKardexGuides() {
                           const lot = code(newLot);
 
                           if (
-                            lot !== "LIMPIEZA" &&
+                            !isCleanupLot(lot) &&
                             lot &&
                             !sgmByLot.has(lot)
                           ) {
@@ -2964,7 +2996,7 @@ export default function TRJKardexGuides() {
                         }}
                       />
 
-                      {lotMenuOpen && newLot !== "LIMPIEZA" && (
+                      {lotMenuOpen && !isCleanupLot(newLot) && (
                         <div className="trjg-lot-menu">
                           {availableLots.slice(0, 100).map((row) => (
                             <button
@@ -3021,8 +3053,8 @@ export default function TRJKardexGuides() {
                         className="input"
                         readOnly
                         value={
-                          newLot === "LIMPIEZA"
-                            ? "0001"
+                          isCleanupLot(newLot)
+                            ? nextCleanupCorr || "—"
                             : selectedSgm?.next_corr || "—"
                         }
                       />
@@ -3059,8 +3091,8 @@ export default function TRJKardexGuides() {
                     </Button>
 
                     <span className="trjg-balance">
-                      {newLot === "LIMPIEZA"
-                        ? "LIMPIEZA no usa saldo SGM · máximo una por guía"
+                      {isCleanupLot(newLot)
+                        ? "LIMPIEZA no usa saldo SGM · correlativo único · máximo una por guía"
                         : `Saldo disponible: ${fmt(selectedSgm?.tmh_balance)} TMH`}
                     </span>
 
@@ -3072,7 +3104,7 @@ export default function TRJKardexGuides() {
                   </div>
                 </fieldset>
 
-                {newLot && newLot !== "LIMPIEZA" && (
+                {newLot && !isCleanupLot(newLot) && (
                   <div style={{ marginTop: 7 }}>
                     <LotHistory lot={newLot} rows={lots} />
                   </div>
@@ -3139,7 +3171,7 @@ export default function TRJKardexGuides() {
                             <td>{fmt(row.tmh_arrival)}</td>
 
                             <td>
-                              {code(row.lot) === "LIMPIEZA"
+                              {isCleanupLot(row.lot)
                                 ? "No aplica"
                                 : fmt(
                                     sgmByLot.get(code(row.lot))
@@ -3149,7 +3181,7 @@ export default function TRJKardexGuides() {
                             </td>
 
                             <td>
-                              {code(row.lot) !== "LIMPIEZA" && (
+                              {!isCleanupLot(row.lot) && (
                                 <LotHistory
                                   lot={row.lot}
                                   rows={lots}
