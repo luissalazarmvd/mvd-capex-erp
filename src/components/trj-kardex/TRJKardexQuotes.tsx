@@ -226,6 +226,12 @@ function dateKey(value: string) {
     : "";
 }
 
+function peruNowInputValue() {
+  return new Date(Date.now() - 5 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 16);
+}
+
 function QuoteEditor({
   guide,
   lots,
@@ -375,10 +381,18 @@ function QuoteEditor({
     ? dateKey(text(guide.departure_date))
     : "";
 
+  const maxDateTimePe = peruNowInputValue();
+  const maxDateTimeKeyPe = dateKey(maxDateTimePe);
+
   let validation = "";
 
   if (arrival && !arrivalKey) {
     validation = "La fecha de llegada no es válida";
+  } else if (
+    arrivalKey &&
+    arrivalKey > maxDateTimeKeyPe
+  ) {
+    validation = "La llegada no puede ser futura (hora Perú)";
   } else if (
     arrivalKey &&
     departureKey &&
@@ -536,6 +550,8 @@ function QuoteEditor({
                 className="input"
                 type="datetime-local"
                 step="0.001"
+                min={text(guide.departure_date).slice(0, 16) || undefined}
+                max={maxDateTimePe}
                 value={arrival}
                 onChange={(e) => setArrival(e.target.value)}
               />

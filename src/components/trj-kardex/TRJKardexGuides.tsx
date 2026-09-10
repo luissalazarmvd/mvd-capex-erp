@@ -298,6 +298,28 @@ const GROUPS: {
 
 const FIELDS = GROUPS.flatMap((group) => group.fields);
 
+const REQUIRED_GUIDE_FIELDS = [
+  ["transport_guide_number", "Guía transportista"],
+  ["transport_ruc", "RUC transportista"],
+  ["transport_name", "Razón social transportista"],
+  ["drive_license", "Licencia de conducir"],
+  ["driver_name", "Conductor"],
+  ["plate_1", "Placa Camión"],
+  ["plate_2", "Placa Carroza"],
+  ["sender_ruc", "RUC remitente"],
+  ["sender_name", "Razón social remitente"],
+  ["origin_department", "Departamento de origen"],
+  ["origin_province", "Provincia de origen"],
+  ["origin_district", "Distrito de origen"],
+  ["origin_address", "Dirección de origen"],
+  ["recipient_ruc", "RUC destinatario"],
+  ["recipient_name", "Razón social destinatario"],
+  ["destination_department", "Departamento de destino"],
+  ["destination_province", "Provincia de destino"],
+  ["destination_district", "Distrito de destino"],
+  ["destination_address", "Dirección de destino"],
+] as const;
+
 const GEO_AUTOCOMPLETE_FIELDS = [
   "origin_department",
   "origin_province",
@@ -347,6 +369,85 @@ const UBIGEO_PERU_URLS = {
 const SCALE = BigInt(1000000);
 const text = (value: unknown) => value == null ? "" : String(value);
 const code = (value: string) => value.trim().toUpperCase();
+
+const DEFAULT_MVD_RUC = "20536126440";
+const DEFAULT_MVD_NAME = "MINERA VETA DORADA S.A.C.";
+
+function peruNowInputValue() {
+  return new Date(Date.now() - 5 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 16);
+}
+
+function lotInputValue(value: string) {
+  const safe = value
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9-]/g, "");
+
+  const compact = safe.replace(/-/g, "");
+
+  if (!compact.startsWith("TRJ")) {
+    return safe.slice(0, 20);
+  }
+
+  const digits = compact
+    .slice(3)
+    .replace(/\D/g, "")
+    .slice(0, 7);
+
+  const year = digits.slice(0, 2);
+  const number = digits.slice(2, 7);
+
+  return (
+    `TRJ${year ? `-${year}` : ""}` +
+    `${number ? `-${number}` : ""}`
+  );
+}
+
+function lotMatchesInput(lot: string, value: string) {
+  const needle = code(value).replace(/[^A-Z0-9]/g, "");
+
+  if (!needle) return true;
+
+  const candidate = code(lot).replace(/[^A-Z0-9]/g, "");
+
+  if (candidate.includes(needle)) return true;
+
+  const match = code(lot).match(
+    /^TRJ-(\d{2})-(\d{1,5})$/
+  );
+
+  if (!match) return false;
+
+  const digits = value
+    .replace(/\D/g, "")
+    .replace(/^0+(?=\d)/, "");
+
+  if (!digits) return false;
+
+  const shortNumber = match[2].replace(/^0+(?=\d)/, "");
+
+  return (
+    shortNumber.includes(digits) ||
+    `${match[1]}${shortNumber}`.includes(digits)
+  );
+}
+
+function lotSearchAliases(lot: string) {
+  const match = code(lot).match(
+    /^TRJ-(\d{2})-(\d{1,5})$/
+  );
+
+  if (!match) return lot;
+
+  const shortNumber = match[2].replace(/^0+(?=\d)/, "");
+
+  return (
+    `TRJ-${match[1]}-${shortNumber} ` +
+    `${match[1]}${shortNumber} ${shortNumber}`
+  );
+}
 
 function guideDraftValue(value: string) {
   const compact = value
@@ -575,7 +676,7 @@ function dateKey(value: string) {
 }
 
 function draftOf(guide?: Guide): Draft {
-  return Object.fromEntries([
+  const values = Object.fromEntries([
     [
       "guide_number",
       guideDraftValue(guide?.guide_number || ""),
@@ -590,7 +691,16 @@ function draftOf(guide?: Guide): Draft {
             ? driveLicenseDraftValue(text(guide?.[field.key]))
             : text(guide?.[field.key]),
     ]),
-  ]);
+  ]) as Draft;
+
+  if (!guide) {
+    values.sender_ruc = DEFAULT_MVD_RUC;
+    values.sender_name = DEFAULT_MVD_NAME;
+    values.recipient_ruc = DEFAULT_MVD_RUC;
+    values.recipient_name = DEFAULT_MVD_NAME;
+  }
+
+  return values;
 }
 
 function partyValues(role: Role, party?: Party): Draft {
@@ -701,7 +811,13 @@ export default function TRJKardexGuides() {
     Partial<Record<Role, Party[]>>
   >({});
 
-  const [rucHistory, setRucHistory] = useState<RucHistory[]>([]);
+  const [rucHistory, setRucHistory] = useState<
+    Record<Role, RucHistory[]>
+  >({
+    transport: [],
+    sender: [],
+    recipient: [],
+  });
 
   const [peruDepartments, setPeruDepartments] = useState<PeruDepartment[]>([]);
   const [peruProvinces, setPeruProvinces] = useState<PeruProvince[]>([]);
@@ -732,7 +848,9 @@ export default function TRJKardexGuides() {
       apiGet("/api/trjkar/guides"),
       apiGet("/api/trjkar"),
       apiGet("/api/trjkar/sgm-hist"),
-      apiGet("/api/trjkar/ruc-history"),
+      apiGet("/api/trjkar/ruc-history?role=transport"),
+      apiGet("/api/trjkar/ruc-history?role=sender"),
+      apiGet("/api/trjkar/ruc-history?role=recipient"),
     ]);
 
     for (const response of responses) {
@@ -749,7 +867,11 @@ export default function TRJKardexGuides() {
     setGuides(next);
     setLots(responses[1].rows as Lot[]);
     setSgm(responses[2].rows as Sgm[]);
-    setRucHistory(responses[3].rows as RucHistory[]);
+    setRucHistory({
+      transport: responses[3].rows as RucHistory[],
+      sender: responses[4].rows as RucHistory[],
+      recipient: responses[5].rows as RucHistory[],
+    });
 
     return next;
   }, []);
@@ -854,9 +976,17 @@ export default function TRJKardexGuides() {
   );
 
   const rucHistoryByRuc = useMemo(
-    () => new Map(
-      rucHistory.map((row) => [row.ruc, row])
-    ),
+    () => ({
+      transport: new Map(
+        rucHistory.transport.map((row) => [row.ruc, row])
+      ),
+      sender: new Map(
+        rucHistory.sender.map((row) => [row.ruc, row])
+      ),
+      recipient: new Map(
+        rucHistory.recipient.map((row) => [row.ruc, row])
+      ),
+    }),
     [rucHistory]
   );
 
@@ -1232,7 +1362,12 @@ export default function TRJKardexGuides() {
     (row) => code(row.lot) === "LIMPIEZA"
   );
 
-  const availableLots = sgm;
+  const availableLots = sgm.filter((row) =>
+    lotMatchesInput(row.lot, newLot)
+  );
+
+  const maxDateTimePe = peruNowInputValue();
+  const maxDateTimeKeyPe = dateKey(maxDateTimePe);
 
   const guideExcelValues = useMemo(
     () =>
@@ -1346,6 +1481,14 @@ export default function TRJKardexGuides() {
     guideError = "La guía ya existe; ábrela desde el histórico";
   }
 
+  const missingRequired = REQUIRED_GUIDE_FIELDS.find(
+    ([key]) => !draft[key].trim()
+  );
+
+  if (!guideError && missingRequired) {
+    guideError = `${missingRequired[1]} es obligatorio`;
+  }
+
   for (const field of FIELDS) {
     const value = draft[field.key].trim();
 
@@ -1383,23 +1526,31 @@ export default function TRJKardexGuides() {
         `${field.label}: número no negativo, hasta 6 decimales`;
     }
 
-    if (
-      field.kind === "datetime" &&
-      value &&
-      !dateKey(value)
-    ) {
-      guideError = `${field.label}: fecha u hora inválida`;
+    if (field.kind === "datetime" && value) {
+      const key = dateKey(value);
+
+      if (!key) {
+        guideError = `${field.label}: fecha u hora inválida`;
+      } else if (key > maxDateTimeKeyPe) {
+        guideError = `${field.label}: no puede ser futura (hora Perú)`;
+      }
     }
   }
 
   if (
+    draft.load_ini &&
     draft.load_fin &&
-    (
-      !draft.load_ini ||
-      dateKey(draft.load_fin) <= dateKey(draft.load_ini)
-    )
+    dateKey(draft.load_fin) < dateKey(draft.load_ini)
   ) {
-    guideError = "Fin de carga debe ser posterior al inicio";
+    guideError = "Fin de carga no puede ser anterior al inicio";
+  }
+
+  if (
+    draft.load_fin &&
+    draft.departure_date &&
+    dateKey(draft.departure_date) < dateKey(draft.load_fin)
+  ) {
+    guideError = "La salida no puede ser anterior al fin de carga";
   }
 
   function departureError(
@@ -1624,7 +1775,7 @@ export default function TRJKardexGuides() {
     }
 
     const historical =
-      rucHistoryByRuc.get(ruc);
+      rucHistoryByRuc[role].get(ruc);
 
     if (historical?.name) {
       next[`${role}_name`] = historical.name;
@@ -1814,7 +1965,7 @@ export default function TRJKardexGuides() {
         }
 
         writeDraft(next);
-      } else if (!rucHistoryByRuc.has(ruc)) {
+      } else if (!rucHistoryByRuc[role].has(ruc)) {
         notify(
           "No hay datos históricos para ese RUC. Puedes completarlos manualmente"
         );
@@ -2454,7 +2605,7 @@ export default function TRJKardexGuides() {
                             <input
                               className="input"
                               inputMode="numeric"
-                              list="trjkar-ruc-options"
+                              list={`trjkar-${field.role}-ruc-options`}
                               autoComplete="off"
                               maxLength={280}
                               value={draft[field.key]}
@@ -2562,6 +2713,18 @@ export default function TRJKardexGuides() {
                               ? "60"
                               : undefined
                           }
+                          min={
+                            field.key === "load_fin" && draft.load_ini
+                              ? draft.load_ini
+                              : field.key === "departure_date" && draft.load_fin
+                                ? draft.load_fin
+                                : undefined
+                          }
+                          max={
+                            field.kind === "datetime"
+                              ? maxDateTimePe
+                              : undefined
+                          }
                           inputMode={
                             field.kind === "decimal"
                               ? "decimal"
@@ -2644,14 +2807,21 @@ export default function TRJKardexGuides() {
             </datalist>
           ))}
 
-          <datalist id="trjkar-ruc-options">
-            {rucHistory.map((row) => (
-              <option
-                key={row.ruc}
-                value={`${row.ruc} - ${row.name || ""}`}
-              />
-            ))}
-          </datalist>
+          {(["transport", "sender", "recipient"] as Role[]).map(
+            (role) => (
+              <datalist
+                key={role}
+                id={`trjkar-${role}-ruc-options`}
+              >
+                {rucHistory[role].map((row) => (
+                  <option
+                    key={row.ruc}
+                    value={`${row.ruc} - ${row.name || ""}`}
+                  />
+                ))}
+              </datalist>
+            )
+          )}
 
           {guideError && (
             <div className="trjg-message trjg-error" style={{ marginTop: 9 }}>
@@ -2698,7 +2868,7 @@ export default function TRJKardexGuides() {
                         placeholder="Seleccionar lote"
                         autoComplete="off"
                         onChange={(e) => {
-                          setNewLot(code(e.target.value));
+                          setNewLot(lotInputValue(e.target.value));
                           setNewDeparture("");
                         }}
                         onBlur={(e) => {
@@ -2718,7 +2888,7 @@ export default function TRJKardexGuides() {
                           <option
                             key={row.lot}
                             value={row.lot}
-                            label={`Saldo ${fmt(row.tmh_balance)} TMH`}
+                            label={`${lotSearchAliases(row.lot)} · Saldo ${fmt(row.tmh_balance)} TMH`}
                           />
                         ))}
                       </datalist>
