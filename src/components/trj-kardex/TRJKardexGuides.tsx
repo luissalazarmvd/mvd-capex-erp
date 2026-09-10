@@ -434,19 +434,8 @@ function lotMatchesInput(lot: string, value: string) {
   );
 }
 
-function lotSearchAliases(lot: string) {
-  const match = code(lot).match(
-    /^TRJ-(\d{2})-(\d{1,5})$/
-  );
-
-  if (!match) return lot;
-
-  const shortNumber = match[2].replace(/^0+(?=\d)/, "");
-
-  return (
-    `TRJ-${match[1]}-${shortNumber} ` +
-    `${match[1]}${shortNumber} ${shortNumber}`
-  );
+function lotDisplayValue(row: Sgm) {
+  return `${row.lot} · Saldo ${fmt(row.tmh_balance)} TMH`;
 }
 
 function guideDraftValue(value: string) {
@@ -598,7 +587,15 @@ const identity = (row: Lot) =>
   ]);
 
 const decimalValid = (value: string) =>
-  /^\d{1,12}(\.\d{1,6})?$/.test(value.trim());
+  /^(?:\d{1,12}(?:\.\d{1,6})?|\.\d{1,6})$/.test(value.trim());
+
+const decimalPayload = (value: string) => {
+  const trimmed = value.trim();
+
+  return trimmed.startsWith(".")
+    ? `0${trimmed}`
+    : trimmed;
+};
 
 function fieldClass(field: Field) {
   if (field.kind === "datetime") return "trjg-field trjg-span-4";
@@ -621,13 +618,13 @@ function fieldClass(field: Field) {
 function units(value: unknown): bigint | null {
   const raw = text(value).trim();
 
-  if (!/^-?\d+(\.\d{1,6})?$/.test(raw)) return null;
+  if (!/^-?(?:\d+(?:\.\d{1,6})?|\.\d{1,6})$/.test(raw)) return null;
 
   const negative = raw.startsWith("-");
   const [whole, fraction = ""] = raw.replace(/^-/, "").split(".");
 
   const amount =
-    BigInt(whole) * SCALE +
+    BigInt(whole || "0") * SCALE +
     BigInt(fraction.padEnd(6, "0"));
 
   return negative ? -amount : amount;
@@ -753,7 +750,7 @@ function LotHistory({
           )
           .join("\n")}
       >
-        Ver {new Set(matches.map((row) => row.guide_number)).size} guía(s)
+        Ver guías ({new Set(matches.map((row) => row.guide_number)).size})
       </summary>
 
       <div className="trjg-history-box">
@@ -801,6 +798,7 @@ export default function TRJKardexGuides() {
   } | null>(null);
   const [newLot, setNewLot] = useState("");
   const [newDeparture, setNewDeparture] = useState("");
+  const [lotMenuOpen, setLotMenuOpen] = useState(false);
 
   const [editing, setEditing] = useState<{
     row: Lot;
@@ -1362,8 +1360,16 @@ export default function TRJKardexGuides() {
     (row) => code(row.lot) === "LIMPIEZA"
   );
 
-  const availableLots = sgm.filter((row) =>
-    lotMatchesInput(row.lot, newLot)
+  const availableLots = sgm.filter(
+    (row) =>
+      (units(row.tmh_balance) ?? BigInt(0)) > BigInt(0) &&
+      lotMatchesInput(row.lot, newLot)
+  );
+
+  const usedPendingLots = sgm.filter(
+    (row) =>
+      (units(row.tmh_departure) ?? BigInt(0)) > BigInt(0) &&
+      (units(row.tmh_balance) ?? BigInt(0)) > BigInt(0)
   );
 
   const maxDateTimePe = peruNowInputValue();
@@ -1624,6 +1630,13 @@ export default function TRJKardexGuides() {
     setNewDeparture("");
     setEditing(null);
     notify("");
+
+    if (!guide) {
+      void (async () => {
+        await lookup("sender");
+        await lookup("recipient");
+      })();
+    }
   }
 
   function applyGeoSuggestion(
@@ -1782,6 +1795,10 @@ export default function TRJKardexGuides() {
     }
 
     writeDraft(next);
+
+    if (ruc.length === 11) {
+      void lookup(role);
+    }
   }
 
   function change(field: Field, value: string) {
@@ -2152,7 +2169,7 @@ export default function TRJKardexGuides() {
           guide_number: active,
           lot,
           ...(old ? { lot_corr: old.lot_corr } : {}),
-          tmh_departure: value.trim(),
+          tmh_departure: decimalPayload(value),
         }
       );
 
@@ -2304,7 +2321,21 @@ export default function TRJKardexGuides() {
         .trjk-guides .trjg-kpi strong{font-size:12px}
         .trjk-guides .trjg-message{padding:7px 9px;border:1px solid rgba(147,211,230,.35);border-radius:6px;background:rgba(11,77,107,.45);font-size:11px}
         .trjk-guides .trjg-error{color:#ebb086;border-color:#d85d27}
-        .trjk-guides .trjg-lots{margin-top:10px;padding:10px;border:1px solid rgba(151,205,58,.35);border-radius:6px;background:linear-gradient(180deg,rgba(62,84,24,.15),rgba(2,35,52,.20))}
+        .trjk-guides .trjg-lots-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,320px);gap:10px;align-items:start;margin-top:10px}
+        .trjk-guides .trjg-lots{min-width:0;padding:10px;border:1px solid rgba(151,205,58,.35);border-radius:6px;background:linear-gradient(180deg,rgba(62,84,24,.15),rgba(2,35,52,.20))}
+        .trjk-guides .trjg-used-lots{min-width:0;padding:10px;border:1px solid rgba(147,211,230,.26);border-left:3px solid rgba(240,178,72,.70);border-radius:6px;background:rgba(103,67,13,.08)}
+        .trjk-guides .trjg-used-list{display:grid;gap:6px;max-height:390px;overflow:auto}
+        .trjk-guides .trjg-used-row{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:7px 8px;border:1px solid rgba(147,211,230,.13);border-radius:6px;background:rgba(2,35,52,.23)}
+        .trjk-guides .trjg-used-row>div{display:grid;gap:2px;min-width:0}
+        .trjk-guides .trjg-used-row strong{font-size:11px}
+        .trjk-guides .trjg-used-row span{font-size:9px;opacity:.78}
+        .trjk-guides .trjg-lot-picker{position:relative}
+        .trjk-guides .trjg-lot-menu{position:absolute;left:0;right:0;top:100%;z-index:30;display:grid;max-height:280px;overflow:auto;margin-top:3px;padding:4px;border:1px solid rgba(147,211,230,.35);border-radius:6px;background:#0d222e;box-shadow:0 10px 24px rgba(0,0,0,.28)}
+        .trjk-guides .trjg-lot-option{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:7px 8px;border:0;border-radius:4px;background:transparent;color:#fff;text-align:left;font:inherit;cursor:pointer}
+        .trjk-guides .trjg-lot-option:hover{background:rgba(147,211,230,.09)}
+        .trjk-guides .trjg-lot-option strong{font-size:11px;font-weight:600}
+        .trjk-guides .trjg-lot-option span{font-size:10px;opacity:.78}
+        .trjk-guides .trjg-lot-empty{padding:8px;font-size:10px;opacity:.72}
         .trjk-guides .trjg-lots-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
         .trjk-guides .trjg-lots-title{margin:0;font-size:13px}
         .trjk-guides .trjg-lot-add{display:grid;grid-template-columns:1.7fr .75fr .65fr auto;gap:8px;align-items:end}
@@ -2322,6 +2353,9 @@ export default function TRJKardexGuides() {
           .trjk-guides .trjg-span-2{grid-column:span 2}
           .trjk-guides .trjg-lot-add{grid-template-columns:repeat(4,minmax(0,1fr))}
           .trjk-guides .trjg-lot-add>div:last-child{grid-column:span 4;justify-self:end}
+        }
+        @media (max-width:1000px){
+          .trjk-guides .trjg-lots-layout{grid-template-columns:1fr}
         }
         @media (max-width:760px){
           .trjk-guides{max-height:calc(100dvh - 56px);padding-right:3px}
@@ -2829,8 +2863,9 @@ export default function TRJKardexGuides() {
             </div>
           )}
 
-          <div className="trjg-lots">
-            <div className="trjg-lots-head">
+          <div className="trjg-lots-layout">
+            <div className="trjg-lots">
+              <div className="trjg-lots-head">
               <div>
                 <h3 className="trjg-lots-title">Lotes de la guía</h3>
                 <div className="trjg-note">
@@ -2859,23 +2894,38 @@ export default function TRJKardexGuides() {
 
                 <fieldset disabled={blockedLots || !!editing}>
                   <div className="trjg-lot-add">
-                    <label className="trjg-field">
+                    <label className="trjg-field trjg-lot-picker">
                       Lote SGM
                       <input
                         className="input"
-                        list="trjkar-sgm-lot-options"
-                        value={newLot}
+                        value={
+                          selectedSgm && !lotMenuOpen
+                            ? lotDisplayValue(selectedSgm)
+                            : newLot
+                        }
                         placeholder="Seleccionar lote"
                         autoComplete="off"
+                        onFocus={(e) => {
+                          setLotMenuOpen(true);
+                          e.currentTarget.select();
+                        }}
+                        onClick={(e) => {
+                          setLotMenuOpen(true);
+                          e.currentTarget.select();
+                        }}
                         onChange={(e) => {
+                          setLotMenuOpen(true);
                           setNewLot(lotInputValue(e.target.value));
                           setNewDeparture("");
                         }}
-                        onBlur={(e) => {
-                          const lot = code(e.currentTarget.value);
+                        onBlur={() => {
+                          setLotMenuOpen(false);
+
+                          const lot = code(newLot);
 
                           if (
                             lot !== "LIMPIEZA" &&
+                            lot &&
                             !sgmByLot.has(lot)
                           ) {
                             setNewLot("");
@@ -2883,15 +2933,34 @@ export default function TRJKardexGuides() {
                         }}
                       />
 
-                      <datalist id="trjkar-sgm-lot-options">
-                        {availableLots.map((row) => (
-                          <option
-                            key={row.lot}
-                            value={row.lot}
-                            label={`${lotSearchAliases(row.lot)} · Saldo ${fmt(row.tmh_balance)} TMH`}
-                          />
-                        ))}
-                      </datalist>
+                      {lotMenuOpen && newLot !== "LIMPIEZA" && (
+                        <div className="trjg-lot-menu">
+                          {availableLots.slice(0, 100).map((row) => (
+                            <button
+                              key={row.lot}
+                              type="button"
+                              className="trjg-lot-option"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setNewLot(row.lot);
+                                setNewDeparture("");
+                                setLotMenuOpen(false);
+                              }}
+                            >
+                              <strong>{row.lot}</strong>
+                              <span>
+                                Saldo {fmt(row.tmh_balance)} TMH
+                              </span>
+                            </button>
+                          ))}
+
+                          {!availableLots.length && (
+                            <div className="trjg-lot-empty">
+                              No hay lotes con saldo para esta búsqueda.
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </label>
 
                     <label className="trjg-field">
@@ -3117,6 +3186,52 @@ export default function TRJKardexGuides() {
                 )}
               </>
             )}
+            </div>
+
+            <aside className="trjg-used-lots">
+              <div className="trjg-lots-head">
+                <div>
+                  <h3 className="trjg-lots-title">
+                    Lotes usados con saldo
+                  </h3>
+                  <div className="trjg-note">
+                    Usados anteriormente y todavía pendientes.
+                  </div>
+                </div>
+
+                <span className="trjg-count">
+                  {usedPendingLots.length}
+                </span>
+              </div>
+
+              <div className="trjg-used-list">
+                {usedPendingLots.map((row) => (
+                  <div
+                    className="trjg-used-row"
+                    key={row.lot}
+                  >
+                    <div>
+                      <strong>{row.lot}</strong>
+                      <span>
+                        Usado {fmt(row.tmh_departure)} · Saldo{" "}
+                        {fmt(row.tmh_balance)} TMH
+                      </span>
+                    </div>
+
+                    <LotHistory
+                      lot={row.lot}
+                      rows={lots}
+                    />
+                  </div>
+                ))}
+
+                {!usedPendingLots.length && (
+                  <div className="trjg-note">
+                    No hay lotes usados con saldo pendiente.
+                  </div>
+                )}
+              </div>
+            </aside>
           </div>
         </section>
       )}

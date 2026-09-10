@@ -31,6 +31,12 @@ type Lot = {
   tmh_arrival: string | null;
 };
 
+type Sgm = {
+  lot: string;
+  tmh_departure: string | null;
+  tmh_balance: string | null;
+};
+
 type Invoice = {
   document_number: string;
   document_date: string | null;
@@ -157,18 +163,29 @@ const identity = (row: Lot) =>
   ]);
 
 const decimalValid = (value: string) =>
-  /^\d{1,12}(\.\d{1,6})?$/.test(value.trim());
+  /^(?:\d{1,12}(?:\.\d{1,6})?|\.\d{1,6})$/.test(value.trim());
+
+const moneyValid = (value: string) =>
+  /^(?:\d{1,12}(?:\.\d{1,2})?|\.\d{1,2})$/.test(value.trim());
+
+const decimalPayload = (value: string) => {
+  const trimmed = value.trim();
+
+  return trimmed.startsWith(".")
+    ? `0${trimmed}`
+    : trimmed;
+};
 
 function units(value: unknown): bigint | null {
   const raw = text(value).trim();
 
-  if (!/^-?\d+(\.\d{1,6})?$/.test(raw)) return null;
+  if (!/^-?(?:\d+(?:\.\d{1,6})?|\.\d{1,6})$/.test(raw)) return null;
 
   const negative = raw.startsWith("-");
   const [whole, fraction = ""] = raw.replace(/^-/, "").split(".");
 
   const result =
-    BigInt(whole) * SCALE +
+    BigInt(whole || "0") * SCALE +
     BigInt(fraction.padEnd(6, "0"));
 
   return negative ? -result : result;
@@ -232,21 +249,75 @@ function peruNowInputValue() {
     .slice(0, 16);
 }
 
+function LotHistory({
+  lot,
+  rows,
+}: {
+  lot: string;
+  rows: Lot[];
+}) {
+  const matches = rows.filter(
+    (row) =>
+      row.lot.trim().toUpperCase() ===
+      lot.trim().toUpperCase()
+  );
+
+  if (!matches.length) {
+    return <span className="trjq-note">Sin guías</span>;
+  }
+
+  return (
+    <details className="trjq-history">
+      <summary>
+        Ver guías ({new Set(matches.map((row) => row.guide_number)).size})
+      </summary>
+
+      <div className="trjq-history-box">
+        <table>
+          <thead>
+            <tr>
+              <th>Guía</th>
+              <th>Corr.</th>
+              <th>Salida</th>
+              <th>Llegada</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {matches.map((row) => (
+              <tr key={identity(row)}>
+                <td>{row.guide_number}</td>
+                <td>{row.lot_corr}</td>
+                <td>{fmt(row.tmh_departure)}</td>
+                <td>{fmt(row.tmh_arrival)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 function QuoteEditor({
   guide,
   lots,
+  allLots,
+  sgm,
   onSaved,
   onBusy,
   onDirty,
 }: {
   guide: Guide;
   lots: Lot[];
+  allLots: Lot[];
+  sgm: Sgm[];
   onSaved: (result: Saved) => void;
   onBusy: (busy: boolean) => void;
   onDirty: (dirty: boolean) => void;
 }) {
   const [arrival, setArrival] = useState(
-    text(guide.arrival_date)
+    text(guide.arrival_date).slice(0, 16)
   );
 
   const [rate, setRate] = useState(
@@ -277,7 +348,7 @@ function QuoteEditor({
   const listId = useId();
 
   const dirty =
-    arrival !== text(guide.arrival_date) ||
+    arrival !== text(guide.arrival_date).slice(0, 16) ||
     rate.trim() !== text(guide.pu_transport_usd).trim() ||
     document.trim() !== text(guide.document_number).trim() ||
     lots.some(
@@ -356,6 +427,12 @@ function QuoteEditor({
         ) / SCALE
       : null;
 
+  const usedPendingLots = sgm.filter(
+    (row) =>
+      (units(row.tmh_departure) ?? BigInt(0)) > BigInt(0) &&
+      (units(row.tmh_balance) ?? BigInt(0)) > BigInt(0)
+  );
+
   const invoiceMatches = invoices.filter(
     (row) =>
       row.document_number.trim().toUpperCase() ===
@@ -401,9 +478,9 @@ function QuoteEditor({
     validation = "La llegada no puede ser anterior a la salida";
   }
 
-  if (rate.trim() && !decimalValid(rate)) {
+  if (rate.trim() && !moneyValid(rate)) {
     validation =
-      "El PU debe ser no negativo y tener hasta 6 decimales";
+      "El PU debe ser no negativo y tener hasta 2 decimales";
   }
 
   if (document.trim().length > 50) {
@@ -444,14 +521,21 @@ function QuoteEditor({
         guide_number: guide.guide_number,
       };
 
-      if (arrival !== text(guide.arrival_date)) {
-        body.arrival_date = arrival || null;
+      if (
+        arrival !==
+        text(guide.arrival_date).slice(0, 16)
+      ) {
+        body.arrival_date = arrival
+          ? `${arrival.slice(0, 16)}:00.000`
+          : null;
       }
 
       if (
         rate.trim() !== text(guide.pu_transport_usd).trim()
       ) {
-        body.pu_transport_usd = rate.trim() || null;
+        body.pu_transport_usd = rate.trim()
+          ? decimalPayload(rate)
+          : null;
       }
 
       if (
@@ -472,7 +556,9 @@ function QuoteEditor({
           lot: row.lot,
           lot_corr: row.lot_corr,
           guide_number: row.guide_number,
-          tmh_arrival: values[identity(row)].trim() || null,
+          tmh_arrival: values[identity(row)].trim()
+            ? decimalPayload(values[identity(row)])
+            : null,
         }));
       }
 
@@ -549,7 +635,7 @@ function QuoteEditor({
               <input
                 className="input"
                 type="datetime-local"
-                step="0.001"
+                step="60"
                 min={text(guide.departure_date).slice(0, 16) || undefined}
                 max={maxDateTimePe}
                 value={arrival}
@@ -562,9 +648,19 @@ function QuoteEditor({
               <input
                 className="input"
                 inputMode="decimal"
-                maxLength={19}
+                maxLength={15}
                 value={rate}
-                onChange={(e) => setRate(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+
+                  if (
+                    /^(?:\d{0,12}(?:\.\d{0,2})?|\.\d{0,2})$/.test(
+                      value
+                    )
+                  ) {
+                    setRate(value);
+                  }
+                }}
               />
             </label>
 
@@ -625,10 +721,11 @@ function QuoteEditor({
           </div>
         )}
 
-        <div className="trjq-lots-card">
-          <div className="trjq-section-title">
-            Llegadas por lote
-          </div>
+        <div className="trjq-lots-layout">
+          <div className="trjq-lots-card">
+            <div className="trjq-section-title">
+              Llegadas por lote
+            </div>
 
           <div className="trjq-table-scroll">
             <table>
@@ -712,6 +809,53 @@ function QuoteEditor({
               </tfoot>
             </table>
           </div>
+          </div>
+
+          <aside className="trjq-used-lots">
+            <div className="trjq-used-head">
+              <div>
+                <div className="trjq-section-title">
+                  Lotes usados con saldo
+                </div>
+
+                <div className="trjq-note" style={{ marginTop: 0 }}>
+                  Usados anteriormente y todavía pendientes.
+                </div>
+              </div>
+
+              <span className="trjq-count">
+                {usedPendingLots.length}
+              </span>
+            </div>
+
+            <div className="trjq-used-list">
+              {usedPendingLots.map((row) => (
+                <div
+                  className="trjq-used-row"
+                  key={row.lot}
+                >
+                  <div>
+                    <strong>{row.lot}</strong>
+                    <span>
+                      Usado {fmt(row.tmh_departure)} · Saldo{" "}
+                      {fmt(row.tmh_balance)} TMH
+                    </span>
+                  </div>
+
+                  <LotHistory
+                    lot={row.lot}
+                    rows={allLots}
+                  />
+                </div>
+              ))}
+
+              {!usedPendingLots.length && (
+                <div className="trjq-note">
+                  No hay lotes usados con saldo pendiente.
+                </div>
+              )}
+            </div>
+          </aside>
         </div>
       </fieldset>
 
@@ -785,6 +929,7 @@ function QuoteEditor({
 export default function TRJKardexQuotes() {
   const [guides, setGuides] = useState<Guide[]>([]);
   const [lots, setLots] = useState<Lot[]>([]);
+  const [sgm, setSgm] = useState<Sgm[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [pendingOnly, setPendingOnly] = useState(false);
@@ -804,12 +949,13 @@ export default function TRJKardexQuotes() {
   const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
-    const [headers, details] = await Promise.all([
+    const [headers, details, stock] = await Promise.all([
       apiGet("/api/trjkar/guides"),
       apiGet("/api/trjkar"),
+      apiGet("/api/trjkar/sgm-hist"),
     ]);
 
-    for (const response of [headers, details]) {
+    for (const response of [headers, details, stock]) {
       if (
         response?.ok === false ||
         !Array.isArray(response?.rows)
@@ -822,6 +968,7 @@ export default function TRJKardexQuotes() {
 
     setGuides(headers.rows as Guide[]);
     setLots(details.rows as Lot[]);
+    setSgm(stock.rows as Sgm[]);
     setRevision((value) => value + 1);
   }, []);
 
@@ -1096,7 +1243,19 @@ export default function TRJKardexQuotes() {
         .trjk-quotes .trjq-kpi span{font-size:10px;opacity:.78}
         .trjk-quotes .trjq-kpi strong{font-size:15px}
         .trjk-quotes .trjq-inline-note{margin-top:7px;padding-left:1px}
-        .trjk-quotes .trjq-lots-card{margin-top:9px;padding:9px 10px 10px;border:1px solid rgba(151,205,58,.28);border-left:3px solid rgba(151,205,58,.78);border-radius:6px;background:rgba(62,84,24,.09)}
+        .trjk-quotes .trjq-lots-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,320px);gap:10px;align-items:start;margin-top:9px}
+        .trjk-quotes .trjq-lots-card{min-width:0;padding:9px 10px 10px;border:1px solid rgba(151,205,58,.28);border-left:3px solid rgba(151,205,58,.78);border-radius:6px;background:rgba(62,84,24,.09)}
+        .trjk-quotes .trjq-used-lots{min-width:0;padding:9px 10px 10px;border:1px solid rgba(240,178,72,.28);border-left:3px solid rgba(240,178,72,.78);border-radius:6px;background:rgba(103,67,13,.08)}
+        .trjk-quotes .trjq-used-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+        .trjk-quotes .trjq-used-list{display:grid;gap:6px;max-height:390px;overflow:auto}
+        .trjk-quotes .trjq-used-row{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:7px 8px;border:1px solid rgba(147,211,230,.13);border-radius:6px;background:rgba(2,35,52,.23)}
+        .trjk-quotes .trjq-used-row>div{display:grid;gap:2px;min-width:0}
+        .trjk-quotes .trjq-used-row strong{font-size:11px}
+        .trjk-quotes .trjq-used-row span{font-size:9px;opacity:.78}
+        .trjk-quotes .trjq-history summary{cursor:pointer;color:#a8c0cf;font-size:10px}
+        .trjk-quotes .trjq-history-box{overflow:auto;max-height:160px;margin-top:5px;border:1px solid rgba(147,211,230,.18);border-radius:6px;background:#0d222e}
+        .trjk-quotes .trjq-history-box table{font-size:10px}
+        .trjk-quotes .trjq-history-box td,.trjk-quotes .trjq-history-box th{padding:5px 7px}
         .trjk-quotes .trjq-tmh-input{width:118px}
         .trjk-quotes .trjq-input-error{border-color:#d85d27!important}
         .trjk-quotes .trjq-invoice-card{margin-top:9px;padding:9px 10px 10px;border:1px solid rgba(240,178,72,.28);border-left:3px solid rgba(240,178,72,.78);border-radius:6px;background:rgba(103,67,13,.08)}
@@ -1111,6 +1270,7 @@ export default function TRJKardexQuotes() {
         @media (max-width:1100px){
           .trjk-quotes .trjq-entry-grid,.trjk-quotes .trjq-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
           .trjk-quotes .trjq-invoice-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+          .trjk-quotes .trjq-lots-layout{grid-template-columns:1fr}
         }
         @media (max-width:700px){
           .trjk-quotes{max-height:calc(100dvh - 56px);padding-right:3px}
@@ -1336,6 +1496,8 @@ export default function TRJKardexQuotes() {
           key={`${selected.guide_number}:${revision}`}
           guide={selected}
           lots={byGuide.get(selected.guide_number) || []}
+          allLots={lots}
+          sgm={sgm}
           onSaved={saved}
           onBusy={setBusy}
           onDirty={setDirty}
