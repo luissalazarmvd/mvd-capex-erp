@@ -28,6 +28,8 @@ type Lot = {
   guide_number: string;
   tmh_departure: string | null;
   tmh_arrival: string | null;
+  bags_tot: string | null;
+  bags_used: string | null;
   tmh_balance: string | null;
 };
 
@@ -275,20 +277,6 @@ const GROUPS: {
     title: "Carga y traslado · hora Perú",
     tone: "movement",
     fields: [
-      {
-        key: "bags_tot",
-        label: "Sacos Totales (Usados y rotos)",
-        max: 19,
-        kind: "decimal",
-        decimals: 6,
-      },
-      {
-        key: "bags_used",
-        label: "Sacos Enviados",
-        max: 19,
-        kind: "decimal",
-        decimals: 6,
-      },
       {
         key: "load_ini",
         label: "Inicio de carga",
@@ -676,6 +664,21 @@ function fmt(value: unknown, money = false) {
   });
 }
 
+function fmtBags(value: unknown) {
+  if (
+    value == null ||
+    value === "" ||
+    !Number.isFinite(Number(value))
+  ) {
+    return "—";
+  }
+
+  return Number(value).toLocaleString("es-PE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
+  });
+}
+
 function dateLabel(value: unknown) {
   const raw = text(value);
 
@@ -829,6 +832,8 @@ export default function TRJKardexGuides() {
   } | null>(null);
   const [newLot, setNewLot] = useState("");
   const [newDeparture, setNewDeparture] = useState("");
+  const [newBagsTot, setNewBagsTot] = useState("");
+  const [newBagsUsed, setNewBagsUsed] = useState("");
   const [lotMenuOpen, setLotMenuOpen] = useState(false);
 
   const [editing, setEditing] = useState<{
@@ -1376,7 +1381,9 @@ export default function TRJKardexGuides() {
     dirty ||
     !!editing ||
     !!newLot ||
-    !!newDeparture;
+    !!newDeparture ||
+    !!newBagsTot ||
+    !!newBagsUsed;
 
   const blockedLots =
     !active ||
@@ -1665,6 +1672,27 @@ export default function TRJKardexGuides() {
       : "";
   }
 
+  function bagsError(
+    bagsTot: string,
+    bagsUsed: string
+  ) {
+    if (
+      bagsTot.trim() &&
+      !decimalValid(bagsTot, 6)
+    ) {
+      return "Sacos Totales (Usados y rotos): número no negativo, hasta 6 decimales";
+    }
+
+    if (
+      bagsUsed.trim() &&
+      !decimalValid(bagsUsed, 6)
+    ) {
+      return "Sacos Enviados: número no negativo, hasta 6 decimales";
+    }
+
+    return "";
+  }
+
   function openGuide(guide?: Guide) {
     if (gate.current || loading) return;
 
@@ -1689,6 +1717,8 @@ export default function TRJKardexGuides() {
     setCandidates({});
     setNewLot("");
     setNewDeparture("");
+    setNewBagsTot("");
+    setNewBagsUsed("");
     setEditing(null);
     notify("");
 
@@ -2213,10 +2243,21 @@ export default function TRJKardexGuides() {
     const lot = old?.lot || newLot;
     const value = old ? editing?.value || "" : newDeparture;
 
+    const error =
+      departureError(lot, value, old) ||
+      (
+        old
+          ? ""
+          : bagsError(
+              newBagsTot,
+              newBagsUsed
+            )
+      );
+
     if (
       gate.current ||
       blockedLots ||
-      departureError(lot, value, old)
+      error
     ) {
       return;
     }
@@ -2233,6 +2274,22 @@ export default function TRJKardexGuides() {
           lot,
           ...(old ? { lot_corr: old.lot_corr } : {}),
           tmh_departure: decimalPayload(value),
+          ...(
+            !old && newBagsTot.trim()
+              ? {
+                  bags_tot:
+                    decimalPayload(newBagsTot),
+                }
+              : {}
+          ),
+          ...(
+            !old && newBagsUsed.trim()
+              ? {
+                  bags_used:
+                    decimalPayload(newBagsUsed),
+                }
+              : {}
+          ),
         }
       );
 
@@ -2245,6 +2302,8 @@ export default function TRJKardexGuides() {
       acceptSave(response);
       setNewLot("");
       setNewDeparture("");
+      setNewBagsTot("");
+      setNewBagsUsed("");
       setEditing(null);
 
       notify(
@@ -2305,6 +2364,8 @@ export default function TRJKardexGuides() {
       setCandidates({});
       setNewLot("");
       setNewDeparture("");
+      setNewBagsTot("");
+      setNewBagsUsed("");
       setEditing(null);
       setCreating(false);
       setActive(selected?.guide_number || null);
@@ -2321,7 +2382,12 @@ export default function TRJKardexGuides() {
     }
   }
 
-  const newLotError = departureError(newLot, newDeparture);
+  const newLotError =
+    departureError(newLot, newDeparture) ||
+    bagsError(
+      newBagsTot,
+      newBagsUsed
+    );
 
   const editError = editing
     ? departureError(
@@ -2401,7 +2467,7 @@ export default function TRJKardexGuides() {
         .trjk-guides .trjg-lot-empty{padding:8px;font-size:10px;opacity:.72}
         .trjk-guides .trjg-lots-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
         .trjk-guides .trjg-lots-title{margin:0;font-size:13px}
-        .trjk-guides .trjg-lot-add{display:grid;grid-template-columns:1.7fr .75fr .65fr auto;gap:8px;align-items:end}
+        .trjk-guides .trjg-lot-add{display:grid;grid-template-columns:1.7fr .75fr .95fr .75fr .65fr auto;gap:8px;align-items:end}
         .trjk-guides .trjg-lot-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px}
         .trjk-guides .trjg-balance{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(147,211,230,.08);font-size:10px}
         .trjk-guides .trjg-note{font-size:10px;opacity:.82}
@@ -2414,8 +2480,8 @@ export default function TRJKardexGuides() {
           .trjk-guides .trjg-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
           .trjk-guides .trjg-span-4,.trjk-guides .trjg-span-3{grid-column:span 3}
           .trjk-guides .trjg-span-2{grid-column:span 2}
-          .trjk-guides .trjg-lot-add{grid-template-columns:repeat(4,minmax(0,1fr))}
-          .trjk-guides .trjg-lot-add>div:last-child{grid-column:span 4;justify-self:end}
+          .trjk-guides .trjg-lot-add{grid-template-columns:repeat(5,minmax(0,1fr))}
+          .trjk-guides .trjg-lot-add>div:last-child{grid-column:span 5;justify-self:end}
         }
         @media (max-width:1000px){
           .trjk-guides .trjg-lots-layout{grid-template-columns:1fr}
@@ -2980,6 +3046,8 @@ export default function TRJKardexGuides() {
                           setLotMenuOpen(true);
                           setNewLot(lotInputValue(e.target.value));
                           setNewDeparture("");
+                          setNewBagsTot("");
+                          setNewBagsUsed("");
                         }}
                         onBlur={() => {
                           setLotMenuOpen(false);
@@ -3007,6 +3075,8 @@ export default function TRJKardexGuides() {
                               onClick={() => {
                                 setNewLot(row.lot);
                                 setNewDeparture("");
+                                setNewBagsTot("");
+                                setNewBagsUsed("");
                                 setLotMenuOpen(false);
                               }}
                             >
@@ -3042,6 +3112,48 @@ export default function TRJKardexGuides() {
                             )
                           ) {
                             setNewDeparture(value);
+                          }
+                        }}
+                      />
+                    </label>
+
+                    <label className="trjg-field">
+                      Sacos Totales (Usados y rotos)
+                      <input
+                        className="input"
+                        inputMode="decimal"
+                        maxLength={19}
+                        value={newBagsTot}
+                        onChange={(e) => {
+                          const value = e.target.value;
+
+                          if (
+                            /^(?:\d{0,12}(?:\.\d{0,6})?|\.\d{0,6})$/.test(
+                              value
+                            )
+                          ) {
+                            setNewBagsTot(value);
+                          }
+                        }}
+                      />
+                    </label>
+
+                    <label className="trjg-field">
+                      Sacos Enviados
+                      <input
+                        className="input"
+                        inputMode="decimal"
+                        maxLength={19}
+                        value={newBagsUsed}
+                        onChange={(e) => {
+                          const value = e.target.value;
+
+                          if (
+                            /^(?:\d{0,12}(?:\.\d{0,6})?|\.\d{0,6})$/.test(
+                              value
+                            )
+                          ) {
+                            setNewBagsUsed(value);
                           }
                         }}
                       />
@@ -3085,6 +3197,8 @@ export default function TRJKardexGuides() {
                       onClick={() => {
                         setNewLot("LIMPIEZA");
                         setNewDeparture("");
+                        setNewBagsTot("");
+                        setNewBagsUsed("");
                       }}
                     >
                       Agregar LIMPIEZA
@@ -3096,11 +3210,12 @@ export default function TRJKardexGuides() {
                         : `Saldo disponible: ${fmt(selectedSgm?.tmh_balance)} TMH`}
                     </span>
 
-                    {newDeparture && newLotError && (
-                      <span className="trjg-error">
-                        {newLotError}
-                      </span>
-                    )}
+                    {(newDeparture || newBagsTot || newBagsUsed) &&
+                      newLotError && (
+                        <span className="trjg-error">
+                          {newLotError}
+                        </span>
+                      )}
                   </div>
                 </fieldset>
 
@@ -3117,6 +3232,8 @@ export default function TRJKardexGuides() {
                         <th>Lote</th>
                         <th>Corr.</th>
                         <th>TMH salida</th>
+                        <th>Sacos Totales (Usados y rotos)</th>
+                        <th>Sacos Enviados</th>
                         <th>TMH llegada</th>
                         <th>Saldo total lote</th>
                         <th>Otras guías</th>
@@ -3167,6 +3284,10 @@ export default function TRJKardexGuides() {
                                 fmt(row.tmh_departure)
                               )}
                             </td>
+
+                            <td>{fmtBags(row.bags_tot)}</td>
+
+                            <td>{fmtBags(row.bags_used)}</td>
 
                             <td>{fmt(row.tmh_arrival)}</td>
 
@@ -3240,7 +3361,7 @@ export default function TRJKardexGuides() {
 
                       {!guideLots.length && (
                         <tr>
-                          <td colSpan={7}>
+                          <td colSpan={9}>
                             Esta guía todavía no tiene lotes.
                           </td>
                         </tr>
@@ -3251,6 +3372,7 @@ export default function TRJKardexGuides() {
                       <tr>
                         <th colSpan={2}>Total guía</th>
                         <td>{fmt(activeGuide?.tmh_departure)}</td>
+                        <td colSpan={2} />
                         <td>{fmt(activeGuide?.tmh_arrival)}</td>
                         <td colSpan={3} />
                       </tr>
