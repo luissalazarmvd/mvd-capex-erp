@@ -12,31 +12,20 @@ export default function PortalPage() {
 
 function PortalFallback() {
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#0067AC",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        fontFamily: "var(--font-exo), Arial, sans-serif",
-        color: "white",
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          background: "#0067AC",
-          padding: 32,
-          borderRadius: 6,
-          width: 380,
-          textAlign: "center",
-          opacity: 0.9,
-        }}
-      >
-        <img src="/logo_mvd.png" alt="Veta Dorada" style={{ height: 58, marginBottom: 18 }} />
-        <h2 style={{ margin: "0 0 10px 0", fontWeight: 600 }}>Acceso MVD</h2>
-        <div style={{ color: "#a8c0cf", fontWeight: 700 }}>Cargando…</div>
+    <main className="vd-portal">
+      <div className="vd-portal-shell">
+        <header className="vd-portal-head">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo_mvd.png" alt="Veta Dorada" style={{ width: "auto", height: 52 }} />
+
+          <div>
+            <h1>Acceso MVD</h1>
+            <p style={{ color: "var(--ink-3)" }}>
+              <span className="vd-portal-dot" style={{ background: "var(--ink-3)" }} />
+              Cargando…
+            </p>
+          </div>
+        </header>
       </div>
     </main>
   );

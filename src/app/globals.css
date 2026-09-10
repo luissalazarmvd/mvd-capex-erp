@@ -303,6 +303,166 @@ html, body {
 .vd-pill-bad { background: var(--bad-bg); color: var(--bad); }
 .vd-pill-neutral { background: rgba(158, 197, 220, 0.09); color: var(--ink-2); }
 
+/* ── Portal de acceso ─────────────────────────────────────────────── */
+.vd-portal {
+  min-height: 100vh;
+  background: var(--s-canvas);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+}
+
+.vd-portal-shell {
+  width: 100%;
+  max-width: 880px;
+  display: grid;
+  gap: 26px;
+}
+
+/* Único lugar del ERP donde el manual admite el degradado de marca:
+   portada y login. */
+.vd-portal-head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 20px 24px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, #0067ac 0%, #1b93e3 100%);
+  box-shadow: inset 0 3px 0 var(--brand-gold);
+}
+
+.vd-portal-head h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 300;
+  letter-spacing: -0.015em;
+  color: #ffffff;
+}
+
+.vd-portal-head p {
+  margin: 5px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.vd-portal-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.vd-portal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: 10px;
+}
+
+.vd-portal-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 0 16px 0 0;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--s-1);
+  color: var(--ink);
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.vd-portal-rail {
+  width: 4px;
+  align-self: stretch;
+  flex: none;
+  background: var(--tile, var(--brand-blue-light));
+}
+
+.vd-portal-label {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+.vd-portal-tile:hover:not(:disabled) {
+  background: var(--s-2);
+  border-color: var(--tile, var(--brand-blue-light));
+  transform: translateY(-1px);
+}
+
+.vd-portal-tile:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.vd-portal-auth {
+  display: grid;
+  gap: 14px;
+  max-width: 400px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--s-1);
+}
+
+.vd-portal-auth-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 24px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.vd-portal-field {
+  display: grid;
+  gap: 6px;
+}
+
+.vd-portal-field > span {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.vd-portal-back {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.vd-portal-back:hover {
+  color: var(--ink-2);
+}
+
+.vd-portal-err {
+  padding: 8px 10px;
+  border: 1px solid var(--bad-line);
+  border-radius: var(--r-1);
+  background: var(--bad-bg);
+  color: var(--bad);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
 /* ── Filtro de columna tipo Excel ─────────────────────────────────── */
 .vd-funnel {
   font: inherit;

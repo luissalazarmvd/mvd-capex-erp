@@ -19,6 +19,23 @@ type Area =
   | "fleet"
   | "trj_kardex";
 
+// Mismo orden y mismas etiquetas de siempre. El acento replica el de
+// [data-module="…"] en globals.css: cada módulo se reconoce por su color
+// desde el portal.
+const AREAS: Array<{ key: Area; label: string; passwordLabel: string; accent: string }> = [
+  { key: "capex", label: "Proyectos CAPEX", passwordLabel: "Clave CAPEX", accent: "#1b93e3" },
+  { key: "planta", label: "Planta", passwordLabel: "Clave Planta", accent: "#79993a" },
+  { key: "refinery", label: "Refinería", passwordLabel: "Clave Refinería", accent: "#ffb71b" },
+  { key: "traceability", label: "Trazabilidad", passwordLabel: "Clave Trazabilidad", accent: "#a669a6" },
+  { key: "trj_kardex", label: "Kardex TRJ", passwordLabel: "Clave Kardex TRJ", accent: "#00a5ce" },
+  { key: "compliance", label: "Compliance", passwordLabel: "Clave Compliance", accent: "#969795" },
+  { key: "logistics", label: "Logística", passwordLabel: "Clave Logistics", accent: "#d85d27" },
+  { key: "fleet", label: "Flota", passwordLabel: "Clave Flota", accent: "#71bdcd" },
+  { key: "fixassets", label: "Activos Fijos y Depreciación", passwordLabel: "Clave Activos Fijos y Depreciación", accent: "#c69214" },
+  { key: "sustainability", label: "Sostenibilidad", passwordLabel: "Clave Sustainability", accent: "#93b25c" },
+  { key: "ti", label: "Eficiencia Operacional TI", passwordLabel: "Clave Eficiencia Operacional TI", accent: "#6b6b68" },
+];
+
 export default function PortalClient() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -34,6 +51,11 @@ export default function PortalClient() {
   const [err, setErr] = useState("");
   const [hasInternalAccess, setHasInternalAccess] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(true);
+
+  const selected = useMemo(
+    () => AREAS.find((item) => item.key === area) || null,
+    [area]
+  );
 
   function start(areaPick: Area) {
     if (!hasInternalAccess) return;
@@ -128,233 +150,104 @@ export default function PortalClient() {
     }
   }
 
+  const statusText = checkingAccess
+    ? "Validando acceso corporativo…"
+    : hasInternalAccess
+    ? "Acceso corporativo detectado"
+    : "Conéctate a la red/VPN corporativa y usa equipo autorizado";
+
+  const statusTone = checkingAccess
+    ? "var(--ink-3)"
+    : hasInternalAccess
+    ? "var(--ok)"
+    : "var(--bad)";
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#0067AC",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        fontFamily: "var(--font-exo), Arial, sans-serif",
-        color: "white",
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          background: "#0067AC",
-          padding: 32,
-          borderRadius: 6,
-          width: 380,
-          textAlign: "center",
-        }}
-      >
-        <Image
-          src="/logo_mvd.png"
-          alt="Veta Dorada"
-          width={171}
-          height={58}
-          priority
-          style={{ width: "auto", height: 58, marginBottom: 18 }}
-        />
+    <main className="vd-portal">
+      <div className="vd-portal-shell">
+        <header className="vd-portal-head">
+          <Image
+            src="/logo_mvd.png"
+            alt="Veta Dorada"
+            width={171}
+            height={58}
+            priority
+            style={{ width: "auto", height: 52 }}
+          />
 
-        <h2 style={{ margin: "0 0 18px 0", fontWeight: 600 }}>Acceso MVD</h2>
-
-        <div style={{ margin: "0 0 18px 0", color: "#a8c0cf", fontWeight: 700 }}>
-          {checkingAccess
-            ? "Validando acceso corporativo..."
-            : hasInternalAccess
-            ? "Acceso corporativo detectado"
-            : "Conéctate a la red/VPN corporativa y usa equipo autorizado"}
-        </div>
-
-        {!area ? (
-          <div style={{ display: "grid", gap: 12 }}>
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("capex")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Proyectos CAPEX
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("planta")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Planta
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("refinery")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Refinería
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("traceability")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Trazabilidad
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("trj_kardex")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Kardex TRJ
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("compliance")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Compliance
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("logistics")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Logística
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("fleet")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Flota
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("fixassets")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Activos Fijos y Depreciación
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("sustainability")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Sostenibilidad
-            </Button>
-
-            <Button
-              type="button"
-              size="lg"
-              variant="primary"
-              onClick={() => start("ti")}
-              disabled={checkingAccess || !hasInternalAccess}
-            >
-              Eficiencia Operacional TI
-            </Button>
+          <div>
+            <h1>Acceso MVD</h1>
+            <p style={{ color: statusTone }}>
+              <span className="vd-portal-dot" style={{ background: statusTone }} />
+              {statusText}
+            </p>
           </div>
+        </header>
+
+        {!selected ? (
+          <nav className="vd-portal-grid" aria-label="Módulos">
+            {AREAS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className="vd-portal-tile"
+                style={{ ["--tile" as string]: item.accent }}
+                onClick={() => start(item.key)}
+                disabled={checkingAccess || !hasInternalAccess}
+              >
+                <span className="vd-portal-rail" />
+                <span className="vd-portal-label">{item.label}</span>
+              </button>
+            ))}
+          </nav>
         ) : (
-          <div style={{ display: "grid", gap: 12 }}>
-            <div style={{ fontWeight: 600, opacity: 0.9 }}>
-              {area === "capex"
-                ? "Clave CAPEX"
-                : area === "planta"
-                ? "Clave Planta"
-                : area === "refinery"
-                ? "Clave Refinería"
-                : area === "traceability"
-                ? "Clave Trazabilidad"
-                : area === "compliance"
-                ? "Clave Compliance"
-                : area === "logistics"
-                ? "Clave Logistics"
-                : area === "fleet"
-                ? "Clave Flota"
-                : area === "trj_kardex"
-                ? "Clave Kardex TRJ"
-                : area === "fixassets"
-                ? "Clave Activos Fijos y Depreciación"
-                : area === "sustainability"
-                ? "Clave Sustainability"
-                : "Clave Eficiencia Operacional TI"}
+          <section
+            className="vd-portal-auth"
+            style={{ ["--tile" as string]: selected.accent }}
+          >
+            <div className="vd-portal-auth-head">
+              <span className="vd-portal-rail" />
+              <span>{selected.label}</span>
             </div>
 
-            <input
-              type="password"
-              value={pw}
-              placeholder="Ingresa la clave"
-              onChange={(e) => setPw(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") login();
-                if (e.key === "Escape") {
-                  setArea(null);
-                  setPw("");
-                  setErr("");
-                }
-              }}
-              autoFocus
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 6,
-                border: "none",
-                outline: "none",
-              }}
-            />
+            <label className="vd-portal-field">
+              <span>{selected.passwordLabel}</span>
+              <input
+                className="input"
+                type="password"
+                value={pw}
+                placeholder="Ingresa la clave"
+                onChange={(e) => setPw(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") login();
+                  if (e.key === "Escape") {
+                    setArea(null);
+                    setPw("");
+                    setErr("");
+                  }
+                }}
+                autoFocus
+              />
+            </label>
 
             <Button type="button" size="lg" variant="primary" onClick={login} disabled={loading}>
-              {loading ? "Validando..." : "Ingresar"}
+              {loading ? "Validando…" : "Ingresar"}
             </Button>
 
             <button
               type="button"
+              className="vd-portal-back"
               onClick={() => {
                 setArea(null);
                 setPw("");
                 setErr("");
               }}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#a8c0cf",
-                fontWeight: 600,
-                cursor: "pointer",
-                textDecoration: "underline",
-              }}
             >
-              Volver
+              Volver a los módulos
             </button>
 
-            {err ? <div style={{ color: "#EBB086", fontWeight: 600 }}>{err}</div> : null}
-          </div>
+            {err ? <div className="vd-portal-err">{err}</div> : null}
+          </section>
         )}
       </div>
     </main>
