@@ -9,6 +9,13 @@ import React, {
 } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import ExcelHeaderFilter, {
+  compareExcelValues,
+  matchesExcelFilter,
+  type ExcelColumnFilter,
+  type ExcelFilterKind,
+  type ExcelSortDirection,
+} from "./ExcelHeaderFilter";
 
 type Guide = {
   guide_number: string;
@@ -55,6 +62,81 @@ type Field = {
 
 type Draft = Record<string, string>;
 
+type GuideExcelFilterKey =
+  | "guide_number"
+  | "transport_name"
+  | "plate_1"
+  | "departure_date"
+  | "tmh_departure"
+  | "tmh_arrival";
+
+const GUIDE_EXCEL_COLUMNS: Array<{
+  key: GuideExcelFilterKey;
+  label: string;
+  kind: ExcelFilterKind;
+}> = [
+  {
+    key: "guide_number",
+    label: "Guía remitente",
+    kind: "text",
+  },
+  {
+    key: "transport_name",
+    label: "Transportista",
+    kind: "text",
+  },
+  {
+    key: "plate_1",
+    label: "Placa Camión",
+    kind: "text",
+  },
+  {
+    key: "departure_date",
+    label: "Salida",
+    kind: "date",
+  },
+  {
+    key: "tmh_departure",
+    label: "TMH salida",
+    kind: "number",
+  },
+  {
+    key: "tmh_arrival",
+    label: "TMH llegada",
+    kind: "number",
+  },
+];
+
+function guideExcelFilterKind(
+  key: GuideExcelFilterKey
+): ExcelFilterKind {
+  if (key === "departure_date") {
+    return "date";
+  }
+
+  if (
+    key === "tmh_departure" ||
+    key === "tmh_arrival"
+  ) {
+    return "number";
+  }
+
+  return "text";
+}
+
+function guideExcelValue(
+  guide: Guide,
+  key: GuideExcelFilterKey
+) {
+  if (key === "departure_date") {
+    return text(
+      guide.departure_date
+    ).slice(0, 10);
+  }
+
+  return text(guide[key]);
+}
+
 const GROUPS: {
   title: string;
   tone: string;
@@ -87,14 +169,14 @@ const GROUPS: {
         max: 255,
       },
       {
-        key: "driver_name",
-        label: "Conductor",
-        max: 255,
-      },
-      {
         key: "drive_license",
         label: "Licencia de conducir",
         max: 50,
+      },
+      {
+        key: "driver_name",
+        label: "Conductor",
+        max: 255,
       },
       {
         key: "plate_1",
@@ -209,6 +291,19 @@ const GROUPS: {
 ];
 
 const FIELDS = GROUPS.flatMap((group) => group.fields);
+
+const GEO_AUTOCOMPLETE_FIELDS = [
+  "origin_department",
+  "origin_province",
+  "origin_district",
+  "destination_department",
+  "destination_province",
+  "destination_district",
+] as const;
+
+type GeoAutocompleteField =
+  typeof GEO_AUTOCOMPLETE_FIELDS[number];
+
 const SCALE = BigInt(1000000);
 const text = (value: unknown) => value == null ? "" : String(value);
 const code = (value: string) => value.trim().toUpperCase();
@@ -399,6 +494,13 @@ export default function TRJKardexGuides() {
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [guideColumnFilters, setGuideColumnFilters] = useState<
+    Partial<Record<GuideExcelFilterKey, ExcelColumnFilter>>
+  >({});
+  const [guideExcelSort, setGuideExcelSort] = useState<{
+    key: GuideExcelFilterKey;
+    direction: ExcelSortDirection;
+  } | null>(null);
   const [lotSearch, setLotSearch] = useState("");
   const [newLot, setNewLot] = useState("");
   const [newDeparture, setNewDeparture] = useState("");
@@ -482,6 +584,107 @@ export default function TRJKardexGuides() {
     [sgm]
   );
 
+  const geoSuggestions = useMemo(() => {
+    const unique = (values: Array<string | null>) =>
+      Array.from(
+        new Set(
+          values
+            .map((value) => text(value).trim())
+            .filter(Boolean)
+        )
+      ).sort((a, b) =>
+        a.localeCompare(b, "es", {
+          sensitivity: "base",
+        })
+      );
+
+    const originDepartment = code(
+      draft.origin_department
+    );
+
+    const originProvince = code(
+      draft.origin_province
+    );
+
+    const destinationDepartment = code(
+      draft.destination_department
+    );
+
+    const destinationProvince = code(
+      draft.destination_province
+    );
+
+    const originProvinceRows = guides.filter(
+      (guide) =>
+        !originDepartment ||
+        code(text(guide.origin_department)) ===
+          originDepartment
+    );
+
+    const originDistrictRows =
+      originProvinceRows.filter(
+        (guide) =>
+          !originProvince ||
+          code(text(guide.origin_province)) ===
+            originProvince
+      );
+
+    const destinationProvinceRows =
+      guides.filter(
+        (guide) =>
+          !destinationDepartment ||
+          code(text(guide.destination_department)) ===
+            destinationDepartment
+      );
+
+    const destinationDistrictRows =
+      destinationProvinceRows.filter(
+        (guide) =>
+          !destinationProvince ||
+          code(text(guide.destination_province)) ===
+            destinationProvince
+      );
+
+    return {
+      origin_department: unique(
+        guides.map(
+          (guide) => guide.origin_department
+        )
+      ),
+      origin_province: unique(
+        originProvinceRows.map(
+          (guide) => guide.origin_province
+        )
+      ),
+      origin_district: unique(
+        originDistrictRows.map(
+          (guide) => guide.origin_district
+        )
+      ),
+      destination_department: unique(
+        guides.map(
+          (guide) => guide.destination_department
+        )
+      ),
+      destination_province: unique(
+        destinationProvinceRows.map(
+          (guide) => guide.destination_province
+        )
+      ),
+      destination_district: unique(
+        destinationDistrictRows.map(
+          (guide) => guide.destination_district
+        )
+      ),
+    };
+  }, [
+    guides,
+    draft.origin_department,
+    draft.origin_province,
+    draft.destination_department,
+    draft.destination_province,
+  ]);
+
   const changedFields = FIELDS.filter(
     (field) =>
       draft[field.key].trim() !== original[field.key].trim()
@@ -514,19 +717,91 @@ export default function TRJKardexGuides() {
     (row) => code(row.lot).includes(code(lotSearch))
   );
 
+  const guideExcelValues = useMemo(
+    () =>
+      Object.fromEntries(
+        GUIDE_EXCEL_COLUMNS.map((column) => [
+          column.key,
+          guides.map((guide) =>
+            guideExcelValue(
+              guide,
+              column.key
+            )
+          ),
+        ])
+      ) as Record<
+        GuideExcelFilterKey,
+        string[]
+      >,
+    [guides]
+  );
+
   const filtered = useMemo(() => {
     const needle = code(search);
 
-    return guides.filter((guide) =>
-      [
-        guide.guide_number,
-        guide.transport_name,
-        guide.transport_ruc,
-        guide.plate_1,
-        guide.recipient_name,
-      ].some((value) => code(text(value)).includes(needle))
+    const searched = guides.filter(
+      (guide) =>
+        [
+          guide.guide_number,
+          guide.transport_name,
+          guide.transport_ruc,
+          guide.plate_1,
+          guide.recipient_name,
+        ].some((value) =>
+          code(text(value)).includes(needle)
+        )
     );
-  }, [guides, search]);
+
+    const excelFiltered =
+      searched.filter((guide) =>
+        (
+          Object.entries(
+            guideColumnFilters
+          ) as Array<
+            [
+              GuideExcelFilterKey,
+              ExcelColumnFilter
+            ]
+          >
+        ).every(([key, filter]) =>
+          matchesExcelFilter(
+            guideExcelValue(
+              guide,
+              key
+            ),
+            filter,
+            guideExcelFilterKind(key)
+          )
+        )
+      );
+
+    if (!guideExcelSort) {
+      return excelFiltered;
+    }
+
+    return [...excelFiltered].sort(
+      (a, b) =>
+        compareExcelValues(
+          guideExcelValue(
+            a,
+            guideExcelSort.key
+          ),
+          guideExcelValue(
+            b,
+            guideExcelSort.key
+          ),
+          guideExcelFilterKind(
+            guideExcelSort.key
+          ),
+          guideExcelSort.direction
+        )
+    );
+  }, [
+    guides,
+    search,
+    guideColumnFilters,
+    guideExcelSort,
+  ]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / 20));
   const currentPage = Math.min(page, pages);
@@ -1166,12 +1441,63 @@ export default function TRJKardexGuides() {
             <thead>
               <tr>
                 <th>Detalle</th>
-                <th>Guía remitente</th>
-                <th>Transportista</th>
-                <th>Placa Camión</th>
-                <th>Salida</th>
-                <th>TMH salida</th>
-                <th>TMH llegada</th>
+
+                {GUIDE_EXCEL_COLUMNS.map(
+                  (column) => (
+                    <th key={column.key}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 5,
+                        }}
+                      >
+                        <span>
+                          {column.label}
+                        </span>
+
+                        <ExcelHeaderFilter
+                          label={column.label}
+                          kind={column.kind}
+                          values={
+                            guideExcelValues[
+                              column.key
+                            ] || []
+                          }
+                          filter={
+                            guideColumnFilters[
+                              column.key
+                            ]
+                          }
+                          sortDirection={
+                            guideExcelSort?.key ===
+                            column.key
+                              ? guideExcelSort.direction
+                              : undefined
+                          }
+                          onApply={(filter) => {
+                            setGuideColumnFilters(
+                              (current) => ({
+                                ...current,
+                                [column.key]:
+                                  filter,
+                              })
+                            );
+                            setPage(1);
+                          }}
+                          onSort={(direction) => {
+                            setGuideExcelSort({
+                              key: column.key,
+                              direction,
+                            });
+                            setPage(1);
+                          }}
+                        />
+                      </div>
+                    </th>
+                  )
+                )}
               </tr>
             </thead>
 
@@ -1427,6 +1753,13 @@ export default function TRJKardexGuides() {
                               ? "decimal"
                               : "text"
                           }
+                          list={
+                            GEO_AUTOCOMPLETE_FIELDS.includes(
+                              field.key as GeoAutocompleteField
+                            )
+                              ? `trjkar-${field.key}-options`
+                              : undefined
+                          }
                           maxLength={field.max}
                           value={draft[field.key]}
                           onChange={(e) => change(field, e.target.value)}
@@ -1438,6 +1771,20 @@ export default function TRJKardexGuides() {
               </div>
             ))}
           </fieldset>
+
+          {GEO_AUTOCOMPLETE_FIELDS.map((field) => (
+            <datalist
+              key={field}
+              id={`trjkar-${field}-options`}
+            >
+              {geoSuggestions[field].map((value) => (
+                <option
+                  key={value}
+                  value={value}
+                />
+              ))}
+            </datalist>
+          ))}
 
           {guideError && (
             <div className="trjg-message trjg-error" style={{ marginTop: 9 }}>

@@ -10,6 +10,13 @@ import React, {
 } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import ExcelHeaderFilter, {
+  compareExcelValues,
+  matchesExcelFilter,
+  type ExcelColumnFilter,
+  type ExcelFilterKind,
+  type ExcelSortDirection,
+} from "./ExcelHeaderFilter";
 
 type Guide = {
   guide_number: string;
@@ -37,6 +44,107 @@ type Saved = {
   guide: Guide;
   rows: Lot[];
 };
+
+type QuoteExcelFilterKey =
+  | "guide_number"
+  | "transport_name"
+  | "arrival_date"
+  | "tmh_arrival"
+  | "pu_transport_usd"
+  | "amount_usd"
+  | "document_number"
+  | "invoice_amount_usd"
+  | "accounting_reference";
+
+const QUOTE_EXCEL_COLUMNS: Array<{
+  key: QuoteExcelFilterKey;
+  label: string;
+  kind: ExcelFilterKind;
+}> = [
+  {
+    key: "guide_number",
+    label: "Guía",
+    kind: "text",
+  },
+  {
+    key: "transport_name",
+    label: "Transportista",
+    kind: "text",
+  },
+  {
+    key: "arrival_date",
+    label: "Llegada",
+    kind: "date",
+  },
+  {
+    key: "tmh_arrival",
+    label: "TMH llegada",
+    kind: "number",
+  },
+  {
+    key: "pu_transport_usd",
+    label: "PU USD",
+    kind: "number",
+  },
+  {
+    key: "amount_usd",
+    label: "Importe USD",
+    kind: "number",
+  },
+  {
+    key: "document_number",
+    label: "Factura",
+    kind: "text",
+  },
+  {
+    key: "invoice_amount_usd",
+    label: "Importe contable USD",
+    kind: "number",
+  },
+  {
+    key: "accounting_reference",
+    label: "Subd. / Comp. / Sec.",
+    kind: "text",
+  },
+];
+
+function quoteExcelFilterKind(
+  key: QuoteExcelFilterKey
+): ExcelFilterKind {
+  if (key === "arrival_date") {
+    return "date";
+  }
+
+  if (
+    key === "tmh_arrival" ||
+    key === "pu_transport_usd" ||
+    key === "amount_usd" ||
+    key === "invoice_amount_usd"
+  ) {
+    return "number";
+  }
+
+  return "text";
+}
+
+function quoteExcelValue(
+  guide: Guide,
+  key: QuoteExcelFilterKey
+) {
+  if (key === "arrival_date") {
+    return text(
+      guide.arrival_date
+    ).slice(0, 10);
+  }
+
+  if (key === "accounting_reference") {
+    return guide.subledger_num
+      ? `${guide.subledger_num} / ${guide.comp_num || ""} / ${guide.secu_num || ""}`
+      : "";
+  }
+
+  return text(guide[key]);
+}
 
 const SCALE = BigInt(1000000);
 const text = (value: unknown) => value == null ? "" : String(value);
@@ -665,6 +773,13 @@ export default function TRJKardexQuotes() {
   const [search, setSearch] = useState("");
   const [pendingOnly, setPendingOnly] = useState(false);
   const [page, setPage] = useState(1);
+  const [quoteColumnFilters, setQuoteColumnFilters] = useState<
+    Partial<Record<QuoteExcelFilterKey, ExcelColumnFilter>>
+  >({});
+  const [quoteExcelSort, setQuoteExcelSort] = useState<{
+    key: QuoteExcelFilterKey;
+    direction: ExcelSortDirection;
+  } | null>(null);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -718,8 +833,32 @@ export default function TRJKardexQuotes() {
     return result;
   }, [lots]);
 
-  const filtered = useMemo(
+  const quoteExcelValues = useMemo(
     () =>
+      Object.fromEntries(
+        QUOTE_EXCEL_COLUMNS.map((column) => [
+          column.key,
+          guides.map((guide) =>
+            quoteExcelValue(
+              guide,
+              column.key
+            )
+          ),
+        ])
+      ) as Record<
+        QuoteExcelFilterKey,
+        string[]
+      >,
+    [guides]
+  );
+
+  const filtered = useMemo(() => {
+    const needle =
+      search
+        .trim()
+        .toUpperCase();
+
+    const searched =
       guides.filter((guide) => {
         const matches = [
           guide.guide_number,
@@ -729,23 +868,85 @@ export default function TRJKardexQuotes() {
         ].some((value) =>
           text(value)
             .toUpperCase()
-            .includes(search.trim().toUpperCase())
+            .includes(needle)
         );
 
         const details =
-          byGuide.get(guide.guide_number) || [];
+          byGuide.get(
+            guide.guide_number
+          ) || [];
 
         const pending =
           !guide.arrival_date ||
           guide.pu_transport_usd == null ||
           !guide.document_number ||
           !details.length ||
-          details.some((row) => row.tmh_arrival == null);
+          details.some(
+            (row) =>
+              row.tmh_arrival == null
+          );
 
-        return matches && (!pendingOnly || pending);
-      }),
-    [guides, byGuide, search, pendingOnly]
-  );
+        return (
+          matches &&
+          (
+            !pendingOnly ||
+            pending
+          )
+        );
+      });
+
+    const excelFiltered =
+      searched.filter((guide) =>
+        (
+          Object.entries(
+            quoteColumnFilters
+          ) as Array<
+            [
+              QuoteExcelFilterKey,
+              ExcelColumnFilter
+            ]
+          >
+        ).every(([key, filter]) =>
+          matchesExcelFilter(
+            quoteExcelValue(
+              guide,
+              key
+            ),
+            filter,
+            quoteExcelFilterKind(key)
+          )
+        )
+      );
+
+    if (!quoteExcelSort) {
+      return excelFiltered;
+    }
+
+    return [...excelFiltered].sort(
+      (a, b) =>
+        compareExcelValues(
+          quoteExcelValue(
+            a,
+            quoteExcelSort.key
+          ),
+          quoteExcelValue(
+            b,
+            quoteExcelSort.key
+          ),
+          quoteExcelFilterKind(
+            quoteExcelSort.key
+          ),
+          quoteExcelSort.direction
+        )
+    );
+  }, [
+    guides,
+    byGuide,
+    search,
+    pendingOnly,
+    quoteColumnFilters,
+    quoteExcelSort,
+  ]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / 20));
   const currentPage = Math.min(page, pages);
@@ -971,15 +1172,63 @@ export default function TRJKardexQuotes() {
             <thead>
               <tr>
                 <th>Detalle</th>
-                <th>Guía</th>
-                <th>Transportista</th>
-                <th>Llegada</th>
-                <th>TMH llegada</th>
-                <th>PU USD</th>
-                <th>Importe USD</th>
-                <th>Factura</th>
-                <th>Importe contable USD</th>
-                <th>Subd. / Comp. / Sec.</th>
+
+                {QUOTE_EXCEL_COLUMNS.map(
+                  (column) => (
+                    <th key={column.key}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 5,
+                        }}
+                      >
+                        <span>
+                          {column.label}
+                        </span>
+
+                        <ExcelHeaderFilter
+                          label={column.label}
+                          kind={column.kind}
+                          values={
+                            quoteExcelValues[
+                              column.key
+                            ] || []
+                          }
+                          filter={
+                            quoteColumnFilters[
+                              column.key
+                            ]
+                          }
+                          sortDirection={
+                            quoteExcelSort?.key ===
+                            column.key
+                              ? quoteExcelSort.direction
+                              : undefined
+                          }
+                          onApply={(filter) => {
+                            setQuoteColumnFilters(
+                              (current) => ({
+                                ...current,
+                                [column.key]:
+                                  filter,
+                              })
+                            );
+                            setPage(1);
+                          }}
+                          onSort={(direction) => {
+                            setQuoteExcelSort({
+                              key: column.key,
+                              direction,
+                            });
+                            setPage(1);
+                          }}
+                        />
+                      </div>
+                    </th>
+                  )
+                )}
               </tr>
             </thead>
 
