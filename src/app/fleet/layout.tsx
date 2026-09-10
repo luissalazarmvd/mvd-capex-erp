@@ -27,7 +27,7 @@ function FleetTopNav() {
 
 export default function FleetLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div data-module="fleet" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <header
         style={{
           background: "var(--header)",
@@ -66,7 +66,7 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
               </LogoutLink>
 
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – FLOTA</div>
+                <div style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>MVD – FLOTA</div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   Gestión · Unidades
                 </div>

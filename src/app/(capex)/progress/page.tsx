@@ -228,7 +228,7 @@ export default function ProgressPage() {
               padding: 12,
               border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
               background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-              fontWeight: 800,
+              fontWeight: 600,
             }}
           >
             {msg}

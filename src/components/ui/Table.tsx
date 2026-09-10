@@ -49,36 +49,41 @@ export function Table({
           position: ${stickyHeader ? "sticky" : "static"};
           top: 0;
           z-index: 2;
-          background: var(--brand-black);
-          color: var(--text);
+          background: var(--s-3);
+          color: var(--ink);
           text-align: left;
-          font-weight: 900;
-          border-bottom: 1px solid var(--border);
-          padding: 10px 10px;
+          font-size: 10.5px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          border-bottom: 1px solid var(--line-2);
+          padding: 9px 10px;
           white-space: nowrap;
         }
 
         /* cells */
         .capex-td {
-          border-bottom: 1px solid rgba(216, 238, 255, 0.14);
-          padding: 8px 10px;
+          border-bottom: 1px solid var(--line);
+          padding: 7px 10px;
           vertical-align: middle;
+          color: var(--ink);
         }
 
         .capex-tr:hover .capex-td {
-          background: rgba(0, 0, 0, 0.08);
+          background: var(--mod-soft);
         }
 
         /* first column (WBS / Proyecto) más fuerte */
         .capex-td-strong {
-          font-weight: 900;
+          font-weight: 600;
+          color: var(--ink);
           white-space: nowrap;
         }
 
         /* subtle separators between months */
         .capex-td-sep,
         .capex-th-sep {
-          border-left: 1px solid rgba(216, 238, 255, 0.18);
+          border-left: 1px solid var(--line);
         }
       `}</style>
     </>

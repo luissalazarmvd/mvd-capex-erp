@@ -116,7 +116,7 @@ function Select({
 
   return (
     <div style={{ display: "grid", gap: 6, overflow: "visible" }} ref={wrapRef}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <button
         type="button"
@@ -131,7 +131,7 @@ function Select({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
           display: "flex",
@@ -149,7 +149,7 @@ function Select({
         <div
           style={{
             marginTop: 8,
-            borderRadius: 12,
+            borderRadius: 10,
             border: "1px solid rgba(255,255,255,.10)",
             background: "rgba(6, 77, 121, .98)",
             boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -176,7 +176,7 @@ function Select({
                   color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                   border: "none",
                   cursor: "pointer",
-                  fontWeight: 900,
+                  fontWeight: 700,
                 }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as any).style.background = active
@@ -338,9 +338,9 @@ export default function BolasPanel({ shiftId }: { shiftId: string }) {
   return (
     <div style={{ display: "grid", gap: 12, maxWidth: 1100 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Bolas</div>
+        <div style={{ fontWeight: 700 }}>Bolas</div>
 
-        <div className="muted" style={{ fontWeight: 800, marginLeft: 8 }}>
+        <div className="muted" style={{ fontWeight: 600, marginLeft: 8 }}>
           Guardia: {sid || "—"}
         </div>
 
@@ -374,7 +374,7 @@ export default function BolasPanel({ shiftId }: { shiftId: string }) {
             padding: 12,
             border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
             background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -408,23 +408,23 @@ export default function BolasPanel({ shiftId }: { shiftId: string }) {
             />
 
             {loadingExisting ? (
-              <div className="muted" style={{ fontWeight: 800 }}>
+              <div className="muted" style={{ fontWeight: 600 }}>
                 Cargando datos existentes…
               </div>
             ) : isEditingExisting && sid && mill && size ? (
-              <div className="muted" style={{ fontWeight: 800 }}>
+              <div className="muted" style={{ fontWeight: 600 }}>
                 Editando registro existente para {sid} · {String(mill).trim().toUpperCase()} · {String(size).trim()}
               </div>
             ) : null}
           </div>
 
           <div style={{ flex: "1 1 auto" }}>
-            <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 8 }}>Datos cargados</div>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Datos cargados</div>
 
             <div
               style={{
                 border: "1px solid rgba(255,255,255,.10)",
-                borderRadius: 12,
+                borderRadius: 10,
                 overflow: "hidden",
                 background: "rgba(0,0,0,.06)",
               }}
@@ -438,10 +438,10 @@ export default function BolasPanel({ shiftId }: { shiftId: string }) {
                   background: "rgba(0,0,0,.10)",
                 }}
               >
-                <div style={{ padding: "10px 12px", fontWeight: 900, opacity: 0.85 }}>Tamaño</div>
-                <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right" }}>M1</div>
-                <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right" }}>M2</div>
-                <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right" }}>M3</div>
+                <div style={{ padding: "10px 12px", fontWeight: 700, opacity: 0.85 }}>Tamaño</div>
+                <div style={{ padding: "10px 12px", fontWeight: 700, textAlign: "right" }}>M1</div>
+                <div style={{ padding: "10px 12px", fontWeight: 700, textAlign: "right" }}>M2</div>
+                <div style={{ padding: "10px 12px", fontWeight: 700, textAlign: "right" }}>M3</div>
               </div>
 
               {feedbackSizes.length ? (
@@ -465,21 +465,21 @@ export default function BolasPanel({ shiftId }: { shiftId: string }) {
                         borderBottom: "1px solid rgba(255,255,255,.06)",
                       }}
                     >
-                      <div style={{ padding: "10px 12px", fontWeight: 900 }}>{sz}</div>
-                      <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right", opacity: v1 === null ? 0.45 : 1 }}>
+                      <div style={{ padding: "10px 12px", fontWeight: 700 }}>{sz}</div>
+                      <div style={{ padding: "10px 12px", fontWeight: 700, textAlign: "right", opacity: v1 === null ? 0.45 : 1 }}>
                         {fmt(v1)}
                       </div>
-                      <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right", opacity: v2 === null ? 0.45 : 1 }}>
+                      <div style={{ padding: "10px 12px", fontWeight: 700, textAlign: "right", opacity: v2 === null ? 0.45 : 1 }}>
                         {fmt(v2)}
                       </div>
-                      <div style={{ padding: "10px 12px", fontWeight: 900, textAlign: "right", opacity: v3 === null ? 0.45 : 1 }}>
+                      <div style={{ padding: "10px 12px", fontWeight: 700, textAlign: "right", opacity: v3 === null ? 0.45 : 1 }}>
                         {fmt(v3)}
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <div className="muted" style={{ padding: 12, fontWeight: 800 }}>
+                <div className="muted" style={{ padding: 12, fontWeight: 600 }}>
                   {sid ? "No hay bolas registradas para esta guardia." : "Selecciona una guardia en el page."}
                 </div>
               )}

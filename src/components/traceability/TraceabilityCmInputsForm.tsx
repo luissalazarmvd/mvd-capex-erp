@@ -474,10 +474,10 @@ function ExcelHeaderFilter({
     return {
       textAlign: "left",
       padding: "6px 8px",
-      borderRadius: 7,
+      borderRadius: 6,
       border: "1px solid rgba(147,211,230,.24)",
       background: selected ? "rgba(27,147,227,.24)" : "rgba(2,35,52,.38)",
-      color: "#f4fbff",
+      color: "#e8f1f7",
       cursor: "pointer",
     };
   }
@@ -486,10 +486,10 @@ function ExcelHeaderFilter({
     width: "100%",
     height: 30,
     padding: "5px 8px",
-    borderRadius: 7,
+    borderRadius: 6,
     border: "1px solid rgba(147,211,230,.30)",
     background: "rgba(2,35,52,.58)",
-    color: "#f4fbff",
+    color: "#e8f1f7",
     outline: "none",
     colorScheme: "dark",
   };
@@ -510,12 +510,12 @@ function ExcelHeaderFilter({
           width: 20,
           height: 20,
           padding: 0,
-          borderRadius: 5,
+          borderRadius: 6,
           border: active
             ? "1px solid rgba(147,211,230,.72)"
             : "1px solid rgba(147,211,230,.30)",
           background: active ? "rgba(27,147,227,.32)" : "rgba(2,35,52,.34)",
-          color: "#eaf8ff",
+          color: "#e8f1f7",
           fontSize: 10,
           lineHeight: 1,
           cursor: "pointer",
@@ -540,14 +540,14 @@ function ExcelHeaderFilter({
                 padding: 10,
                 border: "1px solid rgba(147,211,230,.42)",
                 borderRadius: 10,
-                background: "#07364d",
+                background: "#0f2a38",
                 boxShadow: "0 14px 32px rgba(0,0,0,.40)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 textAlign: "left",
                 fontSize: 12,
               }}
             >
-              <div style={{ fontWeight: 900, marginBottom: 8 }}>{label}</div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>{label}</div>
               <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
                 <button
                   type="button"
@@ -586,7 +586,7 @@ function ExcelHeaderFilter({
                   placeholder="Buscar valores..."
                   style={menuInputStyle}
                 />
-                <label style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8, fontWeight: 800 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8, fontWeight: 600 }}>
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -625,7 +625,7 @@ function ExcelHeaderFilter({
                       operator: event.target.value as ExcelFilterOperator,
                     }))
                   }
-                  style={{ ...menuInputStyle, padding: "4px 7px", background: "#0b4d6b" }}
+                  style={{ ...menuInputStyle, padding: "4px 7px", background: "#0a1f2c" }}
                 >
                   {excelOperatorOptions(kind).map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -680,7 +680,7 @@ function ExcelHeaderFilter({
                       });
                       closeMenu();
                     }}
-                    style={{ ...menuButtonStyle(true), fontWeight: 900 }}
+                    style={{ ...menuButtonStyle(true), fontWeight: 700 }}
                   >
                     Aplicar
                   </button>
@@ -1584,9 +1584,9 @@ export default function TraceabilityCmInputsForm() {
     border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
-    fontWeight: 800,
+    fontWeight: 600,
     padding: "6px 8px",
-    borderRadius: 8,
+    borderRadius: 6,
     outline: "none",
     fontSize: 12,
     lineHeight: "14px",
@@ -1634,7 +1634,7 @@ export default function TraceabilityCmInputsForm() {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ alignSelf: "center", fontWeight: 900 }}>Trazabilidad · CM Inputs</div>
+        <div style={{ alignSelf: "center", fontWeight: 700 }}>Trazabilidad · CM Inputs</div>
 
         <button
           type="button"
@@ -1651,7 +1651,7 @@ export default function TraceabilityCmInputsForm() {
               : "rgba(255,255,255,.06)",
             color: editedLots.length ? "rgb(174,202,125)" : "rgba(255,255,255,.8)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             cursor: "pointer",
           }}
         >
@@ -1669,7 +1669,7 @@ export default function TraceabilityCmInputsForm() {
               background: "rgba(216,93,39,.18)",
               color: "rgb(255,178,143)",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
             }}
           >
             Inválidas: {invalidEditedLots.length}
@@ -1678,7 +1678,7 @@ export default function TraceabilityCmInputsForm() {
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 800 }}>F. ingreso desde</span>
+            <span style={{ fontSize: 11, fontWeight: 600 }}>F. ingreso desde</span>
             <input
               type="date"
               value={dateFrom}
@@ -1690,7 +1690,7 @@ export default function TraceabilityCmInputsForm() {
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 800 }}>F. ingreso hasta</span>
+            <span style={{ fontSize: 11, fontWeight: 600 }}>F. ingreso hasta</span>
             <input
               type="date"
               value={dateTo}
@@ -1702,7 +1702,7 @@ export default function TraceabilityCmInputsForm() {
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 800 }}>Buscador global</span>
+            <span style={{ fontSize: 11, fontWeight: 600 }}>Buscador global</span>
             <input
               type="search"
               value={search}
@@ -1769,7 +1769,7 @@ export default function TraceabilityCmInputsForm() {
             background: messageSuccess(message)
               ? "rgba(62,180,137,.10)"
               : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {message}
@@ -1807,7 +1807,7 @@ export default function TraceabilityCmInputsForm() {
                       width: column.width,
                       minWidth: column.width,
                       maxWidth: column.width,
-                      background: "rgb(6,77,121)",
+                      background: "rgb(20, 52, 68)",
                       borderRight: "1px solid rgba(216,238,255,.14)",
                       textAlign: column.kind === "number" ? "right" : "left",
                       cursor: "pointer",
@@ -1900,7 +1900,7 @@ export default function TraceabilityCmInputsForm() {
 
               {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" colSpan={ENTRY_COLUMNS.length} style={{ ...cellStyle, fontWeight: 900 }}>
+                  <td className="capex-td" colSpan={ENTRY_COLUMNS.length} style={{ ...cellStyle, fontWeight: 700 }}>
                     No hay filas para el filtro seleccionado.
                   </td>
                 </tr>
@@ -1908,7 +1908,7 @@ export default function TraceabilityCmInputsForm() {
 
               {loading ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" colSpan={ENTRY_COLUMNS.length} style={{ ...cellStyle, fontWeight: 900 }}>
+                  <td className="capex-td" colSpan={ENTRY_COLUMNS.length} style={{ ...cellStyle, fontWeight: 700 }}>
                     Cargando CM Inputs…
                   </td>
                 </tr>
@@ -1922,12 +1922,12 @@ export default function TraceabilityCmInputsForm() {
         className="panel-inner"
         style={{ padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800 }}>
+        <div style={{ fontSize: 12, fontWeight: 600 }}>
           Mostrando {filteredRows.length ? pageStart + 1 : 0} - {Math.min(pageStart + PAGE_SIZE, filteredRows.length)} de {filteredRows.length} filas
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Button type="button" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={loading || safePage <= 1}>←</Button>
-          <div style={{ minWidth: 90, textAlign: "center", fontSize: 12, fontWeight: 900, padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)", border: "1px solid rgba(216,238,255,.18)" }}>
+          <div style={{ minWidth: 90, textAlign: "center", fontSize: 12, fontWeight: 700, padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)", border: "1px solid rgba(216,238,255,.18)" }}>
             Página {safePage} / {totalPages}
           </div>
           <Button type="button" size="sm" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={loading || safePage >= totalPages}>→</Button>
@@ -1947,7 +1947,7 @@ export default function TraceabilityCmInputsForm() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <div>
-                <div id="cm-mapping-title" style={{ fontSize: 18, fontWeight: 900 }}>Actualizar mapeo CM</div>
+                <div id="cm-mapping-title" style={{ fontSize: 18, fontWeight: 700 }}>Actualizar mapeo CM</div>
                 <div style={{ fontSize: 12, opacity: .82 }}>RUC y código de concesión identifican el registro; oficina, zona y código de oficina son editables.</div>
               </div>
               <Button type="button" size="sm" onClick={() => setMappingOpen(false)} disabled={mappingSaving}>Cerrar</Button>
@@ -1955,14 +1955,14 @@ export default function TraceabilityCmInputsForm() {
 
             <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
               <label style={{ display: "grid", gap: 4, flex: "1 1 320px" }}>
-                <span style={{ fontSize: 11, fontWeight: 800 }}>Buscador global</span>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>Buscador global</span>
                 <input type="search" value={mappingSearch} onChange={(event) => setMappingSearch(event.target.value)} placeholder="RUC, concesión, oficina, zona..." style={{ ...inputStyle, width: "100%" }} />
               </label>
-              <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(147,178,92,.45)", background: editedMappingKeys.length ? "rgba(94,128,25,.24)" : "rgba(255,255,255,.06)", color: editedMappingKeys.length ? "rgb(174,202,125)" : "rgba(255,255,255,.8)", fontSize: 12, fontWeight: 900 }}>
+              <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(147,178,92,.45)", background: editedMappingKeys.length ? "rgba(94,128,25,.24)" : "rgba(255,255,255,.06)", color: editedMappingKeys.length ? "rgb(174,202,125)" : "rgba(255,255,255,.8)", fontSize: 12, fontWeight: 700 }}>
                 Editadas: {editedMappingKeys.length}
               </div>
               {invalidEditedMappingKeys.length ? (
-                <div role="status" style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(216,93,39,.55)", background: "rgba(216,93,39,.18)", color: "rgb(255,178,143)", fontSize: 12, fontWeight: 900 }}>
+                <div role="status" style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(216,93,39,.55)", background: "rgba(216,93,39,.18)", color: "rgb(255,178,143)", fontSize: 12, fontWeight: 700 }}>
                   Inválidas: {invalidEditedMappingKeys.length}
                 </div>
               ) : null}
@@ -1982,14 +1982,14 @@ export default function TraceabilityCmInputsForm() {
             </div>
 
             {mappingMessage ? (
-              <div role={messageSuccess(mappingMessage) ? "status" : "alert"} style={{ padding: 10, borderRadius: 10, border: messageSuccess(mappingMessage) ? "1px solid rgba(62,180,137,.45)" : "1px solid rgba(216,93,39,.45)", background: messageSuccess(mappingMessage) ? "rgba(62,180,137,.10)" : "rgba(216,93,39,.10)", fontWeight: 800 }}>
+              <div role={messageSuccess(mappingMessage) ? "status" : "alert"} style={{ padding: 10, borderRadius: 10, border: messageSuccess(mappingMessage) ? "1px solid rgba(62,180,137,.45)" : "1px solid rgba(216,93,39,.45)", background: messageSuccess(mappingMessage) ? "rgba(62,180,137,.10)" : "rgba(216,93,39,.10)", fontWeight: 600 }}>
                 {mappingMessage}
               </div>
             ) : (
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: .82 }}>Solo se enviarán las filas modificadas.</div>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: .82 }}>Solo se enviarán las filas modificadas.</div>
             )}
 
-            <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(216,238,255,.12)", borderRadius: 12 }}>
+            <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(216,238,255,.12)", borderRadius: 10 }}>
               <Table stickyHeader disableScrollWrapper>
                 <colgroup>
                   {MAPPING_COLUMNS.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width, maxWidth: column.width }} />)}
@@ -2007,7 +2007,7 @@ export default function TraceabilityCmInputsForm() {
                               : "descending"
                             : "none"
                         }
-                        style={{ top: 0, zIndex: 20, width: column.width, background: "rgb(6,77,121)", padding: 9, borderRight: "1px solid rgba(216,238,255,.14)" }}
+                        style={{ top: 0, zIndex: 20, width: column.width, background: "rgb(20, 52, 68)", padding: 9, borderRight: "1px solid rgba(216,238,255,.14)" }}
                       >
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5 }}>
                           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -2098,10 +2098,10 @@ export default function TraceabilityCmInputsForm() {
                   })}
 
                   {!mappingLoading && visibleMappingRows.length === 0 ? (
-                    <tr className="capex-tr"><td className="capex-td" colSpan={MAPPING_COLUMNS.length} style={{ ...cellStyle, fontWeight: 900 }}>No hay mappings para el filtro seleccionado.</td></tr>
+                    <tr className="capex-tr"><td className="capex-td" colSpan={MAPPING_COLUMNS.length} style={{ ...cellStyle, fontWeight: 700 }}>No hay mappings para el filtro seleccionado.</td></tr>
                   ) : null}
                   {mappingLoading ? (
-                    <tr className="capex-tr"><td className="capex-td" colSpan={MAPPING_COLUMNS.length} style={{ ...cellStyle, fontWeight: 900 }}>Cargando mapping…</td></tr>
+                    <tr className="capex-tr"><td className="capex-td" colSpan={MAPPING_COLUMNS.length} style={{ ...cellStyle, fontWeight: 700 }}>Cargando mapping…</td></tr>
                   ) : null}
                 </tbody>
               </Table>
@@ -2109,9 +2109,9 @@ export default function TraceabilityCmInputsForm() {
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 800 }}>Mostrando {filteredMappingRows.length ? mappingPageStart + 1 : 0} - {Math.min(mappingPageStart + PAGE_SIZE, filteredMappingRows.length)} de {filteredMappingRows.length}</span>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>Mostrando {filteredMappingRows.length ? mappingPageStart + 1 : 0} - {Math.min(mappingPageStart + PAGE_SIZE, filteredMappingRows.length)} de {filteredMappingRows.length}</span>
                 <Button type="button" size="sm" onClick={() => setMappingPage((current) => Math.max(1, current - 1))} disabled={mappingLoading || safeMappingPage <= 1}>←</Button>
-                <span style={{ fontSize: 12, fontWeight: 900 }}>Página {safeMappingPage} / {mappingTotalPages}</span>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>Página {safeMappingPage} / {mappingTotalPages}</span>
                 <Button type="button" size="sm" onClick={() => setMappingPage((current) => Math.min(mappingTotalPages, current + 1))} disabled={mappingLoading || safeMappingPage >= mappingTotalPages}>→</Button>
               </div>
               <div style={{ display: "flex", gap: 8 }}>

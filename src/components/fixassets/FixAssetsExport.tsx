@@ -759,7 +759,7 @@ export default function FixAssetsExport() {
             flexWrap: "wrap",
           }}
         >
-          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600 }}>
             Buscar cuenta, CECO o COD
             <FastCellInput
               className="input"
@@ -780,11 +780,11 @@ export default function FixAssetsExport() {
               display: "flex",
               alignItems: "center",
               padding: "0 12px",
-              borderRadius: 8,
+              borderRadius: 6,
               border: "1px solid rgba(94,128,25,.72)",
               background: "rgba(94,128,25,.24)",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               whiteSpace: "nowrap",
             }}
           >
@@ -868,7 +868,7 @@ export default function FixAssetsExport() {
           overflow: "auto",
           minHeight: 0,
           padding: 0,
-          background: "#0b4d6b",
+          background: "#0a1f2c",
           borderColor: "rgba(147,211,230,.28)",
         }}
       >
@@ -954,11 +954,11 @@ export default function FixAssetsExport() {
                             left,
                             zIndex: sticky ? 20 : undefined,
                             background: existing
-                              ? "#416f43"
+                              ? "#33521f"
                               : focused
-                                ? "#155a78"
+                                ? "#143444"
                                 : sticky
-                                  ? "#0b4d6b"
+                                  ? "#0a1f2c"
                                   : undefined,
                             boxShadow: columnIndex === 1
                               ? "2px 0 rgba(216,238,255,.12)"
@@ -1010,9 +1010,9 @@ export default function FixAssetsExport() {
                       key={column.key}
                       className="capex-td"
                       style={{
-                        background: "#163b49",
+                        background: "#0f2a38",
                         borderTop: "2px solid rgba(147,211,230,.32)",
-                        fontWeight: 900,
+                        fontWeight: 700,
                         textAlign: NUMERIC_KEYS.has(column.key)
                           ? "right"
                           : undefined,
@@ -1046,7 +1046,7 @@ export default function FixAssetsExport() {
             display: "grid",
             gap: 8,
             overflow: "hidden",
-            background: "#0b4d6b",
+            background: "#0a1f2c",
             borderColor: "rgba(147,211,230,.52)",
             boxShadow: "0 10px 30px rgba(0,0,0,.24)",
           }}
@@ -1096,8 +1096,8 @@ export default function FixAssetsExport() {
           {detailError ? (
             <div
               style={{
-                color: "#ffd0bf",
-                fontWeight: 800,
+                color: "#ebb086",
+                fontWeight: 600,
                 fontSize: 13,
               }}
             >
@@ -1197,7 +1197,7 @@ export default function FixAssetsExport() {
         .fixassets-export-table .capex-th {
           padding: 6px !important;
           font-size: 11px !important;
-          background: #163b49 !important;
+          background: #0f2a38 !important;
           white-space: normal !important;
           line-height: 1.1;
         }

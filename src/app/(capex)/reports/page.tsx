@@ -11,8 +11,8 @@ export default function ReportsPage() {
     <div style={{ display: "grid", gap: 12 }}>
       {/* Header */}
       <div className="panel-inner" style={{ padding: 12, display: "flex", gap: 10 }}>
-        <div style={{ fontWeight: 900 }}>Reportes</div>
-        <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
+        <div style={{ fontWeight: 700 }}>Reportes</div>
+        <div className="muted" style={{ fontWeight: 600, marginLeft: "auto" }}>
           Power BI
         </div>
       </div>

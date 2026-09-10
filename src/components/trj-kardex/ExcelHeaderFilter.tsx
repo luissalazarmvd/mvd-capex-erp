@@ -700,6 +700,7 @@ export default function ExcelHeaderFilter({
   return (
     <div
       ref={rootRef}
+      onClick={(event) => event.stopPropagation()}
       style={{
         position: "relative",
         display: "inline-flex",
@@ -716,18 +717,20 @@ export default function ExcelHeaderFilter({
         aria-label={`Filtrar ${label}`}
         title={`Filtrar ${label}`}
         style={{
-          width: 20,
-          height: 20,
+          width: 19,
+          height: 19,
           padding: 0,
           borderRadius: 5,
           border: active
-            ? "1px solid rgba(147,211,230,.72)"
-            : "1px solid rgba(147,211,230,.30)",
+            ? "1px solid var(--mod)"
+            : "1px solid var(--line)",
           background: active
-            ? "rgba(27,147,227,.32)"
-            : "rgba(2,35,52,.34)",
-          color: "#eaf8ff",
-          fontSize: 10,
+            ? "var(--mod-soft)"
+            : "transparent",
+          color: active
+            ? "var(--mod)"
+            : "var(--ink-3)",
+          fontSize: 9,
           lineHeight: 1,
           cursor: "pointer",
         }}
@@ -758,11 +761,11 @@ export default function ExcelHeaderFilter({
                   "1px solid rgba(147,211,230,.42)",
                 borderRadius: 10,
                 background:
-                  "#07364d",
+                  "#0f2a38",
                 boxShadow:
                   "0 14px 32px rgba(0,0,0,.40)",
                 color:
-                  "#f4fbff",
+                  "#e8f1f7",
                 textAlign:
                   "left",
                 fontSize: 12,
@@ -770,7 +773,7 @@ export default function ExcelHeaderFilter({
             >
               <div
                 style={{
-                  fontWeight: 900,
+                  fontWeight: 700,
                   marginBottom: 8,
                 }}
               >
@@ -796,7 +799,7 @@ export default function ExcelHeaderFilter({
                       "left",
                     padding:
                       "6px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.24)",
                     background:
@@ -805,7 +808,7 @@ export default function ExcelHeaderFilter({
                         ? "rgba(27,147,227,.24)"
                         : "rgba(2,35,52,.38)",
                     color:
-                      "#f4fbff",
+                      "#e8f1f7",
                     cursor:
                       "pointer",
                   }}
@@ -828,7 +831,7 @@ export default function ExcelHeaderFilter({
                       "left",
                     padding:
                       "6px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.24)",
                     background:
@@ -837,7 +840,7 @@ export default function ExcelHeaderFilter({
                         ? "rgba(27,147,227,.24)"
                         : "rgba(2,35,52,.38)",
                     color:
-                      "#f4fbff",
+                      "#e8f1f7",
                     cursor:
                       "pointer",
                   }}
@@ -870,13 +873,13 @@ export default function ExcelHeaderFilter({
                     height: 30,
                     padding:
                       "5px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.30)",
                     background:
                       "rgba(2,35,52,.58)",
                     color:
-                      "#f4fbff",
+                      "#e8f1f7",
                     outline:
                       "none",
                   }}
@@ -890,7 +893,7 @@ export default function ExcelHeaderFilter({
                       "center",
                     gap: 7,
                     marginTop: 8,
-                    fontWeight: 800,
+                    fontWeight: 600,
                   }}
                 >
                   <input
@@ -1019,13 +1022,13 @@ export default function ExcelHeaderFilter({
                     height: 30,
                     padding:
                       "4px 7px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.30)",
                     background:
-                      "#0b4d6b",
+                      "#0a1f2c",
                     color:
-                      "#f4fbff",
+                      "#e8f1f7",
                   }}
                 >
                   {excelOperatorOptions(
@@ -1090,13 +1093,13 @@ export default function ExcelHeaderFilter({
                       height: 30,
                       padding:
                         "5px 8px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border:
                         "1px solid rgba(147,211,230,.30)",
                       background:
                         "rgba(2,35,52,.58)",
                       color:
-                        "#f4fbff",
+                        "#e8f1f7",
                       outline:
                         "none",
                     }}
@@ -1139,13 +1142,13 @@ export default function ExcelHeaderFilter({
                       height: 30,
                       padding:
                         "5px 8px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border:
                         "1px solid rgba(147,211,230,.30)",
                       background:
                         "rgba(2,35,52,.58)",
                       color:
-                        "#f4fbff",
+                        "#e8f1f7",
                       outline:
                         "none",
                     }}
@@ -1174,13 +1177,13 @@ export default function ExcelHeaderFilter({
                   style={{
                     padding:
                       "6px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.24)",
                     background:
                       "transparent",
                     color:
-                      "#d8eef8",
+                      "#a8c0cf",
                     cursor:
                       "pointer",
                   }}
@@ -1203,13 +1206,13 @@ export default function ExcelHeaderFilter({
                     style={{
                       padding:
                         "6px 8px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border:
                         "1px solid rgba(147,211,230,.24)",
                       background:
                         "transparent",
                       color:
-                        "#d8eef8",
+                        "#a8c0cf",
                       cursor:
                         "pointer",
                     }}
@@ -1229,14 +1232,14 @@ export default function ExcelHeaderFilter({
                     style={{
                       padding:
                         "6px 10px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border:
                         "1px solid rgba(147,211,230,.42)",
                       background:
                         "rgba(27,147,227,.32)",
                       color:
-                        "#f4fbff",
-                      fontWeight: 900,
+                        "#e8f1f7",
+                      fontWeight: 700,
                       cursor:
                         "pointer",
                     }}

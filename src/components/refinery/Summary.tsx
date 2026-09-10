@@ -53,16 +53,16 @@ function Stat({
         display: "grid",
         gap: 4,
         padding: "8px 10px",
-        borderRadius: 12,
+        borderRadius: 10,
         border: danger ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,.08)",
         background: danger ? "rgba(216,93,39,.12)" : "rgba(0,0,0,.08)",
         minWidth: 150,
       }}
     >
-      <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, color: danger ? "#EBB086" : undefined }}>
+      <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9, color: danger ? "#EBB086" : undefined }}>
         {label}
       </div>
-      <div style={{ fontWeight: 900, fontSize: 16, lineHeight: "18px", color: danger ? "#EBB086" : undefined }}>
+      <div style={{ fontWeight: 700, fontSize: 16, lineHeight: "18px", color: danger ? "#EBB086" : undefined }}>
         {value}
       </div>
     </div>
@@ -130,8 +130,8 @@ export default function Summary({ campaignId }: { campaignId: string }) {
             marginBottom: 10,
             border: msg.startsWith("ERROR") ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,.10)",
             background: msg.startsWith("ERROR") ? "rgba(216,93,39,.10)" : "rgba(255,255,255,.04)",
-            fontWeight: 800,
-            borderRadius: 12,
+            fontWeight: 600,
+            borderRadius: 10,
           }}
         >
           {msg}
@@ -161,7 +161,7 @@ export default function Summary({ campaignId }: { campaignId: string }) {
       </div>
 
       <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div className="muted" style={{ fontWeight: 800, opacity: 0.85 }}>
+        <div className="muted" style={{ fontWeight: 600, opacity: 0.85 }}>
           {loading ? "Cargando…" : selected ? `Campaña: ${String(selected.campaign_id || "").trim().toUpperCase()}` : "Selecciona campaña"}
         </div>
 
@@ -176,7 +176,7 @@ export default function Summary({ campaignId }: { campaignId: string }) {
             background: "rgba(0,0,0,.10)",
             color: "var(--text)",
             padding: "8px 10px",
-            fontWeight: 900,
+            fontWeight: 700,
             cursor: loading ? "not-allowed" : "pointer",
             opacity: loading ? 0.7 : 1,
           }}

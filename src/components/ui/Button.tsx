@@ -10,32 +10,39 @@ type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const sizeStyles: Record<Size, React.CSSProperties> = {
-  sm: { padding: "6px 10px", borderRadius: 10, fontSize: 13, height: 34, lineHeight: "22px" },
-  md: { padding: "10px 14px", borderRadius: 12, fontSize: 14, height: 40, lineHeight: "24px" },
-  lg: { padding: "12px 16px", borderRadius: 14, fontSize: 15, height: 46, lineHeight: "26px" },
+  sm: { padding: "6px 11px", borderRadius: "var(--r-1)", fontSize: 12.5, height: 30, lineHeight: "18px" },
+  md: { padding: "8px 14px", borderRadius: "var(--r-1)", fontSize: 13.5, height: 36, lineHeight: "20px" },
+  lg: { padding: "10px 18px", borderRadius: "var(--r-2)", fontSize: 14.5, height: 42, lineHeight: "22px" },
 };
 
 const variantStyles: Record<Variant, React.CSSProperties> = {
   default: {
-    background: "rgba(0,0,0,.12)",
-    border: "1px solid var(--border)",
+    background: "transparent",
+    border: "1px solid var(--line-2)",
     color: "var(--text)",
   },
   ghost: {
-    background: "rgba(255,255,255,.08)",
-    border: "1px solid var(--border)",
-    color: "var(--text)",
+    background: "rgba(158,197,220,.06)",
+    border: "1px solid var(--line)",
+    color: "var(--ink-2)",
   },
   primary: {
     background: "var(--brand-blue)",
-    border: "1px solid var(--brand-blue-light)",
+    border: "1px solid var(--brand-blue)",
     color: "#ffffff",
   },
   danger: {
-    background: "rgba(216,93,39,.22)",
-    border: "1px solid rgba(229,149,103,.65)",
-    color: "var(--text)",
+    background: "transparent",
+    border: "1px solid var(--bad-line)",
+    color: "var(--bad)",
   },
+};
+
+const hoverStyles: Record<Variant, { background: string; borderColor: string }> = {
+  default: { background: "rgba(158,197,220,.10)", borderColor: "var(--ink-3)" },
+  ghost: { background: "rgba(158,197,220,.12)", borderColor: "var(--line-2)" },
+  primary: { background: "var(--brand-blue-light)", borderColor: "var(--brand-blue-light)" },
+  danger: { background: "var(--bad-bg)", borderColor: "var(--bad)" },
 };
 
 export function Button({ variant = "default", size = "md", style, disabled, ...props }: Props) {
@@ -49,18 +56,19 @@ export function Button({ variant = "default", size = "md", style, disabled, ...p
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 8,
-        fontWeight: 800,
-        letterSpacing: 0.2,
+        gap: 7,
+        fontWeight: 600,
+        letterSpacing: 0.15,
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.6 : 1,
-        transition: "all .15s ease",
+        opacity: disabled ? 0.55 : 1,
+        transition: "background .15s ease, border-color .15s ease",
         ...(style || {}),
       }}
       onMouseEnter={(e) => {
         if (disabled) return;
-        e.currentTarget.style.borderColor = "var(--brand-blue-light)";
-        e.currentTarget.style.background = variant === "primary" ? "var(--brand-blue-light)" : "rgba(0,0,0,.18)";
+        const h = hoverStyles[variant];
+        e.currentTarget.style.background = h.background;
+        e.currentTarget.style.borderColor = h.borderColor;
       }}
       onMouseLeave={(e) => {
         if (disabled) return;

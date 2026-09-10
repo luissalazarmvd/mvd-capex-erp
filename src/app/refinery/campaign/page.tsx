@@ -138,7 +138,7 @@ function DatePicker({
   const max = useMemo(() => isoTodayPe(), []);
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>Fecha de Campaña</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>Fecha de Campaña</div>
       <input
         type="date"
         value={valueIso}
@@ -153,7 +153,7 @@ function DatePicker({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
         }}
@@ -410,8 +410,8 @@ export default function RefineryCampaignPage() {
           width: "100%",
         }}
       >
-        <div style={{ fontWeight: 900 }}>Crear Campaña</div>
-        <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+        <div style={{ fontWeight: 700 }}>Crear Campaña</div>
+        <div className="muted" style={{ fontSize: 12, fontWeight: 600 }}>
           {campaign_id
             ? `${campaign_id}${existingDateIso ? `  |  fecha: ${existingDateIso}` : ""}`
             : "Completa # campaña y fecha"}
@@ -482,7 +482,7 @@ export default function RefineryCampaignPage() {
             background: (campaignSequenceError || msg || "").startsWith("OK")
               ? "rgba(27,147,227,.10)"
               : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {campaignSequenceError ? `ERROR: ${campaignSequenceError}` : msg}
@@ -495,7 +495,7 @@ export default function RefineryCampaignPage() {
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ display: "grid", gridTemplateColumns: "234px 234px auto", gap: 12, alignItems: "end", width: "fit-content" }}>
                 <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontWeight: 900, fontSize: 13 }}># de Campaña en el Mes</div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}># de Campaña en el Mes</div>
                   <input
                     value={form.campaign_no}
                     disabled={saving}
@@ -515,7 +515,7 @@ export default function RefineryCampaignPage() {
                       borderRadius: 10,
                       padding: "10px 12px",
                       outline: "none",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       opacity: saving ? 0.7 : 1,
                     }}
                   />
@@ -530,7 +530,7 @@ export default function RefineryCampaignPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "234px 234px", gap: 12, alignItems: "start", width: "fit-content" }}>
                 <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>TMH</div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>TMH</div>
                   <input
                     value={form.campaign_wet_cr}
                     disabled={saving}
@@ -545,14 +545,14 @@ export default function RefineryCampaignPage() {
                       borderRadius: 10,
                       padding: "10px 12px",
                       outline: "none",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       opacity: saving ? 0.7 : 1,
                     }}
                   />
                   <div
                     className="muted"
                     style={{
-                      fontWeight: 900,
+                      fontWeight: 700,
                       fontSize: 13,
                       lineHeight: 1.2,
                       color: "rgba(27,147,227,.95)",
@@ -563,7 +563,7 @@ export default function RefineryCampaignPage() {
                 </div>
 
                 <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>% de Humedad (1-100)</div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>% de Humedad (1-100)</div>
                   <input
                     value={form.campaign_moisture_pct}
                     disabled={saving}
@@ -578,7 +578,7 @@ export default function RefineryCampaignPage() {
                       borderRadius: 10,
                       padding: "10px 12px",
                       outline: "none",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       opacity: saving ? 0.7 : 1,
                     }}
                   />
@@ -587,7 +587,7 @@ export default function RefineryCampaignPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "234px 234px", gap: 12, width: "fit-content" }}>
                 <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Au</div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>Ley Au</div>
                   <input
                     value={form.campaign_au_grade}
                     disabled={saving}
@@ -602,14 +602,14 @@ export default function RefineryCampaignPage() {
                       borderRadius: 10,
                       padding: "10px 12px",
                       outline: "none",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       opacity: saving ? 0.7 : 1,
                     }}
                   />
                 </div>
 
                 <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>Ley Ag</div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>Ley Ag</div>
                   <input
                     value={form.campaign_ag_grade}
                     disabled={saving}
@@ -624,7 +624,7 @@ export default function RefineryCampaignPage() {
                       borderRadius: 10,
                       padding: "10px 12px",
                       outline: "none",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       opacity: saving ? 0.7 : 1,
                     }}
                   />
@@ -632,7 +632,7 @@ export default function RefineryCampaignPage() {
               </div>
 
               {!inputsOk ? (
-                <div className="muted" style={{ fontWeight: 900, fontSize: 12, color: "rgba(255,255,255,.70)" }}>
+                <div className="muted" style={{ fontWeight: 700, fontSize: 12, color: "rgba(255,255,255,.70)" }}>
                   Completa todos los campos y respeta rangos &gt; 0.
                 </div>
               ) : null}

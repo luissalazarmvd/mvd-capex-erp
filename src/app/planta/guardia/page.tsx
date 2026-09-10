@@ -133,7 +133,7 @@ function Select({
 
   return (
     <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <button
         type="button"
@@ -148,7 +148,7 @@ function Select({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
           display: "flex",
@@ -169,7 +169,7 @@ function Select({
               top: 6,
               left: 0,
               right: 0,
-              borderRadius: 12,
+              borderRadius: 10,
               border: "1px solid rgba(255,255,255,.10)",
               background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -195,7 +195,7 @@ function Select({
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
@@ -231,7 +231,7 @@ function DatePicker({
   const max = useMemo(() => isoTodayPe(), []);
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>Fecha</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>Fecha</div>
       <input
         type="date"
         value={valueIso}
@@ -246,7 +246,7 @@ function DatePicker({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
         }}
@@ -263,17 +263,17 @@ function StatCard({ title, value, sub }: { title: string; value: string; sub?: s
         padding: 12,
         border: "1px solid rgba(255,255,255,.10)",
         background: "rgba(0,0,0,.08)",
-        borderRadius: 12,
+        borderRadius: 10,
         display: "grid",
         gap: 4,
       }}
     >
-      <div className="muted" style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>
+      <div className="muted" style={{ fontSize: 12, fontWeight: 700, opacity: 0.85 }}>
         {title}
       </div>
-      <div style={{ fontSize: 18, fontWeight: 950 }}>{value}</div>
+      <div style={{ fontSize: 18, fontWeight: 700 }}>{value}</div>
       {sub ? (
-        <div className="muted" style={{ fontSize: 12, fontWeight: 800, opacity: 0.75 }}>
+        <div className="muted" style={{ fontSize: 12, fontWeight: 600, opacity: 0.75 }}>
           {sub}
         </div>
       ) : null}
@@ -614,8 +614,8 @@ export default function GuardiaPage() {
   return (
     <div style={{ display: "grid", gap: 12, maxWidth: 980 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Crear Guardia</div>
-        <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+        <div style={{ fontWeight: 700 }}>Crear Guardia</div>
+        <div className="muted" style={{ fontSize: 12, fontWeight: 600 }}>
           {shift_id ? `shift_id: ${shift_id}` : "Selecciona fecha y guardia"}
         </div>
 
@@ -648,7 +648,7 @@ export default function GuardiaPage() {
             padding: 12,
             border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
             background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -698,7 +698,7 @@ export default function GuardiaPage() {
 
           <div style={{ display: "grid", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontWeight: 950 }}>Pilas</div>
+              <div style={{ fontWeight: 700 }}>Pilas</div>
 
               <div style={{ marginLeft: "auto" }}>
                 <Button type="button" size="sm" variant="ghost" onClick={addRow} disabled={!shift_id || saving}>
@@ -730,7 +730,7 @@ export default function GuardiaPage() {
                       <tr key={idx}>
                         <td style={td}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ fontWeight: 950, opacity: 0.9 }}>P-</div>
+                            <div style={{ fontWeight: 700, opacity: 0.9 }}>P-</div>
                             <input
                               value={it.pile_num}
                               disabled={saving}
@@ -748,10 +748,10 @@ export default function GuardiaPage() {
                                 borderRadius: 10,
                                 padding: "10px 10px",
                                 outline: "none",
-                                fontWeight: 900,
+                                fontWeight: 700,
                               }}
                             />
-                            <div className="muted" style={{ fontSize: 12, fontWeight: 900, opacity: 0.75 }}>
+                            <div className="muted" style={{ fontSize: 12, fontWeight: 700, opacity: 0.75 }}>
                               {pile_id || "—"}
                             </div>
                           </div>
@@ -825,7 +825,7 @@ export default function GuardiaPage() {
                               border: "1px solid rgba(255,255,255,.12)",
                               background: "rgba(216,93,39,.10)",
                               color: "rgba(255,255,255,.90)",
-                              fontWeight: 950,
+                              fontWeight: 700,
                               cursor: saving ? "not-allowed" : "pointer",
                               opacity: saving ? 0.6 : 1,
                             }}
@@ -843,26 +843,26 @@ export default function GuardiaPage() {
                     <td style={tfLabel}>Totales</td>
                     <td style={tf}></td>
                     <td style={tf}>
-                      <div style={{ fontWeight: 950 }}>TMH: {computedLive.has ? fmt2(computedLive.tmh_sum) : "—"}</div>
-                      <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
+                      <div style={{ fontWeight: 700 }}>TMH: {computedLive.has ? fmt2(computedLive.tmh_sum) : "—"}</div>
+                      <div className="muted" style={{ fontWeight: 700, fontSize: 12, opacity: 0.8 }}>
                         TMS: {computedLive.has ? fmt2(computedLive.tms_sum) : "—"}
                       </div>
                     </td>
                     <td style={tf}>
-                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt2(computedLive.h2o_w) : "—"}</div>
-                      <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
+                      <div style={{ fontWeight: 700 }}>{computedLive.has ? fmt2(computedLive.h2o_w) : "—"}</div>
+                      <div className="muted" style={{ fontWeight: 700, fontSize: 12, opacity: 0.8 }}>
                         %H2O pond.
                       </div>
                     </td>
                     <td style={tf}>
-                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt2(computedLive.au_w) : "—"}</div>
-                      <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
+                      <div style={{ fontWeight: 700 }}>{computedLive.has ? fmt2(computedLive.au_w) : "—"}</div>
+                      <div className="muted" style={{ fontWeight: 700, fontSize: 12, opacity: 0.8 }}>
                         Ley Au pond.
                       </div>
                     </td>
                     <td style={tf}>
-                      <div style={{ fontWeight: 950 }}>{computedLive.has ? fmt2(computedLive.ag_w) : "—"}</div>
-                      <div className="muted" style={{ fontWeight: 900, fontSize: 12, opacity: 0.8 }}>
+                      <div style={{ fontWeight: 700 }}>{computedLive.has ? fmt2(computedLive.ag_w) : "—"}</div>
+                      <div className="muted" style={{ fontWeight: 700, fontSize: 12, opacity: 0.8 }}>
                         Ley Ag pond.
                       </div>
                     </td>
@@ -879,7 +879,7 @@ export default function GuardiaPage() {
                   padding: 10,
                   border: "1px solid rgba(216,93,39,.45)",
                   background: "rgba(216,93,39,.10)",
-                  fontWeight: 850,
+                  fontWeight: 600,
                 }}
               >
                 {validation.dup ? <div>No se permite repetir la misma pila (P-xx) en la misma guardia.</div> : null}
@@ -892,7 +892,7 @@ export default function GuardiaPage() {
           </div>
 
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Comentario</div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Comentario</div>
 
             <textarea
               value={form.shift_comment}
@@ -926,13 +926,13 @@ export default function GuardiaPage() {
               maxLength={COMMENT_MAX}
             />
 
-            <div className="muted" style={{ fontWeight: 900, fontSize: 11, textAlign: "right", opacity: 0.8 }}>
+            <div className="muted" style={{ fontWeight: 700, fontSize: 11, textAlign: "right", opacity: 0.8 }}>
               {String(form.shift_comment || "").length}/{COMMENT_MAX}
             </div>
           </div>
 
           {loadingExisting || loadingPiles ? (
-            <div className="muted" style={{ fontWeight: 800 }}>
+            <div className="muted" style={{ fontWeight: 600 }}>
               Cargando datos existentes…
             </div>
           ) : null}
@@ -945,7 +945,7 @@ export default function GuardiaPage() {
 const th: React.CSSProperties = {
   textAlign: "left",
   padding: "10px 10px",
-  fontWeight: 950,
+  fontWeight: 700,
   fontSize: 12,
   opacity: 0.85,
   borderBottom: "1px solid rgba(255,255,255,.10)",
@@ -961,7 +961,7 @@ const td: React.CSSProperties = {
 const tfLabel: React.CSSProperties = {
   padding: "12px 10px",
   borderTop: "1px solid rgba(255,255,255,.10)",
-  fontWeight: 950,
+  fontWeight: 700,
   opacity: 0.9,
 };
 

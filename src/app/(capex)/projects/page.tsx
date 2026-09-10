@@ -147,7 +147,7 @@ function DarkSelect({
 
   return (
     <div ref={ref} style={{ display: "grid", gap: 6, position: "relative" }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <button
         type="button"
@@ -167,7 +167,7 @@ function DarkSelect({
           alignItems: "center",
           justifyContent: "space-between",
           gap: 10,
-          fontWeight: 900,
+          fontWeight: 700,
           opacity: disabled ? 0.7 : 1,
         }}
       >
@@ -195,7 +195,7 @@ function DarkSelect({
             marginTop: 6,
             background: "var(--panel2)",
             border: "1px solid var(--border)",
-            borderRadius: 12,
+            borderRadius: 10,
             boxShadow: "var(--shadow)",
             overflow: "hidden",
             maxHeight: 240,
@@ -220,7 +220,7 @@ function DarkSelect({
                     background: active ? "rgba(27,147,227,.18)" : "transparent",
                     color: "#fff",
                     cursor: "pointer",
-                    fontWeight: active ? 900 : 800,
+                    fontWeight: active ? 700 : 600,
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLButtonElement).style.background = active
@@ -473,7 +473,7 @@ export default function ProjectsPage() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
         <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10 }}>
-          <div style={{ fontWeight: 900 }}>Proyecto + WBS</div>
+          <div style={{ fontWeight: 700 }}>Proyecto + WBS</div>
 
           <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <MapImpExp
@@ -593,8 +593,8 @@ export default function ProjectsPage() {
 
         <div className="panel-inner" style={{ padding: 14 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <div style={{ fontWeight: 900 }}>WBS</div>
-            <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+            <div style={{ fontWeight: 700 }}>WBS</div>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600 }}>
               {selectedProject ? `Proyecto: ${selectedProject}` : "Guarda/selecciona un proyecto para agregar WBS"}
             </div>
           </div>
@@ -623,7 +623,7 @@ export default function ProjectsPage() {
 
           <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
             {existingWbs.length === 0 ? (
-              <div className="muted" style={{ fontWeight: 800 }}>
+              <div className="muted" style={{ fontWeight: 600 }}>
                 Sin WBS todavía.
               </div>
             ) : (
@@ -638,16 +638,16 @@ export default function ProjectsPage() {
                       width: "100%",
                       textAlign: "left",
                       padding: "10px 12px",
-                      borderRadius: 12,
+                      borderRadius: 10,
                       border: "1px solid rgba(216,238,255,.18)",
                       background: active ? "rgba(216,238,255,.12)" : "rgba(0,0,0,.08)",
                       color: "var(--text)",
                       cursor: "pointer",
-                      fontWeight: 900,
+                      fontWeight: 700,
                     }}
                   >
                     <span style={{ opacity: 0.95 }}>{w.wbs_code}</span>
-                    <span className="muted" style={{ marginLeft: 10, fontWeight: 800 }}>
+                    <span className="muted" style={{ marginLeft: 10, fontWeight: 600 }}>
                       {w.wbs_name}
                     </span>
                   </button>
@@ -664,7 +664,7 @@ export default function ProjectsPage() {
               padding: 12,
               border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
               background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-              fontWeight: 800,
+              fontWeight: 600,
             }}
           >
             {msg}

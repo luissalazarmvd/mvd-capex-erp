@@ -760,14 +760,14 @@ function ExcelHeaderFilter({
           width: 20,
           height: 20,
           padding: 0,
-          borderRadius: 5,
+          borderRadius: 6,
           border: active
             ? "1px solid rgba(147,211,230,.72)"
             : "1px solid rgba(147,211,230,.30)",
           background: active
             ? "rgba(27,147,227,.32)"
             : "rgba(2,35,52,.34)",
-          color: "#eaf8ff",
+          color: "#e8f1f7",
           fontSize: 10,
           lineHeight: 1,
           cursor: "pointer",
@@ -790,14 +790,14 @@ function ExcelHeaderFilter({
             padding: 10,
             border: "1px solid rgba(147,211,230,.42)",
             borderRadius: 10,
-            background: "#07364d",
+            background: "#0f2a38",
             boxShadow: "0 14px 32px rgba(0,0,0,.40)",
-            color: "#f4fbff",
+            color: "#e8f1f7",
             textAlign: "left",
             fontSize: 12,
           }}
         >
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>
             {label}
           </div>
 
@@ -817,13 +817,13 @@ function ExcelHeaderFilter({
               style={{
                 textAlign: "left",
                 padding: "6px 8px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.24)",
                 background:
                   sortDirection === "asc"
                     ? "rgba(27,147,227,.24)"
                     : "rgba(2,35,52,.38)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 cursor: "pointer",
               }}
             >
@@ -843,13 +843,13 @@ function ExcelHeaderFilter({
               style={{
                 textAlign: "left",
                 padding: "6px 8px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.24)",
                 background:
                   sortDirection === "desc"
                     ? "rgba(27,147,227,.24)"
                     : "rgba(2,35,52,.38)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 cursor: "pointer",
               }}
             >
@@ -875,10 +875,10 @@ function ExcelHeaderFilter({
                 width: "100%",
                 height: 30,
                 padding: "5px 8px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.30)",
                 background: "rgba(2,35,52,.58)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 outline: "none",
               }}
             />
@@ -889,7 +889,7 @@ function ExcelHeaderFilter({
                 alignItems: "center",
                 gap: 7,
                 marginTop: 8,
-                fontWeight: 800,
+                fontWeight: 600,
               }}
             >
               <input
@@ -967,10 +967,10 @@ function ExcelHeaderFilter({
                 width: "100%",
                 height: 30,
                 padding: "4px 7px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.30)",
-                background: "#0b4d6b",
-                color: "#f4fbff",
+                background: "#0a1f2c",
+                color: "#e8f1f7",
               }}
             >
               {excelOperatorOptions(kind).map((option) => (
@@ -1003,10 +1003,10 @@ function ExcelHeaderFilter({
                   width: "100%",
                   height: 30,
                   padding: "5px 8px",
-                  borderRadius: 7,
+                  borderRadius: 6,
                   border: "1px solid rgba(147,211,230,.30)",
                   background: "rgba(2,35,52,.58)",
-                  color: "#f4fbff",
+                  color: "#e8f1f7",
                   outline: "none",
                 }}
               />
@@ -1027,10 +1027,10 @@ function ExcelHeaderFilter({
                   width: "100%",
                   height: 30,
                   padding: "5px 8px",
-                  borderRadius: 7,
+                  borderRadius: 6,
                   border: "1px solid rgba(147,211,230,.30)",
                   background: "rgba(2,35,52,.58)",
-                  color: "#f4fbff",
+                  color: "#e8f1f7",
                   outline: "none",
                 }}
               />
@@ -1053,10 +1053,10 @@ function ExcelHeaderFilter({
               }}
               style={{
                 padding: "6px 8px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.24)",
                 background: "transparent",
-                color: "#d8eef8",
+                color: "#a8c0cf",
                 cursor: "pointer",
               }}
             >
@@ -1069,10 +1069,10 @@ function ExcelHeaderFilter({
                 onClick={() => setOpen(false)}
                 style={{
                   padding: "6px 8px",
-                  borderRadius: 7,
+                  borderRadius: 6,
                   border: "1px solid rgba(147,211,230,.24)",
                   background: "transparent",
-                  color: "#d8eef8",
+                  color: "#a8c0cf",
                   cursor: "pointer",
                 }}
               >
@@ -1087,11 +1087,11 @@ function ExcelHeaderFilter({
                 }}
                 style={{
                   padding: "6px 10px",
-                  borderRadius: 7,
+                  borderRadius: 6,
                   border: "1px solid rgba(147,211,230,.42)",
                   background: "rgba(27,147,227,.32)",
-                  color: "#f4fbff",
-                  fontWeight: 900,
+                  color: "#e8f1f7",
+                  fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
@@ -1388,14 +1388,14 @@ function formatAmountTotal(value: number) {
 
 function catalogueColumnBodyBackground(columnIndex: number) {
   return columnIndex % 2 === 0
-    ? "#0b4d6b"
-    : "#115b78";
+    ? "#0a1f2c"
+    : "#143444";
 }
 
 function catalogueColumnHeaderBackground(columnIndex: number) {
   return columnIndex % 2 === 0
-    ? "#163b49"
-    : "#1c4d5e";
+    ? "#143444"
+    : "#1a3d4f";
 }
 
 function upperOrNull(value: string) {
@@ -3315,7 +3315,7 @@ export default function FixAssetsCat() {
                 : "rgba(94,128,25,.24)",
               color: "rgb(174,202,125)",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               cursor: loading || saving || reclassifying || disposing ? "not-allowed" : "pointer",
             }}
           >
@@ -3326,7 +3326,7 @@ export default function FixAssetsCat() {
       </div>
 
       {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
-      {invalidCodes.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los campos numéricos de {invalidCodes.length} fila(s) antes de guardar.</div> : null}
+      {invalidCodes.length ? <div style={{ color: "#ebb086", fontWeight: 700, fontSize: 13 }}>Corrige los campos numéricos de {invalidCodes.length} fila(s) antes de guardar.</div> : null}
 
       {SUGGESTION_FIELDS.map((field) => <datalist key={field} id={`fixassets-cat-${field}-options`}>
         {field === "cost_center_code"
@@ -3358,7 +3358,7 @@ export default function FixAssetsCat() {
         })}
       </datalist>
 
-      <div className="panel-inner fixassets-cat-table" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
+      <div className="panel-inner fixassets-cat-table" style={{ overflow: "auto", maxHeight: "calc(100vh - 260px)", minHeight: 0, padding: 0, background: "#0a1f2c", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup>
@@ -3366,7 +3366,7 @@ export default function FixAssetsCat() {
               {displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}
             </colgroup>
             <thead><tr>
-              <th className="capex-th" style={{ position: "sticky", top: 0, left: 0, zIndex: 95, width: 44, minWidth: 44, padding: 5, textAlign: "center", background: "#163b49" }}>Sel.</th>
+              <th className="capex-th" style={{ position: "sticky", top: 0, left: 0, zIndex: 95, width: 44, minWidth: 44, padding: 5, textAlign: "center", background: "#143444" }}>Sel.</th>
               {displayColumns.map((column, columnIndex) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
               const left = column.key === "asset_code" ? 44 : column.key === "asset_description" ? 149 : undefined;
@@ -3428,9 +3428,9 @@ export default function FixAssetsCat() {
                       textAlign: "center",
                       background: reclassSelected
                         ? selectedAssetAction === "BAJA"
-                          ? "#6b491f"
-                          : "#665b22"
-                        : "#0b4d6b",
+                          ? "#5a4210"
+                          : "#5a4210"
+                        : "#0a1f2c",
                     }}
                   >
                     <input
@@ -3466,15 +3466,15 @@ export default function FixAssetsCat() {
                     const left = column.key === "asset_code" ? 44 : column.key === "asset_description" ? 149 : undefined;
 
                     const cellBackground = bad
-                      ? "#713f38"
+                      ? "#6b2e14"
                       : edited
-                        ? "#3d6948"
+                        ? "#3b5f24"
                         : reclassSelected
                           ? selectedAssetAction === "BAJA"
-                            ? "#6b491f"
-                            : "#665b22"
+                            ? "#5a4210"
+                            : "#5a4210"
                           : vrFocused
-                            ? "#155a78"
+                            ? "#143444"
                             : catalogueColumnBodyBackground(columnIndex);
 
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: cellBackground, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 20 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
@@ -3482,12 +3482,12 @@ export default function FixAssetsCat() {
                         className="input"
                         value={text(value)}
                         onChange={(event) => update(code, key, event.target.value)}
-                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: cellBackground, borderColor: "rgba(147,211,230,.30)" }}
+                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 6, background: cellBackground, borderColor: "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${code}`}
                       >
-                        <option value="" style={{ background: "#0b4d6b", color: "#f4fbff" }}></option>
-                        <option value="OPERATIVO" style={{ background: "#0b4d6b", color: "#f4fbff" }}>OPERATIVO</option>
-                        <option value="DEPRECIADO" style={{ background: "#0b4d6b", color: "#f4fbff" }}>DEPRECIADO</option>
+                        <option value="" style={{ background: "#0a1f2c", color: "#e8f1f7" }}></option>
+                        <option value="OPERATIVO" style={{ background: "#0a1f2c", color: "#e8f1f7" }}>OPERATIVO</option>
+                        <option value="DEPRECIADO" style={{ background: "#0a1f2c", color: "#e8f1f7" }}>DEPRECIADO</option>
                       </select> : <FastCellInput
                         className="input"
                         type={DATE_FIELDS.has(key) ? "date" : "text"}
@@ -3509,7 +3509,7 @@ export default function FixAssetsCat() {
                         onCommit={(next) => key === "cost_center_code"
                           ? commitCostCenter(code, next)
                           : update(code, key, next)}
-                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: cellBackground, borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key], numericIntegerDigits(key)) ? "#ebb086" : "rgba(147,211,230,.30)" }}
+                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 6, background: cellBackground, borderColor: bad && NUMBER_FIELDS.has(key) && !validOptionalNumber(draft[key], numericIntegerDigits(key)) ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} ${code}`}
                       /> : <span title={text(value)}>{String(column.key).endsWith("_date") ? dateOnly(value) : catalogueExcelFilterKind(column.key) === "number" ? twoDecimals(value) : text(value)}</span>}
                     </td>;
@@ -3533,7 +3533,7 @@ export default function FixAssetsCat() {
                       width: 44,
                       minWidth: 44,
                       padding: 5,
-                      background: "#163b49",
+                      background: "#0f2a38",
                       borderTop: "2px solid rgba(216,238,255,.38)",
                     }}
                   />
@@ -3564,7 +3564,7 @@ export default function FixAssetsCat() {
                             column.key === "asset_description"
                               ? "2px 0 rgba(216,238,255,.16)"
                               : undefined,
-                          fontWeight: 900,
+                          fontWeight: 700,
                           textAlign: isAmount ? "right" : "left",
                           whiteSpace: "nowrap",
                         }}
@@ -3612,7 +3612,7 @@ export default function FixAssetsCat() {
             <Button size="sm" onClick={() => setVrDetailAssetCode(null)}>Cerrar detalle</Button>
           </div>
 
-          <div style={{ overflow: "auto", minHeight: 0, border: "1px solid rgba(147,211,230,.22)", borderRadius: 9 }}>
+          <div style={{ overflow: "auto", minHeight: 0, border: "1px solid rgba(147,211,230,.22)", borderRadius: 6 }}>
             <div style={{ minWidth: "max-content" }}>
               <Table disableScrollWrapper stickyHeader>
                 <thead>
@@ -3783,7 +3783,7 @@ export default function FixAssetsCat() {
                     </div>
 
                     <div style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}>
-                      <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800, minWidth: 150 }}>
+                      <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600, minWidth: 150 }}>
                         Monto PEN *
                         <input
                           className="input"
@@ -3798,7 +3798,7 @@ export default function FixAssetsCat() {
                         />
                       </label>
 
-                      <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800, minWidth: 150 }}>
+                      <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600, minWidth: 150 }}>
                         Monto USD *
                         <input
                           className="input"
@@ -3826,7 +3826,7 @@ export default function FixAssetsCat() {
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
-                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                       COD propuesto
                       <input
                         className="input"
@@ -3852,7 +3852,7 @@ export default function FixAssetsCat() {
                       style={{ minWidth: 190 }}
                     />
 
-                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                       Código CAPEX
                       <input
                         className="input"
@@ -3867,7 +3867,7 @@ export default function FixAssetsCat() {
                       />
                     </label>
 
-                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                       Centro de costo *
                       <input
                         className="input"
@@ -3882,7 +3882,7 @@ export default function FixAssetsCat() {
                       />
                     </label>
 
-                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                       Fecha adquisición *
                       <input
                         className="input"
@@ -3897,7 +3897,7 @@ export default function FixAssetsCat() {
                       />
                     </label>
 
-                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                       Fecha operación
                       <input
                         className="input"
@@ -3908,7 +3908,7 @@ export default function FixAssetsCat() {
                       />
                     </label>
 
-                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                    <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                       Descripción activo
                       <input
                         className="input"
@@ -3933,7 +3933,7 @@ export default function FixAssetsCat() {
                       ["depreciation_method", "Método depreciación"],
                       ["asset_comment", "Comentario"],
                     ].map(([field, label]) => (
-                      <label key={field} style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                      <label key={field} style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                         {label}
                         <input
                           className="input"
@@ -3973,10 +3973,10 @@ export default function FixAssetsCat() {
             <span
               style={{
                 fontSize: 12,
-                fontWeight: 800,
+                fontWeight: 600,
                 color: reclassAmountsMatch && reclassTargetsHavePositiveAmounts
                   ? "inherit"
-                  : "#e4a35d",
+                  : "#ffc13d",
               }}
             >
               {!reclassAmountsMatch
@@ -4039,7 +4039,7 @@ export default function FixAssetsCat() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
               COD destino *
               <input
                 className="input"
@@ -4065,7 +4065,7 @@ export default function FixAssetsCat() {
               style={{ minWidth: 210 }}
             />
 
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
               Monto PEN
               <input
                 className="input"
@@ -4075,7 +4075,7 @@ export default function FixAssetsCat() {
               />
             </label>
 
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
               Monto USD
               <input
                 className="input"
@@ -4087,19 +4087,19 @@ export default function FixAssetsCat() {
           </div>
 
           {adjustTargetCode && !adjustmentTargetRow ? (
-            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
+            <div style={{ color: "#ebb086", fontWeight: 600, fontSize: 12 }}>
               El COD destino no existe en el catálogo.
             </div>
           ) : null}
 
           {adjustmentTargetRow && selectedReclassCodes.has(text(adjustmentTargetRow.asset_code).trim()) ? (
-            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
+            <div style={{ color: "#ebb086", fontWeight: 600, fontSize: 12 }}>
               El COD destino no puede ser uno de los COD origen seleccionados.
             </div>
           ) : null}
 
           {adjustmentTargetRow && dateOnly(adjustmentTargetRow.disposal_date) ? (
-            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
+            <div style={{ color: "#ebb086", fontWeight: 600, fontSize: 12 }}>
               El COD destino tiene fecha de baja y no puede recibir el ajuste.
             </div>
           ) : null}
@@ -4151,7 +4151,7 @@ export default function FixAssetsCat() {
                   ["Valor actual PEN", twoDecimals(assetMovementAmount(adjustmentTargetRow, "pen"))],
                   ["Valor actual USD", twoDecimals(assetMovementAmount(adjustmentTargetRow, "usd"))],
                 ].map(([label, value]) => (
-                  <label key={label} style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+                  <label key={label} style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                     {label}
                     <input
                       className="input"
@@ -4218,12 +4218,12 @@ export default function FixAssetsCat() {
           </div>
 
           {selectedAlreadyDisposedCount ? (
-            <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>
+            <div style={{ color: "#ebb086", fontWeight: 600, fontSize: 12 }}>
               {selectedAlreadyDisposedCount} activo{selectedAlreadyDisposedCount === 1 ? "" : "s"} seleccionado{selectedAlreadyDisposedCount === 1 ? "" : "s"} ya tiene{selectedAlreadyDisposedCount === 1 ? "" : "n"} fecha de baja. Quítalo de la selección antes de continuar.
             </div>
           ) : null}
 
-          <div style={{ overflow: "auto", border: "1px solid rgba(216,238,255,.14)", borderRadius: 8 }}>
+          <div style={{ overflow: "auto", border: "1px solid rgba(216,238,255,.14)", borderRadius: 6 }}>
             <Table disableScrollWrapper>
               <thead>
                 <tr>
@@ -4298,7 +4298,7 @@ export default function FixAssetsCat() {
             Anterior
           </Button>
 
-          <span style={{ fontSize: 12, fontWeight: 800 }}>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>
             Página {page} de {pageCount}
           </span>
 
@@ -4322,7 +4322,7 @@ export default function FixAssetsCat() {
             <Button size="sm" onClick={() => setMappingOpen(false)} disabled={mappingSaving}>Cerrar</Button>
           </div>
 
-          {mappingMessage ? <div style={{ padding: 9, borderRadius: 9, border: mappingError ? "1px solid rgba(216,93,39,.75)" : "1px solid rgba(94,128,25,.85)", background: mappingError ? "rgba(216,93,39,.16)" : "rgba(94,128,25,.18)", fontWeight: 800, fontSize: 13 }}>{mappingMessage}</div> : invalidMappingCodes.length ? <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 13 }}>Corrige la tasa de depreciación en {invalidMappingCodes.length} fila(s) antes de guardar.</div> : <div className="muted" style={{ fontSize: 12 }}>Las demás columnas son de referencia y no se pueden editar.</div>}
+          {mappingMessage ? <div style={{ padding: 9, borderRadius: 6, border: mappingError ? "1px solid rgba(216,93,39,.75)" : "1px solid rgba(94,128,25,.85)", background: mappingError ? "rgba(216,93,39,.16)" : "rgba(94,128,25,.18)", fontWeight: 600, fontSize: 13 }}>{mappingMessage}</div> : invalidMappingCodes.length ? <div style={{ color: "#ebb086", fontWeight: 600, fontSize: 13 }}>Corrige la tasa de depreciación en {invalidMappingCodes.length} fila(s) antes de guardar.</div> : <div className="muted" style={{ fontSize: 12 }}>Las demás columnas son de referencia y no se pueden editar.</div>}
 
           <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(216,238,255,.14)" }}>
             <div style={{ minWidth: "max-content" }}>
@@ -4364,7 +4364,7 @@ export default function FixAssetsCat() {
         .fixassets-cat-table .capex-th {
           padding: 6px !important;
           font-size: 11px !important;
-          background: #163b49 !important;
+          background: #0f2a38 !important;
           white-space: normal !important;
           line-height: 1.1;
         }

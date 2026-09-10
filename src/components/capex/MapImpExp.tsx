@@ -441,7 +441,7 @@ export default function MapImpExp({
     }
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -522,7 +522,7 @@ export default function MapImpExp({
               }}
             >
               <div>
-                <div style={{ fontSize: 18, fontWeight: 900 }}>Preview de importación de mapping CAPEX</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Preview de importación de mapping CAPEX</div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
                   Se reconocerán filas NUEVAS, ACTUALIZAR e IGUAL. Las IGUAL no se importan.
                 </div>
@@ -548,7 +548,7 @@ export default function MapImpExp({
                     border: "1px solid rgba(255,255,255,0.12)",
                     background: "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Archivo: {importSummary.file_name}
@@ -561,7 +561,7 @@ export default function MapImpExp({
                     border: "1px solid rgba(255,255,255,0.12)",
                     background: "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Filas Excel: {importSummary.total_excel_rows}
@@ -574,7 +574,7 @@ export default function MapImpExp({
                     border: "1px solid rgba(255,255,255,0.12)",
                     background: "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Filas preview: {importSummary.preview_rows}
@@ -587,7 +587,7 @@ export default function MapImpExp({
                     border: "1px solid rgba(27,147,227,.45)",
                     background: "rgba(27,147,227,.10)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Válidas: {importSummary.valid_rows}
@@ -606,7 +606,7 @@ export default function MapImpExp({
                         ? "rgba(216,93,39,.10)"
                         : "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Inválidas: {importSummary.invalid_rows}
@@ -625,7 +625,7 @@ export default function MapImpExp({
                         ? "rgba(255,183,27,.10)"
                         : "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   WBS repetidas: {importSummary.repeated_wbs}
@@ -644,7 +644,7 @@ export default function MapImpExp({
                         ? "rgba(255,183,27,.10)"
                         : "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Filas extra repetidas: {importSummary.repeated_extra_rows}
@@ -658,7 +658,7 @@ export default function MapImpExp({
                 minHeight: 0,
                 overflow: "auto",
                 border: "1px solid rgba(216,238,255,.12)",
-                borderRadius: 12,
+                borderRadius: 10,
               }}
             >
               <Table stickyHeader disableScrollWrapper>
@@ -759,7 +759,7 @@ export default function MapImpExp({
                             borderBottom: gridH,
                             borderRight: gridV,
                             background: bg,
-                            fontWeight: 900,
+                            fontWeight: 700,
                           }}
                         >
                           {row.status}
@@ -773,7 +773,7 @@ export default function MapImpExp({
                             borderBottom: gridH,
                             borderRight: gridV,
                             background: bg,
-                            fontWeight: 900,
+                            fontWeight: 700,
                           }}
                         >
                           {row.is_duplicate ? `Sí (${row.duplicate_count})` : "No"}
@@ -798,7 +798,7 @@ export default function MapImpExp({
 
                   {previewRows.length === 0 ? (
                     <tr className="capex-tr">
-                      <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={6}>
+                      <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={6}>
                         No hay filas para preview.
                       </td>
                     </tr>
@@ -816,7 +816,7 @@ export default function MapImpExp({
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
                 {previewRows.some((row) => !row.valid)
                   ? "Corrige las filas inválidas para habilitar la importación."
                   : `Se importarán ${

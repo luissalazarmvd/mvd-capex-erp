@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 
 type IGAFOMRow = {
   provider_id: string | number | null;
@@ -128,7 +129,7 @@ function SearchableSelect({
 
   return (
     <div style={{ display: "grid", gap: 6, minWidth: 280, position: "relative" }} ref={wrapperRef}>
-      <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.9 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.9 }}>{label}</div>
 
       <div style={{ position: "relative" }}>
         <input
@@ -144,7 +145,7 @@ function SearchableSelect({
           style={{
             width: "100%",
             padding: "10px 38px 10px 12px",
-            borderRadius: 8,
+            borderRadius: 6,
             border: "1px solid rgba(216,238,255,.18)",
             background: "rgba(255,255,255,0.06)",
             color: "white",
@@ -190,7 +191,7 @@ function SearchableSelect({
               overflow: "auto",
               borderRadius: 10,
               border: "1px solid rgba(216,238,255,.18)",
-              background: "rgb(6, 77, 121)",
+              background: "rgb(20, 52, 68)",
               boxShadow: "0 10px 30px rgba(0,0,0,.35)",
               zIndex: 50,
             }}
@@ -208,9 +209,9 @@ function SearchableSelect({
                 padding: "10px 12px",
                 border: "none",
                 background: "transparent",
-                color: "rgb(185,185,185)",
+                color: "rgb(168, 192, 207)",
                 cursor: "pointer",
-                fontWeight: 800,
+                fontWeight: 600,
               }}
             >
               Todos
@@ -235,7 +236,7 @@ function SearchableSelect({
                       selectedValue === opt.value
                         ? "rgba(27,147,227,.14)"
                         : "transparent",
-                    color: "rgb(185,185,185)",
+                    color: "rgb(168, 192, 207)",
                     cursor: "pointer",
                   }}
                   title={opt.label}
@@ -249,7 +250,7 @@ function SearchableSelect({
                   padding: "10px 12px",
                   color: "rgba(255,255,255,.7)",
                   fontSize: 12,
-                  fontWeight: 800,
+                  fontWeight: 600,
                 }}
               >
                 Sin resultados
@@ -363,8 +364,22 @@ export default function SustainabilityIGAFOMTable() {
     });
   }, [rows, providerText, selectedProvider, concessionText, selectedConcession]);
 
-  const totalPdf = filteredRows.filter((row) => normalizeText(row.url)).length;
-  const headerBg = "rgb(6, 77, 121)";
+  // Filtros tipo Excel sobre las filas ya filtradas por proveedor/concesión.
+  const excelColumns = useMemo<Array<ExcelColumnDef<IGAFOMRow>>>(
+    () => [
+      { key: "ruc", label: "RUC", kind: "text", value: (row) => row.ruc },
+      { key: "provider_name", label: "Proveedor", kind: "text", value: (row) => row.provider_name },
+      { key: "concession_code", label: "Código Concesión", kind: "text", value: (row) => row.concession_code },
+      { key: "concession_name", label: "Nombre Concesión", kind: "text", value: (row) => row.concession_name },
+    ],
+    []
+  );
+
+  const excel = useExcelColumnFilters(filteredRows, excelColumns);
+  const visibleRows = excel.rows;
+
+  const totalPdf = visibleRows.filter((row) => normalizeText(row.url)).length;
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -382,7 +397,7 @@ export default function SustainabilityIGAFOMTable() {
     fontSize: 12,
     lineHeight: "16px",
     boxSizing: "border-box",
-    color: "rgb(185,185,185)",
+    color: "rgb(168, 192, 207)",
     verticalAlign: "middle",
   };
 
@@ -410,7 +425,7 @@ export default function SustainabilityIGAFOMTable() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>Sustainability · IGAFOM</div>
+        <div style={{ fontWeight: 700 }}>Sustainability · IGAFOM</div>
 
         <div
           style={{
@@ -419,7 +434,7 @@ export default function SustainabilityIGAFOMTable() {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
         >
@@ -433,7 +448,7 @@ export default function SustainabilityIGAFOMTable() {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
         >
@@ -487,7 +502,7 @@ export default function SustainabilityIGAFOMTable() {
             flexShrink: 0,
             border: "1px solid rgba(216,93,39,.45)",
             background: "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -533,7 +548,10 @@ export default function SustainabilityIGAFOMTable() {
                     wordBreak: "break-word",
                   }}
                 >
-                  RUC
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span>RUC</span>
+                    <ExcelHeaderFilter {...excel.headerProps("ruc")} />
+                  </span>
                 </th>
                 <th
                   className="capex-th"
@@ -548,7 +566,10 @@ export default function SustainabilityIGAFOMTable() {
                     wordBreak: "break-word",
                   }}
                 >
-                  Proveedor
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span>Proveedor</span>
+                    <ExcelHeaderFilter {...excel.headerProps("provider_name")} />
+                  </span>
                 </th>
                 <th
                   className="capex-th"
@@ -563,7 +584,10 @@ export default function SustainabilityIGAFOMTable() {
                     wordBreak: "break-word",
                   }}
                 >
-                  Código Concesión
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span>Código Concesión</span>
+                    <ExcelHeaderFilter {...excel.headerProps("concession_code")} />
+                  </span>
                 </th>
                 <th
                   className="capex-th"
@@ -578,7 +602,10 @@ export default function SustainabilityIGAFOMTable() {
                     wordBreak: "break-word",
                   }}
                 >
-                  Nombre Concesión
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span>Nombre Concesión</span>
+                    <ExcelHeaderFilter {...excel.headerProps("concession_name")} />
+                  </span>
                 </th>
                 <th
                   className="capex-th"
@@ -600,7 +627,7 @@ export default function SustainabilityIGAFOMTable() {
 
             <tbody>
               {!loading &&
-                filteredRows.map((row, index) => {
+                visibleRows.map((row, index) => {
                   const url = normalizeDownloadUrl(row.url);
 
                   return (
@@ -684,10 +711,10 @@ export default function SustainabilityIGAFOMTable() {
                               justifyContent: "center",
                               minHeight: 32,
                               padding: "0 12px",
-                              borderRadius: 8,
+                              borderRadius: 6,
                               background: "#00A5CE",
                               color: "#fff",
-                              fontWeight: 800,
+                              fontWeight: 600,
                               fontSize: 12,
                               border: "none",
                               cursor: "pointer",
@@ -697,18 +724,18 @@ export default function SustainabilityIGAFOMTable() {
                             Descargar PDF
                           </button>
                         ) : (
-                          <span style={{ opacity: 0.65, fontWeight: 800 }}>Sin URL</span>
+                          <span style={{ opacity: 0.65, fontWeight: 600 }}>Sin URL</span>
                         )}
                       </td>
                     </tr>
                   );
                 })}
 
-              {!loading && filteredRows.length === 0 ? (
+              {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
                   <td
                     className="capex-td"
-                    style={{ ...cellBase, fontWeight: 900 }}
+                    style={{ ...cellBase, fontWeight: 700 }}
                     colSpan={5}
                   >
                     No hay filas para mostrar.
@@ -720,7 +747,7 @@ export default function SustainabilityIGAFOMTable() {
                 <tr className="capex-tr">
                   <td
                     className="capex-td"
-                    style={{ ...cellBase, fontWeight: 900 }}
+                    style={{ ...cellBase, fontWeight: 700 }}
                     colSpan={5}
                   >
                     Cargando sustainability IGAFOM…
@@ -735,13 +762,13 @@ export default function SustainabilityIGAFOMTable() {
                   className="capex-td"
                   style={{
                     ...cellBase,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     borderTop: headerBorder,
                     borderRight: gridV,
                     background: "rgba(255,255,255,0.06)",
                   }}
                 >
-                  Filas: {filteredRows.length}
+                  Filas: {visibleRows.length}
                 </td>
                 <td
                   className="capex-td"

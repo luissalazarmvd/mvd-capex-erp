@@ -8,7 +8,7 @@ export default function SustainabilityLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div data-module="sustainability" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <header
         style={{
           background: "var(--header)",
@@ -51,7 +51,7 @@ export default function SustainabilityLayout({
               </LogoutLink>
 
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>
+                <div style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>
                   MVD – SOSTENIBILIDAD
                 </div>
                 <div className="muted" style={{ fontSize: 12 }}>

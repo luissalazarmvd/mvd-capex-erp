@@ -1064,11 +1064,11 @@ export default function TRJKardexQuotes() {
         .trjk-quotes .trjq-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
         .trjk-quotes .trjq-search{width:min(420px,100%);height:32px;padding:5px 9px;font-size:12px}
         .trjk-quotes .trjq-toolbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px}
-        .trjk-quotes .trjq-check{display:flex;align-items:center;gap:6px!important;font-size:11px!important;font-weight:800;cursor:pointer}
+        .trjk-quotes .trjq-check{display:flex;align-items:center;gap:6px!important;font-size:11px!important;font-weight:600;cursor:pointer}
         .trjk-quotes .trjq-count{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:rgba(147,211,230,.10);font-size:11px}
-        .trjk-quotes .trjq-table-scroll{overflow-x:auto;overflow-y:visible;max-width:100%;margin-top:8px;border-radius:7px;border:1px solid rgba(147,211,230,.13)}
+        .trjk-quotes .trjq-table-scroll{overflow-x:auto;overflow-y:visible;max-width:100%;margin-top:8px;border-radius:6px;border:1px solid rgba(147,211,230,.13)}
         .trjk-quotes table{border-collapse:collapse;width:max-content;min-width:100%;font-size:11px}
-        .trjk-quotes th{background:#173f4d;text-align:left;color:#fff;font-weight:800}
+        .trjk-quotes th{background:#143444;text-align:left;color:#fff;font-weight:600}
         .trjk-quotes th,.trjk-quotes td{padding:7px 9px;border-bottom:1px solid rgba(147,211,230,.13);white-space:nowrap;vertical-align:middle}
         .trjk-quotes tbody tr:hover{background:rgba(147,211,230,.06)}
         .trjk-quotes tr[data-active=true]{background:rgba(117,151,41,.24)}
@@ -1078,17 +1078,17 @@ export default function TRJKardexQuotes() {
         .trjk-quotes .trjq-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:9px}
         .trjk-quotes .trjq-editor-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .trjk-quotes .trjq-editor-title h3{margin:0;font-size:14px}
-        .trjk-quotes .trjq-status{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;background:rgba(151,205,58,.13);border:1px solid rgba(151,205,58,.32)}
-        .trjk-quotes .trjq-entry-card{padding:9px 10px 10px;border:1px solid rgba(147,211,230,.18);border-left:3px solid rgba(191,145,217,.72);border-radius:8px;background:rgba(75,41,94,.08)}
-        .trjk-quotes .trjq-section-title{font-size:12px;font-weight:900;margin-bottom:8px}
+        .trjk-quotes .trjq-status{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:600;background:rgba(151,205,58,.13);border:1px solid rgba(151,205,58,.32)}
+        .trjk-quotes .trjq-entry-card{padding:9px 10px 10px;border:1px solid rgba(147,211,230,.18);border-left:3px solid rgba(191,145,217,.72);border-radius:6px;background:rgba(75,41,94,.08)}
+        .trjk-quotes .trjq-section-title{font-size:12px;font-weight:700;margin-bottom:8px}
         .trjk-quotes .trjq-entry-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
-        .trjk-quotes label{display:grid;gap:4px;min-width:0;font-size:11px;font-weight:800}
+        .trjk-quotes label{display:grid;gap:4px;min-width:0;font-size:11px;font-weight:600}
         .trjk-quotes .input{width:100%;min-width:0;height:30px;padding:4px 8px;font-size:11px;line-height:1.2;border-radius:6px}
-        .trjk-quotes input[list]{background:#073b54;color:#fff;border:1px solid rgba(147,211,230,.35)}
+        .trjk-quotes input[list]{background:#0d222e;color:#fff;border:1px solid rgba(147,211,230,.35)}
         .trjk-quotes input[readonly]{opacity:.82;background:rgba(255,255,255,.035)}
         .trjk-quotes fieldset{border:0;padding:0;margin:0;min-width:0}
         .trjk-quotes .trjq-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:9px}
-        .trjk-quotes .trjq-kpi{position:relative;display:grid;gap:3px;padding:8px 10px;border:1px solid rgba(147,211,230,.16);border-radius:8px;background:rgba(147,211,230,.055);overflow:hidden}
+        .trjk-quotes .trjq-kpi{position:relative;display:grid;gap:3px;padding:8px 10px;border:1px solid rgba(147,211,230,.16);border-radius:6px;background:rgba(147,211,230,.055);overflow:hidden}
         .trjk-quotes .trjq-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:rgba(147,211,230,.65)}
         .trjk-quotes .trjq-kpi[data-tone=arrival]:before{background:rgba(151,205,58,.78)}
         .trjk-quotes .trjq-kpi[data-tone=amount]:before{background:rgba(240,178,72,.78)}
@@ -1096,16 +1096,16 @@ export default function TRJKardexQuotes() {
         .trjk-quotes .trjq-kpi span{font-size:10px;opacity:.78}
         .trjk-quotes .trjq-kpi strong{font-size:15px}
         .trjk-quotes .trjq-inline-note{margin-top:7px;padding-left:1px}
-        .trjk-quotes .trjq-lots-card{margin-top:9px;padding:9px 10px 10px;border:1px solid rgba(151,205,58,.28);border-left:3px solid rgba(151,205,58,.78);border-radius:8px;background:rgba(62,84,24,.09)}
+        .trjk-quotes .trjq-lots-card{margin-top:9px;padding:9px 10px 10px;border:1px solid rgba(151,205,58,.28);border-left:3px solid rgba(151,205,58,.78);border-radius:6px;background:rgba(62,84,24,.09)}
         .trjk-quotes .trjq-tmh-input{width:118px}
         .trjk-quotes .trjq-input-error{border-color:#d85d27!important}
-        .trjk-quotes .trjq-invoice-card{margin-top:9px;padding:9px 10px 10px;border:1px solid rgba(240,178,72,.28);border-left:3px solid rgba(240,178,72,.78);border-radius:8px;background:rgba(103,67,13,.08)}
+        .trjk-quotes .trjq-invoice-card{margin-top:9px;padding:9px 10px 10px;border:1px solid rgba(240,178,72,.28);border-left:3px solid rgba(240,178,72,.78);border-radius:6px;background:rgba(103,67,13,.08)}
         .trjk-quotes .trjq-invoice-grid{display:grid;grid-template-columns:1fr 1fr 1.5fr 1fr;gap:8px}
-        .trjk-quotes .trjq-invoice-grid>div{min-width:0;padding:7px 8px;border-radius:7px;background:rgba(2,35,52,.23);border:1px solid rgba(147,211,230,.10)}
+        .trjk-quotes .trjq-invoice-grid>div{min-width:0;padding:7px 8px;border-radius:6px;background:rgba(2,35,52,.23);border:1px solid rgba(147,211,230,.10)}
         .trjk-quotes .trjq-invoice-grid span{display:block;font-size:9px;opacity:.72;margin-bottom:3px}
         .trjk-quotes .trjq-invoice-grid strong{display:block;font-size:11px;overflow-wrap:anywhere}
-        .trjk-quotes .trjq-message{padding:7px 9px;border:1px solid rgba(147,211,230,.35);border-radius:7px;background:rgba(11,77,107,.45);font-size:11px}
-        .trjk-quotes .trjq-error{color:#ffd0b8;border-color:#d85d27}
+        .trjk-quotes .trjq-message{padding:7px 9px;border:1px solid rgba(147,211,230,.35);border-radius:6px;background:rgba(11,77,107,.45);font-size:11px}
+        .trjk-quotes .trjq-error{color:#ebb086;border-color:#d85d27}
         .trjk-quotes .trjq-note{font-size:10px;opacity:.82;margin-top:7px}
         .trjk-quotes button:disabled{opacity:.45;cursor:not-allowed}
         @media (max-width:1100px){

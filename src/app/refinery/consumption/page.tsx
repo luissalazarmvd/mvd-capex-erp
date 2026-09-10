@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Button } from "../../../components/ui/Button";
 import { Table } from "../../../components/ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../../../components/ui/ExcelFilters";
 import ConsImpExp from "../../../components/refinery/ConsImpExp";
 
 type CampaignRow = {
@@ -170,7 +171,7 @@ function Select({
 
   return (
     <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <button
         type="button"
@@ -185,7 +186,7 @@ function Select({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
           display: "flex",
@@ -206,7 +207,7 @@ function Select({
               top: 6,
               left: 0,
               right: 0,
-              borderRadius: 12,
+              borderRadius: 10,
               border: "1px solid rgba(255,255,255,.10)",
               background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -235,7 +236,7 @@ function Select({
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
@@ -301,7 +302,7 @@ function SearchableDropdown({
 
   return (
     <div ref={boxRef} style={{ display: "grid", gap: 6, position: "relative" }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input
@@ -325,7 +326,7 @@ function SearchableDropdown({
             borderRadius: 10,
             padding: "10px 12px",
             outline: "none",
-            fontWeight: 900,
+            fontWeight: 700,
             opacity: disabled ? 0.7 : 1,
           }}
         />
@@ -342,7 +343,7 @@ function SearchableDropdown({
             background: "rgba(0,0,0,.10)",
             cursor: disabled ? "not-allowed" : "pointer",
             opacity: disabled ? 0.7 : 1,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "var(--text)",
           }}
           aria-label="Abrir"
@@ -361,7 +362,7 @@ function SearchableDropdown({
             right: 0,
             zIndex: 20,
             border: "1px solid var(--border)",
-            borderRadius: 12,
+            borderRadius: 10,
             background: "var(--panel)",
             boxShadow: "0 10px 24px rgba(0,0,0,.25)",
             maxHeight: 280,
@@ -388,7 +389,7 @@ function SearchableDropdown({
                     background: "transparent",
                     cursor: "pointer",
                     color: "var(--text)",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     borderBottom: "1px solid rgba(255,255,255,.06)",
                   }}
                 >
@@ -397,7 +398,7 @@ function SearchableDropdown({
               );
             })
           ) : (
-            <div className="muted" style={{ padding: 12, fontWeight: 800 }}>
+            <div className="muted" style={{ padding: 12, fontWeight: 600 }}>
               No hay resultados
             </div>
           )}
@@ -795,6 +796,22 @@ export default function RefineryConsumptionPage() {
     return [...base, ...subs, totalCol];
   }, [visibleSubpros]);
 
+  // Filtros tipo Excel sobre las filas ya cargadas (capa de vista).
+  const excelColumns = useMemo<Array<ExcelColumnDef<ViewRow>>>(
+    () =>
+      cols.map((c) => ({
+        key: String(c.key),
+        label: c.label,
+        kind: c.key === "reagent_name" ? ("text" as const) : ("number" as const),
+        value: (row: ViewRow) =>
+          String(c.key) === "__total__" ? rowTotal(row) : (row as Record<string, unknown>)[c.key],
+      })),
+    [cols, rowTotal]
+  );
+
+  const excel = useExcelColumnFilters(rows, excelColumns);
+  const visibleRows = excel.rows;
+
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
     fontSize: 12,
@@ -802,7 +819,7 @@ export default function RefineryConsumptionPage() {
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
@@ -830,7 +847,7 @@ export default function RefineryConsumptionPage() {
     position: "sticky",
     right: 0,
     zIndex: 6,
-    background: "rgb(6, 77, 121)",
+    background: "rgb(20, 52, 68)",
     boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
   };
 
@@ -838,7 +855,7 @@ export default function RefineryConsumptionPage() {
     position: "sticky",
     left: 0,
     zIndex: 7,
-    background: "rgb(6, 77, 121)",
+    background: "rgb(20, 52, 68)",
     boxShadow: " 10px 0 18px rgba(0,0,0,.22)",
   };
 
@@ -857,10 +874,10 @@ export default function RefineryConsumptionPage() {
     background: "rgba(0,0,0,.10)",
     border: "1px solid rgba(255,255,255,.10)",
     color: "var(--text)",
-    borderRadius: 8,
+    borderRadius: 6,
     padding: "6px 8px",
     outline: "none",
-    fontWeight: 900,
+    fontWeight: 700,
     fontSize: 12,
   };
 
@@ -873,7 +890,7 @@ export default function RefineryConsumptionPage() {
         className="panel-inner"
         style={{ padding: 10, display: "flex", gap: 10, alignItems: "center", width: "100%" }}
       >
-        <div style={{ fontWeight: 900 }}>Consumos</div>
+        <div style={{ fontWeight: 700 }}>Consumos</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
           <ConsImpExp
@@ -898,6 +915,12 @@ export default function RefineryConsumptionPage() {
             {loadingMeta || loadingTable ? "Cargando..." : "Refrescar"}
           </Button>
 
+          {excel.activeCount || excel.hasSort ? (
+            <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+            </Button>
+          ) : null}
+
           <Button
             type="button"
             size="sm"
@@ -918,7 +941,7 @@ export default function RefineryConsumptionPage() {
               padding: 12,
               border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
               background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-              fontWeight: 800,
+              fontWeight: 600,
             }}
           >
             {msg}
@@ -981,7 +1004,7 @@ export default function RefineryConsumptionPage() {
                           textAlign: "center",
                           padding: "6px 4px",
                           fontSize: 12,
-                          fontWeight: 900,
+                          fontWeight: 700,
                           whiteSpace: "normal",
                           lineHeight: "14px",
                           verticalAlign: "middle",
@@ -1003,6 +1026,9 @@ export default function RefineryConsumptionPage() {
                         >
                           {c.label}
                         </div>
+                        <div style={{ display: "flex", justifyContent: "center", marginTop: 3 }}>
+                          <ExcelHeaderFilter {...excel.headerProps(String(c.key))} />
+                        </div>
                       </th>
                     );
                   })}
@@ -1010,7 +1036,7 @@ export default function RefineryConsumptionPage() {
               </thead>
 
               <tbody>
-                {rows.map((row, ridx) => (
+                {visibleRows.map((row, ridx) => (
                   <tr key={`${String(row.reagent_name || ridx)}-${ridx}`} className="capex-tr">
                     {cols.map((c) => {
                       const key = String(c.key);
@@ -1034,7 +1060,7 @@ export default function RefineryConsumptionPage() {
                               padding: "6px 6px",
                               background: stickyRightCell.background as any,
                               borderBottom: "1px solid rgba(255,255,255,.06)",
-                              fontWeight: 900,
+                              fontWeight: 700,
                             }}
                             title={txt}
                           >
@@ -1057,7 +1083,7 @@ export default function RefineryConsumptionPage() {
                               padding: "6px 6px",
                               background: stickyLeftCell.background as any,
                               borderBottom: "1px solid rgba(255,255,255,.06)",
-                              fontWeight: 900,
+                              fontWeight: 700,
                             }}
                             title={txt}
                           >
@@ -1079,7 +1105,7 @@ export default function RefineryConsumptionPage() {
                               padding: "6px 6px",
                               background: "rgba(0,0,0,.10)",
                               borderBottom: "1px solid rgba(255,255,255,.06)",
-                              fontWeight: 900,
+                              fontWeight: 700,
                             }}
                             title={txt}
                           >
@@ -1110,7 +1136,7 @@ export default function RefineryConsumptionPage() {
                               ? "rgba(27,147,227,.08)"
                               : "rgba(0,0,0,.10)",
                             borderBottom: "1px solid rgba(255,255,255,.06)",
-                            fontWeight: 800,
+                            fontWeight: 600,
                             opacity: !isMapped ? 0.7 : 1,
                             cursor: !isMapped ? "not-allowed" : "default",
                           }}
@@ -1153,14 +1179,14 @@ export default function RefineryConsumptionPage() {
             </Table>
           </div>
         ) : (
-          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 600 }}>
             {loadingTable ? "Cargando…" : canQuery ? "Sin datos." : "Selecciona una campaña arriba."}
           </div>
         )}
       </div>
 
       {rows.length && !visibleSubpros.length ? (
-        <div className="panel-inner" style={{ padding: 12, fontWeight: 800, opacity: 0.9 }}>
+        <div className="panel-inner" style={{ padding: 12, fontWeight: 600, opacity: 0.9 }}>
           No hay subprocesos con consumo para esta campaña (según mapping/valores).
         </div>
       ) : null}

@@ -76,7 +76,7 @@ function SearchableDropdown({
 
   return (
     <div ref={boxRef} style={{ display: "grid", gap: 6, position: "relative" }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input
@@ -100,7 +100,7 @@ function SearchableDropdown({
             borderRadius: 10,
             padding: "10px 12px",
             outline: "none",
-            fontWeight: 900,
+            fontWeight: 700,
             opacity: disabled ? 0.7 : 1,
           }}
         />
@@ -117,7 +117,7 @@ function SearchableDropdown({
             background: "rgba(0,0,0,.10)",
             cursor: disabled ? "not-allowed" : "pointer",
             opacity: disabled ? 0.7 : 1,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "var(--text)",
           }}
           aria-label="Abrir"
@@ -136,7 +136,7 @@ function SearchableDropdown({
             right: 0,
             zIndex: 20,
             border: "1px solid var(--border)",
-            borderRadius: 12,
+            borderRadius: 10,
             background: "var(--panel)",
             boxShadow: "0 10px 24px rgba(0,0,0,.25)",
             maxHeight: 280,
@@ -163,7 +163,7 @@ function SearchableDropdown({
                     background: "transparent",
                     cursor: "pointer",
                     color: "var(--text)",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     borderBottom: "1px solid rgba(255,255,255,.06)",
                   }}
                 >
@@ -172,7 +172,7 @@ function SearchableDropdown({
               );
             })
           ) : (
-            <div className="muted" style={{ padding: 12, fontWeight: 800 }}>
+            <div className="muted" style={{ padding: 12, fontWeight: 600 }}>
               No hay resultados
             </div>
           )}
@@ -224,14 +224,14 @@ function Accordion({
         }}
       >
         <div style={{ display: "grid", gap: 2 }}>
-          <div style={{ fontWeight: 950 }}>{title}</div>
+          <div style={{ fontWeight: 700 }}>{title}</div>
           {subtitle ? (
-            <div className="muted" style={{ fontWeight: 800, fontSize: 12, opacity: 0.8 }}>
+            <div className="muted" style={{ fontWeight: 600, fontSize: 12, opacity: 0.8 }}>
               {subtitle}
             </div>
           ) : null}
         </div>
-        <div style={{ marginLeft: "auto", fontWeight: 950, opacity: 0.85 }}>{open ? "—" : "+"}</div>
+        <div style={{ marginLeft: "auto", fontWeight: 700, opacity: 0.85 }}>{open ? "—" : "+"}</div>
       </button>
 
       {open ? <div style={{ padding: 14 }}>{children}</div> : null}
@@ -366,7 +366,7 @@ export default function DatosGuardiaPage() {
   return (
     <div style={{ display: "grid", gap: 12, maxWidth: "100%" }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Datos de Guardia</div>
+        <div style={{ fontWeight: 700 }}>Datos de Guardia</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
         <Button type="button" size="sm" variant="ghost" onClick={loadShifts} disabled={loadingShifts}>
@@ -382,7 +382,7 @@ export default function DatosGuardiaPage() {
             padding: 12,
             border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
             background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}

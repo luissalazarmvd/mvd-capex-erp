@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef, type ExcelFilterKind } from "../ui/ExcelFilters";
 
 const PAGE_SIZE = 200;
 
@@ -115,6 +116,10 @@ const WIDTHS: Partial<Record<ColumnKey, number>> = {
   mat_pu: 120,
 };
 
+function excelKind(key: ColumnKey): ExcelFilterKind {
+  return key === "mat_code" || key === "mat_desc" || key === "mat_unit" ? "text" : "number";
+}
+
 const COLUMNS = COLUMN_KEYS.map((key) => ({
   key,
   label: getColumnLabel(key),
@@ -131,6 +136,13 @@ const COLUMNS = COLUMN_KEYS.map((key) => ({
       : key === "mat_desc"
       ? (WIDTHS.mat_code ?? 120)
       : undefined,
+}));
+
+const EXCEL_COLUMNS: Array<ExcelColumnDef<MRAStgRow>> = COLUMN_KEYS.map((key) => ({
+  key,
+  label: getColumnLabel(key),
+  kind: excelKind(key),
+  value: (row: MRAStgRow) => row[key],
 }));
 
 function normalizeText(v: unknown) {
@@ -348,12 +360,21 @@ export default function LogisticsMRATable() {
     setPage(1);
   }, [mraOnly, sortKey, sortDir, stgRows.length, dimRows.length]);
 
-  const totalRows = preparedRows.length;
+  // Filtros tipo Excel: vista sobre `preparedRows`. La exportacion sigue
+  // usando `preparedRows` y por tanto no se ve afectada por estos filtros.
+  const excel = useExcelColumnFilters(preparedRows, EXCEL_COLUMNS);
+  const filteredRows = excel.rows;
+
+  useEffect(() => {
+    setPage(1);
+  }, [excel.activeCount]);
+
+  const totalRows = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const pageEnd = pageStart + PAGE_SIZE;
-  const visibleRows = preparedRows.slice(pageStart, pageEnd);
+  const visibleRows = filteredRows.slice(pageStart, pageEnd);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -608,7 +629,7 @@ export default function LogisticsMRATable() {
             flexShrink: 0,
           }}
         >
-          <div style={{ fontWeight: 900 }}>
+          <div style={{ fontWeight: 700 }}>
             Logistica · MRA
           </div>
 
@@ -619,7 +640,7 @@ export default function LogisticsMRATable() {
               border: "1px solid rgba(255,255,255,0.12)",
               background: "rgba(255,255,255,0.06)",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               color: "rgba(255,255,255,0.9)",
             }}
           >
@@ -633,7 +654,7 @@ export default function LogisticsMRATable() {
               border: "1px solid rgba(255,255,255,0.12)",
               background: "rgba(255,255,255,0.06)",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               color: "rgba(255,255,255,0.9)",
             }}
           >
@@ -653,9 +674,9 @@ export default function LogisticsMRATable() {
                 ? "rgba(27,147,227,.16)"
                 : "rgba(255,255,255,0.06)",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               color: mraOnly
-                ? "rgb(216, 238, 255)"
+                ? "rgb(168, 192, 207)"
                 : "rgba(255,255,255,0.8)",
               cursor: "pointer",
             }}
@@ -681,6 +702,12 @@ export default function LogisticsMRATable() {
             >
               {loading ? "Cargando…" : "Refrescar"}
             </Button>
+
+            {excel.activeCount || excel.hasSort ? (
+              <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+                Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+              </Button>
+            ) : null}
 
             <Button
               type="button"
@@ -716,7 +743,7 @@ export default function LogisticsMRATable() {
               background: msg.startsWith("OK")
                 ? "rgba(27,147,227,.10)"
                 : "rgba(216,93,39,.10)",
-              fontWeight: 800,
+              fontWeight: 600,
             }}
           >
             {msg}
@@ -786,8 +813,13 @@ export default function LogisticsMRATable() {
                       }}
                       title={c.label}
                     >
-                      {c.label}
-                      {getSortIndicator(c.key)}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <span>
+                          {c.label}
+                          {getSortIndicator(c.key)}
+                        </span>
+                        <ExcelHeaderFilter {...excel.headerProps(c.key)} />
+                      </span>
                     </th>
                   ))}
                 </tr>
@@ -810,7 +842,7 @@ export default function LogisticsMRATable() {
                             width: c.width,
                             minWidth: c.width,
                             maxWidth: c.width,
-                            color: "rgb(185,185,185)",
+                            color: "rgb(168, 192, 207)",
                             position: c.sticky ? "sticky" : "static",
                             left: c.sticky ? c.left : undefined,
                             zIndex: c.sticky ? 15 : undefined,
@@ -826,7 +858,7 @@ export default function LogisticsMRATable() {
 
                 {!loading && visibleRows.length === 0 ? (
                   <tr className="capex-tr">
-                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                    <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={COLUMNS.length}>
                       No hay filas para mostrar.
                     </td>
                   </tr>
@@ -834,7 +866,7 @@ export default function LogisticsMRATable() {
 
                 {loading ? (
                   <tr className="capex-tr">
-                    <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                    <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={COLUMNS.length}>
                       Cargando logistics MRA…
                     </td>
                   </tr>
@@ -847,7 +879,7 @@ export default function LogisticsMRATable() {
                     className="capex-td"
                     style={{
                       ...cellBase,
-                      fontWeight: 900,
+                      fontWeight: 700,
                       borderTop: headerBorder,
                       borderRight: gridV,
                       background: "rgba(255,255,255,0.06)",
@@ -884,7 +916,7 @@ export default function LogisticsMRATable() {
             flexShrink: 0,
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
             Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
           </div>
 
@@ -904,7 +936,7 @@ export default function LogisticsMRATable() {
                 minWidth: 110,
                 textAlign: "center",
                 fontSize: 12,
-                fontWeight: 900,
+                fontWeight: 700,
                 padding: "6px 10px",
                 borderRadius: 999,
                 background: "rgba(255,255,255,0.06)",
@@ -962,7 +994,7 @@ export default function LogisticsMRATable() {
               }}
             >
               <div>
-                <div style={{ fontSize: 18, fontWeight: 900 }}>Preview de importación MRA</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Preview de importación MRA</div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
                   Revisa la data antes de reemplazar dim.logistics_mra_mat
                 </div>
@@ -995,7 +1027,7 @@ export default function LogisticsMRATable() {
                     border: "1px solid rgba(255,255,255,0.12)",
                     background: "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Archivo: {importSummary.file_name}
@@ -1008,7 +1040,7 @@ export default function LogisticsMRATable() {
                     border: "1px solid rgba(255,255,255,0.12)",
                     background: "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Filas Excel: {importSummary.total_excel_rows}
@@ -1021,7 +1053,7 @@ export default function LogisticsMRATable() {
                     border: "1px solid rgba(27,147,227,.45)",
                     background: "rgba(27,147,227,.10)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Filas válidas: {importSummary.valid_rows}
@@ -1038,7 +1070,7 @@ export default function LogisticsMRATable() {
                       ? "rgba(255,183,27,.10)"
                       : "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Códigos repetidos: {importSummary.repeated_codes}
@@ -1055,7 +1087,7 @@ export default function LogisticsMRATable() {
                       ? "rgba(255,183,27,.10)"
                       : "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Filas repetidas: {importSummary.repeated_rows}
@@ -1072,7 +1104,7 @@ export default function LogisticsMRATable() {
                       ? "rgba(255,183,27,.10)"
                       : "rgba(255,255,255,0.06)",
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   Filas extra repetidas: {importSummary.repeated_extra_rows}
@@ -1086,7 +1118,7 @@ export default function LogisticsMRATable() {
                 minHeight: 0,
                 overflow: "auto",
                 border: "1px solid rgba(216,238,255,.12)",
-                borderRadius: 12,
+                borderRadius: 10,
               }}
             >
               <Table stickyHeader disableScrollWrapper>
@@ -1145,7 +1177,7 @@ export default function LogisticsMRATable() {
                           borderBottom: gridH,
                           borderRight: gridV,
                           background: row.is_duplicate ? "rgba(255,183,27,.12)" : rowBg,
-                          fontWeight: 900,
+                          fontWeight: 700,
                         }}
                         title={row.mat_code || "—"}
                       >
@@ -1211,8 +1243,8 @@ export default function LogisticsMRATable() {
                           borderBottom: gridH,
                           borderRight: gridV,
                           background: row.is_duplicate ? "rgba(255,183,27,.12)" : rowBg,
-                          fontWeight: 900,
-                          color: row.is_duplicate ? "rgb(255,203,96)" : "rgb(185,185,185)",
+                          fontWeight: 700,
+                          color: row.is_duplicate ? "rgb(255,203,96)" : "rgb(168, 192, 207)",
                         }}
                       >
                         {row.is_duplicate ? `Sí (${row.duplicate_count})` : "No"}
@@ -1222,7 +1254,7 @@ export default function LogisticsMRATable() {
 
                   {previewRows.length === 0 ? (
                     <tr className="capex-tr">
-                      <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={7}>
+                      <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={7}>
                         No hay filas para preview.
                       </td>
                     </tr>
@@ -1240,7 +1272,7 @@ export default function LogisticsMRATable() {
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
                 Se importarán exactamente {previewRows.length} fila(s) únicas al confirmar.
               </div>
 

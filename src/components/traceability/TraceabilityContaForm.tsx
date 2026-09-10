@@ -7,6 +7,7 @@ import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 
 type NumericValue = number | string | null;
 
@@ -638,10 +639,37 @@ export default function TraceabilityContaForm() {
       .map(({ row }) => row);
   }, [activeRows, activeColumns, dateFrom, dateTo, globalSearch, sortKey, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  // Filtros tipo Excel: capa de vista sobre `filteredRows`. La exportación
+  // sigue usando `filteredRows` y no se ve afectada.
+  const excelColumns = useMemo<Array<ExcelColumnDef<DataRow>>>(
+    () =>
+      activeColumns.map((column) => ({
+        key: column.key,
+        label: column.label,
+        kind: column.kind,
+        value: (row: DataRow) => cellValue(row, column.key),
+      })),
+    [activeColumns]
+  );
+
+  const excel = useExcelColumnFilters(filteredRows, excelColumns);
+  const excelRows = excel.rows;
+
+  useEffect(() => {
+    setPage(1);
+  }, [excel.activeCount]);
+
+  // Las dos vistas no comparten columnas: al cambiar, los filtros se reinician.
+  const clearExcel = excel.clear;
+
+  useEffect(() => {
+    clearExcel();
+  }, [view, clearExcel]);
+
+  const totalPages = Math.max(1, Math.ceil(excelRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
-  const visibleRows = filteredRows.slice(pageStart, pageStart + PAGE_SIZE);
+  const visibleRows = excelRows.slice(pageStart, pageStart + PAGE_SIZE);
 
   function onSortClick(key: string) {
     if (sortKey === key) {
@@ -701,9 +729,9 @@ export default function TraceabilityContaForm() {
     border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
-    fontWeight: 800,
+    fontWeight: 600,
     padding: "6px 8px",
-    borderRadius: 8,
+    borderRadius: 6,
     outline: "none",
     fontSize: 12,
     boxSizing: "border-box",
@@ -743,7 +771,7 @@ export default function TraceabilityContaForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>Trazabilidad · Lotes Pagados · {activeLabel}</div>
+        <div style={{ fontWeight: 700 }}>Trazabilidad · Lotes Pagados · {activeLabel}</div>
 
         <div style={{ display: "flex", gap: 6 }}>
           <Button type="button" size="sm" variant={view === "lot" ? "primary" : "default"} onClick={() => changeView("lot")} disabled={loading}>Por lote</Button>
@@ -760,7 +788,7 @@ export default function TraceabilityContaForm() {
           }}
         >
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Fecha de pago desde</span>
+            <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Fecha de pago desde</span>
             <input
               type="date"
               value={dateFrom}
@@ -772,7 +800,7 @@ export default function TraceabilityContaForm() {
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Fecha de pago hasta</span>
+            <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Fecha de pago hasta</span>
             <input
               type="date"
               value={dateTo}
@@ -784,7 +812,7 @@ export default function TraceabilityContaForm() {
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Buscador global</span>
+            <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Buscador global</span>
             <input
               type="search"
               value={globalSearch}
@@ -797,6 +825,12 @@ export default function TraceabilityContaForm() {
           <Button type="button" size="sm" onClick={() => void loadData(view)} disabled={loading}>
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
+
+          {excel.activeCount || excel.hasSort ? (
+            <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+            </Button>
+          ) : null}
 
           <Button
             type="button"
@@ -826,7 +860,7 @@ export default function TraceabilityContaForm() {
             flexShrink: 0,
             border: "1px solid rgba(216,93,39,.45)",
             background: "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {message}
@@ -886,7 +920,7 @@ export default function TraceabilityContaForm() {
                     style={{
                       top: 0,
                       zIndex: 20,
-                      background: "rgb(6, 77, 121)",
+                      background: "rgb(20, 52, 68)",
                       border: "1px solid rgba(216,238,255,.26)",
                       padding: "8px",
                       fontSize: 12,
@@ -901,8 +935,13 @@ export default function TraceabilityContaForm() {
                       userSelect: "none",
                     }}
                   >
-                    {column.label}
-                    {getSortIndicator(column.key)}
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {column.label}
+                        {getSortIndicator(column.key)}
+                      </span>
+                      <ExcelHeaderFilter {...excel.headerProps(column.key)} />
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -942,7 +981,7 @@ export default function TraceabilityContaForm() {
 
               {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" colSpan={activeColumns.length} style={{ ...cellStyle, fontWeight: 900 }}>
+                  <td className="capex-td" colSpan={activeColumns.length} style={{ ...cellStyle, fontWeight: 700 }}>
                     No hay {view === "lot" ? "lotes pagados" : "pagos"} para los filtros seleccionados.
                   </td>
                 </tr>
@@ -950,7 +989,7 @@ export default function TraceabilityContaForm() {
 
               {loading ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" colSpan={activeColumns.length} style={{ ...cellStyle, fontWeight: 900 }}>
+                  <td className="capex-td" colSpan={activeColumns.length} style={{ ...cellStyle, fontWeight: 700 }}>
                     Cargando {view === "lot" ? "lotes pagados" : "pagos"}…
                   </td>
                 </tr>
@@ -972,8 +1011,8 @@ export default function TraceabilityContaForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
-          Mostrando {filteredRows.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredRows.length)} de {filteredRows.length} filas
+        <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
+          Mostrando {excelRows.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, excelRows.length)} de {excelRows.length} filas
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -992,7 +1031,7 @@ export default function TraceabilityContaForm() {
               minWidth: 90,
               textAlign: "center",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,.06)",
@@ -1052,7 +1091,7 @@ export default function TraceabilityContaForm() {
               }}
             >
               <div>
-                <div id="target-preview-title" style={{ fontSize: 18, fontWeight: 900 }}>
+                <div id="target-preview-title" style={{ fontSize: 18, fontWeight: 700 }}>
                   Actualizar Target
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
@@ -1101,7 +1140,7 @@ export default function TraceabilityContaForm() {
                   border: "1px solid rgba(27,147,227,.45)",
                   background: "rgba(27,147,227,.10)",
                   fontSize: 12,
-                  fontWeight: 900,
+                  fontWeight: 700,
                 }}
               >
                 Periodo target: {formatDate(selectedTargetPeriod)}
@@ -1122,13 +1161,13 @@ export default function TraceabilityContaForm() {
                     targetMessageKind === "error"
                       ? "rgba(216,93,39,.10)"
                       : "rgba(62,180,137,.10)",
-                  fontWeight: 800,
+                  fontWeight: 600,
                 }}
               >
                 {targetMessage}
               </div>
             ) : (
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.85 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.85 }}>
                 Se aceptan números positivos o cero, con hasta 6 decimales. Todos los campos son obligatorios.
               </div>
             )}
@@ -1139,7 +1178,7 @@ export default function TraceabilityContaForm() {
                 minHeight: 0,
                 overflow: "auto",
                 border: "1px solid rgba(216,238,255,.12)",
-                borderRadius: 12,
+                borderRadius: 10,
               }}
             >
               <Table stickyHeader disableScrollWrapper>
@@ -1147,43 +1186,43 @@ export default function TraceabilityContaForm() {
                   <tr>
                     <th
                       className="capex-th"
-                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                      style={{ top: 0, zIndex: 20, background: "rgb(20, 52, 68)", padding: 9 }}
                     >
                       Oficina
                     </th>
                     <th
                       className="capex-th"
-                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                      style={{ top: 0, zIndex: 20, background: "rgb(20, 52, 68)", padding: 9 }}
                     >
                       Target TMS Pro
                     </th>
                     <th
                       className="capex-th"
-                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                      style={{ top: 0, zIndex: 20, background: "rgb(20, 52, 68)", padding: 9 }}
                     >
                       Target TMS Add
                     </th>
                     <th
                       className="capex-th"
-                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                      style={{ top: 0, zIndex: 20, background: "rgb(20, 52, 68)", padding: 9 }}
                     >
                       Target TMS
                     </th>
                     <th
                       className="capex-th"
-                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                      style={{ top: 0, zIndex: 20, background: "rgb(20, 52, 68)", padding: 9 }}
                     >
                       Target lote USD Pro
                     </th>
                     <th
                       className="capex-th"
-                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                      style={{ top: 0, zIndex: 20, background: "rgb(20, 52, 68)", padding: 9 }}
                     >
                       Target lote USD Add
                     </th>
                     <th
                       className="capex-th"
-                      style={{ top: 0, zIndex: 20, background: "rgb(6, 77, 121)", padding: 9 }}
+                      style={{ top: 0, zIndex: 20, background: "rgb(20, 52, 68)", padding: 9 }}
                     >
                       Target lote USD
                     </th>
@@ -1211,7 +1250,7 @@ export default function TraceabilityContaForm() {
                       <tr className="capex-tr" key={row.office_name}>
                         <td
                           className="capex-td"
-                          style={{ ...cellStyle, background: rowBackground, fontWeight: 900 }}
+                          style={{ ...cellStyle, background: rowBackground, fontWeight: 700 }}
                         >
                           {row.office_name}
                         </td>
@@ -1371,7 +1410,7 @@ export default function TraceabilityContaForm() {
 
                   {targetLoading ? (
                     <tr className="capex-tr">
-                      <td className="capex-td" colSpan={7} style={{ ...cellStyle, fontWeight: 900 }}>
+                      <td className="capex-td" colSpan={7} style={{ ...cellStyle, fontWeight: 700 }}>
                         Cargando targets…
                       </td>
                     </tr>
@@ -1379,7 +1418,7 @@ export default function TraceabilityContaForm() {
 
                   {!targetLoading && targetRows.length === 0 ? (
                     <tr className="capex-tr">
-                      <td className="capex-td" colSpan={7} style={{ ...cellStyle, fontWeight: 900 }}>
+                      <td className="capex-td" colSpan={7} style={{ ...cellStyle, fontWeight: 700 }}>
                         No se encontraron oficinas en el historial de targets.
                       </td>
                     </tr>
@@ -1396,8 +1435,8 @@ export default function TraceabilityContaForm() {
                           position: "sticky",
                           bottom: 0,
                           zIndex: 10,
-                          background: "rgb(6, 77, 121)",
-                          fontWeight: 900,
+                          background: "rgb(20, 52, 68)",
+                          fontWeight: 700,
                           borderTop: "2px solid rgba(216,238,255,.35)",
                         }}
                       >
@@ -1410,8 +1449,8 @@ export default function TraceabilityContaForm() {
                           position: "sticky",
                           bottom: 0,
                           zIndex: 10,
-                          background: "rgb(6, 77, 121)",
-                          fontWeight: 900,
+                          background: "rgb(20, 52, 68)",
+                          fontWeight: 700,
                           borderTop: "2px solid rgba(216,238,255,.35)",
                           textAlign: "right",
                         }}
@@ -1427,8 +1466,8 @@ export default function TraceabilityContaForm() {
                           position: "sticky",
                           bottom: 0,
                           zIndex: 10,
-                          background: "rgb(6, 77, 121)",
-                          fontWeight: 900,
+                          background: "rgb(20, 52, 68)",
+                          fontWeight: 700,
                           borderTop: "2px solid rgba(216,238,255,.35)",
                           textAlign: "right",
                         }}
@@ -1444,8 +1483,8 @@ export default function TraceabilityContaForm() {
                           position: "sticky",
                           bottom: 0,
                           zIndex: 10,
-                          background: "rgb(6, 77, 121)",
-                          fontWeight: 900,
+                          background: "rgb(20, 52, 68)",
+                          fontWeight: 700,
                           borderTop: "2px solid rgba(216,238,255,.35)",
                           textAlign: "right",
                         }}
@@ -1461,8 +1500,8 @@ export default function TraceabilityContaForm() {
                           position: "sticky",
                           bottom: 0,
                           zIndex: 10,
-                          background: "rgb(6, 77, 121)",
-                          fontWeight: 900,
+                          background: "rgb(20, 52, 68)",
+                          fontWeight: 700,
                           borderTop: "2px solid rgba(216,238,255,.35)",
                           textAlign: "right",
                         }}
@@ -1478,8 +1517,8 @@ export default function TraceabilityContaForm() {
                           position: "sticky",
                           bottom: 0,
                           zIndex: 10,
-                          background: "rgb(6, 77, 121)",
-                          fontWeight: 900,
+                          background: "rgb(20, 52, 68)",
+                          fontWeight: 700,
                           borderTop: "2px solid rgba(216,238,255,.35)",
                           textAlign: "right",
                         }}
@@ -1495,8 +1534,8 @@ export default function TraceabilityContaForm() {
                           position: "sticky",
                           bottom: 0,
                           zIndex: 10,
-                          background: "rgb(6, 77, 121)",
-                          fontWeight: 900,
+                          background: "rgb(20, 52, 68)",
+                          fontWeight: 700,
                           borderTop: "2px solid rgba(216,238,255,.35)",
                           textAlign: "right",
                         }}
@@ -1520,7 +1559,7 @@ export default function TraceabilityContaForm() {
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
                 {!targetRows.length
                   ? "Carga las oficinas para poder guardar."
                   : targetsAreValid

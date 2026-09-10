@@ -110,7 +110,7 @@ function Select({
 
   return (
     <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <button
         type="button"
@@ -125,7 +125,7 @@ function Select({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
           display: "flex",
@@ -146,7 +146,7 @@ function Select({
               top: 6,
               left: 0,
               right: 0,
-              borderRadius: 12,
+              borderRadius: 10,
               border: "1px solid rgba(255,255,255,.10)",
               background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -175,7 +175,7 @@ function Select({
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
@@ -209,7 +209,7 @@ function DatePicker({
   const max = useMemo(() => isoTodayPe(), []);
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>Fecha de Ingreso</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>Fecha de Ingreso</div>
       <input
         type="date"
         value={valueIso}
@@ -224,7 +224,7 @@ function DatePicker({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
         }}
@@ -391,7 +391,7 @@ export default function RefineryEntriesPage() {
     <div style={{ display: "flex", gap: 14, alignItems: "flex-start", width: "100%" }}>
       <div style={{ flex: "1 1 auto", minWidth: 0, display: "grid", gap: 12 }}>
         <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-          <div style={{ fontWeight: 900 }}>Entrada de Stock</div>
+          <div style={{ fontWeight: 700 }}>Entrada de Stock</div>
 
           <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
             <Button type="button" size="sm" variant="ghost" onClick={() => loadAll()} disabled={loading || saving}>
@@ -410,7 +410,7 @@ export default function RefineryEntriesPage() {
               padding: 12,
               border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
               background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-              fontWeight: 800,
+              fontWeight: 600,
             }}
           >
             {msg}
@@ -431,7 +431,7 @@ export default function RefineryEntriesPage() {
 
             {/* CAMBIO: título dinámico según unidad */}
             <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>{qtyLabel}</div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{qtyLabel}</div>
               <Input
                 placeholder=""
                 value={qty}
@@ -441,7 +441,7 @@ export default function RefineryEntriesPage() {
             </div>
 
             {loadingExisting ? (
-              <div className="muted" style={{ fontWeight: 800 }}>
+              <div className="muted" style={{ fontWeight: 600 }}>
                 Cargando datos existentes…
               </div>
             ) : null}

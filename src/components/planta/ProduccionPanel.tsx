@@ -194,9 +194,9 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: 
   return (
     <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Producción</div>
+        <div style={{ fontWeight: 700 }}>Producción</div>
 
-        <div className="muted" style={{ fontWeight: 800, marginLeft: 8 }}>
+        <div className="muted" style={{ fontWeight: 600, marginLeft: 8 }}>
           Guardia: {sid || "—"}
         </div>
 
@@ -223,7 +223,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: 
             padding: 10,
             border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
             background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -233,7 +233,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: 
       <div className="panel-inner" style={{ padding: 14 }}>
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Densidad (g/l)</div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Densidad (g/l)</div>
             <Input
               placeholder="vacío o >= 0"
               value={densityOf}
@@ -245,7 +245,7 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: 
           </div>
 
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>%-m-200 (1-100)</div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>%-m-200 (1-100)</div>
             <Input
               placeholder="vacío, 0 o 1-100"
               value={pct200}
@@ -258,19 +258,19 @@ export default function ProduccionPanel({ shiftId }: { shiftId: string; facts?: 
         </div>
 
         {!sid ? (
-          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12 }}>
+          <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginTop: 12 }}>
             Selecciona una guardia en el page.
           </div>
         ) : null}
 
         {sid && !loadingExisting && !allValid ? (
-          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12, color: "rgba(229,149,103,.95)" }}>
+          <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginTop: 12, color: "rgba(229,149,103,.95)" }}>
             Corrige valores inválidos.
           </div>
         ) : null}
 
         {loadingExisting ? (
-          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12 }}>
+          <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginTop: 12 }}>
             Cargando datos existentes…
           </div>
         ) : null}

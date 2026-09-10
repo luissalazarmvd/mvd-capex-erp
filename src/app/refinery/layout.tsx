@@ -5,7 +5,7 @@ import LogoutLink from "../../components/auth/LogoutLink";
 
 export default function RefineryLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div data-module="refinery" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <header
         style={{
           background: "var(--header)",
@@ -44,7 +44,7 @@ export default function RefineryLayout({ children }: { children: React.ReactNode
               </LogoutLink>
 
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – REFINERÍA</div>
+                <div style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>MVD – REFINERÍA</div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   Campañas · Consumos · Stock · Producción · Reportes
                 </div>

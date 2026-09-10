@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 
 type ReqStatusRow = {
   req_item_key: string | null;
@@ -372,16 +373,44 @@ export default function LogisticsMreqStatusTable() {
     setPage(1);
   }, [fromDate, toDate, responsible, globalFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  // Filtros tipo Excel: capa de vista sobre `filteredRows`, evaluando el valor
+  // vigente del draft en las columnas editables. La exportación sigue usando
+  // `filteredRows` y no se ve afectada.
+  const excelColumns = useMemo<Array<ExcelColumnDef<ReqStatusRow>>>(
+    () =>
+      columns.map((column) => ({
+        key: String(column.key),
+        label: column.label,
+        kind: column.type === "num" ? "number" : column.type === "date" ? "date" : "text",
+        value: (row: ReqStatusRow) => {
+          const draft = drafts[normalizeText(row.req_item_key)];
+
+          if (column.key === "web_comment") return draft?.web_comment ?? row.web_comment;
+          if (column.key === "web_status") return draft?.web_status ?? row.web_status;
+
+          return row[column.key];
+        },
+      })),
+    [drafts]
+  );
+
+  const excel = useExcelColumnFilters(filteredRows, excelColumns);
+  const visibleRows = excel.rows;
+
+  useEffect(() => {
+    setPage(1);
+  }, [excel.activeCount]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
 
   const pagedRows = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return filteredRows.slice(start, start + pageSize);
-  }, [filteredRows, currentPage, pageSize]);
+    return visibleRows.slice(start, start + pageSize);
+  }, [visibleRows, currentPage, pageSize]);
 
-  const pageStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const pageEnd = Math.min(currentPage * pageSize, filteredRows.length);
+  const pageStart = visibleRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = Math.min(currentPage * pageSize, visibleRows.length);
 
   const editSummary = useMemo(() => {
     const changedKeys = Object.keys(drafts).filter((key) =>
@@ -584,7 +613,7 @@ export default function LogisticsMreqStatusTable() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>
+        <div style={{ fontWeight: 700 }}>
           Logística · Status de RQ
         </div>
 
@@ -598,7 +627,7 @@ export default function LogisticsMreqStatusTable() {
                 ? "rgba(94, 128, 25, 0.24)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
           }}
         >
           Editadas: {editSummary.editedCount}
@@ -612,7 +641,7 @@ export default function LogisticsMreqStatusTable() {
               border: "1px solid rgba(216, 93, 39, 0.65)",
               background: "rgba(216, 93, 39, 0.28)",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               color: "rgb(235, 176, 134)",
             }}
           >
@@ -641,7 +670,7 @@ export default function LogisticsMreqStatusTable() {
           alignItems: "end",
         }}
       >
-        <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 900 }}>
+        <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>
           Desde
           <input
             type="date"
@@ -651,7 +680,7 @@ export default function LogisticsMreqStatusTable() {
           />
         </label>
 
-        <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 900 }}>
+        <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700 }}>
           Hasta
           <input
             type="date"
@@ -666,7 +695,7 @@ export default function LogisticsMreqStatusTable() {
             display: "grid",
             gap: 6,
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             position: "relative",
           }}
         >
@@ -687,7 +716,7 @@ export default function LogisticsMreqStatusTable() {
               justifyContent: "space-between",
               textAlign: "left",
               cursor: "pointer",
-              fontWeight: 800,
+              fontWeight: 600,
             }}
           >
             <span>{responsible || "Todos"}</span>
@@ -704,7 +733,7 @@ export default function LogisticsMreqStatusTable() {
                 zIndex: 20,
                 background: "var(--panel2)",
                 border: "1px solid rgba(216,238,255,0.22)",
-                borderRadius: 12,
+                borderRadius: 10,
                 overflow: "hidden",
                 boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
               }}
@@ -732,7 +761,7 @@ export default function LogisticsMreqStatusTable() {
                       background: active ? "rgba(27,147,227,0.18)" : "transparent",
                       color: "var(--text)",
                       textAlign: "left",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       cursor: "pointer",
                     }}
                   >
@@ -749,7 +778,7 @@ export default function LogisticsMreqStatusTable() {
             display: "grid",
             gap: 6,
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
           }}
         >
           Buscador global
@@ -771,12 +800,18 @@ export default function LogisticsMreqStatusTable() {
             gap: 2,
             fontSize: 12,
             color: "rgba(255,255,255,0.72)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           <span>Total: {rows.length.toLocaleString("es-PE")}</span>
-          <span>Filtrado: {filteredRows.length.toLocaleString("es-PE")}</span>
+          <span>Filtrado: {visibleRows.length.toLocaleString("es-PE")}</span>
         </div>
+
+        {excel.activeCount || excel.hasSort ? (
+          <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+            Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+          </Button>
+        ) : null}
 
         <Button
           type="button"
@@ -796,7 +831,7 @@ export default function LogisticsMreqStatusTable() {
           style={{
             padding: 12,
             color: "rgba(229,149,103,0.95)",
-            fontWeight: 900,
+            fontWeight: 700,
           }}
         >
           {error}
@@ -811,7 +846,7 @@ export default function LogisticsMreqStatusTable() {
             color: message.startsWith("OK")
               ? "rgb(174, 202, 125)"
               : "rgba(235,176,134,0.95)",
-            fontWeight: 900,
+            fontWeight: 700,
           }}
         >
           {message}
@@ -829,7 +864,7 @@ export default function LogisticsMreqStatusTable() {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.78)" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.78)" }}>
           Mostrando {pageStart.toLocaleString("es-PE")} - {pageEnd.toLocaleString("es-PE")} de{" "}
           {filteredRows.length.toLocaleString("es-PE")}
         </div>
@@ -845,7 +880,7 @@ export default function LogisticsMreqStatusTable() {
             ←
           </Button>
 
-          <div style={{ fontSize: 12, fontWeight: 900 }}>
+          <div style={{ fontSize: 12, fontWeight: 700 }}>
             Página {currentPage} / {totalPages}
           </div>
 
@@ -908,7 +943,10 @@ export default function LogisticsMreqStatusTable() {
                     : undefined,
                 }}
               >
-                {c.label}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span>{c.label}</span>
+                  <ExcelHeaderFilter {...excel.headerProps(String(c.key))} />
+                </span>
               </th>
             ))}
           </tr>
@@ -1057,7 +1095,7 @@ export default function LogisticsMreqStatusTable() {
                                   borderRadius: 10,
                                   padding: "10px 12px",
                                   outline: "none",
-                                  fontWeight: 900,
+                                  fontWeight: 700,
                                   boxSizing: "border-box",
                                 }}
                               />
@@ -1065,7 +1103,7 @@ export default function LogisticsMreqStatusTable() {
                               <span
                                 style={{
                                   fontSize: 11,
-                                  fontWeight: 900,
+                                  fontWeight: 700,
                                   color:
                                     charCount >= 255
                                       ? "rgb(235, 176, 134)"
@@ -1109,7 +1147,7 @@ export default function LogisticsMreqStatusTable() {
                           }}
                         >
                           {locked ? (
-                            <span style={{ fontWeight: 900 }}>Anulado</span>
+                            <span style={{ fontWeight: 700 }}>Anulado</span>
                           ) : (
                             <div style={{ position: "relative" }}>
                               <button
@@ -1132,7 +1170,7 @@ export default function LogisticsMreqStatusTable() {
                                   borderRadius: 10,
                                   padding: "10px 12px",
                                   outline: "none",
-                                  fontWeight: 900,
+                                  fontWeight: 700,
                                   cursor:
                                     loading || saving || !reqItemKey
                                       ? "not-allowed"
@@ -1154,7 +1192,7 @@ export default function LogisticsMreqStatusTable() {
                                     top: "calc(100% + 8px)",
                                     left: 0,
                                     zIndex: 99999,
-                                    borderRadius: 12,
+                                    borderRadius: 10,
                                     border: "1px solid rgba(255,255,255,.10)",
                                     background: "rgba(6, 77, 121, .98)",
                                     boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -1191,7 +1229,7 @@ export default function LogisticsMreqStatusTable() {
                                           color: "rgba(255,255,255,.92)",
                                           border: "none",
                                           cursor: "pointer",
-                                          fontWeight: 900,
+                                          fontWeight: 700,
                                         }}
                                       >
                                         {option}
@@ -1342,11 +1380,11 @@ export default function LogisticsMreqStatusTable() {
 const inputStyle: React.CSSProperties = {
   width: "100%",
   height: 40,
-  borderRadius: 12,
+  borderRadius: 10,
   border: "1px solid var(--border)",
   background: "rgba(0,0,0,.12)",
   color: "var(--text)",
   padding: "0 10px",
-  fontWeight: 800,
+  fontWeight: 600,
   outline: "none",
 };

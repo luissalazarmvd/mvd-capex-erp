@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 
 type StockRow = {
   reagent_name: string;
@@ -133,6 +134,21 @@ export default function StockTable({
     [unitByReagent]
   );
 
+  // Filtros tipo Excel sobre las filas ya cargadas (capa de vista).
+  const excelColumns = useMemo<Array<ExcelColumnDef<StockRow>>>(
+    () =>
+      cols.map((c) => ({
+        key: String(c.key),
+        label: c.label,
+        kind: c.key === "reagent_name" ? "text" : "number",
+        value: (row: StockRow) => row[c.key],
+      })),
+    [cols]
+  );
+
+  const excel = useExcelColumnFilters(rows, excelColumns);
+  const visibleRows = excel.rows;
+
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
     fontSize: 12,
@@ -140,7 +156,7 @@ export default function StockTable({
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
@@ -164,9 +180,15 @@ export default function StockTable({
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Stock de Insumos</div>
+        <div style={{ fontWeight: 700 }}>Stock de Insumos</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+          {excel.activeCount || excel.hasSort ? (
+            <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+            </Button>
+          ) : null}
+
           <Button type="button" size="sm" variant="ghost" onClick={load} disabled={loading}>
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
@@ -180,7 +202,7 @@ export default function StockTable({
             padding: 10,
             border: msg.startsWith("ERROR") ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,.10)",
             background: msg.startsWith("ERROR") ? "rgba(216,93,39,.10)" : "rgba(255,255,255,.04)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -214,7 +236,7 @@ export default function StockTable({
                         textAlign: "center",
                         padding: "6px 4px",
                         fontSize: 12,
-                        fontWeight: 900,
+                        fontWeight: 700,
                         whiteSpace: "normal",
                         lineHeight: "14px",
                         verticalAlign: "middle",
@@ -236,13 +258,16 @@ export default function StockTable({
                       >
                         {c.label}
                       </div>
+                      <div style={{ display: "flex", justifyContent: "center", marginTop: 3 }}>
+                        <ExcelHeaderFilter {...excel.headerProps(String(c.key))} />
+                      </div>
                     </th>
                   ))}
                 </tr>
               </thead>
 
               <tbody>
-                {rows.map((r, idx) => (
+                {visibleRows.map((r, idx) => (
                   <tr key={`${String(r.reagent_name || idx)}-${idx}`} className="capex-tr">
                     {cols.map((c) => {
                       const v = (r as any)[c.key];
@@ -260,7 +285,7 @@ export default function StockTable({
                             padding: "6px 8px",
                             background: "rgba(0,0,0,.10)",
                             borderBottom: "1px solid rgba(255,255,255,.06)",
-                            fontWeight: c.key === "stock_available" ? 900 : 800,
+                            fontWeight: c.key === "stock_available" ? 700 : 600,
                           }}
                           title={String(txt)}
                         >
@@ -274,7 +299,7 @@ export default function StockTable({
             </Table>
           </div>
         ) : (
-          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 600 }}>
             {loading ? "Cargando…" : "Sin datos."}
           </div>
         )}

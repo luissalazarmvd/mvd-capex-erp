@@ -543,14 +543,14 @@ function ExcelHeaderFilter({
           width: 20,
           height: 20,
           padding: 0,
-          borderRadius: 5,
+          borderRadius: 6,
           border: active
             ? "1px solid rgba(147,211,230,.72)"
             : "1px solid rgba(147,211,230,.30)",
           background: active
             ? "rgba(27,147,227,.32)"
             : "rgba(2,35,52,.34)",
-          color: "#eaf8ff",
+          color: "#e8f1f7",
           fontSize: 10,
           lineHeight: 1,
           cursor: "pointer",
@@ -573,14 +573,14 @@ function ExcelHeaderFilter({
             padding: 10,
             border: "1px solid rgba(147,211,230,.42)",
             borderRadius: 10,
-            background: "#07364d",
+            background: "#0f2a38",
             boxShadow: "0 14px 32px rgba(0,0,0,.40)",
-            color: "#f4fbff",
+            color: "#e8f1f7",
             textAlign: "left",
             fontSize: 12,
           }}
         >
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>
             {label}
           </div>
 
@@ -600,13 +600,13 @@ function ExcelHeaderFilter({
               style={{
                 textAlign: "left",
                 padding: "6px 8px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.24)",
                 background:
                   sortDirection === "asc"
                     ? "rgba(27,147,227,.24)"
                     : "rgba(2,35,52,.38)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 cursor: "pointer",
               }}
             >
@@ -626,13 +626,13 @@ function ExcelHeaderFilter({
               style={{
                 textAlign: "left",
                 padding: "6px 8px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.24)",
                 background:
                   sortDirection === "desc"
                     ? "rgba(27,147,227,.24)"
                     : "rgba(2,35,52,.38)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 cursor: "pointer",
               }}
             >
@@ -658,10 +658,10 @@ function ExcelHeaderFilter({
                 width: "100%",
                 height: 30,
                 padding: "5px 8px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.30)",
                 background: "rgba(2,35,52,.58)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 outline: "none",
               }}
             />
@@ -672,7 +672,7 @@ function ExcelHeaderFilter({
                 alignItems: "center",
                 gap: 7,
                 marginTop: 8,
-                fontWeight: 800,
+                fontWeight: 600,
               }}
             >
               <input
@@ -750,10 +750,10 @@ function ExcelHeaderFilter({
                 width: "100%",
                 height: 30,
                 padding: "4px 7px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.30)",
-                background: "#0b4d6b",
-                color: "#f4fbff",
+                background: "#0a1f2c",
+                color: "#e8f1f7",
               }}
             >
               {excelOperatorOptions(kind).map((option) => (
@@ -786,10 +786,10 @@ function ExcelHeaderFilter({
                   width: "100%",
                   height: 30,
                   padding: "5px 8px",
-                  borderRadius: 7,
+                  borderRadius: 6,
                   border: "1px solid rgba(147,211,230,.30)",
                   background: "rgba(2,35,52,.58)",
-                  color: "#f4fbff",
+                  color: "#e8f1f7",
                   outline: "none",
                 }}
               />
@@ -810,10 +810,10 @@ function ExcelHeaderFilter({
                   width: "100%",
                   height: 30,
                   padding: "5px 8px",
-                  borderRadius: 7,
+                  borderRadius: 6,
                   border: "1px solid rgba(147,211,230,.30)",
                   background: "rgba(2,35,52,.58)",
-                  color: "#f4fbff",
+                  color: "#e8f1f7",
                   outline: "none",
                 }}
               />
@@ -836,10 +836,10 @@ function ExcelHeaderFilter({
               }}
               style={{
                 padding: "6px 8px",
-                borderRadius: 7,
+                borderRadius: 6,
                 border: "1px solid rgba(147,211,230,.24)",
                 background: "transparent",
-                color: "#d8eef8",
+                color: "#a8c0cf",
                 cursor: "pointer",
               }}
             >
@@ -852,10 +852,10 @@ function ExcelHeaderFilter({
                 onClick={() => setOpen(false)}
                 style={{
                   padding: "6px 8px",
-                  borderRadius: 7,
+                  borderRadius: 6,
                   border: "1px solid rgba(147,211,230,.24)",
                   background: "transparent",
-                  color: "#d8eef8",
+                  color: "#a8c0cf",
                   cursor: "pointer",
                 }}
               >
@@ -870,11 +870,11 @@ function ExcelHeaderFilter({
                 }}
                 style={{
                   padding: "6px 10px",
-                  borderRadius: 7,
+                  borderRadius: 6,
                   border: "1px solid rgba(147,211,230,.42)",
                   background: "rgba(27,147,227,.32)",
-                  color: "#f4fbff",
-                  fontWeight: 900,
+                  color: "#e8f1f7",
+                  fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
@@ -1271,7 +1271,7 @@ function MultiSelectFilter<T extends string>({
   }, []);
 
   return (
-    <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+    <div style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600 }}>
       <span>{label}</span>
       <details ref={detailsRef} style={{ position: "relative", minWidth, zIndex: 200 }}>
         <summary
@@ -1282,13 +1282,13 @@ function MultiSelectFilter<T extends string>({
           <span>{summary}</span>
           <span aria-hidden="true">▾</span>
         </summary>
-        <div className="panel-inner" style={{ position: "absolute", top: 38, left: 0, minWidth: "100%", width: "max-content", maxWidth: 360, maxHeight: 280, overflow: "auto", zIndex: 210, padding: 8, background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 28px rgba(0,0,0,.38)" }}>
+        <div className="panel-inner" style={{ position: "absolute", top: 38, left: 0, minWidth: "100%", width: "max-content", maxWidth: 360, maxHeight: 280, overflow: "auto", zIndex: 210, padding: 8, background: "#0a1f2c", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 28px rgba(0,0,0,.38)" }}>
           <button
             type="button"
             className="input"
             onClick={(event) => { event.preventDefault(); onToggleAll(!allSelected); }}
             disabled={disabled || !options.length}
-            style={{ width: "100%", height: 30, padding: "4px 8px", marginBottom: 6, cursor: disabled ? "not-allowed" : "pointer", fontWeight: 800 }}
+            style={{ width: "100%", height: 30, padding: "4px 8px", marginBottom: 6, cursor: disabled ? "not-allowed" : "pointer", fontWeight: 600 }}
           >
             {allSelected ? "Deseleccionar todos" : "Seleccionar todos"}
           </button>
@@ -2231,7 +2231,7 @@ export default function FixAssetsDepr() {
           <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>Selecciona con el check las filas que se enviarán completas. La tasa, depreciación y saldos se recalculan en el preview.</div>
         </div>
         <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
-          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 600 }}>
             Buscar COD, descripción o CECO
             <FastCellInput className="input" value={query} onCommit={setQuery} onLiveChange={setQuery} placeholder="COD, equipo o centro de costo" style={{ width: 250, height: 34, padding: "6px 10px" }} />
           </label>
@@ -2288,7 +2288,7 @@ export default function FixAssetsDepr() {
 
       <div style={{ display: "grid", gap: 4 }}>
         {message ? <div className="panel-inner" style={{ padding: 10, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
-        {invalidKeys.length ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 13 }}>Corrige los valores numéricos de {invalidKeys.length} fila(s) antes de guardar.</div> : null}
+        {invalidKeys.length ? <div style={{ color: "#ebb086", fontWeight: 700, fontSize: 13 }}>Corrige los valores numéricos de {invalidKeys.length} fila(s) antes de guardar.</div> : null}
       </div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -2299,7 +2299,7 @@ export default function FixAssetsDepr() {
             border: "1px solid rgba(147, 211, 230, 0.45)",
             background: "rgba(27, 147, 227, 0.16)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgb(180, 225, 245)",
           }}
         >
@@ -2313,7 +2313,7 @@ export default function FixAssetsDepr() {
             border: "1px solid rgba(147, 211, 230, 0.45)",
             background: "rgba(27, 147, 227, 0.16)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgb(180, 225, 245)",
           }}
         >
@@ -2333,7 +2333,7 @@ export default function FixAssetsDepr() {
               ? "rgba(27, 147, 227, 0.34)"
               : "rgba(27, 147, 227, 0.16)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgb(180, 225, 245)",
             cursor: "pointer",
           }}
@@ -2354,7 +2354,7 @@ export default function FixAssetsDepr() {
               ? "rgba(255,255,255,0.14)"
               : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
@@ -2379,7 +2379,7 @@ export default function FixAssetsDepr() {
                 ? "rgba(216, 93, 39, 0.28)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: statusCounts.invalid > 0 ? "rgb(235, 176, 134)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
@@ -2400,7 +2400,7 @@ export default function FixAssetsDepr() {
               ? "rgba(94, 128, 25, 0.40)"
               : "rgba(94, 128, 25, 0.24)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgb(174, 202, 125)",
             cursor: "pointer",
           }}
@@ -2409,16 +2409,16 @@ export default function FixAssetsDepr() {
         </button>
       </div>
 
-      <div className="panel-inner fixassets-depr-table" style={{ overflow: "auto", height: historyAssetCode ? "min(62vh, 620px)" : "100%", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
+      <div className="panel-inner fixassets-depr-table" style={{ overflow: "auto", height: historyAssetCode ? "min(62vh, 620px)" : "100%", minHeight: 0, padding: 0, background: "#0a1f2c", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup><col style={{ width: 52, minWidth: 52 }} />{displayColumns.map((column) => <col key={column.key} style={{ width: column.width, minWidth: column.width }} />)}</colgroup>
-            <thead><tr><th className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, textAlign: "center", left: 0, zIndex: 94, background: "#163b49" }}><input type="checkbox" checked={allVisibleSelected} disabled={!editableVisibleRows.length || loading || saving} onChange={(event) => toggleAllVisible(event.target.checked)} aria-label="Seleccionar todas las filas editables" title="Seleccionar todas las filas editables" style={{ width: 18, height: 18, accentColor: "var(--brand-success)" }} /></th>{displayColumns.map((column) => {
+            <thead><tr><th className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, textAlign: "center", left: 0, zIndex: 94, background: "#143444" }}><input type="checkbox" checked={allVisibleSelected} disabled={!editableVisibleRows.length || loading || saving} onChange={(event) => toggleAllVisible(event.target.checked)} aria-label="Seleccionar todas las filas editables" title="Seleccionar todas las filas editables" style={{ width: 18, height: 18, accentColor: "var(--brand-success)" }} /></th>{displayColumns.map((column) => {
               const sticky = column.key === "asset_code" || column.key === "asset_description";
               const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
               const label = TOTAL_COLUMN_KEY_SET.has(column.key) ? `${currencySymbol} ${column.label}` : column.label;
 
-              return <th key={column.key} className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, left, zIndex: sticky ? 92 : 79, overflow: "visible", background: "#163b49", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
+              return <th key={column.key} className="capex-th" style={{ position: "sticky", top: 0, padding: "8px", fontSize: 12, left, zIndex: sticky ? 92 : 79, overflow: "visible", background: "#143444", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5 }}>
                   <span>{label}</span>
 
@@ -2468,7 +2468,7 @@ export default function FixAssetsDepr() {
                         ? "rgba(2,35,52,.72)"
                         : undefined;
                 return <tr key={id} className="capex-tr" onClick={() => openHistory(row)} style={{ cursor: "pointer" }}>
-                  <td className="capex-td" style={{ padding: 5, textAlign: "center", background: bad ? "#713f38" : focused ? "#155a78" : selected ? "#3d6948" : sourceWeb ? "#062f43" : "#0b4d6b", position: "sticky", left: 0, zIndex: 22 }}>
+                  <td className="capex-td" style={{ padding: 5, textAlign: "center", background: bad ? "#6b2e14" : focused ? "#143444" : selected ? "#3b5f24" : sourceWeb ? "#071a24" : "#0a1f2c", position: "sticky", left: 0, zIndex: 22 }}>
                     {viewOnly ? null : <input
                       type="checkbox"
                       checked={selected}
@@ -2501,7 +2501,7 @@ export default function FixAssetsDepr() {
                     const moneyColumn = TOTAL_COLUMN_KEY_SET.has(column.key);
                     const sticky = column.key === "asset_code" || column.key === "asset_description";
                     const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
-                    const stickyBackground = bad ? "#713f38" : focused ? "#155a78" : selected ? "#3d6948" : sourceWeb ? "#062f43" : "#0b4d6b";
+                    const stickyBackground = bad ? "#6b2e14" : focused ? "#143444" : selected ? "#3b5f24" : sourceWeb ? "#071a24" : "#0a1f2c";
                     return <td key={column.key} className="capex-td" style={{ padding: 5, background: sticky ? stickyBackground : background, position: sticky ? "sticky" : undefined, left, zIndex: sticky ? 21 : undefined, boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.12)" : undefined }}>
                       {editable ? <FastCellInput
                         className="input"
@@ -2514,7 +2514,7 @@ export default function FixAssetsDepr() {
                           focusHistory(row);
                         }}
                         onCommit={(next) => update(row, key, next)}
-                      style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: bad && !validOptionalNumber(draft[key], key) ? "#ebb086" : "rgba(147,211,230,.30)" }}
+                      style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 6, background: "rgba(2,35,52,.42)", borderColor: bad && !validOptionalNumber(draft[key], key) ? "#ebb086" : "rgba(147,211,230,.30)" }}
                       aria-label={`${column.label} ${text(row.asset_code)}`}
                       /> : <span title={moneyColumn ? displayMoney(derivedValue) : text(derivedValue)}>{column.key === "period_date" ? text(derivedValue).slice(0, 10) : column.key === "asset_code" || column.key === "asset_description" ? text(derivedValue) : moneyColumn ? displayMoney(derivedValue) : displayNumber(derivedValue)}</span>}
                     </td>;
@@ -2526,12 +2526,12 @@ export default function FixAssetsDepr() {
             </tbody>
             {!loading && visibleRows.length ? <tfoot>
               <tr>
-                <td className="capex-td" style={{ position: "sticky", left: 0, bottom: 0, zIndex: 24, background: "#163b49", color: "#e4f7ff", fontWeight: 900, textAlign: "center", borderTop: "1px solid rgba(147,211,230,.45)" }}>Σ</td>
+                <td className="capex-td" style={{ position: "sticky", left: 0, bottom: 0, zIndex: 24, background: "#0f2a38", color: "#a8c0cf", fontWeight: 700, textAlign: "center", borderTop: "1px solid rgba(147,211,230,.45)" }}>Σ</td>
                 {displayColumns.map((column) => {
                   const sticky = column.key === "asset_code" || column.key === "asset_description";
                   const left = column.key === "asset_code" ? 52 : column.key === "asset_description" ? 142 : undefined;
                   const total = TOTAL_COLUMN_KEY_SET.has(column.key) ? tableTotals[column.key as TotalColumnKey] : null;
-                  return <td key={column.key} className="capex-td" style={{ position: "sticky", bottom: 0, left, zIndex: sticky ? 23 : 4, background: "#163b49", color: "#e4f7ff", fontWeight: 900, textAlign: total == null ? "left" : "right", borderTop: "1px solid rgba(147,211,230,.45)", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
+                  return <td key={column.key} className="capex-td" style={{ position: "sticky", bottom: 0, left, zIndex: sticky ? 23 : 4, background: "#0f2a38", color: "#a8c0cf", fontWeight: 700, textAlign: total == null ? "left" : "right", borderTop: "1px solid rgba(147,211,230,.45)", boxShadow: column.key === "asset_description" ? "2px 0 rgba(216,238,255,.16)" : undefined }}>
                     {column.key === "asset_code" ? "Totales" : total == null ? "" : displayNumber(total)}
                   </td>;
                 })}
@@ -2540,7 +2540,7 @@ export default function FixAssetsDepr() {
           </Table>
         </div>
       </div>
-      {historyAssetCode ? <section className="panel-inner fixassets-depr-table fixassets-depr-history" style={{ position: "static", maxHeight: 320, padding: 10, display: "grid", gap: 8, overflow: "hidden", background: "#0b4d6b", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 30px rgba(0,0,0,.24)", outline: "none" }}>
+      {historyAssetCode ? <section className="panel-inner fixassets-depr-table fixassets-depr-history" style={{ position: "static", maxHeight: 320, padding: 10, display: "grid", gap: 8, overflow: "hidden", background: "#0a1f2c", borderColor: "rgba(147,211,230,.52)", boxShadow: "0 10px 30px rgba(0,0,0,.24)", outline: "none" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div><strong>Histórico de depreciación · {historyAssetCode}</strong><span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>Periodos anteriores a {month && year ? `${MONTHS[Number(month) - 1]} ${year}` : "la selección"}</span></div>
           <Button size="sm" onClick={() => { setHistoryAssetCode(null); setHistoryRowId(null); }}>Cerrar histórico</Button>
@@ -2565,7 +2565,7 @@ export default function FixAssetsDepr() {
         .fixassets-depr-table .capex-th {
           padding: 6px !important;
           font-size: 11px !important;
-          background: #163b49 !important;
+          background: #0f2a38 !important;
           white-space: normal !important;
           line-height: 1.1;
         }

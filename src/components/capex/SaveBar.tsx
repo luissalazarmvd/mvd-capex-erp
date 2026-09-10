@@ -25,11 +25,11 @@ export function SaveBar({ dirtyCount, isSaving = false, lastSavedAt, error, onSa
         flexWrap: "wrap",
       }}
     >
-      <div style={{ fontWeight: 900 }}>
+      <div style={{ fontWeight: 700 }}>
         Cambios: <span style={{ color: "var(--accent2)" }}>{dirtyCount}</span>
       </div>
 
-      <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+      <div className="muted" style={{ fontSize: 12, fontWeight: 600 }}>
         {lastSavedAt ? `Último guardado: ${lastSavedAt}` : "Aún no guardas"}
       </div>
 
@@ -51,11 +51,11 @@ export function SaveBar({ dirtyCount, isSaving = false, lastSavedAt, error, onSa
             width: "100%",
             marginTop: 8,
             padding: "10px 12px",
-            borderRadius: 12,
+            borderRadius: 10,
             border: "1px solid rgba(216,93,39,.55)",
             background: "rgba(216,93,39,.10)",
             color: "var(--text)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {error}

@@ -26,6 +26,20 @@ Si una modificación cambia rutas, ownership de módulos, entrypoints, endpoints
 - En tablas grandes usar `FastCellInput` para evitar pérdida de escritura por rerenders.
 - Los filtros estilo Excel usan popup con `createPortal` + `position: fixed`, deben mantenerse dentro del viewport y cerrarse al click fuera.
 - En filtros Excel numéricos, los valores disponibles se normalizan a 2 decimales antes de agruparlos: valores distintos que redondean igual pertenecen a una sola opción.
+- Para montar filtros Excel en una tabla nueva usar `useExcelColumnFilters` de `src/components/ui/ExcelFilters.tsx`, que envuelve `ExcelHeaderFilter`. Es una capa de vista: se aplica **después** del pipeline que alimenta las exportaciones, de modo que Excel y PDF siguen recibiendo las mismas filas que antes.
+
+## Sistema visual
+
+Toda la presentación se resuelve por tokens en `src/app/globals.css`; los componentes no deben introducir escalas propias.
+
+- Paleta y tipografía del Manual de Marca Veta Dorada 2026. Azul `#0067AC` y dorado `#C69214` son invariables; los tonos secundarios salen del manual.
+- Superficies: `--s-canvas` → `--s-1` → `--s-2` → `--s-3`, más `--s-sunken` para campos. Se sube por luminancia, no por saturación. Los alias históricos (`--bg`, `--panel`, `--panel2`, `--text`, `--muted`, `--border`) siguen existiendo y apuntan a esa escala.
+- Cada layout de módulo declara `data-module="<módulo>"` en su div raíz; eso fija `--mod` y `--mod-soft`. El acento pinta la franja superior de la cabecera, el hover de fila y el embudo de filtro activo. Las familias cromáticas agrupan por dominio: cian = transporte, verde = operaciones y ambiente, azul/dorado = patrimonio, gris = administrativo.
+- Tipografía Exo, pesos 300/400/500/600 y tope en 700. No reintroducir 800/900.
+- Radios: `--r-1` 6, `--r-2` 10, `--r-3` 14, `--r-pill`. No agregar pasos intermedios.
+- Formato condicional de grillas: verde `#33521f` válida/modificada, `#3b5f24` seleccionada, rojo `#6b2e14` inválida, ámbar `#5a4210` editada, `#143444` foco, `#071a24` ya enviada. Los tres estados comparten banda de luminancia para que ninguno domine sobre los otros.
+- Los colores que alimentan exportaciones no son de presentación y no deben tocarse: `upGreen`/`downRed` y los literales de `setFill(...)` en `CarbonTable.tsx` y `CarbonTableSum.tsx` mantienen los valores que se ven en el Excel generado.
+- `src/app/ti/page.tsx` (Eficiencia Operacional TI) tiene su propio sistema claro, autocontenido en sus clases `ti-*`. Queda fuera del sistema visual general.
 - Preservar cambios ajenos del worktree.
 - Verificación de cambios: `npx eslint <archivos>` y `npm run build`.
 - No exponer contraseñas, API keys ni secretos.
@@ -129,7 +143,7 @@ Componentes:
 - `FixAssetsAudit.tsx`
 - `FastCellInput.tsx`
 
-Mantener UI compacta azul petróleo, headers/identificadores sticky y scroll interno de las grillas.
+Mantener UI compacta, headers/identificadores sticky y scroll interno de las grillas, sobre los tokens de superficie descritos en «Sistema visual».
 
 ## Contratos principales
 
@@ -447,6 +461,21 @@ Las filas de depreciación `VIRTUAL` no cuentan como historial real; en el perio
 
 Antes de modificar vistas SQL o endpoints revisar cómo cada `source_name` participa en Depreciación y Exportación.
 
+---
+
+## Cobertura de filtros tipo Excel
+
+Tienen filtro por columna: Kardex (Guías, Cotizaciones), Activos Fijos (Nuevos, Catálogo, Depreciación), Flota (Gestión, Unidades y Permisos), Trazabilidad (Ingresos, CM Inputs, Estado, Comercial, Contabilidad), Logística (MRA, Requerimientos, Stock), Refinería (Stock de insumos, Consumo por subproceso, Consumos por campaña) y Sostenibilidad (IGAFOM, Padrón de proveedores).
+
+No los llevan, por razones de forma de los datos —no por omisión—; documentarlo antes de agregarlos:
+
+- Vistas previas de importación (`*ImpExp`, `ComplianceProveeminExp`, el preview de `FleetUnitsPermits`): son la validación antes de guardar; un filtro escondería filas inválidas.
+- `FixAssetsExport`: la tabla **es** el payload del Excel de provisión Concar; filtrarla la desincronizaría de sus totales y del archivo.
+- `FixAssetsAudit`: paginación en servidor; un filtro de cliente solo alcanzaría la página visible.
+- `BalanceTable`, `CarbonTable`, `CarbonTableSum`, `planta/carbon`: cabeceras combinadas y agrupación por `rowSpan`.
+- `OptTable`, `WbsMatrix`: estructuras de árbol/matriz; filtrar filas rompería la jerarquía.
+- `planta/guardia`: formulario de captura, no tabla de consulta.
+
 ## Regla final
 
 Actualizar este archivo únicamente cuando cambien:
@@ -455,5 +484,6 @@ Actualizar este archivo únicamente cuando cambien:
 - rutas o contratos
 - tablas/campos persistentes relevantes
 - reglas de negocio durables
+- los tokens o reglas del sistema visual
 
-No agregar aquí detalles de CSS, nombres de estados React ni implementación temporal.
+No agregar aquí valores CSS sueltos, nombres de estados React ni implementación temporal: el sistema visual se documenta por tokens y reglas, no por declaraciones individuales.

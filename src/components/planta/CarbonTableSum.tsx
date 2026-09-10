@@ -191,7 +191,7 @@ export default function CarbonTableSum(props: {
 
   const tableWrapRef = React.useRef<HTMLDivElement | null>(null);
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "2px solid rgba(216, 238, 255, 0.16)";
   const gridH = "2px solid rgba(216, 238, 255, 0.10)";
@@ -326,16 +326,16 @@ export default function CarbonTableSum(props: {
   function totalGrStyle(v: any): React.CSSProperties {
     const n = toNum(v);
     if (n === null) return {};
-    if (n > 0) return { background: upGreen, color: "white", fontWeight: 900 };
-    if (n < 0) return { background: downRed, color: "white", fontWeight: 900 };
+    if (n > 0) return { background: upGreen, color: "white", fontWeight: 700 };
+    if (n < 0) return { background: downRed, color: "white", fontWeight: 700 };
     return {};
   }
 
   function varStyle(v: any): React.CSSProperties {
     const n = toNum(v);
     if (n === null) return {};
-    if (n > 0) return { background: upGreen, color: "white", fontWeight: 900 };
-    if (n < 0) return { background: downRed, color: "white", fontWeight: 900 };
+    if (n > 0) return { background: upGreen, color: "white", fontWeight: 700 };
+    if (n < 0) return { background: downRed, color: "white", fontWeight: 700 };
     return {};
   }
 
@@ -500,14 +500,14 @@ export default function CarbonTableSum(props: {
     holder.style.position = "fixed";
     holder.style.left = "-100000px";
     holder.style.top = "0";
-    holder.style.background = "#064D79";
+    holder.style.background = "#0f2a38";
     holder.appendChild(clone);
     document.body.appendChild(holder);
 
     const canvas = await html2canvas(clone, {
       scale: 2,
       useCORS: true,
-      backgroundColor: "#064D79",
+      backgroundColor: "#0f2a38",
       windowWidth: clone.scrollWidth,
       windowHeight: clone.scrollHeight,
     });
@@ -562,7 +562,7 @@ export default function CarbonTableSum(props: {
   return (
     <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Resumen por tanques</div>
+        <div style={{ fontWeight: 700 }}>Resumen por tanques</div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 8 }}>
           <Button type="button" size="sm" variant="default" onClick={onRefreshBoth} disabled={tankLoading}>
@@ -587,7 +587,7 @@ export default function CarbonTableSum(props: {
             padding: 10,
             border: "1px solid rgba(216,93,39,.45)",
             background: "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {tankMsg}
@@ -668,35 +668,35 @@ export default function CarbonTableSum(props: {
                         <tr key={`${g.key}-${idx}`} className="capex-tr">
                           {idx === 0 ? (
                             <>
-                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase, borderTop: rowBorder, fontWeight: 900, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
+                              <td className="capex-td capex-td-strong" rowSpan={span} style={{ ...cellBase, borderTop: rowBorder, fontWeight: 700, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
                                 {String(g.tank || "").toUpperCase()}
                               </td>
 
-                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 900, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
+                              <td className="capex-td" rowSpan={span} style={{ ...cellBase, fontWeight: 700, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle" }}>
                                 {fmtDateAnyToDdMm(g.entryIso)}
                               </td>
                             </>
                           ) : null}
 
-                          <td className="capex-td" style={{ ...cellBase, fontWeight: 900, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg }}>
+                          <td className="capex-td" style={{ ...cellBase, fontWeight: 700, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg }}>
                             {hasCampaign ? campaignStr : ""}
                           </td>
 
                           {idx === 0 ? (
                             <>
-                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, ...(varStyle(incAu) as any), verticalAlign: "middle", fontWeight: 900 }}>
+                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, ...(varStyle(incAu) as any), verticalAlign: "middle", fontWeight: 700 }}>
                                 {fmtFixed(incAu, 3)}
                               </td>
 
-                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle", fontWeight: 900 }}>
+                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle", fontWeight: 700 }}>
                                 {fmtFixed(leyAu, 3)}
                               </td>
 
-                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, ...(varStyle(incAg) as any), verticalAlign: "middle", fontWeight: 900 }}>
+                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, ...(varStyle(incAg) as any), verticalAlign: "middle", fontWeight: 700 }}>
                                 {fmtFixed(incAg, 3)}
                               </td>
 
-                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle", fontWeight: 900 }}>
+                              <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle", fontWeight: 700 }}>
                                 {fmtFixed(leyAg, 3)}
                               </td>
                             </>
@@ -711,7 +711,7 @@ export default function CarbonTableSum(props: {
                           </td>
 
                           {idx === 0 ? (
-                            <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle", fontWeight: 900 }}>
+                            <td className="capex-td" rowSpan={span} style={{ ...numCell, borderTop: rowBorder, borderBottom: rowBorder, borderRight: gridV, background: rowBg, verticalAlign: "middle", fontWeight: 700 }}>
                               {g.days_since === null ? "" : fmtInt(g.days_since)}
                             </td>
                           ) : null}
@@ -726,7 +726,7 @@ export default function CarbonTableSum(props: {
                               rowSpan={span}
                               style={{
                                 ...cellBase,
-                                fontWeight: 900,
+                                fontWeight: 700,
                                 borderTop: rowBorder,
                                 borderBottom: rowBorder,
                                 borderRight: gridV,
@@ -750,7 +750,7 @@ export default function CarbonTableSum(props: {
               })
             ) : (
               <tr className="capex-tr">
-                <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={12}>
+                <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={12}>
                   {tankLoading ? "Cargando…" : "Sin datos."}
                 </td>
               </tr>

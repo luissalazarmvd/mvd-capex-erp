@@ -908,7 +908,7 @@ export default function ComplianceProveeminExp({
     }
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -931,7 +931,7 @@ export default function ComplianceProveeminExp({
     background: "rgba(0,0,0,.10)",
     color: "var(--text)",
     fontSize: 13,
-    fontWeight: 800,
+    fontWeight: 600,
     boxSizing: "border-box",
     whiteSpace: "nowrap",
   };
@@ -991,7 +991,7 @@ export default function ComplianceProveeminExp({
               }}
             >
               <div style={{ display: "grid", gap: 4 }}>
-                <div style={{ fontSize: 18, fontWeight: 900 }}>Preview de importación</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Preview de importación</div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
                   Celdas en rojo = inválidas. No se guarda mientras exista una sola inválida.
                 </div>
@@ -1022,31 +1022,31 @@ export default function ComplianceProveeminExp({
 
             {importSummary ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Archivo: {importSummary.file_name || "-"}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Total Excel: {importSummary.total_excel_rows || 0}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Preview: {importSummary.preview_rows || 0}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Válidas: {importSummary.valid_rows || 0}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Inválidas: {importSummary.invalid_rows || 0}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Nuevas: {importSummary.new_rows || 0}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Actualizar: {importSummary.update_rows || 0}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Igual: {importSummary.equal_rows || 0}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   RUC ODM repetidos: {importSummary.repeated_keys || 0}
                 </div>
               </div>
@@ -1058,7 +1058,7 @@ export default function ComplianceProveeminExp({
                 minHeight: 0,
                 overflow: "auto",
                 border: "1px solid rgba(216,238,255,.12)",
-                borderRadius: 12,
+                borderRadius: 10,
               }}
             >
               <Table stickyHeader disableScrollWrapper>
@@ -1106,7 +1106,7 @@ export default function ComplianceProveeminExp({
                           {row.row_num}
                         </td>
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 700 }}>
                           <div>{row.status}</div>
                           {row.is_duplicate ? (
                             <div style={{ fontSize: 11, opacity: 0.9 }}>
@@ -1156,7 +1156,7 @@ export default function ComplianceProveeminExp({
 
                   {previewRows.length === 0 ? (
                     <tr className="capex-tr">
-                      <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={PREVIEW_COLUMNS.length + 3}>
+                      <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={PREVIEW_COLUMNS.length + 3}>
                         No hay filas para preview.
                       </td>
                     </tr>
@@ -1166,7 +1166,7 @@ export default function ComplianceProveeminExp({
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
                 {invalidCount > 0
                   ? "Corrige las filas inválidas para habilitar la importación."
                   : `Se postearán exactamente ${previewRows.filter((row) => !!row.payload).length} fila(s) con cambios.`}

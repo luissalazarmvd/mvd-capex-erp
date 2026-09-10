@@ -366,7 +366,7 @@ export default function OptTable({
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
@@ -463,7 +463,7 @@ export default function OptTable({
               padding: 0,
               lineHeight: "14px",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               marginTop: 1,
             }}
           >
@@ -512,7 +512,7 @@ export default function OptTable({
             padding: 10,
             border: msg.startsWith("ERROR") ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,.10)",
             background: msg.startsWith("ERROR") ? "rgba(216,93,39,.10)" : "rgba(255,255,255,.04)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -546,7 +546,7 @@ export default function OptTable({
                         textAlign: "center",
                         padding: "6px 4px",
                         fontSize: 12,
-                        fontWeight: 900,
+                        fontWeight: 700,
                         whiteSpace: "normal",
                         lineHeight: "14px",
                         verticalAlign: "middle",
@@ -641,7 +641,7 @@ export default function OptTable({
                           padding: "8px 6px",
                           borderTop: "1px solid rgba(255,255,255,.18)",
                           textAlign: c.align,
-                          fontWeight: 900,
+                          fontWeight: 700,
                           whiteSpace: "nowrap",
                           color: isDesv ? desvColor(totals.total_desv_pct) : "inherit",
                         }}
@@ -656,7 +656,7 @@ export default function OptTable({
             </Table>
           </div>
         ) : (
-          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 600 }}>
             {loading ? "Cargando…" : "Sin datos."}
           </div>
         )}

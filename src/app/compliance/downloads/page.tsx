@@ -43,7 +43,7 @@ export default function ComplianceDownloadsPage() {
 
   return (
     <div>
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 14 }}>
+      <div style={{ fontSize: 22, fontWeight: 600, marginBottom: 14 }}>
         Descargas
       </div>
 
@@ -54,7 +54,7 @@ export default function ComplianceDownloadsPage() {
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 14 }}>
+        <div style={{ fontSize: 22, fontWeight: 600, marginBottom: 14 }}>
           ROC - PROVEEMIN
         </div>
 
@@ -71,7 +71,7 @@ export default function ComplianceDownloadsPage() {
           style={{
             marginTop: 12,
             padding: "10px 12px",
-            borderRadius: 12,
+            borderRadius: 10,
             border: String(msg).startsWith("OK:")
               ? "1px solid rgba(216, 238, 255, 0.22)"
               : "1px solid rgba(216, 93, 39, 0.28)",
@@ -79,7 +79,7 @@ export default function ComplianceDownloadsPage() {
               ? "rgba(255, 255, 255, 0.04)"
               : "rgba(216, 93, 39, 0.10)",
             color: "var(--text)",
-            fontWeight: 800,
+            fontWeight: 600,
             fontSize: 13,
             lineHeight: 1.35,
           }}

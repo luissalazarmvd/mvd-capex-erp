@@ -18,8 +18,9 @@ Este archivo es el índice operativo que debe leerse inmediatamente después de 
 | Login/logout general | `src/app/api/auth/*`, `src/lib/logout.ts` | Sesión del portal y cierre de sesión |
 | Portal corporativo | `src/app/(portal)/page.tsx`, `src/app/(portal)/PortalClient.tsx` | Acceso inicial y `/api/access-check` |
 | Cliente backend externo | `src/lib/apiClient.ts` | Base URL, `x-api-key`, GET/POST/download |
-| UI compartida | `src/components/ui/*` | `Button`, `Input`, `Select`, `Table` |
-| Estilos globales | `src/app/globals.css` | Tokens y clases compartidas |
+| UI compartida | `src/components/ui/*` | `Button`, `Input`, `Select`, `Table`, `ExcelFilters` |
+| Filtros tipo Excel | `src/components/ui/ExcelFilters.tsx`, `src/components/trj-kardex/ExcelHeaderFilter.tsx` | Hook `useExcelColumnFilters` + popup de columna |
+| Estilos globales | `src/app/globals.css` | Tokens del sistema visual y clases compartidas |
 | Shell global | `src/app/layout.tsx` | Fuentes, metadata y layout raíz |
 
 ## Módulos y entrypoints
@@ -40,7 +41,9 @@ Este archivo es el índice operativo que debe leerse inmediatamente después de 
 
 ## Recetas de búsqueda acotada
 
-- Cambio visual de una ruta: abrir `page.tsx`, seguir sus imports a `src/components/<módulo>` y buscar las clases exactas en `src/app/globals.css`.
+- Cambio visual de una ruta: abrir `page.tsx`, seguir sus imports a `src/components/<módulo>` y buscar las clases exactas en `src/app/globals.css`. Los colores, pesos y radios salen de los tokens de `:root`; no introducir valores sueltos.
+- Acento de un módulo: está en el `data-module` del layout del módulo y en la tabla `[data-module="…"]` de `src/app/globals.css`.
+- Montar filtros tipo Excel: `src/components/ui/ExcelFilters.tsx`; aplicarlos después del pipeline que alimenta la exportación.
 - Cambio de datos o guardado: buscar `apiGet|apiPost|apiDownload|fetch` únicamente en la página y componente afectados; revisar el payload existente antes de modificarlo.
 - Cambio de autenticación o acceso: revisar `middleware.ts`, `src/lib/auth/session.ts`, el layout del módulo y `src/app/api/auth/*`.
 - Tabla editable: revisar el componente completo del flujo, su separación original/draft y `FastCellInput` cuando exista; no inferir reglas desde otra tabla.

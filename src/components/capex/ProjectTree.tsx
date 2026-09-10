@@ -61,7 +61,7 @@ export function ProjectTree({
   return (
     <div className="panel-inner" style={{ padding: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ fontWeight: 900, letterSpacing: 0.2 }}>Proyectos</div>
+        <div style={{ fontWeight: 700, letterSpacing: 0.2 }}>Proyectos</div>
         <div style={{ marginLeft: "auto" }}>
           <Button
             size="sm"
@@ -114,14 +114,14 @@ export function ProjectTree({
                     width: "100%",
                     textAlign: "left",
                     padding: "10px 10px",
-                    borderRadius: 12,
+                    borderRadius: 10,
                     border: "1px solid var(--border)",
                     background: isP
                       ? "rgba(27,147,227,.18)"
                       : "rgba(0,0,0,.10)",
                     color: "var(--text)",
                     cursor: "pointer",
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                 >
                   <div
@@ -147,7 +147,7 @@ export function ProjectTree({
                       <div>{p.project_name}</div>
                       <div
                         className="muted"
-                        style={{ fontSize: 12, fontWeight: 800 }}
+                        style={{ fontSize: 12, fontWeight: 600 }}
                       >
                         {p.wbs.length} WBS
                       </div>
@@ -171,20 +171,20 @@ export function ProjectTree({
                           textAlign: "left",
                           padding: "8px 10px",
                           marginTop: 6,
-                          borderRadius: 12,
+                          borderRadius: 10,
                           border: "1px solid rgba(216,238,255,.18)",
                           background: isW
                             ? "rgba(216,238,255,.12)"
                             : "rgba(0,0,0,.08)",
                           color: "var(--text)",
                           cursor: "pointer",
-                          fontWeight: 800,
+                          fontWeight: 600,
                         }}
                       >
                         <span style={{ opacity: 0.95 }}>{w.wbs_code}</span>
                         <span
                           className="muted"
-                          style={{ marginLeft: 8, fontWeight: 800 }}
+                          style={{ marginLeft: 8, fontWeight: 600 }}
                         >
                           {w.wbs_name}
                         </span>

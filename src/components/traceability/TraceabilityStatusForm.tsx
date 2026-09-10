@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 
 type TraceabilityRow = {
   lot: string | null;
@@ -455,7 +456,7 @@ function RowItem({
                 minWidth: colWidth,
                 maxWidth: colWidth,
                 padding: isNumber ? "6px 4px" : "6px 8px",
-                color: pending ? "rgb(229,149,103)" : "rgb(185,185,185)",
+                color: pending ? "rgb(229,149,103)" : "rgb(168, 192, 207)",
               }}
               title={show || "—"}
             >
@@ -531,7 +532,7 @@ function RowItem({
                       borderRadius: 10,
                       padding: "10px 12px",
                       outline: "none",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       cursor: loading || saving ? "not-allowed" : "pointer",
                       opacity: loading || saving ? 0.7 : 1,
                       display: "flex",
@@ -558,7 +559,7 @@ function RowItem({
                         top: "calc(100% + 8px)",
                         left: 0,
                         zIndex: 99999,
-                        borderRadius: 12,
+                        borderRadius: 10,
                         border: "1px solid rgba(255,255,255,.10)",
                         background: "rgba(6, 77, 121, .98)",
                         boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -595,7 +596,7 @@ function RowItem({
                               color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                               border: "none",
                               cursor: "pointer",
-                              fontWeight: 900,
+                              fontWeight: 700,
                               whiteSpace: "normal",
                               lineHeight: "16px",
                               wordBreak: "normal",
@@ -795,12 +796,48 @@ export default function TraceabilityStatusForm() {
     });
   }, [rows, dateFrom, dateTo, globalFilter, statusFilter, sortKey, sortDir, editedTick, statusMap]);
 
-  const totalRows = preparedRows.length;
+  // Filtros tipo Excel: capa de vista sobre `preparedRows`, evaluando el valor
+  // vigente del draft en las columnas editables. La exportación sigue usando
+  // `preparedRows` y no se ve afectada.
+  const excelColumns = useMemo<Array<ExcelColumnDef<TraceabilityRow>>>(() => {
+    // `editedTick` fuerza el recálculo cuando cambia un draft.
+    if (editedTick < 0) return [];
+
+    return COLUMNS.map((column) => ({
+      key: String(column.key),
+      label: column.label,
+      kind:
+        column.kind === "number"
+          ? ("number" as const)
+          : column.kind === "date"
+            ? ("date" as const)
+            : ("text" as const),
+      value: (row: TraceabilityRow) => {
+        const rowKey = String(row.lot || "").trim();
+        const draft = draftsRef.current[rowKey];
+
+        if (draft && (column.key === "observation_desc" || column.key === "situation_desc")) {
+          return draft[column.key as keyof typeof draft] ?? row[column.key];
+        }
+
+        return row[column.key];
+      },
+    }));
+  }, [editedTick]);
+
+  const excel = useExcelColumnFilters(preparedRows, excelColumns);
+  const filteredRows = excel.rows;
+
+  useEffect(() => {
+    setPage(1);
+  }, [excel.activeCount]);
+
+  const totalRows = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const pageEnd = pageStart + PAGE_SIZE;
-  const visibleRows = preparedRows.slice(pageStart, pageEnd);
+  const visibleRows = filteredRows.slice(pageStart, pageEnd);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -1062,7 +1099,7 @@ export default function TraceabilityStatusForm() {
     return sortDir === "asc" ? " ▲" : " ▼";
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -1092,9 +1129,9 @@ export default function TraceabilityStatusForm() {
     border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
-    fontWeight: 900,
+    fontWeight: 700,
     padding: "6px 8px",
-    borderRadius: 8,
+    borderRadius: 6,
     outline: "none",
     fontSize: 12,
     lineHeight: "14px",
@@ -1125,7 +1162,7 @@ export default function TraceabilityStatusForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>
+        <div style={{ fontWeight: 700 }}>
           Trazabilidad · Mineral No Disponible
           {statusFilter !== "all" ? ` · Filtro: ${statusFilter === "pending" ? "Pendientes" : "Mapeados"}` : ""}
         </div>
@@ -1137,7 +1174,7 @@ export default function TraceabilityStatusForm() {
             border: "1px solid rgba(147, 178, 92, 0.45)",
             background: editedCount > 0 ? "rgba(94, 128, 25, 0.24)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: editedCount > 0 ? "rgb(174, 202, 125)" : "rgba(255,255,255,0.8)",
           }}
         >
@@ -1163,7 +1200,7 @@ export default function TraceabilityStatusForm() {
                 ? "rgba(216, 93, 39, 0.28)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: pendingCount > 0 ? "rgb(235, 176, 134)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
@@ -1186,7 +1223,7 @@ export default function TraceabilityStatusForm() {
                 ? "rgba(94, 128, 25, 0.40)"
                 : "rgba(94, 128, 25, 0.24)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgb(174, 202, 125)",
             cursor: "pointer",
           }}
@@ -1203,8 +1240,8 @@ export default function TraceabilityStatusForm() {
             border: statusFilter === "all" ? "1px solid rgba(27,147,227,.55)" : "1px solid rgba(255,255,255,0.12)",
             background: statusFilter === "all" ? "rgba(27,147,227,.16)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
-            color: statusFilter === "all" ? "rgb(216, 238, 255)" : "rgba(255,255,255,0.8)",
+            fontWeight: 700,
+            color: statusFilter === "all" ? "rgb(168, 192, 207)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
         >
@@ -1218,7 +1255,7 @@ export default function TraceabilityStatusForm() {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
         >
@@ -1232,7 +1269,7 @@ export default function TraceabilityStatusForm() {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
         >
@@ -1241,7 +1278,7 @@ export default function TraceabilityStatusForm() {
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Entry Date desde</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Entry Date desde</div>
             <input
               type="date"
               value={dateFrom}
@@ -1253,7 +1290,7 @@ export default function TraceabilityStatusForm() {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Entry Date hasta</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Entry Date hasta</div>
             <input
               type="date"
               value={dateTo}
@@ -1265,7 +1302,7 @@ export default function TraceabilityStatusForm() {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Buscador global</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Buscador global</div>
             <input
               type="text"
               value={globalFilter}
@@ -1278,6 +1315,12 @@ export default function TraceabilityStatusForm() {
           <Button type="button" size="sm" variant="default" onClick={loadData} disabled={loading || saving}>
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
+
+          {excel.activeCount || excel.hasSort ? (
+            <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+            </Button>
+          ) : null}
 
           <Button type="button" size="sm" variant="default" onClick={onExportExcel} disabled={loading || saving || preparedRows.length === 0}>
             Exportar Excel
@@ -1303,7 +1346,7 @@ export default function TraceabilityStatusForm() {
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
                 ? "rgba(27,147,227,.10)"
                 : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -1368,8 +1411,13 @@ export default function TraceabilityStatusForm() {
                       }}
                       title={c.label}
                     >
-                      {c.label}
-                      {sortable ? getSortIndicator(c.key) : ""}
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {c.label}
+                          {sortable ? getSortIndicator(c.key) : ""}
+                        </span>
+                        <ExcelHeaderFilter {...excel.headerProps(String(c.key))} />
+                      </span>
                     </th>
                   );
                 })}
@@ -1406,7 +1454,7 @@ export default function TraceabilityStatusForm() {
 
               {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={COLUMNS.length}>
                     No hay filas para el filtro seleccionado.
                   </td>
                 </tr>
@@ -1414,7 +1462,7 @@ export default function TraceabilityStatusForm() {
 
               {loading ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={COLUMNS.length}>
                     Cargando mineral no disponible…
                   </td>
                 </tr>
@@ -1436,7 +1484,7 @@ export default function TraceabilityStatusForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
           Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
         </div>
 
@@ -1456,7 +1504,7 @@ export default function TraceabilityStatusForm() {
               minWidth: 90,
               textAlign: "center",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",

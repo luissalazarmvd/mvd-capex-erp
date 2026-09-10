@@ -198,9 +198,9 @@ export default function ReactivosPanel({ shiftId }: { shiftId: string }) {
   return (
     <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Reactivos</div>
+        <div style={{ fontWeight: 700 }}>Reactivos</div>
 
-        <div className="muted" style={{ fontWeight: 800, marginLeft: 8 }}>
+        <div className="muted" style={{ fontWeight: 600, marginLeft: 8 }}>
           Guardia: {sid || "—"}
         </div>
 
@@ -227,7 +227,7 @@ export default function ReactivosPanel({ shiftId }: { shiftId: string }) {
             padding: 12,
             border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
             background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -237,7 +237,7 @@ export default function ReactivosPanel({ shiftId }: { shiftId: string }) {
       <div className="panel-inner" style={{ padding: 14 }}>
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>NaCN</div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>NaCN</div>
             <Input
               placeholder="vacío o >= 0"
               value={nacn}
@@ -249,7 +249,7 @@ export default function ReactivosPanel({ shiftId }: { shiftId: string }) {
           </div>
 
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Soda Cáustica</div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Soda Cáustica</div>
             <Input
               placeholder="vacío o >= 0"
               value={sodaCaustica}
@@ -262,19 +262,19 @@ export default function ReactivosPanel({ shiftId }: { shiftId: string }) {
         </div>
 
         {!sid ? (
-          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12 }}>
+          <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginTop: 12 }}>
             Selecciona una guardia en el page.
           </div>
         ) : null}
 
         {sid && !loadingExisting && (nacnInvalid || sodaInvalid) ? (
-          <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 12, color: "rgba(229,149,103,.95)" }}>
+          <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginTop: 12, color: "rgba(229,149,103,.95)" }}>
             Corrige valores inválidos.
           </div>
         ) : null}
 
         {loadingExisting ? (
-          <div className="muted" style={{ fontWeight: 800, marginTop: 12 }}>
+          <div className="muted" style={{ fontWeight: 600, marginTop: 12 }}>
             Cargando datos existentes…
           </div>
         ) : null}

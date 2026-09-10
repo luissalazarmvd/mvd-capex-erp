@@ -106,7 +106,7 @@ export default function PlantaReportsPage() {
       <div style={{ height: 6 }} />
 
       <div className="panel-inner" style={{ padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Tanques</div>
+        <div style={{ fontWeight: 700 }}>Tanques</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
           <Button type="button" size="sm" variant="ghost" onClick={toggleCarbonesFullscreen} disabled={tankLoading}>
@@ -148,7 +148,7 @@ export default function PlantaReportsPage() {
       <div style={{ height: 6 }} />
 
       <div className="panel-inner" style={{ padding: "10px 12px" }}>
-        <div style={{ fontWeight: 900 }}>Dashboard - Power BI</div>
+        <div style={{ fontWeight: 700 }}>Dashboard - Power BI</div>
       </div>
 
       <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>

@@ -479,7 +479,7 @@ export default function FixAssetsAudit({
               gap: 10,
               padding: 14,
               overflow: "hidden",
-              background: "#082f44",
+              background: "#071a24",
               borderColor: "rgba(147,211,230,.34)",
             }}
           >
@@ -497,7 +497,7 @@ export default function FixAssetsAudit({
             </div>
 
             <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
-              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                 Tabla
                 <select
                   className="input"
@@ -512,7 +512,7 @@ export default function FixAssetsAudit({
                 </select>
               </label>
 
-              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                 Operación
                 <select
                   className="input"
@@ -527,7 +527,7 @@ export default function FixAssetsAudit({
                 </select>
               </label>
 
-              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                 Desde
                 <input
                   className="input"
@@ -541,7 +541,7 @@ export default function FixAssetsAudit({
                 />
               </label>
 
-              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                 Hasta
                 <input
                   className="input"
@@ -555,7 +555,7 @@ export default function FixAssetsAudit({
                 />
               </label>
 
-              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 800 }}>
+              <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                 Buscar
                 <FastCellInput
                   className="input"
@@ -621,7 +621,7 @@ export default function FixAssetsAudit({
                             <td className="capex-td" style={{ padding: 7 }} title={text(row.endpoint)}>{actionLabel(row.action_name)}</td>
                             <td className="capex-td" style={{ padding: 7 }}>{tableLabel(row.table_name)}</td>
                             <td className="capex-td" style={{ padding: 7 }}>
-                              <span style={{ display: "inline-flex", padding: "3px 7px", borderRadius: 999, background: operationBackground(row.operation), fontWeight: 900 }}>
+                              <span style={{ display: "inline-flex", padding: "3px 7px", borderRadius: 999, background: operationBackground(row.operation), fontWeight: 700 }}>
                                 {operationLabel(row.operation)}
                               </span>
                             </td>
@@ -641,7 +641,7 @@ export default function FixAssetsAudit({
                 {selectedRow ? (
                   <div style={{ display: "grid", gap: 10 }}>
                     <div style={{ display: "grid", gap: 4 }}>
-                      <div style={{ fontSize: 15, fontWeight: 900 }}>{actionLabel(selectedRow.action_name)}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700 }}>{actionLabel(selectedRow.action_name)}</div>
                       <div className="muted" style={{ fontSize: 11, wordBreak: "break-word" }}>
                         {formatDateTime(selectedRow.occurred_at)} · {tableLabel(selectedRow.table_name)} · solicitud {text(selectedRow.request_id).slice(0, 8) || "sin ID"}
                       </div>
@@ -649,7 +649,7 @@ export default function FixAssetsAudit({
                     </div>
 
                     {detailLoading ? <div className="muted" style={{ fontSize: 12 }}>Cargando valores anteriores y posteriores...</div> : null}
-                    {detailError ? <div style={{ color: "#ffd0bf", fontWeight: 800, fontSize: 12 }}>{detailError}</div> : null}
+                    {detailError ? <div style={{ color: "#ebb086", fontWeight: 600, fontSize: 12 }}>{detailError}</div> : null}
 
                     {!detailLoading && !detailError ? selectedChanges.map((change) => {
                       const description = changeAssetDescription(change, selectedDetail);
@@ -663,7 +663,7 @@ export default function FixAssetsAudit({
                           className="fixassets-audit-change"
                           style={{
                             border: "1px solid rgba(147,211,230,.18)",
-                            borderRadius: 9,
+                            borderRadius: 6,
                             background: "rgba(255,255,255,.025)",
                             overflow: "hidden",
                           }}
@@ -698,7 +698,7 @@ export default function FixAssetsAudit({
                               <tbody>
                                 {change.fields.map((field) => (
                                   <tr key={field}>
-                                    <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", fontWeight: 800 }}>{field}</td>
+                                    <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", fontWeight: 600 }}>{field}</td>
                                     <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", wordBreak: "break-word" }}>{formatValue(change.before?.[field])}</td>
                                     <td style={{ padding: 5, borderBottom: "1px solid rgba(147,211,230,.1)", wordBreak: "break-word" }}>{formatValue(change.after?.[field])}</td>
                                   </tr>
@@ -732,15 +732,15 @@ export default function FixAssetsAudit({
 
           <style jsx global>{`
             .fixassets-audit-modal select.input {
-              background: #0b4d6b !important;
-              color: #f4fbff !important;
+              background: #0a1f2c !important;
+              color: #e8f1f7 !important;
               border-color: rgba(147,211,230,.30) !important;
               color-scheme: dark;
             }
 
             .fixassets-audit-modal select.input option {
-              background: #0b4d6b !important;
-              color: #f4fbff !important;
+              background: #0a1f2c !important;
+              color: #e8f1f7 !important;
             }
 
             .fixassets-audit-row-selected .capex-td {
@@ -748,11 +748,11 @@ export default function FixAssetsAudit({
             }
 
             .fixassets-audit-row-selected .capex-td:first-child {
-              box-shadow: inset 4px 0 0 #35b7ff;
+              box-shadow: inset 4px 0 0 #4cb5cd;
             }
 
             .fixassets-audit-content .capex-tr[tabindex="0"]:focus-visible .capex-td {
-              outline: 1px solid #35b7ff;
+              outline: 1px solid #4cb5cd;
               outline-offset: -1px;
             }
 

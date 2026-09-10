@@ -47,7 +47,7 @@ export default function LogisticsDownloadsPage() {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ fontWeight: 900 }}>Dashboard - Logística</div>
+        <div style={{ fontWeight: 700 }}>Dashboard - Logística</div>
       </div>
 
       <div className="panel-inner" style={{ padding: 0, overflow: "hidden" }}>

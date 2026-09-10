@@ -7,9 +7,12 @@ const exo = localFont({
   variable: "--font-exo",
   display: "swap",
   src: [
+    { path: "./fonts/Exo-Light.ttf", weight: "300", style: "normal" },
     { path: "./fonts/Exo-Regular.ttf", weight: "400", style: "normal" },
+    { path: "./fonts/Exo-Italic.ttf", weight: "400", style: "italic" },
     { path: "./fonts/Exo-Medium.ttf", weight: "500", style: "normal" },
     { path: "./fonts/Exo-SemiBold.ttf", weight: "600", style: "normal" },
+    { path: "./fonts/Exo-SemiBoldItalic.ttf", weight: "600", style: "italic" },
     { path: "./fonts/Exo-Bold.ttf", weight: "700", style: "normal" },
     { path: "./fonts/Exo-ExtraBold.ttf", weight: "800", style: "normal" },
     { path: "./fonts/Exo-Black.ttf", weight: "900", style: "normal" },

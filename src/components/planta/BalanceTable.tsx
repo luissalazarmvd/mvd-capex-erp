@@ -161,7 +161,7 @@ function DatePicker({
 }) {
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
       <input
         type="date"
         value={valueIso}
@@ -177,7 +177,7 @@ function DatePicker({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
         }}
@@ -1383,7 +1383,7 @@ export default function BalanceTable() {
     doc.save(`${title}.pdf`);
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
@@ -1468,7 +1468,7 @@ export default function BalanceTable() {
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Reportes</div>
+        <div style={{ fontWeight: 700 }}>Reportes</div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 8 }}>
           <Button
@@ -1512,7 +1512,7 @@ export default function BalanceTable() {
           </Button>
         </div>
 
-        <div className="muted" style={{ fontWeight: 800, marginLeft: "auto" }}>
+        <div className="muted" style={{ fontWeight: 600, marginLeft: "auto" }}>
           Planta · Balance metalúrgico + Power BI
         </div>
       </div>
@@ -1544,7 +1544,7 @@ export default function BalanceTable() {
             padding: 10,
             border: "1px solid rgba(216,93,39,.45)",
             background: "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -1581,7 +1581,7 @@ export default function BalanceTable() {
                       background: "transparent",
                       color: "var(--text)",
                       cursor: "pointer",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       padding: 0,
                     }}
                   >
@@ -1649,7 +1649,7 @@ export default function BalanceTable() {
                         style={{
                           ...cellBase,
                           ...stickyLeftFechaCell(dayStickyBg, 7),
-                          fontWeight: 900,
+                          fontWeight: 700,
                           borderBottom: dayBorder,
                         }}
                       >
@@ -1661,7 +1661,7 @@ export default function BalanceTable() {
                             background: "transparent",
                             color: "var(--text)",
                             cursor: "pointer",
-                            fontWeight: 900,
+                            fontWeight: 700,
                             padding: 0,
                             display: "inline-flex",
                             alignItems: "center",
@@ -1678,7 +1678,7 @@ export default function BalanceTable() {
                         style={{
                           ...cellBase,
                           ...stickyLeftGuardiaCell(dayStickyBg, 7),
-                          fontWeight: 900,
+                          fontWeight: 700,
                           opacity: 0.9,
                           borderBottom: dayBorder,
                         }}
@@ -1695,7 +1695,7 @@ export default function BalanceTable() {
                             className="capex-td"
                             style={{
                               ...(c.key === "shift_comment" ? commentCell : numCell),
-                              fontWeight: 900,
+                              fontWeight: 700,
                               background: dayBg,
                               borderBottom: dayBorder,
                             }}
@@ -1722,7 +1722,7 @@ export default function BalanceTable() {
                               style={{
                                 ...cellBase,
                                 ...stickyLeftGuardiaCell(rowStickyBg, 5),
-                                fontWeight: 900,
+                                fontWeight: 700,
                                 borderBottom: rowBorder,
                               }}
                             >
@@ -1761,7 +1761,7 @@ export default function BalanceTable() {
                   style={{
                     ...stickyLeftFechaFoot,
                     ...cellBase,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     borderTop: "1px solid rgba(216, 238, 255, 0.20)",
                   }}
                 >
@@ -1772,7 +1772,7 @@ export default function BalanceTable() {
                   style={{
                     ...stickyLeftGuardiaFoot,
                     ...cellBase,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     opacity: 0.9,
                     borderTop: "1px solid rgba(216, 238, 255, 0.20)",
                   }}
@@ -1790,7 +1790,7 @@ export default function BalanceTable() {
                       style={{
                         ...stickyFoot,
                         ...numCell,
-                        fontWeight: 900,
+                        fontWeight: 700,
                         borderTop: "1px solid rgba(216, 238, 255, 0.20)",
                       }}
                     >
@@ -1802,7 +1802,7 @@ export default function BalanceTable() {
             </tfoot>
           </Table>
         ) : (
-          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 600 }}>
             {loading ? "Cargando…" : "Sin datos en el rango."}
           </div>
         )}

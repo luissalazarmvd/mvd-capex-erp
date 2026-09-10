@@ -221,7 +221,7 @@ export default function BudgetPage() {
               {exporting ? "Exportando…" : "Exportar"}
             </Button>
 
-            <div className="muted" style={{ fontWeight: 800 }}>
+            <div className="muted" style={{ fontWeight: 600 }}>
               {loading ? "Cargando…" : ""}
             </div>
           </div>
@@ -236,7 +236,7 @@ export default function BudgetPage() {
                 ? "1px solid rgba(27,147,227,.45)"
                 : "1px solid rgba(216,93,39,.45)",
               background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-              fontWeight: 800,
+              fontWeight: 600,
             }}
           >
             {msg}

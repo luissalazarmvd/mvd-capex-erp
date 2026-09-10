@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 
 type MapRow = { reagent_name: string; subprocess_name: string };
 type MappingResp = { ok: boolean; rows: MapRow[] };
@@ -273,6 +274,22 @@ export default function ConsSubStock({
     return [...base, ...subs, totalCol];
   }, [visibleSubpros, rowTotal, unitByReagent]);
 
+  // Filtros tipo Excel sobre las filas ya cargadas (capa de vista).
+  const excelColumns = useMemo<Array<ExcelColumnDef<ViewRow>>>(
+    () =>
+      cols.map((c) => ({
+        key: String(c.key),
+        label: c.label,
+        kind: c.key === "reagent_name" ? ("text" as const) : ("number" as const),
+        value: (row: ViewRow) =>
+          String(c.key) === "__total__" ? rowTotal(row) : (row as Record<string, unknown>)[c.key],
+      })),
+    [cols, rowTotal]
+  );
+
+  const excel = useExcelColumnFilters(rows, excelColumns);
+  const visibleRows = excel.rows;
+
   const cellBase: React.CSSProperties = {
     padding: "8px 10px",
     fontSize: 12,
@@ -280,7 +297,7 @@ export default function ConsSubStock({
     wordBreak: "normal",
   };
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const headerShadow = "0 8px 18px rgba(0,0,0,.18)";
 
@@ -308,7 +325,7 @@ export default function ConsSubStock({
     position: "sticky",
     left: 0,
     zIndex: 7,
-    background: "rgb(6, 77, 121)",
+    background: "rgb(20, 52, 68)",
     boxShadow: " 10px 0 18px rgba(0,0,0,.22)",
   };
 
@@ -316,7 +333,7 @@ export default function ConsSubStock({
     position: "sticky",
     right: 0,
     zIndex: 6,
-    background: "rgb(6, 77, 121)",
+    background: "rgb(20, 52, 68)",
     boxShadow: " -10px 0 18px rgba(0,0,0,.22)",
   };
 
@@ -334,7 +351,7 @@ export default function ConsSubStock({
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Consumo por Subproceso + Stock</div>
+        <div style={{ fontWeight: 700 }}>Consumo por Subproceso + Stock</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
           <Button
@@ -346,6 +363,12 @@ export default function ConsSubStock({
           >
             {loading ? "Cargando..." : "Refrescar"}
           </Button>
+
+          {excel.activeCount || excel.hasSort ? (
+            <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -356,7 +379,7 @@ export default function ConsSubStock({
             padding: 10,
             border: "1px solid rgba(216,93,39,.45)",
             background: "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -393,7 +416,7 @@ export default function ConsSubStock({
                           textAlign: "center",
                           padding: "6px 4px",
                           fontSize: 12,
-                          fontWeight: 900,
+                          fontWeight: 700,
                           whiteSpace: "normal",
                           lineHeight: "14px",
                           verticalAlign: "middle",
@@ -415,6 +438,9 @@ export default function ConsSubStock({
                         >
                           {c.label}
                         </div>
+                        <div style={{ display: "flex", justifyContent: "center", marginTop: 3 }}>
+                          <ExcelHeaderFilter {...excel.headerProps(String(c.key))} />
+                        </div>
                       </th>
                     );
                   })}
@@ -422,7 +448,7 @@ export default function ConsSubStock({
               </thead>
 
               <tbody>
-                {rows.map((row, ridx) => (
+                {visibleRows.map((row, ridx) => (
                   <tr key={`${String(row.reagent_name || ridx)}-${ridx}`} className="capex-tr">
                     {cols.map((c) => {
                       const isText = c.key === "reagent_name";
@@ -459,7 +485,7 @@ export default function ConsSubStock({
                             minWidth: c.w ?? 160,
                             padding: "6px 6px",
                             background: isZeroHighlight
-                              ? "rgb(90, 24, 24)"
+                              ? "rgb(107, 46, 20)"
                               : isTotal
                               ? (stickyRightCell.background as any)
                               : isReagent
@@ -468,7 +494,7 @@ export default function ConsSubStock({
                             borderBottom: isZeroHighlight
                               ? "1px solid rgba(216,93,39,.35)"
                               : "1px solid rgba(255,255,255,.06)",
-                            fontWeight: isTotal || c.key === "stock" ? 900 : 800,
+                            fontWeight: isTotal || c.key === "stock" ? 700 : 600,
                             color: isZeroHighlight ? "#EBB086" : undefined,
                           }}
                           title={String(txt)}
@@ -483,14 +509,14 @@ export default function ConsSubStock({
             </Table>
           </div>
         ) : (
-          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 600 }}>
             {loading ? "Cargando…" : canQuery ? "Sin datos." : "Selecciona una campaña arriba."}
           </div>
         )}
       </div>
 
       {rows.length && !visibleSubpros.length ? (
-        <div className="panel-inner" style={{ padding: 12, fontWeight: 800, opacity: 0.9 }}>
+        <div className="panel-inner" style={{ padding: 12, fontWeight: 600, opacity: 0.9 }}>
           No hay subprocesos con consumo para esta campaña (según mapping/valores).
         </div>
       ) : null}

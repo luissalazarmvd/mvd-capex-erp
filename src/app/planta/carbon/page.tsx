@@ -240,7 +240,7 @@ function Select({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
           display: "flex",
@@ -263,7 +263,7 @@ function Select({
               top: 6,
               left: 0,
               right: 0,
-              borderRadius: 12,
+              borderRadius: 10,
               border: "1px solid rgba(255,255,255,.10)",
               background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -289,7 +289,7 @@ function Select({
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
@@ -856,10 +856,10 @@ export default function CarbonPage() {
     background: "rgba(0,0,0,.10)",
     border: "1px solid var(--border)",
     color: "var(--text)",
-    borderRadius: 8,
+    borderRadius: 6,
     padding: "6px 8px",
     outline: "none",
-    fontWeight: 900,
+    fontWeight: 700,
     fontSize: 12,
     textAlign: "center",
   };
@@ -880,7 +880,7 @@ export default function CarbonPage() {
   const GAP_W = 14;
   const HEADER_ROW1_H = 44;
 
-  const solidHeaderBg = "rgb(6, 77, 121)";
+  const solidHeaderBg = "rgb(20, 52, 68)";
   const solidHeaderBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const solidHeaderShadow = "0 8px 18px rgba(0,0,0,.18)";
 
@@ -900,7 +900,7 @@ export default function CarbonPage() {
     boxShadow: solidHeaderShadow,
   };
 
-  const stickyDayBg = "rgb(6, 77, 121)";
+  const stickyDayBg = "rgb(20, 52, 68)";
 
   const monthOptions = useMemo(() => MONTHS.map((m) => ({ value: String(m.value), label: m.label })), []);
 
@@ -1169,17 +1169,17 @@ export default function CarbonPage() {
     background: "rgba(0,0,0,.10)",
     border: "1px solid var(--border)",
     color: "var(--text)",
-    borderRadius: 8,
+    borderRadius: 6,
     padding: "8px 10px",
     outline: "none",
-    fontWeight: 900,
+    fontWeight: 700,
     fontSize: 12,
   };
 
   return (
     <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Carbones</div>
+        <div style={{ fontWeight: 700 }}>Carbones</div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
           <Input
@@ -1198,7 +1198,7 @@ export default function CarbonPage() {
               disabled={loading || savingAll}
               options={monthOptions}
             />
-            <div className="muted" style={{ fontWeight: 900, fontSize: 12, paddingLeft: 2 }}>
+            <div className="muted" style={{ fontWeight: 700, fontSize: 12, paddingLeft: 2 }}>
               Mes
             </div>
           </div>
@@ -1216,7 +1216,7 @@ export default function CarbonPage() {
             padding: 10,
             border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
             background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -1225,7 +1225,7 @@ export default function CarbonPage() {
 
       <div style={{ minWidth: 0 }}>
         {!isYmValid ? (
-          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 600 }}>
             Año debe ser YYYY y mes válido.
           </div>
         ) : rows.length ? (
@@ -1375,11 +1375,11 @@ export default function CarbonPage() {
                     >
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <div>{r.tank_day}</div>
-                        <div className="muted" style={{ fontWeight: 900, fontSize: 12 }}>
+                        <div className="muted" style={{ fontWeight: 700, fontSize: 12 }}>
                           {weekdayShort(r.tank_day)}
                         </div>
                         {!valid ? (
-                          <div style={{ marginLeft: 8, fontSize: 11, fontWeight: 900, color: "rgba(229,149,103,.95)" }}>
+                          <div style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "rgba(229,149,103,.95)" }}>
                             Inválido
                           </div>
                         ) : null}
@@ -1474,14 +1474,14 @@ export default function CarbonPage() {
             </tbody>
           </Table>
         ) : (
-          <div className="panel-inner" style={{ padding: 12, fontWeight: 800 }}>
+          <div className="panel-inner" style={{ padding: 12, fontWeight: 600 }}>
             {loading ? "Cargando…" : "No hay filas para este mes."}
           </div>
         )}
       </div>
 
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Ingreso de carbón</div>
+        <div style={{ fontWeight: 700 }}>Ingreso de carbón</div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
           <Button type="button" size="sm" variant="ghost" onClick={loadQtyLatest} disabled={qtySaving || qtyLoading || loading || savingAll}>
             {qtyLoading ? "Actualizando…" : "Refrescar"}
@@ -1499,7 +1499,7 @@ export default function CarbonPage() {
             padding: 10,
             border: qtyMsg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
             background: qtyMsg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {qtyMsg}
@@ -1558,10 +1558,10 @@ export default function CarbonPage() {
 
             return (
               <tr key={r.tank} className="capex-tr" style={{ background: isD ? "rgba(27,147,227,.05)" : "transparent" }}>
-                <td className="capex-td capex-td-strong" style={{ fontWeight: 900 }}>
+                <td className="capex-td capex-td-strong" style={{ fontWeight: 700 }}>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <div>{r.tank}</div>
-                    {!valid ? <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(229,149,103,.95)" }}>Inválido</div> : null}
+                    {!valid ? <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(229,149,103,.95)" }}>Inválido</div> : null}
                   </div>
                 </td>
 
@@ -1583,7 +1583,7 @@ export default function CarbonPage() {
                 <td className="capex-td">
                   <div style={{ display: "grid", gap: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div style={{ fontWeight: 900, opacity: 0.85, width: 22 }}>C-</div>
+                      <div style={{ fontWeight: 700, opacity: 0.85, width: 22 }}>C-</div>
 
                       <input
                         value={r.campaign1_mm}
@@ -1604,7 +1604,7 @@ export default function CarbonPage() {
                         inputMode="numeric"
                       />
 
-                      <div style={{ fontWeight: 900, opacity: 0.85 }}>-</div>
+                      <div style={{ fontWeight: 700, opacity: 0.85 }}>-</div>
 
                       <input
                         value={r.campaign1_seq}
@@ -1625,7 +1625,7 @@ export default function CarbonPage() {
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div style={{ fontWeight: 900, opacity: 0.55, width: 22 }}>C-</div>
+                      <div style={{ fontWeight: 700, opacity: 0.55, width: 22 }}>C-</div>
 
                       <input
                         value={r.campaign2_mm}
@@ -1646,7 +1646,7 @@ export default function CarbonPage() {
                         inputMode="numeric"
                       />
 
-                      <div style={{ fontWeight: 900, opacity: 0.55 }}>-</div>
+                      <div style={{ fontWeight: 700, opacity: 0.55 }}>-</div>
 
                       <input
                         value={r.campaign2_seq}
@@ -1667,7 +1667,7 @@ export default function CarbonPage() {
                     </div>
 
                     {meaningful && !(l1.campComplete || l2.campComplete) ? (
-                      <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(229,149,103,.95)" }}>Mínimo 1 campaña completa</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(229,149,103,.95)" }}>Mínimo 1 campaña completa</div>
                     ) : null}
                   </div>
                 </td>
@@ -1779,7 +1779,7 @@ export default function CarbonPage() {
                       maxLength={COMMENT_MAX}
                     />
 
-                    <div className="muted" style={{ fontWeight: 900, fontSize: 11, textAlign: "right", opacity: 0.8 }}>
+                    <div className="muted" style={{ fontWeight: 700, fontSize: 11, textAlign: "right", opacity: 0.8 }}>
                       {String(r.tank_comment || "").length}/{COMMENT_MAX}
                     </div>
                   </div>

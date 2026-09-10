@@ -153,7 +153,7 @@ export function CellInput({ mode, value, hint, placeholder, disabled = false, on
           borderRadius: 10,
           padding: "8px 10px",
           outline: "none",
-          fontWeight: 800,
+          fontWeight: 600,
           letterSpacing: 0.2,
         }}
         onFocus={(e) => {
@@ -176,8 +176,8 @@ export function CellInput({ mode, value, hint, placeholder, disabled = false, on
           color: "rgba(255,255,255,.86)",
         }}
       >
-        <span style={{ fontWeight: 800 }}>{hintText}</span>
-        <span style={{ fontWeight: 900, color: "rgba(255,255,255,.92)" }}>{mode === "pct" ? "%" : ""}</span>
+        <span style={{ fontWeight: 600 }}>{hintText}</span>
+        <span style={{ fontWeight: 700, color: "rgba(255,255,255,.92)" }}>{mode === "pct" ? "%" : ""}</span>
       </div>
     </div>
   );

@@ -12,9 +12,9 @@ type Props = {
 export function MonthHeader({ label, sublabel, double }: Props) {
   return (
     <div style={{ display: "grid", gap: 2, minWidth: double ? 240 : 120 }}>
-      <div style={{ fontWeight: 900, letterSpacing: 0.2 }}>{label}</div>
+      <div style={{ fontWeight: 700, letterSpacing: 0.2 }}>{label}</div>
       {sublabel ? (
-        <div className="muted" style={{ fontSize: 11, fontWeight: 800 }}>
+        <div className="muted" style={{ fontSize: 11, fontWeight: 600 }}>
           {sublabel}
         </div>
       ) : (

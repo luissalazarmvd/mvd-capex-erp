@@ -1,6 +1,9 @@
-/* src/styles/globals.css */
+/* src/app/globals.css
+   Sistema visual MVD 2026 — paleta y tipografía del Manual de Marca Veta Dorada 2026.
+   Solo capa de presentación: ningún nombre de variable existente fue eliminado. */
+
 :root {
-  /* Paleta oficial Veta Dorada 2026 */
+  /* ── Marca (invariable, Manual VD 2026 pp. 16–18) ───────────────── */
   --brand-blue: #0067ac;
   --brand-blue-light: #1b93e3;
   --brand-gold: #c69214;
@@ -12,24 +15,91 @@
   --brand-danger: #d85d27;
   --brand-info: #00a5ce;
 
-  --bg: #0b6a9f;
-  --header: linear-gradient(135deg, #0067ac 0%, #1b93e3 100%);
-  --panel: #075c91;
-  --panel2: #064d79;
-  --accent: #d8eeff;
-  --accent2: #1b93e3;
-  --text: #ffffff;
-  --muted: rgba(216,238,255,.82);
-  --border: rgba(216,238,255,.26);
-  --shadow: 0 10px 30px rgba(0,0,0,.24);
+  /* ── Escala de superficies: sube por luminancia, no por saturación ─ */
+  --s-canvas: #061520;
+  --s-1: #0a1f2c;
+  --s-2: #0f2a38;
+  --s-3: #143444;
+  --s-sunken: rgba(0, 0, 0, 0.24);
+
+  /* ── Trazos y tinta ──────────────────────────────────────────────── */
+  --line: rgba(158, 197, 220, 0.16);
+  --line-2: rgba(158, 197, 220, 0.28);
+  --ink: #e8f1f7;
+  --ink-2: #a8c0cf;
+  --ink-3: #7a96a8;
+
+  /* ── Semánticos (paleta secundaria del manual) ───────────────────── */
+  --ok: #93b25c;
+  --ok-bg: rgba(94, 128, 25, 0.20);
+  --ok-line: rgba(147, 178, 92, 0.42);
+  --warn: #ffc13d;
+  --warn-bg: rgba(255, 183, 27, 0.16);
+  --warn-line: rgba(255, 193, 61, 0.42);
+  --bad: #ebb086;
+  --bad-bg: rgba(216, 93, 39, 0.18);
+  --bad-line: rgba(216, 93, 39, 0.52);
+
+  /* ── Formato condicional de grillas (mismos roles de siempre) ────── */
+  --cell: #0a1f2c;
+  --cell-alt: #081a25;
+  --cell-sent: #071a24;
+  --cell-focus: #143444;
+  --cell-valid: #33521f;
+  --cell-selected: #3b5f24;
+  --cell-invalid: #6b2e14;
+  --cell-edited: #5a4210;
+  --cell-muted: #22303a;
+
+  /* ── Acento del módulo activo ────────────────────────────────────── */
+  --mod: #1b93e3;
+  --mod-soft: rgba(27, 147, 227, 0.14);
+
+  /* ── Geometría: cuatro pasos ─────────────────────────────────────── */
+  --r-1: 6px;
+  --r-2: 10px;
+  --r-3: 14px;
+  --r-pill: 999px;
+
+  /* ── Alias históricos: mismos nombres, valores nuevos ────────────── */
+  --bg: var(--s-canvas);
+  --header: var(--s-1);
+  --panel: var(--s-1);
+  --panel2: var(--s-2);
+  --accent: var(--ink);
+  --accent2: var(--brand-blue-light);
+  --text: var(--ink);
+  --muted: var(--ink-2);
+  --border: var(--line);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
 }
 
-html, body { height: 100%; }
+/* ── Acento por módulo. Las familias cromáticas agrupan por dominio:
+      cian = transporte · verde = operaciones y ambiente
+      azul/dorado = patrimonio · gris = administrativo ───────────────── */
+[data-module="kardex"]         { --mod: #00a5ce; --mod-soft: rgba(0, 165, 206, 0.14); }
+[data-module="fleet"]          { --mod: #71bdcd; --mod-soft: rgba(113, 189, 205, 0.14); }
+[data-module="planta"]         { --mod: #79993a; --mod-soft: rgba(121, 153, 58, 0.16); }
+[data-module="sustainability"] { --mod: #93b25c; --mod-soft: rgba(147, 178, 92, 0.16); }
+[data-module="refinery"]       { --mod: #ffb71b; --mod-soft: rgba(255, 183, 27, 0.14); }
+[data-module="logistics"]      { --mod: #d85d27; --mod-soft: rgba(216, 93, 39, 0.16); }
+[data-module="capex"]          { --mod: #1b93e3; --mod-soft: rgba(27, 147, 227, 0.14); }
+[data-module="fixassets"]      { --mod: #c69214; --mod-soft: rgba(198, 146, 20, 0.16); }
+[data-module="traceability"]   { --mod: #a669a6; --mod-soft: rgba(166, 105, 166, 0.16); }
+[data-module="compliance"]     { --mod: #969795; --mod-soft: rgba(150, 151, 149, 0.16); }
+
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-exo), Arial, sans-serif;
+  font-family: var(--font-exo), "Helvetica Neue", Arial, sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -40,10 +110,17 @@ textarea {
 }
 
 [style*="font-family"] {
-  font-family: var(--font-exo), Arial, sans-serif !important;
+  font-family: var(--font-exo), "Helvetica Neue", Arial, sans-serif !important;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-blue-light);
+  outline-offset: 1px;
+}
 
 .container-max {
   max-width: 1400px;
@@ -56,52 +133,83 @@ textarea {
   padding: 0 18px;
 }
 
+/* ── Cabecera de módulo: superficie plana + franja de acento ───────── */
+[data-module] > header {
+  box-shadow: inset 0 3px 0 var(--mod);
+}
+
+/* ── Paneles ──────────────────────────────────────────────────────── */
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
+  border-radius: var(--r-3);
+  box-shadow: none;
 }
 
 .panel-inner {
   background: var(--panel2);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-2);
 }
 
+/* Logística conserva su identidad gris oscura, ahora sobre la familia #3F3F3A
+   del manual y con el acento naranja del módulo. */
 .logistics-theme {
-  --bg: #272727;
-  --panel: #3f3f3a;
-  --panel2: #272727;
+  --s-canvas: #17181a;
+  --s-1: #202225;
+  --s-2: #292b2f;
+  --s-3: #34373b;
+  --s-sunken: rgba(0, 0, 0, 0.26);
+  --line: rgba(194, 195, 195, 0.15);
+  --line-2: rgba(194, 195, 195, 0.26);
+  --ink: #eceded;
+  --ink-2: #b8bbbd;
+  --ink-3: #8a8f92;
+  --cell: #202225;
+  --cell-alt: #1c1e21;
+  --cell-sent: #1a1c1e;
+  --cell-focus: #34373b;
 }
 
-.muted { color: var(--muted); }
-
-.input {
-  width: 100%;
-  background: rgba(0,0,0,.10);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 10px;
-  padding: 10px 12px;
-  outline: none;
+.muted {
+  color: var(--muted);
 }
 
-.input:focus {
-  border-color: rgba(27,147,227,.90);
-  box-shadow: 0 0 0 3px rgba(27,147,227,.22);
-}
-
+/* ── Campos ───────────────────────────────────────────────────────── */
+.input,
 .select {
   width: 100%;
-  background: rgba(0,0,0,.10);
+  background: var(--s-sunken);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: var(--r-1);
+  padding: 8px 10px;
   outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
+.input::placeholder {
+  color: var(--ink-3);
+}
+
+.input:hover:not(:disabled),
+.select:hover:not(:disabled) {
+  border-color: var(--line-2);
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--brand-blue-light);
+  box-shadow: 0 0 0 2px rgba(27, 147, 227, 0.20);
+}
+
+.input:disabled,
+.input[readonly] {
+  color: var(--ink-2);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+/* ── Barras de desplazamiento (sin cambios respecto al original) ──── */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: rgba(0,0,0,.12); border-radius: 999px; }
 *::-webkit-scrollbar-thumb { background: rgba(27,147,227,.55); border-radius: 999px; }
@@ -113,25 +221,27 @@ textarea {
   padding: 0 18px;
 }
 
+/* ── Navegación ───────────────────────────────────────────────────── */
 .nav-pill{
-  color: #fff !important;
-  font-weight: 800 !important;
-  font-size: 18px;
+  color: var(--ink) !important;
+  font-weight: 600 !important;
+  font-size: 14px;
+  letter-spacing: .01em;
   text-decoration: none !important;
 }
 
 .nav-pill:visited{
-  color: #fff !important;
+  color: var(--ink) !important;
 }
 
 .nav-pill:hover{
-  color: #d8eeff !important;
+  color: var(--mod) !important;
   opacity: 1;
 }
 
 header a,
 header a:visited{
-  color: #fff !important;
+  color: var(--ink) !important;
 }
 
 html, body {
@@ -142,7 +252,7 @@ html, body {
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border-radius: 12px;
+  border-radius: var(--r-2);
 }
 
 .table-wide {
@@ -150,7 +260,75 @@ html, body {
   min-width: 100%;
 }
 
-html, body { overflow-x: hidden; }
+/* ── Bloques temáticos de formulario (rieles de color) ────────────── */
+.vd-group {
+  border-left: 3px solid var(--tone, var(--line-2));
+}
 
-.table-scroll { width: 100%; overflow-x: auto; overflow-y: hidden; }
-.table-wide { width: max-content; min-width: 100%; }
+.vd-group-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--tone, var(--ink-3));
+}
+
+/* ── Etiquetas y cifras ───────────────────────────────────────────── */
+.vd-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.vd-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Píldoras de estado ───────────────────────────────────────────── */
+.vd-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.vd-pill-ok { background: var(--ok-bg); color: var(--ok); }
+.vd-pill-warn { background: var(--warn-bg); color: var(--warn); }
+.vd-pill-bad { background: var(--bad-bg); color: var(--bad); }
+.vd-pill-neutral { background: rgba(158, 197, 220, 0.09); color: var(--ink-2); }
+
+/* ── Filtro de columna tipo Excel ─────────────────────────────────── */
+.vd-funnel {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  padding: 2px;
+  line-height: 0;
+  border-radius: 3px;
+  color: var(--ink-3);
+  flex: none;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+
+.vd-funnel:hover {
+  color: var(--ink);
+  background: rgba(158, 197, 220, 0.14);
+}
+
+.vd-funnel[data-active="true"] {
+  color: var(--mod);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

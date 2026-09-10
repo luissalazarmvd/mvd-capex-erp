@@ -4,7 +4,7 @@ import LogoutLink from "../../components/auth/LogoutLink";
 
 export default function ComplianceLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div data-module="compliance" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <header
         style={{
           background: "var(--header)",
@@ -43,7 +43,7 @@ export default function ComplianceLayout({ children }: { children: React.ReactNo
               </LogoutLink>
 
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – COMPLIANCE</div>
+                <div style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>MVD – COMPLIANCE</div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   Descargas
                 </div>

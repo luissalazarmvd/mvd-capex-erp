@@ -183,9 +183,9 @@ export default function DuracionPanel({ shiftId }: { shiftId: string }) {
   return (
     <div style={{ display: "grid", gap: 12, maxWidth: 820 }}>
       <div className="panel-inner" style={{ padding: 10, display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ fontWeight: 900 }}>Duración</div>
+        <div style={{ fontWeight: 700 }}>Duración</div>
 
-        <div className="muted" style={{ fontWeight: 800, marginLeft: 8 }}>
+        <div className="muted" style={{ fontWeight: 600, marginLeft: 8 }}>
           Guardia: {sid || "—"}
         </div>
 
@@ -203,7 +203,7 @@ export default function DuracionPanel({ shiftId }: { shiftId: string }) {
             padding: 12,
             border: msg.startsWith("OK") ? "1px solid rgba(27,147,227,.45)" : "1px solid rgba(216,93,39,.45)",
             background: msg.startsWith("OK") ? "rgba(27,147,227,.10)" : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -214,7 +214,7 @@ export default function DuracionPanel({ shiftId }: { shiftId: string }) {
         <div style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gap: 10 }}>
             <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Duración - Operación (h)</div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>Duración - Operación (h)</div>
               <Input
                 value={opH}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOpH(e.target.value.replace(/[^\d]/g, ""))}
@@ -224,7 +224,7 @@ export default function DuracionPanel({ shiftId }: { shiftId: string }) {
             </div>
 
             <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Duración - Operación (min)</div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>Duración - Operación (min)</div>
               <Input
                 value={opM}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOpM(e.target.value.replace(/[^\d]/g, ""))}
@@ -234,7 +234,7 @@ export default function DuracionPanel({ shiftId }: { shiftId: string }) {
             </div>
 
             <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Duración - Parada (h)</div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>Duración - Parada (h)</div>
               <Input
                 value={stopH}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStopH(e.target.value.replace(/[^\d]/g, ""))}
@@ -244,7 +244,7 @@ export default function DuracionPanel({ shiftId }: { shiftId: string }) {
             </div>
 
             <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 13 }}>Duración - Parada (min)</div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>Duración - Parada (min)</div>
               <Input
                 value={stopM}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStopM(e.target.value.replace(/[^\d]/g, ""))}
@@ -253,18 +253,18 @@ export default function DuracionPanel({ shiftId }: { shiftId: string }) {
               />
             </div>
 
-            <div className="muted" style={{ fontSize: 12, fontWeight: 800 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600 }}>
               Total: {fmtMinToHHMM(total)} (debe ser {fmtMinToHHMM(720)})
             </div>
 
             {loadingExisting ? (
-              <div className="muted" style={{ fontWeight: 800 }}>
+              <div className="muted" style={{ fontWeight: 600 }}>
                 Cargando datos existentes…
               </div>
             ) : null}
 
             {!sid ? (
-              <div className="muted" style={{ fontWeight: 800 }}>
+              <div className="muted" style={{ fontWeight: 600 }}>
                 Selecciona una guardia en el page.
               </div>
             ) : null}

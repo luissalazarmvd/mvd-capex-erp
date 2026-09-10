@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 
 type TraceabilityRow = {
   lot: string | null;
@@ -659,12 +660,12 @@ const RowItem = React.memo(function RowItem({
                 borderRight: gridV,
                 background: invalidDateCell ? "rgba(216,93,39,.18)" : currentRowBg,
                 textAlign: isNumber ? "right" : "left",
-                fontWeight: c.key === "lot" ? 800 : 400,
+                fontWeight: c.key === "lot" ? 600 : 400,
                 width: c.width || 110,
                 minWidth: c.width || 110,
                 maxWidth: c.width || 110,
                 padding: isNumber ? "6px 4px" : "6px 8px",
-                color: invalidDateCell ? "rgb(229,149,103)" : "rgb(185,185,185)",
+                color: invalidDateCell ? "rgb(229,149,103)" : "rgb(168, 192, 207)",
               }}
               title={show || "—"}
             >
@@ -776,16 +777,44 @@ export default function TraceabilityComerForm() {
     );
   }, [rows, lotFilter, sortKey, sortDir, editedTick]);
 
-  const totalRows = preparedRows.length;
+  // Filtros tipo Excel: capa de vista sobre `preparedRows`, evaluando los
+  // valores vigentes del draft (incluidas las columnas calculadas).
+  const excelColumns = useMemo<Array<ExcelColumnDef<TraceabilityRow>>>(() => {
+    // `editedTick` fuerza el recálculo cuando cambia un draft.
+    if (editedTick < 0) return [];
+
+    return COLUMNS.map((column) => ({
+      key: String(column.key),
+      label: column.label,
+      kind:
+        column.key === "entry_date" || column.key === "valuation_date"
+          ? ("date" as const)
+          : column.key === "lot"
+            ? ("text" as const)
+            : ("number" as const),
+      value: (row: TraceabilityRow) => {
+        const draft = draftsRef.current[String(row.lot || "").trim()];
+
+        if (draft && column.key === "monto_usd") return calcMontoUsd(draft);
+
+        return (row as Record<string, unknown>)[column.key];
+      },
+    }));
+  }, [editedTick]);
+
+  const excel = useExcelColumnFilters(preparedRows, excelColumns);
+  const filteredRows = excel.rows;
+
+  const totalRows = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const pageEnd = pageStart + PAGE_SIZE;
-  const visibleRows = preparedRows.slice(pageStart, pageEnd);
+  const visibleRows = filteredRows.slice(pageStart, pageEnd);
 
   useEffect(() => {
     setPage(1);
-  }, [lotFilter]);
+  }, [lotFilter, excel.activeCount]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -1122,7 +1151,7 @@ export default function TraceabilityComerForm() {
     }
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -1151,9 +1180,9 @@ export default function TraceabilityComerForm() {
     border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
-    fontWeight: 900,
+    fontWeight: 700,
     padding: "6px 8px",
-    borderRadius: 8,
+    borderRadius: 6,
     outline: "none",
     fontSize: 12,
     lineHeight: "14px",
@@ -1193,8 +1222,8 @@ export default function TraceabilityComerForm() {
         }}
       >
         <div style={{ display: "grid", gap: 2 }}>
-          <div style={{ fontWeight: 900 }}>Trazabilidad · Datos Comercial</div>
-          <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.85 }}>
+          <div style={{ fontWeight: 700 }}>Trazabilidad · Datos Comercial</div>
+          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85 }}>
             Rec Au/Ag: 0-1 decimal (ej. 90% → 0.90) · H2O y Cu %: 0-100 (ej. 4% → 4.00)
           </div>
         </div>
@@ -1206,7 +1235,7 @@ export default function TraceabilityComerForm() {
             border: "1px solid rgba(147, 178, 92, 0.45)",
             background: editedCount > 0 ? "rgba(94, 128, 25, 0.24)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: editedCount > 0 ? "rgb(174, 202, 125)" : "rgba(255,255,255,0.8)",
           }}
         >
@@ -1223,7 +1252,7 @@ export default function TraceabilityComerForm() {
           </Button>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Lote</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Lote</div>
             <input
               list="traceability-lot-options"
               type="text"
@@ -1238,6 +1267,12 @@ export default function TraceabilityComerForm() {
               ))}
             </datalist>
           </div>
+
+          {excel.activeCount || excel.hasSort ? (
+            <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+            </Button>
+          ) : null}
 
           <Button
             type="button"
@@ -1266,7 +1301,7 @@ export default function TraceabilityComerForm() {
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
                 ? "rgba(27,147,227,.10)"
                 : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -1326,7 +1361,12 @@ export default function TraceabilityComerForm() {
                     }}
                     title={c.label}
                   >
-                    {c.label}
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.label}
+                      </span>
+                      <ExcelHeaderFilter {...excel.headerProps(String(c.key))} />
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -1357,7 +1397,7 @@ export default function TraceabilityComerForm() {
 
               {visibleRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={COLUMNS.length}>
                     No hay datos cargados desde Excel.
                   </td>
                 </tr>
@@ -1379,7 +1419,7 @@ export default function TraceabilityComerForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
           Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
         </div>
 
@@ -1399,7 +1439,7 @@ export default function TraceabilityComerForm() {
               minWidth: 90,
               textAlign: "center",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",

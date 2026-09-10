@@ -1159,14 +1159,14 @@ function ExcelHeaderFilter({
           width: 20,
           height: 20,
           padding: 0,
-          borderRadius: 5,
+          borderRadius: 6,
           border: active
             ? "1px solid rgba(147,211,230,.72)"
             : "1px solid rgba(147,211,230,.30)",
           background: active
             ? "rgba(27,147,227,.32)"
             : "rgba(2,35,52,.34)",
-          color: "#eaf8ff",
+          color: "#e8f1f7",
           fontSize: 10,
           lineHeight: 1,
           cursor: "pointer",
@@ -1196,17 +1196,17 @@ function ExcelHeaderFilter({
                 border:
                   "1px solid rgba(147,211,230,.42)",
                 borderRadius: 10,
-                background: "#07364d",
+                background: "#0f2a38",
                 boxShadow:
                   "0 14px 32px rgba(0,0,0,.40)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 textAlign: "left",
                 fontSize: 12,
               }}
             >
               <div
                 style={{
-                  fontWeight: 900,
+                  fontWeight: 700,
                   marginBottom: 8,
                 }}
               >
@@ -1229,14 +1229,14 @@ function ExcelHeaderFilter({
                   style={{
                     textAlign: "left",
                     padding: "6px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.24)",
                     background:
                       sortDirection === "asc"
                         ? "rgba(27,147,227,.24)"
                         : "rgba(2,35,52,.38)",
-                    color: "#f4fbff",
+                    color: "#e8f1f7",
                     cursor: "pointer",
                   }}
                 >
@@ -1256,14 +1256,14 @@ function ExcelHeaderFilter({
                   style={{
                     textAlign: "left",
                     padding: "6px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.24)",
                     background:
                       sortDirection === "desc"
                         ? "rgba(27,147,227,.24)"
                         : "rgba(2,35,52,.38)",
-                    color: "#f4fbff",
+                    color: "#e8f1f7",
                     cursor: "pointer",
                   }}
                 >
@@ -1292,12 +1292,12 @@ function ExcelHeaderFilter({
                     width: "100%",
                     height: 30,
                     padding: "5px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.30)",
                     background:
                       "rgba(2,35,52,.58)",
-                    color: "#f4fbff",
+                    color: "#e8f1f7",
                     outline: "none",
                   }}
                 />
@@ -1308,7 +1308,7 @@ function ExcelHeaderFilter({
                     alignItems: "center",
                     gap: 7,
                     marginTop: 8,
-                    fontWeight: 800,
+                    fontWeight: 600,
                   }}
                 >
                   <input
@@ -1422,12 +1422,12 @@ function ExcelHeaderFilter({
                     width: "100%",
                     height: 30,
                     padding: "4px 7px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.30)",
                     background:
-                      "#0b4d6b",
-                    color: "#f4fbff",
+                      "#0a1f2c",
+                    color: "#e8f1f7",
                   }}
                 >
                   {excelOperatorOptions(
@@ -1476,12 +1476,12 @@ function ExcelHeaderFilter({
                       height: 30,
                       padding:
                         "5px 8px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border:
                         "1px solid rgba(147,211,230,.30)",
                       background:
                         "rgba(2,35,52,.58)",
-                      color: "#f4fbff",
+                      color: "#e8f1f7",
                       outline: "none",
                     }}
                   />
@@ -1514,12 +1514,12 @@ function ExcelHeaderFilter({
                       height: 30,
                       padding:
                         "5px 8px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border:
                         "1px solid rgba(147,211,230,.30)",
                       background:
                         "rgba(2,35,52,.58)",
-                      color: "#f4fbff",
+                      color: "#e8f1f7",
                       outline: "none",
                     }}
                   />
@@ -1546,12 +1546,12 @@ function ExcelHeaderFilter({
                   style={{
                     padding:
                       "6px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border:
                       "1px solid rgba(147,211,230,.24)",
                     background:
                       "transparent",
-                    color: "#d8eef8",
+                    color: "#a8c0cf",
                     cursor: "pointer",
                   }}
                 >
@@ -1572,12 +1572,12 @@ function ExcelHeaderFilter({
                     style={{
                       padding:
                         "6px 8px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border:
                         "1px solid rgba(147,211,230,.24)",
                       background:
                         "transparent",
-                      color: "#d8eef8",
+                      color: "#a8c0cf",
                       cursor:
                         "pointer",
                     }}
@@ -1596,13 +1596,13 @@ function ExcelHeaderFilter({
                     style={{
                       padding:
                         "6px 10px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border:
                         "1px solid rgba(147,211,230,.42)",
                       background:
                         "rgba(27,147,227,.32)",
-                      color: "#f4fbff",
-                      fontWeight: 900,
+                      color: "#e8f1f7",
+                      fontWeight: 700,
                       cursor:
                         "pointer",
                     }}
@@ -1751,7 +1751,7 @@ function RowItem({
                 padding: isNumber ? "6px 4px" : "6px 8px",
                 color: invalidUsdMatch && (c.key === "usd_tms" || c.key === "lot_usd" || c.key === "tms")
                   ? "rgb(235,176,134)"
-                  : "rgb(185,185,185)",
+                  : "rgb(168, 192, 207)",
               }}
               title={show || "—"}
             >
@@ -2581,7 +2581,7 @@ useEffect(() => {
     return sortDir === "asc" ? " ▲" : " ▼";
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -2612,9 +2612,9 @@ useEffect(() => {
     border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
-    fontWeight: 900,
+    fontWeight: 700,
     padding: "6px 8px",
-    borderRadius: 8,
+    borderRadius: 6,
     outline: "none",
     fontSize: 12,
     lineHeight: "14px",
@@ -2645,7 +2645,7 @@ useEffect(() => {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>
+        <div style={{ fontWeight: 700 }}>
           Trazabilidad · Ingresar Datos
           {valuationFilter !== "all" ? ` · Filtro: ${
             valuationFilter === "invalid"
@@ -2663,7 +2663,7 @@ useEffect(() => {
             border: "1px solid rgba(147, 178, 92, 0.45)",
             background: editedCount > 0 ? "rgba(94, 128, 25, 0.24)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: editedCount > 0 ? "rgb(174, 202, 125)" : "rgba(255,255,255,0.8)",
           }}
         >
@@ -2689,7 +2689,7 @@ useEffect(() => {
                 ? "rgba(216, 93, 39, 0.28)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: invalidCount > 0 ? "rgb(235, 176, 134)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
@@ -2712,7 +2712,7 @@ useEffect(() => {
                 ? "rgba(94, 128, 25, 0.40)"
                 : "rgba(94, 128, 25, 0.24)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgb(174, 202, 125)",
             cursor: "pointer",
           }}
@@ -2735,7 +2735,7 @@ useEffect(() => {
                 ? "rgba(255,255,255,0.14)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
@@ -2752,8 +2752,8 @@ useEffect(() => {
             border: valuationFilter === "all" ? "1px solid rgba(27,147,227,.55)" : "1px solid rgba(255,255,255,0.12)",
             background: valuationFilter === "all" ? "rgba(27,147,227,.16)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
-            color: valuationFilter === "all" ? "rgb(216, 238, 255)" : "rgba(255,255,255,0.8)",
+            fontWeight: 700,
+            color: valuationFilter === "all" ? "rgb(168, 192, 207)" : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
         >
@@ -2767,7 +2767,7 @@ useEffect(() => {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
         >
@@ -2793,7 +2793,7 @@ useEffect(() => {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
         >
@@ -2802,7 +2802,7 @@ useEffect(() => {
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Entry Date desde</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Entry Date desde</div>
             <input
               type="date"
               value={dateFrom}
@@ -2814,7 +2814,7 @@ useEffect(() => {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Entry Date hasta</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Entry Date hasta</div>
             <input
               type="date"
               value={dateTo}
@@ -2826,7 +2826,7 @@ useEffect(() => {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Buscador global</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Buscador global</div>
             <input
               type="text"
               value={lotFilter}
@@ -2886,7 +2886,7 @@ useEffect(() => {
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
                 ? "rgba(27,147,227,.10)"
                 : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -3071,7 +3071,7 @@ useEffect(() => {
 
               {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={COLUMNS.length}>
                     No hay filas para el filtro seleccionado.
                   </td>
                 </tr>
@@ -3079,7 +3079,7 @@ useEffect(() => {
 
               {loading ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={COLUMNS.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={COLUMNS.length}>
                     Cargando trazabilidad…
                   </td>
                 </tr>
@@ -3101,7 +3101,7 @@ useEffect(() => {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
           Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
         </div>
 
@@ -3121,7 +3121,7 @@ useEffect(() => {
               minWidth: 90,
               textAlign: "center",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",

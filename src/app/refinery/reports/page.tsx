@@ -90,7 +90,7 @@ function SearchableDropdown({
 
   return (
     <div ref={boxRef} style={{ display: "grid", gap: 6, position: "relative" }}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input
@@ -114,7 +114,7 @@ function SearchableDropdown({
             borderRadius: 10,
             padding: "10px 12px",
             outline: "none",
-            fontWeight: 900,
+            fontWeight: 700,
             opacity: disabled ? 0.7 : 1,
           }}
         />
@@ -131,7 +131,7 @@ function SearchableDropdown({
             background: "rgba(0,0,0,.10)",
             cursor: disabled ? "not-allowed" : "pointer",
             opacity: disabled ? 0.7 : 1,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "var(--text)",
           }}
           aria-label="Abrir"
@@ -150,7 +150,7 @@ function SearchableDropdown({
             right: 0,
             zIndex: 50,
             border: "1px solid var(--border)",
-            borderRadius: 12,
+            borderRadius: 10,
             background: "var(--panel)",
             boxShadow: "0 10px 24px rgba(0,0,0,.25)",
             maxHeight: 280,
@@ -178,7 +178,7 @@ function SearchableDropdown({
                     background: "transparent",
                     cursor: "pointer",
                     color: "var(--text)",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     borderBottom: "1px solid rgba(255,255,255,.06)",
                   }}
                 >
@@ -187,7 +187,7 @@ function SearchableDropdown({
               );
             })
           ) : (
-            <div className="muted" style={{ padding: 12, fontWeight: 800 }}>
+            <div className="muted" style={{ padding: 12, fontWeight: 600 }}>
               No hay resultados
             </div>
           )}
@@ -227,7 +227,7 @@ function Select({
 
   return (
     <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <button
         type="button"
@@ -242,7 +242,7 @@ function Select({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
           display: "flex",
@@ -263,7 +263,7 @@ function Select({
               top: 6,
               left: 0,
               right: 0,
-              borderRadius: 12,
+              borderRadius: 10,
               border: "1px solid rgba(255,255,255,.10)",
               background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -292,7 +292,7 @@ function Select({
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
@@ -437,7 +437,7 @@ export default function RefineryReportsPage() {
           </div>
 
           <div style={{ display: "grid", gap: 6, minWidth: 110 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Desde</div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Desde</div>
             <input
               value={fromYear}
               onChange={(e) => setFromYear(String(e.target.value || "").trim())}
@@ -449,7 +449,7 @@ export default function RefineryReportsPage() {
                 borderRadius: 10,
                 padding: "10px 12px",
                 outline: "none",
-                fontWeight: 900,
+                fontWeight: 700,
               }}
             />
           </div>
@@ -465,7 +465,7 @@ export default function RefineryReportsPage() {
           </div>
 
           <div style={{ display: "grid", gap: 6, minWidth: 110 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Hasta</div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Hasta</div>
             <input
               value={toYear}
               onChange={(e) => setToYear(String(e.target.value || "").trim())}
@@ -477,7 +477,7 @@ export default function RefineryReportsPage() {
                 borderRadius: 10,
                 padding: "10px 12px",
                 outline: "none",
-                fontWeight: 900,
+                fontWeight: 700,
               }}
             />
           </div>
@@ -518,8 +518,8 @@ export default function RefineryReportsPage() {
                 ? "1px solid rgba(216,93,39,.45)"
                 : "1px solid rgba(255,255,255,.10)",
               background: msg.startsWith("ERROR") ? "rgba(216,93,39,.10)" : "rgba(255,255,255,.04)",
-              fontWeight: 800,
-              borderRadius: 12,
+              fontWeight: 600,
+              borderRadius: 10,
             }}
           >
             {msg}
@@ -537,7 +537,7 @@ export default function RefineryReportsPage() {
 
       {/* FILA 4: titulo dashboard */}
       <div className="panel-inner" style={{ padding: "10px 12px" }}>
-        <div style={{ fontWeight: 900 }}>Dashboard - Power BI</div>
+        <div style={{ fontWeight: 700 }}>Dashboard - Power BI</div>
       </div>
 
       {/* FILA 5: PBI */}

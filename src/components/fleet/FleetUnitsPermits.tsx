@@ -7,6 +7,7 @@ import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 
 
 type AlertStatus = "Activo" | "Por Renovar <15d" | "Por Renovar <30d" | "Vencido" | "Sin Fecha";
@@ -470,12 +471,32 @@ export default function FleetUnitsPermits() {
     });
   }, [filteredRows, sortKey, sortDir]);
 
-  const totalRows = preparedRows.length;
+  // Filtros tipo Excel: capa de vista sobre `preparedRows`. La exportación
+  // sigue usando `preparedRows` y no se ve afectada.
+  const excelColumns = useMemo<Array<ExcelColumnDef<PermitRow>>>(
+    () =>
+      COLUMNS.map((column) => ({
+        key: String(column.key),
+        label: column.label,
+        kind: column.kind === "date" ? ("date" as const) : ("text" as const),
+        value: (row: PermitRow) => row[column.key],
+      })),
+    []
+  );
+
+  const excel = useExcelColumnFilters(preparedRows, excelColumns);
+  const excelRows = excel.rows;
+
+  useEffect(() => {
+    setPage(1);
+  }, [excel.activeCount]);
+
+  const totalRows = excelRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const pageEnd = pageStart + PAGE_SIZE;
-  const visibleRows = preparedRows.slice(pageStart, pageEnd);
+  const visibleRows = excelRows.slice(pageStart, pageEnd);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -742,7 +763,7 @@ export default function FleetUnitsPermits() {
     }
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -770,9 +791,9 @@ export default function FleetUnitsPermits() {
     border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
-    fontWeight: 900,
+    fontWeight: 700,
     padding: "6px 8px",
-    borderRadius: 8,
+    borderRadius: 6,
     outline: "none",
     fontSize: 12,
     lineHeight: "14px",
@@ -784,10 +805,10 @@ export default function FleetUnitsPermits() {
     background: "rgba(0,0,0,.12)",
     border: "1px solid rgba(216,238,255,.16)",
     color: "var(--text)",
-    borderRadius: 8,
+    borderRadius: 6,
     padding: "6px 8px",
     outline: "none",
-    fontWeight: 800,
+    fontWeight: 600,
     fontSize: 12,
     boxSizing: "border-box",
   };
@@ -823,7 +844,7 @@ export default function FleetUnitsPermits() {
         }}
       >
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ fontWeight: 900 }}>Flota · SOAT / RTV</div>
+          <div style={{ fontWeight: 700 }}>Flota · SOAT / RTV</div>
 
           <Button type="button" size="sm" variant="ghost" onClick={loadData} disabled={busy}>
             {loading ? "Cargando…" : "Recargar"}
@@ -841,14 +862,20 @@ export default function FleetUnitsPermits() {
             {importing ? "Importando…" : "Importar Formato"}
           </Button>
 
-          <div style={{ fontSize: 12, opacity: 0.78, fontWeight: 800 }}>
-            {preparedRows.length} de {rows.length} fila(s)
+          {excel.activeCount || excel.hasSort ? (
+            <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+            </Button>
+          ) : null}
+
+          <div style={{ fontSize: 12, opacity: 0.78, fontWeight: 600 }}>
+            {excelRows.length} de {rows.length} fila(s)
           </div>
         </div>
 
         <div style={{ display: "grid", gap: 8 }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, minWidth: 45 }}>SOAT</div>
+            <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9, minWidth: 45 }}>SOAT</div>
             {ALERT_ORDER.map((status) => {
               const active = alertFilter?.scope === "soat" && alertFilter.status === status;
 
@@ -867,7 +894,7 @@ export default function FleetUnitsPermits() {
                     padding: "6px 10px",
                     borderRadius: 999,
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     color: "var(--text)",
                     cursor: "pointer",
                     outline: active ? "2px solid rgba(255,255,255,.55)" : "none",
@@ -882,7 +909,7 @@ export default function FleetUnitsPermits() {
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, minWidth: 45 }}>RTV</div>
+            <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9, minWidth: 45 }}>RTV</div>
             {ALERT_ORDER.map((status) => {
               const active = alertFilter?.scope === "rtv" && alertFilter.status === status;
 
@@ -901,7 +928,7 @@ export default function FleetUnitsPermits() {
                     padding: "6px 10px",
                     borderRadius: 999,
                     fontSize: 12,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     color: "var(--text)",
                     cursor: "pointer",
                     outline: active ? "2px solid rgba(255,255,255,.55)" : "none",
@@ -926,7 +953,7 @@ export default function FleetUnitsPermits() {
           }}
         >
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>Buscar placa o alerta</span>
+            <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.85 }}>Buscar placa o alerta</span>
             <Input
               value={search}
               onChange={(e: any) => setSearch(String(e.target.value ?? ""))}
@@ -936,7 +963,7 @@ export default function FleetUnitsPermits() {
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>SOAT desde</span>
+            <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.85 }}>SOAT desde</span>
             <input
               type="date"
               value={soatFrom}
@@ -947,7 +974,7 @@ export default function FleetUnitsPermits() {
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>SOAT hasta</span>
+            <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.85 }}>SOAT hasta</span>
             <input
               type="date"
               value={soatTo}
@@ -958,7 +985,7 @@ export default function FleetUnitsPermits() {
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>RTV desde</span>
+            <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.85 }}>RTV desde</span>
             <input
               type="date"
               value={rtvFrom}
@@ -969,7 +996,7 @@ export default function FleetUnitsPermits() {
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>RTV hasta</span>
+            <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.85 }}>RTV hasta</span>
             <input
               type="date"
               value={rtvTo}
@@ -992,7 +1019,7 @@ export default function FleetUnitsPermits() {
                 ? "rgba(216,93,39,.10)"
                 : "rgba(27,147,227,.08)",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
             }}
           >
             {msg}
@@ -1043,8 +1070,13 @@ export default function FleetUnitsPermits() {
                         userSelect: "none",
                       }}
                     >
-                      {c.label}
-                      {getSortIndicator(c.key)}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <span>
+                          {c.label}
+                          {getSortIndicator(c.key)}
+                        </span>
+                        <ExcelHeaderFilter {...excel.headerProps(String(c.key))} />
+                      </span>
                     </th>
                   ))}
                 </tr>
@@ -1074,7 +1106,7 @@ export default function FleetUnitsPermits() {
                               borderBottom: gridH,
                               borderRight: gridV,
                               background: rowBg,
-                              fontWeight: c.key === "plate" ? 900 : 700,
+                              fontWeight: c.key === "plate" ? 700 : 600,
                             }}
                           >
                             {c.kind === "alert" ? (
@@ -1086,7 +1118,7 @@ export default function FleetUnitsPermits() {
                                   padding: "4px 8px",
                                   borderRadius: 999,
                                   fontSize: 11,
-                                  fontWeight: 900,
+                                  fontWeight: 700,
                                   ...getAlertStyle(raw),
                                 }}
                               >
@@ -1112,7 +1144,7 @@ export default function FleetUnitsPermits() {
                         padding: 14,
                         borderTop: gridH,
                         background: rowBg,
-                        fontWeight: 900,
+                        fontWeight: 700,
                       }}
                     >
                       {loading ? "Cargando…" : "No hay filas para mostrar."}
@@ -1136,7 +1168,7 @@ export default function FleetUnitsPermits() {
             background: "rgba(0,0,0,.10)",
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.85 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.85 }}>
             Página {safePage} de {totalPages} · Mostrando {visibleRows.length} de {totalRows}
           </div>
 
@@ -1216,7 +1248,7 @@ export default function FleetUnitsPermits() {
               }}
             >
               <div>
-                <div style={{ fontSize: 18, fontWeight: 900 }}>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>
                   Preview de importación SOAT / RTV
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
@@ -1231,28 +1263,28 @@ export default function FleetUnitsPermits() {
 
             {importSummary ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Archivo: {importSummary.file_name}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Filas Excel: {importSummary.total_excel_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Filas únicas: {importSummary.unique_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 700 }}>
                   Válidas: {importSummary.valid_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Inválidas: {importSummary.invalid_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_plates > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_plates > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_plates > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_plates > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Placas repetidas: {importSummary.repeated_plates}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Filas extra repetidas: {importSummary.repeated_extra_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 700 }}>
                   A postear: {importSummary.post_rows}
                 </div>
               </div>
@@ -1264,7 +1296,7 @@ export default function FleetUnitsPermits() {
                 minHeight: 0,
                 overflow: "auto",
                 border: "1px solid rgba(216,238,255,.12)",
-                borderRadius: 12,
+                borderRadius: 10,
               }}
             >
               <div style={{ width: "max-content", minWidth: "100%" }}>
@@ -1330,11 +1362,11 @@ export default function FleetUnitsPermits() {
                             />
                           </td>
 
-                          <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                          <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 700 }}>
                             {row.status}
                           </td>
 
-                          <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                          <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 700 }}>
                             {row.source_duplicate_count > 1 ? "Sí" : "No"}
                           </td>
 
@@ -1359,7 +1391,7 @@ export default function FleetUnitsPermits() {
 
                     {!previewRows.length ? (
                       <tr>
-                        <td colSpan={7} className="capex-td" style={{ ...cellBase, padding: 14, background: rowBg, fontWeight: 900 }}>
+                        <td colSpan={7} className="capex-td" style={{ ...cellBase, padding: 14, background: rowBg, fontWeight: 700 }}>
                           No hay filas para preview.
                         </td>
                       </tr>
@@ -1370,7 +1402,7 @@ export default function FleetUnitsPermits() {
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
                 {previewRows.some((row) => !row.valid)
                   ? "Corrige las filas inválidas para habilitar la importación."
                   : `Se reemplazará la tabla con ${previewRows.length} placa(s).`}

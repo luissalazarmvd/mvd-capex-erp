@@ -407,7 +407,7 @@ function Select({
 
   return (
     <div style={{ display: "grid", gap: 6 }} ref={wrapRef}>
-      <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
 
       <button
         type="button"
@@ -422,7 +422,7 @@ function Select({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
           display: "flex",
@@ -443,7 +443,7 @@ function Select({
               top: 6,
               left: 0,
               right: 0,
-              borderRadius: 12,
+              borderRadius: 10,
               border: "1px solid rgba(255,255,255,.10)",
               background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -472,7 +472,7 @@ function Select({
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
@@ -1396,7 +1396,7 @@ useEffect(() => {
     }
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -1417,10 +1417,10 @@ useEffect(() => {
     background: "rgba(0,0,0,.12)",
     border: "1px solid rgba(216,238,255,.16)",
     color: "var(--text)",
-    borderRadius: 8,
+    borderRadius: 6,
     padding: "6px 8px",
     outline: "none",
-    fontWeight: 800,
+    fontWeight: 600,
     fontSize: 12,
     boxSizing: "border-box",
   };
@@ -1437,7 +1437,7 @@ useEffect(() => {
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ display: "grid", gap: 4 }}>
-          <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9 }}>Desde</div>
+          <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9 }}>Desde</div>
           <Input
             value={fromYear}
             onChange={(e: any) => {
@@ -1458,7 +1458,7 @@ useEffect(() => {
         </div>
 
         <div style={{ display: "grid", gap: 4 }}>
-          <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9 }}>Hasta</div>
+          <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9 }}>Hasta</div>
           <Input
             value={toYear}
             onChange={(e: any) => {
@@ -1534,7 +1534,7 @@ useEffect(() => {
               }}
             >
               <div>
-                <div style={{ fontSize: 18, fontWeight: 900 }}>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>
                   Preview de importación de consumos por reactivo
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
@@ -1551,71 +1551,71 @@ useEffect(() => {
             {importSummary ? (
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Scope: Todo
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Archivo: {importSummary.file_name}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Filas Excel: {importSummary.total_excel_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Filas únicas: {importSummary.unique_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 700 }}>
                     Válidas: {importSummary.valid_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Inválidas: {importSummary.invalid_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_keys > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_keys > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_keys > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_keys > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Combinaciones repetidas: {importSummary.repeated_keys}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Filas extra repetidas: {importSummary.repeated_extra_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Nuevas: {importSummary.new_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Actualizar: {importSummary.update_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                     Iguales: {importSummary.equal_rows}
                   </div>
-                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 900 }}>
+                  <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 700 }}>
                     A postear: {totalPostRows}
                   </div>
                 </div>
 
                 {selectedPreviewGroup ? (
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 700 }}>
                       Scope: {selectedPreviewGroup.reagent_name}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                       Filas únicas: {selectedPreviewSummary.total_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 700 }}>
                       Válidas: {selectedPreviewSummary.valid_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: selectedPreviewSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: selectedPreviewSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: selectedPreviewSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: selectedPreviewSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                       Inválidas: {selectedPreviewSummary.invalid_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: selectedPreviewSummary.repeated_keys > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: selectedPreviewSummary.repeated_keys > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: selectedPreviewSummary.repeated_keys > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: selectedPreviewSummary.repeated_keys > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                       Combinaciones repetidas: {selectedPreviewSummary.repeated_keys}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                       Nuevas: {selectedPreviewSummary.new_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                       Actualizar: {selectedPreviewSummary.update_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                       Iguales: {selectedPreviewSummary.equal_rows}
                     </div>
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 900 }}>
+                    <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 700 }}>
                       A postear: {selectedPreviewSummary.post_rows}
                     </div>
                   </div>
@@ -1629,7 +1629,7 @@ useEffect(() => {
                 minHeight: 0,
                 overflow: "auto",
                 border: "1px solid rgba(216,238,255,.12)",
-                borderRadius: 12,
+                borderRadius: 10,
                 padding: 10,
                 display: "grid",
                 gap: 10,
@@ -1653,7 +1653,7 @@ useEffect(() => {
                     <div
                       style={{
                         border: "1px solid rgba(216,238,255,.12)",
-                        borderRadius: 12,
+                        borderRadius: 10,
                         overflow: "hidden",
                         minWidth: 0,
                         minHeight: 0,
@@ -1666,7 +1666,7 @@ useEffect(() => {
                           padding: "10px 12px",
                           background: "rgba(255,255,255,.04)",
                           borderBottom: "1px solid rgba(216,238,255,.10)",
-                          fontWeight: 900,
+                          fontWeight: 700,
                           display: "flex",
                           justifyContent: "space-between",
                           gap: 12,
@@ -1778,11 +1778,11 @@ useEffect(() => {
                                   );
                                 })}
 
-                                <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                                <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 700 }}>
                                   {row.status}
                                 </td>
 
-                                <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                                <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 700 }}>
                                   {row.has_duplicate ? "Sí" : "No"}
                                 </td>
 
@@ -1804,12 +1804,12 @@ useEffect(() => {
                   ) : null}
                 </>
               ) : (
-                <div style={{ padding: 12, fontWeight: 900 }}>No hay filas para preview.</div>
+                <div style={{ padding: 12, fontWeight: 700 }}>No hay filas para preview.</div>
               )}
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
                 {previewRows.some((row) => !row.valid)
                   ? `Corrige las filas inválidas para habilitar la importación. Todo: ${totalPostRows} a postear${selectedPreviewGroup ? ` · ${selectedPreviewSummary.post_rows} del reactivo seleccionado` : ""}.`
                   : `Se postearán exactamente ${totalPostRows} fila(s) al endpoint de consumos${selectedPreviewGroup ? ` · ${selectedPreviewSummary.post_rows} del reactivo seleccionado` : ""}.`}

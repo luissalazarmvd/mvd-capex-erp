@@ -745,12 +745,12 @@ function ExcelHeaderFilter({
     return {
       textAlign: "left",
       padding: "6px 8px",
-      borderRadius: 7,
+      borderRadius: 6,
       border: "1px solid rgba(147,211,230,.24)",
       background: selected
         ? "rgba(27,147,227,.24)"
         : "rgba(2,35,52,.38)",
-      color: "#f4fbff",
+      color: "#e8f1f7",
       cursor: "pointer",
     };
   }
@@ -759,10 +759,10 @@ function ExcelHeaderFilter({
     width: "100%",
     height: 30,
     padding: "5px 8px",
-    borderRadius: 7,
+    borderRadius: 6,
     border: "1px solid rgba(147,211,230,.30)",
     background: "rgba(2,35,52,.58)",
-    color: "#f4fbff",
+    color: "#e8f1f7",
     outline: "none",
     colorScheme: "dark",
   };
@@ -788,14 +788,14 @@ function ExcelHeaderFilter({
           width: 20,
           height: 20,
           padding: 0,
-          borderRadius: 5,
+          borderRadius: 6,
           border: active
             ? "1px solid rgba(147,211,230,.72)"
             : "1px solid rgba(147,211,230,.30)",
           background: active
             ? "rgba(27,147,227,.32)"
             : "rgba(2,35,52,.34)",
-          color: "#eaf8ff",
+          color: "#e8f1f7",
           fontSize: 10,
           lineHeight: 1,
           cursor: "pointer",
@@ -820,14 +820,14 @@ function ExcelHeaderFilter({
                 padding: 10,
                 border: "1px solid rgba(147,211,230,.42)",
                 borderRadius: 10,
-                background: "#07364d",
+                background: "#0f2a38",
                 boxShadow: "0 14px 32px rgba(0,0,0,.40)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 textAlign: "left",
                 fontSize: 12,
               }}
             >
-              <div style={{ fontWeight: 900, marginBottom: 8 }}>{label}</div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>{label}</div>
               <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
                 <button
                   type="button"
@@ -877,7 +877,7 @@ function ExcelHeaderFilter({
                     alignItems: "center",
                     gap: 7,
                     marginTop: 8,
-                    fontWeight: 800,
+                    fontWeight: 600,
                   }}
                 >
                   <input
@@ -956,7 +956,7 @@ function ExcelHeaderFilter({
                   style={{
                     ...menuInputStyle,
                     padding: "4px 7px",
-                    background: "#0b4d6b",
+                    background: "#0a1f2c",
                   }}
                 >
                   {excelOperatorOptions(kind).map((option) => (
@@ -1039,7 +1039,7 @@ function ExcelHeaderFilter({
                       });
                       closeMenu();
                     }}
-                    style={{ ...menuButtonStyle(true), fontWeight: 900 }}
+                    style={{ ...menuButtonStyle(true), fontWeight: 700 }}
                   >
                     Aplicar
                   </button>
@@ -1128,7 +1128,7 @@ function RowItem({
                 minWidth: colWidth,
                 maxWidth: colWidth,
                 padding: isNumber ? "6px 4px" : "6px 8px",
-                color: "rgb(185,185,185)",
+                color: "rgb(168, 192, 207)",
               }}
               title={show || "—"}
             >
@@ -1174,7 +1174,7 @@ function RowItem({
                   borderRadius: 10,
                   padding: "10px 12px",
                   outline: "none",
-                  fontWeight: 900,
+                  fontWeight: 700,
                   textAlign: "right",
                   boxSizing: "border-box",
                 }}
@@ -1222,7 +1222,7 @@ function RowItem({
                   borderRadius: 10,
                   padding: "10px 12px",
                   outline: "none",
-                  fontWeight: 900,
+                  fontWeight: 700,
                   boxSizing: "border-box",
                   colorScheme: "dark",
                 }}
@@ -1278,7 +1278,7 @@ function RowItem({
                     borderRadius: 10,
                     padding: "10px 12px",
                     outline: "none",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     textAlign: "left",
                     boxSizing: "border-box",
                   }}
@@ -1287,7 +1287,7 @@ function RowItem({
                 <span
                   style={{
                     fontSize: 11,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     color: charCount >= 255 ? "rgb(235, 176, 134)" : "rgba(255,255,255,.65)",
                     whiteSpace: "nowrap",
                   }}
@@ -1335,7 +1335,7 @@ function RowItem({
                   borderRadius: 10,
                   padding: "10px 12px",
                   outline: "none",
-                  fontWeight: 900,
+                  fontWeight: 700,
                   textAlign: "left",
                   boxSizing: "border-box",
                 }}
@@ -1399,7 +1399,7 @@ function RowItem({
                       borderRadius: 10,
                       padding: "10px 12px",
                       outline: "none",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       cursor: loading || saving ? "not-allowed" : "pointer",
                       opacity: loading || saving ? 0.7 : 1,
                       display: "flex",
@@ -1429,7 +1429,7 @@ function RowItem({
                         top: "calc(100% + 8px)",
                         left: 0,
                         zIndex: 99999,
-                        borderRadius: 12,
+                        borderRadius: 10,
                         border: "1px solid rgba(255,255,255,.10)",
                         background: "rgba(6, 77, 121, .98)",
                         boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -1457,7 +1457,7 @@ function RowItem({
                           border: "none",
                           borderBottom: "1px solid rgba(255,255,255,.10)",
                           cursor: "pointer",
-                          fontWeight: 900,
+                          fontWeight: 700,
                         }}
                       >
                         Limpiar selección
@@ -1490,7 +1490,7 @@ function RowItem({
                               color: "rgba(255,255,255,.92)",
                               border: "none",
                               cursor: "pointer",
-                              fontWeight: 900,
+                              fontWeight: 700,
                               whiteSpace: "normal",
                               lineHeight: "16px",
                               wordBreak: "normal",
@@ -1920,7 +1920,7 @@ export default function FleetMgmForm() {
     return sortDir === "asc" ? " ▲" : " ▼";
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -1948,9 +1948,9 @@ export default function FleetMgmForm() {
     border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
-    fontWeight: 900,
+    fontWeight: 700,
     padding: "6px 8px",
-    borderRadius: 8,
+    borderRadius: 6,
     outline: "none",
     fontSize: 12,
     lineHeight: "14px",
@@ -1981,7 +1981,7 @@ export default function FleetMgmForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>Flota · Gestión</div>
+        <div style={{ fontWeight: 700 }}>Flota · Gestión</div>
 
         <Button
           type="button"
@@ -2000,7 +2000,7 @@ export default function FleetMgmForm() {
             border: "1px solid rgba(147, 178, 92, 0.45)",
             background: editedCount > 0 ? "rgba(94, 128, 25, 0.24)" : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: editedCount > 0 ? "rgb(174, 202, 125)" : "rgba(255,255,255,0.8)",
           }}
         >
@@ -2018,7 +2018,7 @@ export default function FleetMgmForm() {
             background: statusFilter === "Abierto" ? "rgba(27,147,227,.18)" : "rgba(255,255,255,0.06)",
             color: "white",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             cursor: loading || saving ? "not-allowed" : "pointer",
           }}
         >
@@ -2036,7 +2036,7 @@ export default function FleetMgmForm() {
             background: statusFilter === "Cerrado" ? "rgba(27,147,227,.18)" : "rgba(255,255,255,0.06)",
             color: "white",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             cursor: loading || saving ? "not-allowed" : "pointer",
           }}
         >
@@ -2045,7 +2045,7 @@ export default function FleetMgmForm() {
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Req Date desde</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Req Date desde</div>
             <input
               type="date"
               value={dateFrom}
@@ -2057,7 +2057,7 @@ export default function FleetMgmForm() {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Req Date hasta</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Req Date hasta</div>
             <input
               type="date"
               value={dateTo}
@@ -2069,7 +2069,7 @@ export default function FleetMgmForm() {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>F. Ingreso desde</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>F. Ingreso desde</div>
             <input
               type="date"
               value={entryDateFrom}
@@ -2082,7 +2082,7 @@ export default function FleetMgmForm() {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>F. Ingreso hasta</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>F. Ingreso hasta</div>
             <input
               type="date"
               value={entryDateTo}
@@ -2095,7 +2095,7 @@ export default function FleetMgmForm() {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>F. Salida desde</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>F. Salida desde</div>
             <input
               type="date"
               value={exitDateFrom}
@@ -2108,7 +2108,7 @@ export default function FleetMgmForm() {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>F. Salida hasta</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>F. Salida hasta</div>
             <input
               type="date"
               value={exitDateTo}
@@ -2121,7 +2121,7 @@ export default function FleetMgmForm() {
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>Buscador global</div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Buscador global</div>
             <input
               type="text"
               value={globalFilter}
@@ -2187,7 +2187,7 @@ export default function FleetMgmForm() {
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
                 ? "rgba(27,147,227,.10)"
                 : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -2324,7 +2324,7 @@ export default function FleetMgmForm() {
 
               {!loading && visibleRows.length === 0 ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={visibleColumns.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={visibleColumns.length}>
                     No hay filas para el filtro seleccionado.
                   </td>
                 </tr>
@@ -2332,7 +2332,7 @@ export default function FleetMgmForm() {
 
               {loading ? (
                 <tr className="capex-tr">
-                  <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={visibleColumns.length}>
+                  <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={visibleColumns.length}>
                     Cargando requerimientos de flota…
                   </td>
                 </tr>
@@ -2354,7 +2354,7 @@ export default function FleetMgmForm() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
           Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
         </div>
 
@@ -2374,7 +2374,7 @@ export default function FleetMgmForm() {
               minWidth: 90,
               textAlign: "center",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",

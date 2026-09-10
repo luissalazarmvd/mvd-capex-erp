@@ -407,7 +407,7 @@ function Select({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
           display: "flex",
@@ -430,7 +430,7 @@ function Select({
               top: 6,
               left: 0,
               right: 0,
-              borderRadius: 12,
+              borderRadius: 10,
               border: "1px solid rgba(255,255,255,.10)",
               background: "rgba(6, 77, 121, .98)",
               boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -456,7 +456,7 @@ function Select({
                     color: isEmpty ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.92)",
                     border: "none",
                     cursor: "pointer",
-                    fontWeight: 900,
+                    fontWeight: 700,
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as any).style.background = active
@@ -783,7 +783,7 @@ export default function ProdImpExp({
     }
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -804,10 +804,10 @@ export default function ProdImpExp({
     background: "rgba(0,0,0,.12)",
     border: "1px solid rgba(216,238,255,.16)",
     color: "var(--text)",
-    borderRadius: 8,
+    borderRadius: 6,
     padding: "6px 8px",
     outline: "none",
-    fontWeight: 800,
+    fontWeight: 600,
     fontSize: 12,
     boxSizing: "border-box",
   };
@@ -823,7 +823,7 @@ export default function ProdImpExp({
       />
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9 }}>Desde</div>
+        <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9 }}>Desde</div>
 
         <div style={{ width: 114 }}>
           <Input
@@ -844,7 +844,7 @@ export default function ProdImpExp({
           />
         </div>
 
-        <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.9, marginLeft: 6 }}>Hasta</div>
+        <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.9, marginLeft: 6 }}>Hasta</div>
 
         <div style={{ width: 114 }}>
           <Input
@@ -921,7 +921,7 @@ export default function ProdImpExp({
               }}
             >
               <div>
-                <div style={{ fontSize: 18, fontWeight: 900 }}>Preview de importación de producción</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Preview de importación de producción</div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
                   Se tomará la fila más baja cuando un campaign_id venga repetido.
                 </div>
@@ -934,37 +934,37 @@ export default function ProdImpExp({
 
             {importSummary ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Archivo: {importSummary.file_name}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Filas Excel: {importSummary.total_excel_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Filas únicas: {importSummary.unique_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(27,147,227,.45)", background: "rgba(27,147,227,.10)", fontSize: 12, fontWeight: 700 }}>
                   Válidas: {importSummary.valid_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.invalid_rows > 0 ? "1px solid rgba(216,93,39,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.invalid_rows > 0 ? "rgba(216,93,39,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Inválidas: {importSummary.invalid_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_campaigns > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_campaigns > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_campaigns > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_campaigns > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Campaigns repetidas: {importSummary.repeated_campaigns}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: importSummary.repeated_extra_rows > 0 ? "1px solid rgba(255,183,27,.45)" : "1px solid rgba(255,255,255,0.12)", background: importSummary.repeated_extra_rows > 0 ? "rgba(255,183,27,.10)" : "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Filas extra repetidas: {importSummary.repeated_extra_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Actualizar: {importSummary.update_rows}
                 </div>
-                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 900 }}>
+                <div style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", fontSize: 12, fontWeight: 700 }}>
                   Iguales: {importSummary.equal_rows}
                 </div>
               </div>
             ) : null}
 
-            <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(216,238,255,.12)", borderRadius: 12 }}>
+            <div style={{ minWidth: 0, minHeight: 0, overflow: "auto", border: "1px solid rgba(216,238,255,.12)", borderRadius: 10 }}>
               <Table stickyHeader disableScrollWrapper>
                 <colgroup>
                   <col style={{ width: 70 }} />
@@ -1063,11 +1063,11 @@ export default function ProdImpExp({
                           />
                         </td>
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 700 }}>
                           {row.status}
                         </td>
 
-                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 900 }}>
+                        <td className="capex-td" style={{ ...cellBase, borderTop: gridH, borderBottom: gridH, borderRight: gridV, background: bg, fontWeight: 700 }}>
                           {row.is_duplicate ? `Sí (${row.duplicate_count})` : "No"}
                         </td>
 
@@ -1080,7 +1080,7 @@ export default function ProdImpExp({
 
                   {previewRows.length === 0 ? (
                     <tr className="capex-tr">
-                      <td className="capex-td" style={{ ...cellBase, fontWeight: 900 }} colSpan={8}>
+                      <td className="capex-td" style={{ ...cellBase, fontWeight: 700 }} colSpan={8}>
                         No hay filas para preview.
                       </td>
                     </tr>
@@ -1090,7 +1090,7 @@ export default function ProdImpExp({
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
                 {previewRows.some((row) => !row.valid)
                   ? "Corrige las filas inválidas para habilitar la importación."
                   : `Se postearán exactamente ${previewRows.filter((row) => !!row.payload).length} fila(s) con cambios.`}

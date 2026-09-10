@@ -361,7 +361,7 @@ export default function CampRunML({
         className="muted"
         style={{
           fontSize: 12,
-          fontWeight: 800,
+          fontWeight: 600,
           lineHeight: 1.1,
           minHeight: 14,
         }}

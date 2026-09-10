@@ -16,7 +16,7 @@ export default function FixAssetsLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div data-module="fixassets" style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <header style={{ background: "var(--header)", borderBottom: "1px solid var(--border)" }}>
         <div className="container-fluid" style={{ paddingTop: 14, paddingBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
@@ -25,7 +25,7 @@ export default function FixAssetsLayout({ children }: { children: React.ReactNod
                 <Image src="/logo_mvd.png" alt="MVD" fill priority style={{ objectFit: "contain" }} sizes="130px" />
               </LogoutLink>
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>MVD – ACTIVOS FIJOS</div>
+                <div style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>MVD – ACTIVOS FIJOS</div>
                 <div className="muted" style={{ fontSize: 12 }}>Altas · Catálogo · Depreciación · Exportación</div>
               </div>
             </div>

@@ -28,15 +28,15 @@ function PortalFallback() {
         style={{
           background: "#0067AC",
           padding: 32,
-          borderRadius: 8,
+          borderRadius: 6,
           width: 380,
           textAlign: "center",
           opacity: 0.9,
         }}
       >
         <img src="/logo_mvd.png" alt="Veta Dorada" style={{ height: 58, marginBottom: 18 }} />
-        <h2 style={{ margin: "0 0 10px 0", fontWeight: 800 }}>Acceso MVD</h2>
-        <div style={{ color: "#D8EEFF", fontWeight: 700 }}>Cargando…</div>
+        <h2 style={{ margin: "0 0 10px 0", fontWeight: 600 }}>Acceso MVD</h2>
+        <div style={{ color: "#a8c0cf", fontWeight: 700 }}>Cargando…</div>
       </div>
     </main>
   );

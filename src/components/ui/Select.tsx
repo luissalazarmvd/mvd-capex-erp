@@ -21,7 +21,7 @@ export function Select({
   return (
     <div style={{ display: "grid", gap: 6 }}>
       {label ? (
-        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--muted)" }}>
+        <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".09em", textTransform: "uppercase", color: "var(--ink-3)" }}>
           {label}
         </div>
       ) : null}
@@ -62,8 +62,8 @@ export function Select({
         }
 
         select.select option {
-          background: #064d79;
-          color: #ffffff;
+          background: #0f2a38;
+          color: #e8f1f7;
         }
       `}</style>
     </div>

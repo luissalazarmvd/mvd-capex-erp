@@ -12,6 +12,7 @@ import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 
 type SustainabilityProvRow = {
   ruc: string | null;
@@ -814,7 +815,7 @@ function Dropdown({
           borderRadius: 10,
           padding: "10px 12px",
           outline: "none",
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: disabled ? "not-allowed" : "pointer",
           opacity: disabled ? 0.7 : 1,
           display: "flex",
@@ -847,7 +848,7 @@ function Dropdown({
             top: "calc(100% + 8px)",
             left: 0,
             zIndex: 99999,
-            borderRadius: 12,
+            borderRadius: 10,
             border: "1px solid rgba(255,255,255,.10)",
             background: "rgba(6, 77, 121, .98)",
             boxShadow: "0 10px 30px rgba(0,0,0,.45)",
@@ -886,7 +887,7 @@ function Dropdown({
                     : "rgba(255,255,255,.92)",
                   border: "none",
                   cursor: "pointer",
-                  fontWeight: 900,
+                  fontWeight: 700,
                   whiteSpace: "normal",
                   lineHeight: "16px",
                 }}
@@ -959,10 +960,10 @@ function RowItem({
     : rowBg;
 
   const stickyRowBg = invalid
-    ? "rgb(86, 37, 16)"
+    ? "rgb(107, 46, 20)"
     : edited
-    ? "rgb(47, 64, 13)"
-    : "rgb(6, 77, 121)";
+    ? "rgb(51, 82, 31)"
+    : "rgb(20, 52, 68)";
 
   return (
     <tr
@@ -1017,11 +1018,11 @@ function RowItem({
                 borderBottom: gridH,
                 borderRight: gridV,
                 background: sticky ? stickyRowBg : currentRowBg,
-                color: "rgb(185,185,185)",
+                color: "rgb(168, 192, 207)",
                 width: column.width,
                 minWidth: column.width,
                 maxWidth: column.width,
-                fontWeight: sticky ? 800 : 400,
+                fontWeight: sticky ? 600 : 400,
                 boxShadow:
                   column.key === "concession_code"
                     ? "3px 0 8px rgba(0,0,0,.22)"
@@ -1114,7 +1115,7 @@ function RowItem({
                 <span
                   style={{
                     padding: "10px 0 10px 12px",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     color: "var(--text)",
                     whiteSpace: "nowrap",
                   }}
@@ -1146,7 +1147,7 @@ function RowItem({
                     background: "transparent",
                     color: "var(--text)",
                     outline: "none",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     padding: "10px 12px 10px 2px",
                     boxSizing: "border-box",
                   }}
@@ -1208,7 +1209,7 @@ function RowItem({
                     borderRadius: 10,
                     padding: "10px 12px",
                     outline: "none",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     boxSizing: "border-box",
                   }}
                 />
@@ -1216,7 +1217,7 @@ function RowItem({
                 <span
                   style={{
                     fontSize: 11,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     whiteSpace: "nowrap",
                     color:
                       value.length >= 100
@@ -1286,7 +1287,7 @@ function RowItem({
                     borderRadius: 10,
                     padding: "10px 12px",
                     outline: "none",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     boxSizing: "border-box",
                   }}
                 />
@@ -1294,7 +1295,7 @@ function RowItem({
                 <span
                   style={{
                     fontSize: 11,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     whiteSpace: "nowrap",
                     color:
                       value.length > 0 && value.length !== 9
@@ -1361,7 +1362,7 @@ function RowItem({
                     borderRadius: 10,
                     padding: "10px 12px",
                     outline: "none",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     boxSizing: "border-box",
                   }}
                 />
@@ -1369,7 +1370,7 @@ function RowItem({
                 <span
                   style={{
                     fontSize: 11,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     whiteSpace: "nowrap",
                     color:
                       value.length >= 100
@@ -1420,7 +1421,7 @@ function RowItem({
                 borderRadius: 10,
                 padding: "10px 12px",
                 outline: "none",
-                fontWeight: 900,
+                fontWeight: 700,
                 boxSizing: "border-box",
               }}
             />
@@ -1557,12 +1558,37 @@ export default function SustainabilityProvTable() {
     });
   }, [rows, drafts, globalFilter, sortKey, sortDir]);
 
-  const totalRows = preparedRows.length;
+  // Filtros tipo Excel: capa de vista sobre `preparedRows`, evaluando el valor
+  // vigente del draft en las columnas editables. La exportación sigue usando
+  // `preparedRows` y no se ve afectada.
+  const excelColumns = useMemo<Array<ExcelColumnDef<SustainabilityProvRow>>>(
+    () =>
+      visibleColumns.map((column) => ({
+        key: String(column.key),
+        label: column.label,
+        kind: "text" as const,
+        value: (row: SustainabilityProvRow) => {
+          const draft = drafts[getRowKey(row)];
+
+          return column.editable && draft ? draft[column.key] : row[column.key];
+        },
+      })),
+    [visibleColumns, drafts]
+  );
+
+  const excel = useExcelColumnFilters(preparedRows, excelColumns);
+  const filteredRows = excel.rows;
+
+  useEffect(() => {
+    setPage(1);
+  }, [excel.activeCount]);
+
+  const totalRows = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const pageEnd = pageStart + PAGE_SIZE;
-  const visibleRows = preparedRows.slice(pageStart, pageEnd);
+  const visibleRows = filteredRows.slice(pageStart, pageEnd);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -1768,7 +1794,7 @@ export default function SustainabilityProvTable() {
     );
   }
 
-  const headerBg = "rgb(6, 77, 121)";
+  const headerBg = "rgb(20, 52, 68)";
   const headerBorder = "1px solid rgba(216, 238, 255, 0.26)";
   const gridV = "1px solid rgba(216, 238, 255, 0.10)";
   const gridH = "1px solid rgba(216, 238, 255, 0.08)";
@@ -1790,9 +1816,9 @@ export default function SustainabilityProvTable() {
     border: "1px solid rgba(216,238,255,.18)",
     background: "rgba(0,0,0,.10)",
     color: "white",
-    fontWeight: 900,
+    fontWeight: 700,
     padding: "8px 10px",
-    borderRadius: 8,
+    borderRadius: 6,
     outline: "none",
     fontSize: 12,
     lineHeight: "14px",
@@ -1823,7 +1849,7 @@ export default function SustainabilityProvTable() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>
+        <div style={{ fontWeight: 700 }}>
           Sostenibilidad · Padrón de Proveedores
         </div>
 
@@ -1847,7 +1873,7 @@ export default function SustainabilityProvTable() {
                 ? "rgba(94, 128, 25, 0.24)"
                 : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color:
               editedCount > 0
                 ? "rgb(174, 202, 125)"
@@ -1865,7 +1891,7 @@ export default function SustainabilityProvTable() {
               border: "1px solid rgba(216, 93, 39, 0.65)",
               background: "rgba(216, 93, 39, 0.28)",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               color: "rgb(235, 176, 134)",
             }}
           >
@@ -1886,7 +1912,7 @@ export default function SustainabilityProvTable() {
             <div
               style={{
                 fontSize: 11,
-                fontWeight: 800,
+                fontWeight: 600,
                 opacity: 0.9,
               }}
             >
@@ -1914,6 +1940,12 @@ export default function SustainabilityProvTable() {
           >
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
+
+          {excel.activeCount || excel.hasSort ? (
+            <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+            </Button>
+          ) : null}
 
           <Button
             type="button"
@@ -1960,7 +1992,7 @@ export default function SustainabilityProvTable() {
               msg.startsWith("OK") || msg.startsWith("PARCIAL")
                 ? "rgba(27,147,227,.10)"
                 : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -2042,8 +2074,13 @@ export default function SustainabilityProvTable() {
                       }}
                       title={column.label}
                     >
-                      {column.label}
-                      {getSortIndicator(column.key)}
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {column.label}
+                          {getSortIndicator(column.key)}
+                        </span>
+                        <ExcelHeaderFilter {...excel.headerProps(String(column.key))} />
+                      </span>
                     </th>
                   );
                 })}
@@ -2086,7 +2123,7 @@ export default function SustainabilityProvTable() {
                     style={{
                       ...cellBase,
                       padding: 14,
-                      fontWeight: 900,
+                      fontWeight: 700,
                     }}
                   >
                     No hay filas para el filtro seleccionado.
@@ -2102,7 +2139,7 @@ export default function SustainabilityProvTable() {
                     style={{
                       ...cellBase,
                       padding: 14,
-                      fontWeight: 900,
+                      fontWeight: 700,
                     }}
                   >
                     Cargando padrón de proveedores…
@@ -2129,7 +2166,7 @@ export default function SustainabilityProvTable() {
         <div
           style={{
             fontSize: 12,
-            fontWeight: 800,
+            fontWeight: 600,
             opacity: 0.9,
           }}
         >
@@ -2162,7 +2199,7 @@ export default function SustainabilityProvTable() {
               minWidth: 90,
               textAlign: "center",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",

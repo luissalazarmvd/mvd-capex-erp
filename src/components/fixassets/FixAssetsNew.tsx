@@ -460,9 +460,9 @@ function currentPeriod() {
 }
 
 function stickyRowBackground(state: RowState) {
-  if (state === "valid") return "#416f43";
-  if (state === "invalid") return "#79453b";
-  return "#0b4d6b";
+  if (state === "valid") return "#33521f";
+  if (state === "invalid") return "#6b2e14";
+  return "#0a1f2c";
 }
 
 const NEW_DATE_FILTER_FIELDS = new Set<TableColumnKey>([
@@ -930,14 +930,14 @@ function ExcelHeaderFilter({
           width: 20,
           height: 20,
           padding: 0,
-          borderRadius: 5,
+          borderRadius: 6,
           border: active
             ? "1px solid rgba(147,211,230,.72)"
             : "1px solid rgba(147,211,230,.30)",
           background: active
             ? "rgba(27,147,227,.32)"
             : "rgba(2,35,52,.34)",
-          color: "#eaf8ff",
+          color: "#e8f1f7",
           fontSize: 10,
           lineHeight: 1,
           cursor: "pointer",
@@ -962,14 +962,14 @@ function ExcelHeaderFilter({
                 padding: 10,
                 border: "1px solid rgba(147,211,230,.42)",
                 borderRadius: 10,
-                background: "#07364d",
+                background: "#0f2a38",
                 boxShadow: "0 14px 32px rgba(0,0,0,.40)",
-                color: "#f4fbff",
+                color: "#e8f1f7",
                 textAlign: "left",
                 fontSize: 12,
               }}
             >
-              <div style={{ fontWeight: 900, marginBottom: 8 }}>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>
                 {label}
               </div>
 
@@ -989,13 +989,13 @@ function ExcelHeaderFilter({
                   style={{
                     textAlign: "left",
                     padding: "6px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border: "1px solid rgba(147,211,230,.24)",
                     background:
                       sortDirection === "asc"
                         ? "rgba(27,147,227,.24)"
                         : "rgba(2,35,52,.38)",
-                    color: "#f4fbff",
+                    color: "#e8f1f7",
                     cursor: "pointer",
                   }}
                 >
@@ -1015,13 +1015,13 @@ function ExcelHeaderFilter({
                   style={{
                     textAlign: "left",
                     padding: "6px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border: "1px solid rgba(147,211,230,.24)",
                     background:
                       sortDirection === "desc"
                         ? "rgba(27,147,227,.24)"
                         : "rgba(2,35,52,.38)",
-                    color: "#f4fbff",
+                    color: "#e8f1f7",
                     cursor: "pointer",
                   }}
                 >
@@ -1047,10 +1047,10 @@ function ExcelHeaderFilter({
                     width: "100%",
                     height: 30,
                     padding: "5px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border: "1px solid rgba(147,211,230,.30)",
                     background: "rgba(2,35,52,.58)",
-                    color: "#f4fbff",
+                    color: "#e8f1f7",
                     outline: "none",
                   }}
                 />
@@ -1061,7 +1061,7 @@ function ExcelHeaderFilter({
                     alignItems: "center",
                     gap: 7,
                     marginTop: 8,
-                    fontWeight: 800,
+                    fontWeight: 600,
                   }}
                 >
                   <input
@@ -1139,10 +1139,10 @@ function ExcelHeaderFilter({
                     width: "100%",
                     height: 30,
                     padding: "4px 7px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border: "1px solid rgba(147,211,230,.30)",
-                    background: "#0b4d6b",
-                    color: "#f4fbff",
+                    background: "#0a1f2c",
+                    color: "#e8f1f7",
                   }}
                 >
                   {excelOperatorOptions(kind).map((option) => (
@@ -1171,10 +1171,10 @@ function ExcelHeaderFilter({
                       width: "100%",
                       height: 30,
                       padding: "5px 8px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border: "1px solid rgba(147,211,230,.30)",
                       background: "rgba(2,35,52,.58)",
-                      color: "#f4fbff",
+                      color: "#e8f1f7",
                       outline: "none",
                     }}
                   />
@@ -1195,10 +1195,10 @@ function ExcelHeaderFilter({
                       width: "100%",
                       height: 30,
                       padding: "5px 8px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border: "1px solid rgba(147,211,230,.30)",
                       background: "rgba(2,35,52,.58)",
-                      color: "#f4fbff",
+                      color: "#e8f1f7",
                       outline: "none",
                     }}
                   />
@@ -1221,10 +1221,10 @@ function ExcelHeaderFilter({
                   }}
                   style={{
                     padding: "6px 8px",
-                    borderRadius: 7,
+                    borderRadius: 6,
                     border: "1px solid rgba(147,211,230,.24)",
                     background: "transparent",
-                    color: "#d8eef8",
+                    color: "#a8c0cf",
                     cursor: "pointer",
                   }}
                 >
@@ -1237,10 +1237,10 @@ function ExcelHeaderFilter({
                     onClick={() => setOpen(false)}
                     style={{
                       padding: "6px 8px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border: "1px solid rgba(147,211,230,.24)",
                       background: "transparent",
-                      color: "#d8eef8",
+                      color: "#a8c0cf",
                       cursor: "pointer",
                     }}
                   >
@@ -1255,11 +1255,11 @@ function ExcelHeaderFilter({
                     }}
                     style={{
                       padding: "6px 10px",
-                      borderRadius: 7,
+                      borderRadius: 6,
                       border: "1px solid rgba(147,211,230,.42)",
                       background: "rgba(27,147,227,.32)",
-                      color: "#f4fbff",
-                      fontWeight: 900,
+                      color: "#e8f1f7",
+                      fontWeight: 700,
                       cursor: "pointer",
                     }}
                   >
@@ -1498,7 +1498,7 @@ const NewRowsTable = memo(function NewRowsTable({
           </Button>
         </div>
       </div>
-      <div className="panel-inner fixassets-new-table-grid" style={{ overflow: collapsed ? "hidden" : "auto", height: collapsed ? 0 : "100%", minHeight: 0, padding: 0, background: "#0b4d6b", borderColor: "rgba(147,211,230,.28)" }}>
+      <div className="panel-inner fixassets-new-table-grid" style={{ overflow: collapsed ? "hidden" : "auto", height: collapsed ? 0 : "100%", minHeight: 0, padding: 0, background: "#0a1f2c", borderColor: "rgba(147,211,230,.28)" }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup>
@@ -1514,7 +1514,7 @@ const NewRowsTable = memo(function NewRowsTable({
                     top: 0,
                     left: 0,
                     zIndex: 94,
-                    background: "#163b49",
+                    background: "#0f2a38",
                     boxShadow: "2px 0 rgba(216,238,255,.16)",
                   }}
                 >
@@ -1532,7 +1532,7 @@ const NewRowsTable = memo(function NewRowsTable({
                       left: sticky ? DETAIL_COLUMN_WIDTH : undefined,
                       zIndex: sticky ? 93 : 79,
                       overflow: "visible",
-                      background: "#163b49",
+                      background: "#0f2a38",
                       boxShadow: sticky
                         ? "2px 0 rgba(216,238,255,.16)"
                         : undefined,
@@ -1634,25 +1634,25 @@ const NewRowsTable = memo(function NewRowsTable({
                       left: 0,
                       zIndex: 22,
                       background: existing
-                        ? "#052b3d"
+                        ? "#061520"
                         : bajaMode
-                          ? "#6b491f"
+                          ? "#5a4210"
                           : readOnly
-                            ? "#394851"
+                            ? "#22303a"
                             : focused
-                              ? "#155a78"
-                              : "#0b4d6b",
+                              ? "#143444"
+                              : "#0a1f2c",
                       boxShadow: "2px 0 rgba(216,238,255,.12)",
                       textAlign: "center",
                     }}
                   >
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
                       {existing ? (
-                        <strong style={{ color: "#b9d7e5", fontSize: 10 }}>Guardado</strong>
+                        <strong style={{ color: "#a8c0cf", fontSize: 10 }}>Guardado</strong>
                       ) : bajaMode ? (
-                        <strong style={{ color: "#ffe0a8", fontSize: 11 }}>BAJA</strong>
+                        <strong style={{ color: "#ffd882", fontSize: 11 }}>BAJA</strong>
                       ) : readOnly ? (
-                        <strong style={{ color: "#d7e0e5" }}>NA</strong>
+                        <strong style={{ color: "#a8c0cf" }}>NA</strong>
                       ) : (
                         <>
                           {isVrGroup ? (
@@ -1665,12 +1665,12 @@ const NewRowsTable = memo(function NewRowsTable({
                               style={{
                                 minWidth: 58,
                                 padding: "4px 5px",
-                                borderRadius: 7,
+                                borderRadius: 6,
                                 border: "1px solid rgba(147,211,230,.38)",
                                 background: "rgba(27,147,227,.22)",
-                                color: "#eefaff",
+                                color: "#e8f1f7",
                                 fontSize: 11,
-                                fontWeight: 900,
+                                fontWeight: 700,
                                 cursor: "pointer",
                               }}
                               aria-label={`Abrir detalle del paquete VR de la fila ${index + 1}`}
@@ -1689,14 +1689,14 @@ const NewRowsTable = memo(function NewRowsTable({
                             style={{
                               minWidth: 58,
                               padding: "4px 5px",
-                              borderRadius: 7,
+                              borderRadius: 6,
                               border: "1px solid rgba(147,178,92,.55)",
                               background: state === "valid"
                                 ? "rgba(94,128,25,.34)"
                                 : "rgba(255,255,255,.06)",
-                              color: state === "valid" ? "#dff1bc" : "rgba(255,255,255,.45)",
+                              color: state === "valid" ? "#c7de9a" : "rgba(255,255,255,.45)",
                               fontSize: 10,
-                              fontWeight: 900,
+                              fontWeight: 700,
                               cursor: loading || saving || state !== "valid" || !individualSaveIndexes.has(index) ? "not-allowed" : "pointer",
                             }}
                             aria-label={`Guardar individualmente la fila ${index + 1}`}
@@ -1742,13 +1742,13 @@ const NewRowsTable = memo(function NewRowsTable({
                         padding: 5,
                         background: sticky
                           ? existing
-                            ? "#052b3d"
+                            ? "#061520"
                             : readOnly
-                              ? "#394851"
+                              ? "#22303a"
                               : state === "invalid"
-                                ? "#79453b"
+                                ? "#6b2e14"
                                 : focused
-                                  ? "#155a78"
+                                  ? "#143444"
                                   : stickyRowBackground(state)
                           : background,
                         position: sticky ? "sticky" : undefined,
@@ -1780,7 +1780,7 @@ const NewRowsTable = memo(function NewRowsTable({
                         }}
                         onLiveChange={column.key === "asset_code" ? (next) => onCodeActivity(index, next) : undefined}
                         onCommit={(next) => onCommit(index, field, next)}
-                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 7, background: "rgba(2,35,52,.42)", borderColor: state === "invalid" ? "#ebb086" : "rgba(147,211,230,.30)" }}
+                        style={{ minWidth: column.width - 10, padding: "4px 6px", height: 28, borderRadius: 6, background: "rgba(2,35,52,.42)", borderColor: state === "invalid" ? "#ebb086" : "rgba(147,211,230,.30)" }}
                         aria-label={`${column.label} fila ${index + 1}`}
                       /> : <span title={text(value)}>{
                         column.key.endsWith("date")
@@ -1918,7 +1918,7 @@ const VrDetailPanel = memo(function VrDetailPanel({
         </span>
       </div>
 
-      <div style={{ overflow: "auto", minHeight: 0, border: "1px solid rgba(147,211,230,.22)", borderRadius: 9 }}>
+      <div style={{ overflow: "auto", minHeight: 0, border: "1px solid rgba(147,211,230,.22)", borderRadius: 6 }}>
         <div style={{ minWidth: "max-content" }}>
           <Table disableScrollWrapper>
             <colgroup>
@@ -1927,7 +1927,7 @@ const VrDetailPanel = memo(function VrDetailPanel({
             </colgroup>
             <thead>
               <tr>
-                <th className="capex-th" style={{ position: "sticky", top: 0, left: 0, zIndex: 94, background: "#163b49" }}>
+                <th className="capex-th" style={{ position: "sticky", top: 0, left: 0, zIndex: 94, background: "#143444" }}>
                   Incluir
                 </th>
                 {COLUMNS.map((column) => {
@@ -1940,7 +1940,7 @@ const VrDetailPanel = memo(function VrDetailPanel({
                       top: 0,
                       left: sticky ? 74 : undefined,
                       zIndex: sticky ? 93 : 79,
-                      background: "#163b49",
+                      background: "#0f2a38",
                     }}
                   >
                     {column.label}
@@ -1969,7 +1969,7 @@ const VrDetailPanel = memo(function VrDetailPanel({
                       left: 0,
                       zIndex: 22,
                       textAlign: "center",
-                      background: selected ? "#315b43" : "#394851",
+                      background: selected ? "#3b5f24" : "#22303a",
                     }}
                   >
                     <input
@@ -1995,7 +1995,7 @@ const VrDetailPanel = memo(function VrDetailPanel({
                         left: sticky ? 74 : undefined,
                         zIndex: sticky ? 21 : undefined,
                         background: sticky
-                          ? selected ? "#416f43" : "#394851"
+                          ? selected ? "#33521f" : "#22303a"
                           : undefined,
                         boxShadow: sticky ? "2px 0 rgba(216,238,255,.12)" : undefined,
                       }}
@@ -3051,7 +3051,7 @@ export default function FixAssetsNew() {
 
       <div style={{ display: "grid", gap: 4 }}>
         {message ? <div className="panel-inner" style={{ padding: 8, borderColor: isError ? "rgba(216,93,39,.8)" : "rgba(94,128,25,.9)", background: isError ? "rgba(216,93,39,.18)" : "rgba(94,128,25,.22)", fontWeight: 700 }}>{message}</div> : null}
-        {invalidCount ? <div style={{ color: "#ffd0bf", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD fuera de la clase mapeada, existente/duplicado, correlativo saltado, formato inválido o monto incorrecto.</div> : null}
+        {invalidCount ? <div style={{ color: "#ebb086", fontWeight: 700, fontSize: 12 }}>{invalidCount} fila(s) con COD fuera de la clase mapeada, existente/duplicado, correlativo saltado, formato inválido o monto incorrecto.</div> : null}
       </div>
 
       <div
@@ -3139,7 +3139,7 @@ export default function FixAssetsNew() {
         .fixassets-new-table-grid .capex-th {
           padding: 6px !important;
           font-size: 11px !important;
-          background: #163b49 !important;
+          background: #0f2a38 !important;
           white-space: normal !important;
           line-height: 1.1;
         }
@@ -3200,11 +3200,11 @@ export default function FixAssetsNew() {
         <div className="panel-inner" style={{ padding: "7px 9px", marginBottom: 10, borderColor: "rgba(147,211,230,.34)", background: "rgba(2,35,52,.32)", fontSize: 12 }}>
           <strong>Referencia COD de esta ficha: </strong>
           {!activeCodePrefix || activeCodeIndex !== detailIndex ? <span className="muted">ingresa o enfoca el COD de esta fila para consultar el último correlativo.</span>
-            : catalogueLastMatch ? <><span className="muted">último usado con “{activeCodePrefix}”:</span> <strong style={{ color: "#dff1bc" }}>{text(catalogueLastMatch.asset_code)}</strong> — {text(catalogueLastMatch.asset_description) || "Sin descripción"}{activeRequiredCode ? <span style={{ marginLeft: 10, color: "#ffd882", fontWeight: 900 }}>Siguiente obligatorio: {activeRequiredCode}</span> : null}</>
-            : <><span style={{ color: "#dff1bc", fontWeight: 800 }}>Sin COD previos con “{activeCodePrefix}”.</span>{activeRequiredCode ? <span style={{ marginLeft: 10, color: "#ffd882", fontWeight: 900 }}>Siguiente obligatorio: {activeRequiredCode}</span> : null}</>}
+            : catalogueLastMatch ? <><span className="muted">último usado con “{activeCodePrefix}”:</span> <strong style={{ color: "#c7de9a" }}>{text(catalogueLastMatch.asset_code)}</strong> — {text(catalogueLastMatch.asset_description) || "Sin descripción"}{activeRequiredCode ? <span style={{ marginLeft: 10, color: "#ffd882", fontWeight: 700 }}>Siguiente obligatorio: {activeRequiredCode}</span> : null}</>
+            : <><span style={{ color: "#c7de9a", fontWeight: 600 }}>Sin COD previos con “{activeCodePrefix}”.</span>{activeRequiredCode ? <span style={{ marginLeft: 10, color: "#ffd882", fontWeight: 700 }}>Siguiente obligatorio: {activeRequiredCode}</span> : null}</>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
-          {EXTRA_FIELDS.map(([field, label]) => <label key={field} style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 800 }}>
+          {EXTRA_FIELDS.map(([field, label]) => <label key={field} style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 600 }}>
             {label}
             <FastCellInput
               className="input"

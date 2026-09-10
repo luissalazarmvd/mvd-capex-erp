@@ -283,19 +283,19 @@ export function WbsMatrix({
   return (
     <div className="panel-inner" style={{ padding: 12, overflow: "hidden", minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ fontWeight: 900 }}>{title}</div>
+        <div style={{ fontWeight: 700 }}>{title}</div>
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
           {headerActions ? <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{headerActions}</div> : null}
 
-          <div className="muted" style={{ fontWeight: 800 }}>
+          <div className="muted" style={{ fontWeight: 600 }}>
             {rows.length} filas
           </div>
         </div>
       </div>
 
       {projectLabel ? (
-        <div className="muted" style={{ marginTop: 6, fontWeight: 900, opacity: 0.95 }}>
+        <div className="muted" style={{ marginTop: 6, fontWeight: 700, opacity: 0.95 }}>
           {projectLabel}
         </div>
       ) : null}
@@ -305,32 +305,32 @@ export function WbsMatrix({
           {mode === "budget" ? (
             <>
               <div className="panel-inner" style={{ padding: "8px 10px" }}>
-                <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+                <span className="muted" style={{ fontWeight: 700, marginRight: 8 }}>
                   Total ORIG:
                 </span>
-                <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.orig)}</span>
+                <span style={{ fontWeight: 700 }}>{fmtMoney(totalsTop.orig)}</span>
               </div>
 
               <div className="panel-inner" style={{ padding: "8px 10px" }}>
-                <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+                <span className="muted" style={{ fontWeight: 700, marginRight: 8 }}>
                   Total SOC:
                 </span>
-                <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.soc)}</span>
+                <span style={{ fontWeight: 700 }}>{fmtMoney(totalsTop.soc)}</span>
               </div>
 
               <div className="panel-inner" style={{ padding: "8px 10px" }}>
-                <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+                <span className="muted" style={{ fontWeight: 700, marginRight: 8 }}>
                   Total Proyecto:
                 </span>
-                <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.both)}</span>
+                <span style={{ fontWeight: 700 }}>{fmtMoney(totalsTop.both)}</span>
               </div>
             </>
           ) : (
             <div className="panel-inner" style={{ padding: "8px 10px" }}>
-              <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+              <span className="muted" style={{ fontWeight: 700, marginRight: 8 }}>
                 Total Proyecto:
               </span>
-              <span style={{ fontWeight: 900 }}>{fmtMoney(totalsTop.both)}</span>
+              <span style={{ fontWeight: 700 }}>{fmtMoney(totalsTop.both)}</span>
             </div>
           )}
         </div>
@@ -339,18 +339,18 @@ export function WbsMatrix({
       {showProgressTotals ? (
         <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div className="panel-inner" style={{ padding: "8px 10px" }}>
-            <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+            <span className="muted" style={{ fontWeight: 700, marginRight: 8 }}>
               EV% Proyecto:
             </span>
-            <span style={{ fontWeight: 900 }}>{fmtPct(progressTop.evPct)}%</span>
+            <span style={{ fontWeight: 700 }}>{fmtPct(progressTop.evPct)}%</span>
           </div>
 
           {progressDouble ? (
             <div className="panel-inner" style={{ padding: "8px 10px" }}>
-              <span className="muted" style={{ fontWeight: 900, marginRight: 8 }}>
+              <span className="muted" style={{ fontWeight: 700, marginRight: 8 }}>
                 AC Proyecto:
               </span>
-              <span style={{ fontWeight: 900 }}>{fmtMoney(progressTop.ac)}</span>
+              <span style={{ fontWeight: 700 }}>{fmtMoney(progressTop.ac)}</span>
             </div>
           ) : null}
         </div>
@@ -369,7 +369,7 @@ export function WbsMatrix({
                   borderBottom: "1px solid var(--border)",
                   padding: "10px 10px",
                   textAlign: "left",
-                  fontWeight: 900,
+                  fontWeight: 700,
                   width: LEFT_W,
                   minWidth: LEFT_W,
                 }}
@@ -389,7 +389,7 @@ export function WbsMatrix({
                     borderBottom: "1px solid var(--border)",
                     padding: "10px 10px",
                     textAlign: "center",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     width: CELL_W * cols.length,
                     minWidth: CELL_W * cols.length,
                   }}
@@ -408,7 +408,7 @@ export function WbsMatrix({
                     borderBottom: "1px solid var(--border)",
                     padding: "10px 10px",
                     textAlign: "center",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     width: TOTAL_W,
                     minWidth: TOTAL_W,
                   }}
@@ -428,7 +428,7 @@ export function WbsMatrix({
                       borderBottom: "1px solid var(--border)",
                       padding: "10px 10px",
                       textAlign: "center",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       width: EVLAST_W,
                       minWidth: EVLAST_W,
                     }}
@@ -445,7 +445,7 @@ export function WbsMatrix({
                         borderBottom: "1px solid var(--border)",
                         padding: "10px 10px",
                         textAlign: "center",
-                        fontWeight: 900,
+                        fontWeight: 700,
                         width: ACTOTAL_W,
                         minWidth: ACTOTAL_W,
                       }}
@@ -468,7 +468,7 @@ export function WbsMatrix({
                     borderBottom: "1px solid rgba(216,238,255,.12)",
                     padding: "8px 10px",
                     textAlign: "left",
-                    fontWeight: 900,
+                    fontWeight: 700,
                     width: LEFT_W,
                     minWidth: LEFT_W,
                   }}
@@ -485,7 +485,7 @@ export function WbsMatrix({
                         borderBottom: "1px solid rgba(216,238,255,.12)",
                         padding: "8px 10px",
                         textAlign: "center",
-                        fontWeight: 900,
+                        fontWeight: 700,
                         width: CELL_W,
                         minWidth: CELL_W,
                       }}
@@ -502,7 +502,7 @@ export function WbsMatrix({
                       borderBottom: "1px solid rgba(216,238,255,.12)",
                       padding: "8px 10px",
                       textAlign: "center",
-                      fontWeight: 900,
+                      fontWeight: 700,
                       width: TOTAL_W,
                       minWidth: TOTAL_W,
                     }}
@@ -519,7 +519,7 @@ export function WbsMatrix({
                         borderBottom: "1px solid rgba(216,238,255,.12)",
                         padding: "8px 10px",
                         textAlign: "center",
-                        fontWeight: 900,
+                        fontWeight: 700,
                         width: EVLAST_W,
                         minWidth: EVLAST_W,
                       }}
@@ -532,7 +532,7 @@ export function WbsMatrix({
                         borderBottom: "1px solid rgba(216,238,255,.12)",
                         padding: "8px 10px",
                         textAlign: "center",
-                        fontWeight: 900,
+                        fontWeight: 700,
                         width: ACTOTAL_W,
                         minWidth: ACTOTAL_W,
                       }}
@@ -578,7 +578,7 @@ export function WbsMatrix({
                     >
                       <div
                         style={{
-                          fontWeight: 900,
+                          fontWeight: 700,
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -620,7 +620,7 @@ export function WbsMatrix({
                           width: TOTAL_W,
                           minWidth: TOTAL_W,
                           textAlign: "right",
-                          fontWeight: 900,
+                          fontWeight: 700,
                           whiteSpace: "nowrap",
                         }}
                         title={String(rt)}
@@ -638,7 +638,7 @@ export function WbsMatrix({
                             width: EVLAST_W,
                             minWidth: EVLAST_W,
                             textAlign: "right",
-                            fontWeight: 900,
+                            fontWeight: 700,
                             whiteSpace: "nowrap",
                           }}
                           title={String(evLast)}
@@ -653,7 +653,7 @@ export function WbsMatrix({
                               width: ACTOTAL_W,
                               minWidth: ACTOTAL_W,
                               textAlign: "right",
-                              fontWeight: 900,
+                              fontWeight: 700,
                               whiteSpace: "nowrap",
                             }}
                             title={String(acTot)}

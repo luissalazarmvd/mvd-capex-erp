@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef, type ExcelFilterKind } from "../ui/ExcelFilters";
 
 const PAGE_SIZE = 200;
 
@@ -93,6 +94,23 @@ const WIDTHS: Partial<Record<ColumnKey, number>> = {
   stock_tot: 180,
 };
 
+const NUMBER_COLUMNS: ReadonlySet<string> = new Set([
+  "frequency_act",
+  "avg_act",
+  "qty",
+  "rq_act",
+  "po_act",
+  "stock_qty",
+  "ceva_act",
+  "stock_tot",
+]);
+
+function excelKind(key: ColumnKey): ExcelFilterKind {
+  if (key === "doc_date") return "date";
+  if (NUMBER_COLUMNS.has(key)) return "number";
+  return "text";
+}
+
 const COLUMNS = COLUMN_KEYS.map((key) => ({
   key,
   label: getColumnLabel(key),
@@ -104,6 +122,13 @@ const COLUMNS = COLUMN_KEYS.map((key) => ({
       : key === "mat_desc"
       ? (WIDTHS.mat_code ?? 130)
       : undefined,
+}));
+
+const EXCEL_COLUMNS: Array<ExcelColumnDef<MergedRow>> = COLUMN_KEYS.map((key) => ({
+  key,
+  label: getColumnLabel(key),
+  kind: excelKind(key),
+  value: (row: MergedRow) => row[key],
 }));
 
 function getColumnLabel(key: ColumnKey) {
@@ -332,12 +357,21 @@ export default function LogisticsStockTable() {
     setPage(1);
   }, [mraOnly, search, importedCodes, sortKey, sortDir, stockRows.length, dimRows.length]);
 
-  const totalRows = preparedRows.length;
+  // Filtros tipo Excel: vista sobre `preparedRows`. La exportación sigue
+  // usando `preparedRows` y por tanto no se ve afectada por estos filtros.
+  const excel = useExcelColumnFilters(preparedRows, EXCEL_COLUMNS);
+  const filteredRows = excel.rows;
+
+  useEffect(() => {
+    setPage(1);
+  }, [excel.activeCount]);
+
+  const totalRows = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const pageEnd = pageStart + PAGE_SIZE;
-  const visibleRows = preparedRows.slice(pageStart, pageEnd);
+  const visibleRows = filteredRows.slice(pageStart, pageEnd);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -488,7 +522,7 @@ export default function LogisticsStockTable() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontWeight: 900 }}>Logistics · Stock Vis</div>
+        <div style={{ fontWeight: 700 }}>Logistics · Stock Vis</div>
 
         <div
           style={{
@@ -497,7 +531,7 @@ export default function LogisticsStockTable() {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
         >
@@ -511,7 +545,7 @@ export default function LogisticsStockTable() {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
         >
@@ -529,7 +563,7 @@ export default function LogisticsStockTable() {
               ? "rgba(27,147,227,.10)"
               : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
           title={importFileName || undefined}
@@ -544,7 +578,7 @@ export default function LogisticsStockTable() {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: "rgba(255,255,255,0.9)",
           }}
         >
@@ -564,9 +598,9 @@ export default function LogisticsStockTable() {
               ? "rgba(27,147,227,.16)"
               : "rgba(255,255,255,0.06)",
             fontSize: 12,
-            fontWeight: 900,
+            fontWeight: 700,
             color: mraOnly
-              ? "rgb(216, 238, 255)"
+              ? "rgb(168, 192, 207)"
               : "rgba(255,255,255,0.8)",
             cursor: "pointer",
           }}
@@ -621,6 +655,12 @@ export default function LogisticsStockTable() {
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
 
+          {excel.activeCount || excel.hasSort ? (
+            <Button type="button" size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar filtros{excel.activeCount ? ` (${excel.activeCount})` : ""}
+            </Button>
+          ) : null}
+
           <Button
             type="button"
             size="sm"
@@ -665,7 +705,7 @@ export default function LogisticsStockTable() {
             background: msg.startsWith("OK")
               ? "rgba(27,147,227,.10)"
               : "rgba(216,93,39,.10)",
-            fontWeight: 800,
+            fontWeight: 600,
           }}
         >
           {msg}
@@ -735,8 +775,13 @@ export default function LogisticsStockTable() {
                     }}
                     title={c.label}
                   >
-                    {c.label}
-                    {getSortIndicator(c.key)}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <span>
+                        {c.label}
+                        {getSortIndicator(c.key)}
+                      </span>
+                      <ExcelHeaderFilter {...excel.headerProps(c.key)} />
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -759,7 +804,7 @@ export default function LogisticsStockTable() {
                           width: c.width,
                           minWidth: c.width,
                           maxWidth: c.width,
-                          color: "rgb(185,185,185)",
+                          color: "rgb(168, 192, 207)",
                           position: c.sticky ? "sticky" : "static",
                           left: c.sticky ? c.left : undefined,
                           zIndex: c.sticky ? 15 : undefined,
@@ -777,7 +822,7 @@ export default function LogisticsStockTable() {
                 <tr className="capex-tr">
                   <td
                     className="capex-td"
-                    style={{ ...cellBase, fontWeight: 900 }}
+                    style={{ ...cellBase, fontWeight: 700 }}
                     colSpan={COLUMNS.length}
                   >
                     No hay filas para mostrar.
@@ -789,7 +834,7 @@ export default function LogisticsStockTable() {
                 <tr className="capex-tr">
                   <td
                     className="capex-td"
-                    style={{ ...cellBase, fontWeight: 900 }}
+                    style={{ ...cellBase, fontWeight: 700 }}
                     colSpan={COLUMNS.length}
                   >
                     Cargando logistics stock-vis…
@@ -804,7 +849,7 @@ export default function LogisticsStockTable() {
                   className="capex-td"
                   style={{
                     ...cellBase,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     borderTop: headerBorder,
                     borderRight: gridV,
                     background: "rgba(255,255,255,0.06)",
@@ -845,7 +890,7 @@ export default function LogisticsStockTable() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.9 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
           Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
         </div>
 
@@ -865,7 +910,7 @@ export default function LogisticsStockTable() {
               minWidth: 110,
               textAlign: "center",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: 700,
               padding: "6px 10px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.06)",
