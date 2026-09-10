@@ -182,6 +182,7 @@ function QuoteEditor({
     if (!guide.transport_ruc) return;
 
     setInvoiceLoading(true);
+    setInvoiceError("");
 
     void apiGet(
       `/api/trjkar/veta-hist?ruc=${encodeURIComponent(guide.transport_ruc)}`
@@ -261,16 +262,19 @@ function QuoteEditor({
     ? `${invoice.subjournal_code} / ${invoice.voucher_number} / ${invoice.sequence_number}`
     : "—";
 
+  const arrivalKey = arrival ? dateKey(arrival) : "";
+  const departureKey = guide.departure_date
+    ? dateKey(text(guide.departure_date))
+    : "";
+
   let validation = "";
 
-  if (arrival && !dateKey(arrival)) {
+  if (arrival && !arrivalKey) {
     validation = "La fecha de llegada no es válida";
-  }
-
-  if (
-    arrival &&
-    guide.departure_date &&
-    dateKey(arrival) < dateKey(guide.departure_date)
+  } else if (
+    arrivalKey &&
+    departureKey &&
+    arrivalKey < departureKey
   ) {
     validation = "La llegada no puede ser anterior a la salida";
   }
@@ -375,24 +379,19 @@ function QuoteEditor({
   }
 
   return (
-    <section
-      className="panel-inner"
-      style={{
-        padding: 14,
-        background: "var(--panel2)",
-        borderColor: "rgba(147,211,230,.5)",
-      }}
-    >
-      <div className="trjq-bar">
+    <section className="trjq-card trjq-editor">
+      <div className="trjq-editor-head">
         <div>
-          <h3 style={{ margin: 0 }}>
-            Guía {guide.guide_number}
-          </h3>
+          <div className="trjq-editor-title">
+            <h3>Guía {guide.guide_number}</h3>
+            <span className="trjq-status">
+              {filled.length === lots.length && lots.length
+                ? "COMPLETA"
+                : "PENDIENTE"}
+            </span>
+          </div>
 
-          <div
-            className="muted"
-            style={{ fontSize: 12, marginTop: 5 }}
-          >
+          <div className="trjq-subtitle">
             {guide.transport_name || "Sin transportista"} · RUC{" "}
             {guide.transport_ruc || "—"} · Placa{" "}
             {guide.plate_1 || "—"}
@@ -408,72 +407,75 @@ function QuoteEditor({
       </div>
 
       <fieldset disabled={saving}>
-        <div
-          className="trjq-grid"
-          style={{ marginTop: 14 }}
-        >
-          <label>
-            Fecha de salida
-            <input
-              className="input"
-              readOnly
-              value={dateLabel(guide.departure_date)}
-            />
-          </label>
+        <div className="trjq-entry-card">
+          <div className="trjq-section-title">
+            Datos de valorización
+          </div>
 
-          <label>
-            Llegada · hora Perú
-            <input
-              className="input"
-              type="datetime-local"
-              step="0.001"
-              value={arrival}
-              onChange={(e) => setArrival(e.target.value)}
-            />
-          </label>
+          <div className="trjq-entry-grid">
+            <label>
+              Fecha de salida
+              <input
+                className="input"
+                readOnly
+                value={dateLabel(guide.departure_date)}
+              />
+            </label>
 
-          <label>
-            PU transporte · USD/TMH
-            <input
-              className="input"
-              inputMode="decimal"
-              maxLength={19}
-              value={rate}
-              onChange={(e) => setRate(e.target.value)}
-            />
-          </label>
+            <label>
+              Llegada · hora Perú
+              <input
+                className="input"
+                type="datetime-local"
+                step="0.001"
+                value={arrival}
+                onChange={(e) => setArrival(e.target.value)}
+              />
+            </label>
 
-          <label>
-            Factura de transporte
-            <input
-              className="input"
-              maxLength={50}
-              list={listId}
-              value={document}
-              onChange={(e) => setDocument(e.target.value)}
-            />
+            <label>
+              PU transporte · USD/TMH
+              <input
+                className="input"
+                inputMode="decimal"
+                maxLength={19}
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+              />
+            </label>
 
-            <datalist id={listId}>
-              {documents.map((value) => (
-                <option key={value} value={value} />
-              ))}
-            </datalist>
-          </label>
+            <label>
+              Factura de transporte
+              <input
+                className="input"
+                maxLength={50}
+                list={listId}
+                value={document}
+                onChange={(e) => setDocument(e.target.value)}
+              />
+
+              <datalist id={listId}>
+                {documents.map((value) => (
+                  <option key={value} value={value} />
+                ))}
+              </datalist>
+            </label>
+          </div>
         </div>
 
-        <div className="trjq-metrics">
-          <span>
-            TMH salida
+        <div className="trjq-kpis">
+          <div className="trjq-kpi" data-tone="departure">
+            <span>TMH salida</span>
             <strong>{fmt(guide.tmh_departure)}</strong>
-          </span>
+          </div>
 
-          <span>
-            TMH llegada ingresadas
+          <div className="trjq-kpi" data-tone="arrival">
+            <span>TMH llegada</span>
             <strong>{fmt(decimalString(total))}</strong>
-          </span>
+          </div>
 
-          <span>
-            Importe calculado USD
+          <div className="trjq-kpi" data-tone="amount">
+            <span>Importe calculado USD</span>
             <strong>
               {fmt(
                 calculated == null
@@ -482,152 +484,138 @@ function QuoteEditor({
                 true
               )}
             </strong>
-          </span>
+          </div>
 
-          <span>
-            Lotes con llegada
+          <div className="trjq-kpi" data-tone="lots">
+            <span>Lotes con llegada</span>
             <strong>
               {filled.length} / {lots.length}
             </strong>
-          </span>
+          </div>
         </div>
 
         {filled.length < lots.length && (
-          <div className="trjq-note">
-            El importe mostrado es parcial: faltan TMH de llegada
-            en {lots.length - filled.length} lote(s).
+          <div className="trjq-note trjq-inline-note">
+            Importe parcial: faltan TMH de llegada en{" "}
+            {lots.length - filled.length} lote(s).
           </div>
         )}
 
-        <div
-          className="trjq-scroll"
-          style={{ marginTop: 12 }}
-        >
-          <table>
-            <thead>
-              <tr>
-                <th>Lote</th>
-                <th>Correlativo</th>
-                <th>TMH salida</th>
-                <th>TMH llegada</th>
-                <th>Diferencia TMH</th>
-              </tr>
-            </thead>
+        <div className="trjq-lots-card">
+          <div className="trjq-section-title">
+            Llegadas por lote
+          </div>
 
-            <tbody>
-              {lots.map((row) => {
-                const value = values[identity(row)];
-                const arrivalUnits = units(value);
-                const departureUnits = units(row.tmh_departure);
+          <div className="trjq-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Lote</th>
+                  <th>Correlativo</th>
+                  <th>TMH salida</th>
+                  <th>TMH llegada</th>
+                  <th>Diferencia TMH</th>
+                </tr>
+              </thead>
 
-                const invalid =
-                  !!value.trim() &&
-                  !decimalValid(value);
+              <tbody>
+                {lots.map((row) => {
+                  const value = values[identity(row)];
+                  const arrivalUnits = units(value);
+                  const departureUnits = units(row.tmh_departure);
 
-                return (
-                  <tr key={identity(row)}>
-                    <td>
-                      <strong>{row.lot}</strong>
-                    </td>
+                  const invalid =
+                    !!value.trim() &&
+                    !decimalValid(value);
 
-                    <td>{row.lot_corr}</td>
+                  return (
+                    <tr key={identity(row)}>
+                      <td>
+                        <strong>{row.lot}</strong>
+                      </td>
 
-                    <td>{fmt(row.tmh_departure)}</td>
+                      <td>{row.lot_corr}</td>
 
-                    <td>
-                      <input
-                        className="input"
-                        style={{
-                          width: 150,
-                          borderColor: invalid
-                            ? "#d85d27"
-                            : undefined,
-                        }}
-                        aria-label={`Llegada ${row.lot} ${row.lot_corr}`}
-                        aria-invalid={invalid}
-                        inputMode="decimal"
-                        maxLength={19}
-                        value={value}
-                        onChange={(e) =>
-                          setValues((current) => ({
-                            ...current,
-                            [identity(row)]: e.target.value,
-                          }))
-                        }
-                      />
-                    </td>
+                      <td>{fmt(row.tmh_departure)}</td>
 
-                    <td>
-                      {arrivalUnits != null &&
-                      departureUnits != null
-                        ? fmt(
-                            decimalString(
-                              arrivalUnits - departureUnits
+                      <td>
+                        <input
+                          className={`input trjq-tmh-input ${invalid ? "trjq-input-error" : ""}`}
+                          aria-label={`Llegada ${row.lot} ${row.lot_corr}`}
+                          aria-invalid={invalid}
+                          inputMode="decimal"
+                          maxLength={19}
+                          value={value}
+                          onChange={(e) =>
+                            setValues((current) => ({
+                              ...current,
+                              [identity(row)]: e.target.value,
+                            }))
+                          }
+                        />
+                      </td>
+
+                      <td>
+                        {arrivalUnits != null &&
+                        departureUnits != null
+                          ? fmt(
+                              decimalString(
+                                arrivalUnits - departureUnits
+                              )
                             )
-                          )
-                        : "—"}
+                          : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {!lots.length && (
+                  <tr>
+                    <td colSpan={5}>
+                      Agrega los lotes desde Guías.
                     </td>
                   </tr>
-                );
-              })}
+                )}
+              </tbody>
 
-              {!lots.length && (
+              <tfoot>
                 <tr>
-                  <td colSpan={5}>
-                    Agrega los lotes desde Guías.
-                  </td>
+                  <th colSpan={2}>Total guía</th>
+                  <td>{fmt(guide.tmh_departure)}</td>
+                  <td>{fmt(decimalString(total))}</td>
+                  <td />
                 </tr>
-              )}
-            </tbody>
-
-            <tfoot>
-              <tr>
-                <th colSpan={2}>Total guía</th>
-                <td>{fmt(guide.tmh_departure)}</td>
-                <td>{fmt(decimalString(total))}</td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
+              </tfoot>
+            </table>
+          </div>
         </div>
       </fieldset>
 
-      <div
-        className="panel-inner"
-        style={{
-          padding: 12,
-          marginTop: 12,
-          background: "rgba(2,35,52,.3)",
-        }}
-      >
-        <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>
+      <div className="trjq-invoice-card">
+        <div className="trjq-section-title">
           Factura · registro contable
-        </h3>
+        </div>
 
-        <div className="trjq-grid">
-          <span>
-            Documento
-            <br />
+        <div className="trjq-invoice-grid">
+          <div>
+            <span>Documento</span>
             <strong>{document || "—"}</strong>
-          </span>
+          </div>
 
-          <span>
-            Fecha de documento
-            <br />
+          <div>
+            <span>Fecha de documento</span>
             <strong>{dateLabel(invoice?.document_date)}</strong>
-          </span>
+          </div>
 
-          <span>
-            Subdiario / comprobante / secuencia
-            <br />
+          <div>
+            <span>Subdiario / comprobante / secuencia</span>
             <strong>{reference}</strong>
-          </span>
+          </div>
 
-          <span>
-            Importe contable USD
-            <br />
+          <div>
+            <span>Importe contable USD</span>
             <strong>{fmt(invoice?.usd_amount, true)}</strong>
-          </span>
+          </div>
         </div>
 
         {invoiceLoading && (
@@ -647,17 +635,13 @@ function QuoteEditor({
           document.trim() &&
           !invoice && (
             <div className="trjq-note">
-              No se encontró esta factura para el RUC del
-              transportista. Puedes guardarla y completar el cruce
-              cuando esté en el histórico.
+              No se encontró esta factura para el RUC del transportista. Puedes guardarla y completar el cruce cuando esté en el histórico.
             </div>
           )}
 
         {invoiceMatches.length > 1 && (
           <div className="trjq-note">
-            Hay {invoiceMatches.length} líneas contables. Se
-            muestra la más reciente con el mismo criterio de tus
-            vistas; no es una suma de líneas.
+            Hay {invoiceMatches.length} líneas contables. Se muestra la más reciente con el mismo criterio de las vistas.
           </div>
         )}
       </div>
@@ -666,7 +650,6 @@ function QuoteEditor({
         <div
           role="alert"
           className="trjq-message trjq-error"
-          style={{ marginTop: 12 }}
         >
           {validation || message}
         </div>
@@ -854,32 +837,78 @@ export default function TRJKardexQuotes() {
   return (
     <div className="trjk-quotes">
       <style>{`
-        .trjk-quotes{display:grid;gap:12px;min-width:0}
-        .trjk-quotes .trjq-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-        .trjk-quotes .trjq-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;font-size:12px}
-        .trjk-quotes label{display:grid;gap:5px;min-width:0;font-size:12px}
-        .trjk-quotes .input{width:100%;min-width:0;box-sizing:border-box}
+        .trjk-quotes{height:100%;max-height:calc(100dvh - 68px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;display:grid;align-content:start;gap:10px;min-width:0;min-height:0;padding:0 6px 56px 0}
+        .trjk-quotes *{box-sizing:border-box}
+        .trjk-quotes .trjq-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:2px 2px 0}
+        .trjk-quotes .trjq-title{margin:0;font-size:18px;line-height:1.15}
+        .trjk-quotes .trjq-subtitle{font-size:11px;opacity:.78;margin-top:3px}
+        .trjk-quotes .trjq-card{min-width:0;border:1px solid rgba(147,211,230,.26);border-radius:10px;background:linear-gradient(180deg,rgba(7,71,101,.80),rgba(5,61,87,.72));box-shadow:0 6px 18px rgba(0,0,0,.08)}
+        .trjk-quotes .trjq-list-card{padding:10px 12px}
+        .trjk-quotes .trjq-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+        .trjk-quotes .trjq-search{width:min(420px,100%);height:32px;padding:5px 9px;font-size:12px}
+        .trjk-quotes .trjq-toolbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px}
+        .trjk-quotes .trjq-check{display:flex;align-items:center;gap:6px!important;font-size:11px!important;font-weight:800;cursor:pointer}
+        .trjk-quotes .trjq-count{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:rgba(147,211,230,.10);font-size:11px}
+        .trjk-quotes .trjq-table-scroll{overflow-x:auto;overflow-y:visible;max-width:100%;margin-top:8px;border-radius:7px;border:1px solid rgba(147,211,230,.13)}
+        .trjk-quotes table{border-collapse:collapse;width:max-content;min-width:100%;font-size:11px}
+        .trjk-quotes th{background:#173f4d;text-align:left;color:#fff;font-weight:800}
+        .trjk-quotes th,.trjk-quotes td{padding:7px 9px;border-bottom:1px solid rgba(147,211,230,.13);white-space:nowrap;vertical-align:middle}
+        .trjk-quotes tbody tr:hover{background:rgba(147,211,230,.06)}
+        .trjk-quotes tr[data-active=true]{background:rgba(117,151,41,.24)}
+        .trjk-quotes .trjq-pagination{margin-top:8px;font-size:11px}
+        .trjk-quotes .trjq-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+        .trjk-quotes .trjq-editor{padding:11px 12px 14px;background:linear-gradient(180deg,rgba(5,56,82,.92),rgba(4,48,70,.82));border-color:rgba(151,205,58,.40)}
+        .trjk-quotes .trjq-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+        .trjk-quotes .trjq-editor-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .trjk-quotes .trjq-editor-title h3{margin:0;font-size:14px}
+        .trjk-quotes .trjq-status{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;background:rgba(151,205,58,.13);border:1px solid rgba(151,205,58,.32)}
+        .trjk-quotes .trjq-entry-card{padding:9px 10px 10px;border:1px solid rgba(147,211,230,.18);border-left:3px solid rgba(191,145,217,.72);border-radius:8px;background:rgba(75,41,94,.08)}
+        .trjk-quotes .trjq-section-title{font-size:12px;font-weight:900;margin-bottom:8px}
+        .trjk-quotes .trjq-entry-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+        .trjk-quotes label{display:grid;gap:4px;min-width:0;font-size:11px;font-weight:800}
+        .trjk-quotes .input{width:100%;min-width:0;height:30px;padding:4px 8px;font-size:11px;line-height:1.2;border-radius:6px}
+        .trjk-quotes input[readonly]{opacity:.82;background:rgba(255,255,255,.035)}
         .trjk-quotes fieldset{border:0;padding:0;margin:0;min-width:0}
-        .trjk-quotes .trjq-scroll{overflow:auto;max-height:52vh;min-width:0}
-        .trjk-quotes table{border-collapse:collapse;width:100%;font-size:12px}
-        .trjk-quotes th{background:#163b49;position:sticky;top:0;z-index:1;text-align:left}
-        .trjk-quotes th,.trjk-quotes td{padding:9px 10px;border-bottom:1px solid rgba(147,211,230,.16);white-space:nowrap}
-        .trjk-quotes tr[data-active=true]{background:rgba(94,128,25,.28)}
-        .trjk-quotes .trjq-metrics{display:flex;gap:24px;flex-wrap:wrap;padding:14px 0;font-size:12px}
-        .trjk-quotes .trjq-metrics strong{display:block;font-size:18px;margin-top:4px}
-        .trjk-quotes .trjq-message{padding:10px 12px;border:1px solid rgba(147,211,230,.4);border-radius:8px;background:rgba(11,77,107,.5)}
-        .trjk-quotes .trjq-error{color:#ffd3ba;border-color:#d85d27}
-        .trjk-quotes .trjq-note{font-size:12px;opacity:.8;margin-top:10px}
+        .trjk-quotes .trjq-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:9px}
+        .trjk-quotes .trjq-kpi{position:relative;display:grid;gap:3px;padding:8px 10px;border:1px solid rgba(147,211,230,.16);border-radius:8px;background:rgba(147,211,230,.055);overflow:hidden}
+        .trjk-quotes .trjq-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:rgba(147,211,230,.65)}
+        .trjk-quotes .trjq-kpi[data-tone=arrival]:before{background:rgba(151,205,58,.78)}
+        .trjk-quotes .trjq-kpi[data-tone=amount]:before{background:rgba(240,178,72,.78)}
+        .trjk-quotes .trjq-kpi[data-tone=lots]:before{background:rgba(191,145,217,.72)}
+        .trjk-quotes .trjq-kpi span{font-size:10px;opacity:.78}
+        .trjk-quotes .trjq-kpi strong{font-size:15px}
+        .trjk-quotes .trjq-inline-note{margin-top:7px;padding-left:1px}
+        .trjk-quotes .trjq-lots-card{margin-top:9px;padding:9px 10px 10px;border:1px solid rgba(151,205,58,.28);border-left:3px solid rgba(151,205,58,.78);border-radius:8px;background:rgba(62,84,24,.09)}
+        .trjk-quotes .trjq-tmh-input{width:118px}
+        .trjk-quotes .trjq-input-error{border-color:#d85d27!important}
+        .trjk-quotes .trjq-invoice-card{margin-top:9px;padding:9px 10px 10px;border:1px solid rgba(240,178,72,.28);border-left:3px solid rgba(240,178,72,.78);border-radius:8px;background:rgba(103,67,13,.08)}
+        .trjk-quotes .trjq-invoice-grid{display:grid;grid-template-columns:1fr 1fr 1.5fr 1fr;gap:8px}
+        .trjk-quotes .trjq-invoice-grid>div{min-width:0;padding:7px 8px;border-radius:7px;background:rgba(2,35,52,.23);border:1px solid rgba(147,211,230,.10)}
+        .trjk-quotes .trjq-invoice-grid span{display:block;font-size:9px;opacity:.72;margin-bottom:3px}
+        .trjk-quotes .trjq-invoice-grid strong{display:block;font-size:11px;overflow-wrap:anywhere}
+        .trjk-quotes .trjq-message{padding:7px 9px;border:1px solid rgba(147,211,230,.35);border-radius:7px;background:rgba(11,77,107,.45);font-size:11px}
+        .trjk-quotes .trjq-error{color:#ffd0b8;border-color:#d85d27}
+        .trjk-quotes .trjq-note{font-size:10px;opacity:.82;margin-top:7px}
         .trjk-quotes button:disabled{opacity:.45;cursor:not-allowed}
+        @media (max-width:1100px){
+          .trjk-quotes .trjq-entry-grid,.trjk-quotes .trjq-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+          .trjk-quotes .trjq-invoice-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+        }
+        @media (max-width:700px){
+          .trjk-quotes{max-height:calc(100dvh - 56px);padding-right:3px}
+          .trjk-quotes .trjq-page-head{align-items:flex-start}
+          .trjk-quotes .trjq-toolbar-right{width:100%;justify-content:space-between}
+          .trjk-quotes .trjq-entry-grid,.trjk-quotes .trjq-kpis,.trjk-quotes .trjq-invoice-grid{grid-template-columns:1fr}
+        }
       `}</style>
 
-      <div className="trjq-bar">
+      <div className="trjq-page-head">
         <div>
-          <h2 style={{ margin: 0, fontSize: 19 }}>
+          <h2 className="trjq-title">
             Kardex de transporte · Valorización
           </h2>
 
-          <div className="muted" style={{ fontSize: 12 }}>
+          <div className="trjq-subtitle">
             Llegadas, tarifa por guía y referencia de factura
           </div>
         </div>
@@ -901,14 +930,10 @@ export default function TRJKardexQuotes() {
         </div>
       )}
 
-      <section
-        className="panel-inner"
-        style={{ padding: 12, background: "#0b4d6b" }}
-      >
+      <section className="trjq-card trjq-list-card">
         <div className="trjq-bar">
           <input
-            className="input"
-            style={{ maxWidth: 480 }}
+            className="input trjq-search"
             value={search}
             aria-label="Buscar valorizaciones"
             placeholder="Buscar guía, transportista, RUC o factura"
@@ -918,36 +943,30 @@ export default function TRJKardexQuotes() {
             }}
           />
 
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={pendingOnly}
-              onChange={(e) => {
-                setPendingOnly(e.target.checked);
-                setPage(1);
-              }}
-            />
-            Solo pendientes
-          </label>
+          <div className="trjq-toolbar-right">
+            <label className="trjq-check">
+              <input
+                type="checkbox"
+                checked={pendingOnly}
+                onChange={(e) => {
+                  setPendingOnly(e.target.checked);
+                  setPage(1);
+                }}
+              />
+              Solo pendientes
+            </label>
 
-          <span>
-            {filtered.length} guía(s) · Importe guardado USD{" "}
-            <strong>
-              {fmt(decimalString(totalAmount), true)}
-            </strong>
-          </span>
+            <span className="trjq-count">
+              {filtered.length} guía(s)
+            </span>
+
+            <span className="trjq-count">
+              USD guardado {fmt(decimalString(totalAmount), true)}
+            </span>
+          </div>
         </div>
 
-        <div
-          className="trjq-scroll"
-          style={{ marginTop: 12 }}
-        >
+        <div className="trjq-table-scroll">
           <table>
             <thead>
               <tr>
@@ -1021,12 +1040,12 @@ export default function TRJKardexQuotes() {
           </table>
         </div>
 
-        <div className="trjq-bar" style={{ marginTop: 10 }}>
+        <div className="trjq-bar trjq-pagination">
           <span>
             Página {currentPage} de {pages}
           </span>
 
-          <div style={{ display: "flex", gap: 6 }}>
+          <div className="trjq-actions">
             <Button
               size="sm"
               disabled={currentPage <= 1}

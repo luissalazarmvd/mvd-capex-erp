@@ -57,10 +57,12 @@ type Draft = Record<string, string>;
 
 const GROUPS: {
   title: string;
+  tone: string;
   fields: Field[];
 }[] = [
   {
     title: "Documentos",
+    tone: "document",
     fields: [
       {
         key: "transport_guide_number",
@@ -71,6 +73,7 @@ const GROUPS: {
   },
   {
     title: "Transportista y vehículo",
+    tone: "transport",
     fields: [
       {
         key: "transport_ruc",
@@ -107,6 +110,7 @@ const GROUPS: {
   },
   {
     title: "Remitente y origen",
+    tone: "origin",
     fields: [
       {
         key: "sender_ruc",
@@ -143,6 +147,7 @@ const GROUPS: {
   },
   {
     title: "Destinatario y destino",
+    tone: "destination",
     fields: [
       {
         key: "recipient_ruc",
@@ -179,6 +184,7 @@ const GROUPS: {
   },
   {
     title: "Carga y traslado · hora Perú",
+    tone: "movement",
     fields: [
       {
         key: "load_ini",
@@ -216,6 +222,24 @@ const identity = (row: Lot) =>
 
 const decimalValid = (value: string) =>
   /^\d{1,12}(\.\d{1,6})?$/.test(value.trim());
+
+function fieldClass(field: Field) {
+  if (field.kind === "datetime") return "trjg-field trjg-span-4";
+  if (field.key === "transport_guide_number") return "trjg-field trjg-span-3";
+  if (field.key.endsWith("_ruc")) return "trjg-field trjg-span-2";
+  if (field.key.endsWith("_address")) return "trjg-field trjg-span-4";
+  if (field.key.endsWith("_name") || field.key === "driver_name") {
+    return "trjg-field trjg-span-3";
+  }
+  if (
+    field.key.endsWith("_department") ||
+    field.key.endsWith("_province") ||
+    field.key.endsWith("_district")
+  ) {
+    return "trjg-field trjg-span-2";
+  }
+  return "trjg-field trjg-span-2";
+}
 
 function units(value: unknown): bigint | null {
   const raw = text(value).trim();
@@ -337,7 +361,7 @@ function LotHistory({
         Ver {new Set(matches.map((row) => row.guide_number)).size} guía(s)
       </summary>
 
-      <div className="trjg-scroll">
+      <div className="trjg-history-box">
         <table>
           <thead>
             <tr>
@@ -569,7 +593,6 @@ export default function TRJKardexGuides() {
     guideError = "Fin de carga debe ser posterior al inicio";
   }
 
-
   function departureError(
     lot: string,
     value: string,
@@ -641,14 +664,18 @@ export default function TRJKardexGuides() {
   }
 
   function change(field: Field, value: string) {
+    const normalized = field.key.startsWith("plate_")
+      ? value.toUpperCase().slice(0, field.max)
+      : value;
+
     const next = {
       ...draftRef.current,
-      [field.key]: value,
+      [field.key]: normalized,
     };
 
     if (
       field.role &&
-      value !== draftRef.current[field.key]
+      normalized !== draftRef.current[field.key]
     ) {
       Object.assign(next, partyValues(field.role));
 
@@ -936,43 +963,96 @@ export default function TRJKardexGuides() {
   return (
     <div className="trjk-guides">
       <style>{`
-        .trjk-guides{position:relative;display:grid;gap:10px;min-width:0;min-height:0}
+        .trjk-guides{height:100%;max-height:calc(100dvh - 68px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;display:grid;align-content:start;gap:10px;min-width:0;min-height:0;padding:0 6px 56px 0}
+        .trjk-guides *{box-sizing:border-box}
+        .trjk-guides .trjg-page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:2px 2px 0}
+        .trjk-guides .trjg-title{margin:0;font-size:18px;line-height:1.15}
+        .trjk-guides .trjg-subtitle{font-size:11px;opacity:.78;margin-top:3px}
+        .trjk-guides .trjg-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+        .trjk-guides .trjg-card{min-width:0;border:1px solid rgba(147,211,230,.26);border-radius:10px;background:linear-gradient(180deg,rgba(7,71,101,.80),rgba(5,61,87,.72));box-shadow:0 6px 18px rgba(0,0,0,.08)}
+        .trjk-guides .trjg-list-card{padding:10px 12px}
         .trjk-guides .trjg-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;min-width:0}
-        .trjk-guides .trjg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;min-width:0}
-        .trjk-guides label{display:grid;gap:5px;font-size:12px;font-weight:800;min-width:0}
-        .trjk-guides .input{width:100%;min-width:0;height:34px;padding:6px 8px;box-sizing:border-box}
+        .trjk-guides .trjg-search{width:min(420px,100%);height:32px;padding:5px 9px;font-size:12px}
+        .trjk-guides .trjg-count{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:rgba(147,211,230,.10);font-size:11px}
+        .trjk-guides .trjg-table-scroll{overflow-x:auto;overflow-y:visible;max-width:100%;margin-top:8px;border-radius:7px;border:1px solid rgba(147,211,230,.13)}
+        .trjk-guides table{border-collapse:collapse;width:max-content;min-width:100%;font-size:11px}
+        .trjk-guides th{background:#173f4d;text-align:left;color:#fff;font-weight:800}
+        .trjk-guides td,.trjk-guides th{padding:7px 9px;border-bottom:1px solid rgba(147,211,230,.13);white-space:nowrap;vertical-align:middle}
+        .trjk-guides tbody tr:hover{background:rgba(147,211,230,.06)}
+        .trjk-guides tr[data-active=true]{background:rgba(117,151,41,.24)}
+        .trjk-guides .trjg-pagination{margin-top:8px;font-size:11px}
+        .trjk-guides .trjg-editor{padding:11px 12px 14px;background:linear-gradient(180deg,rgba(5,56,82,.92),rgba(4,48,70,.82));border-color:rgba(151,205,58,.40)}
+        .trjk-guides .trjg-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+        .trjk-guides .trjg-editor-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .trjk-guides .trjg-editor-title h3{margin:0;font-size:14px}
+        .trjk-guides .trjg-status{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;background:rgba(151,205,58,.13);border:1px solid rgba(151,205,58,.32)}
+        .trjk-guides .trjg-guide-row{display:grid;grid-template-columns:minmax(180px,280px) 1fr;gap:10px;align-items:end;margin-bottom:9px}
+        .trjk-guides .trjg-group{min-width:0;margin-top:8px;padding:9px 10px 10px;border:1px solid rgba(147,211,230,.18);border-radius:8px;background:rgba(2,35,52,.18)}
+        .trjk-guides .trjg-group[data-tone=document]{border-left:3px solid rgba(147,211,230,.70)}
+        .trjk-guides .trjg-group[data-tone=transport]{border-left:3px solid rgba(151,205,58,.78);background:rgba(65,91,21,.10)}
+        .trjk-guides .trjg-group[data-tone=origin]{border-left:3px solid rgba(240,178,72,.70);background:rgba(103,67,13,.08)}
+        .trjk-guides .trjg-group[data-tone=destination]{border-left:3px solid rgba(77,177,205,.78);background:rgba(19,87,106,.10)}
+        .trjk-guides .trjg-group[data-tone=movement]{border-left:3px solid rgba(191,145,217,.72);background:rgba(75,41,94,.08)}
+        .trjk-guides .trjg-group-title{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:12px;font-weight:900;letter-spacing:.01em}
+        .trjk-guides .trjg-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px 9px;min-width:0}
+        .trjk-guides .trjg-field{display:grid;gap:4px;min-width:0;font-size:11px;font-weight:800}
+        .trjk-guides .trjg-span-2{grid-column:span 2}
+        .trjk-guides .trjg-span-3{grid-column:span 3}
+        .trjk-guides .trjg-span-4{grid-column:span 4}
+        .trjk-guides .input{width:100%;min-width:0;height:30px;padding:4px 8px;font-size:11px;line-height:1.2;border-radius:6px}
+        .trjk-guides select.input{padding-right:24px}
+        .trjk-guides input[readonly]{opacity:.82;background:rgba(255,255,255,.035)}
         .trjk-guides fieldset{border:0;padding:0;margin:0;min-width:0}
-        .trjk-guides .trjg-section{border-top:1px solid rgba(147,211,230,.22);padding-top:12px;margin-top:12px;min-width:0}
-        .trjk-guides h3{margin:0 0 10px;font-size:14px}
-        .trjk-guides .trjg-scroll{overflow:auto;max-height:52vh;min-width:0;max-width:100%}
-        .trjk-guides table{border-collapse:collapse;width:max-content;min-width:100%;font-size:12px}
-        .trjk-guides th{background:#163b49;position:sticky;top:0;z-index:1;text-align:left}
-        .trjk-guides td,.trjk-guides th{padding:8px 10px;border-bottom:1px solid rgba(147,211,230,.16);white-space:nowrap}
-        .trjk-guides tr[data-active=true]{background:rgba(94,128,25,.28)}
-        .trjk-guides .trjg-message{padding:8px 10px;border:1px solid rgba(147,211,230,.35);border-radius:8px;background:rgba(11,77,107,.5)}
-        .trjk-guides .trjg-error{color:#ffd3ba;border-color:#d85d27}
-        .trjk-guides .trjg-metrics{display:flex;gap:20px;flex-wrap:wrap;padding:10px 0;font-size:13px}
-        .trjk-guides .trjg-history summary{cursor:pointer;color:#a4dbea}
-        .trjk-guides .trjg-history[open]{min-width:min(310px,100%)}
+        .trjk-guides .trjg-input-action{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:center}
+        .trjk-guides .trjg-input-action button{height:30px;white-space:nowrap}
+        .trjk-guides .trjg-history-select{margin-top:1px}
+        .trjk-guides .trjg-kpis{display:flex;gap:7px;flex-wrap:wrap;margin:9px 0 0}
+        .trjk-guides .trjg-kpi{display:flex;align-items:baseline;gap:5px;padding:5px 9px;border-radius:7px;background:rgba(147,211,230,.07);border:1px solid rgba(147,211,230,.15);font-size:10px}
+        .trjk-guides .trjg-kpi strong{font-size:12px}
+        .trjk-guides .trjg-message{padding:7px 9px;border:1px solid rgba(147,211,230,.35);border-radius:7px;background:rgba(11,77,107,.45);font-size:11px}
+        .trjk-guides .trjg-error{color:#ffd0b8;border-color:#d85d27}
+        .trjk-guides .trjg-lots{margin-top:10px;padding:10px;border:1px solid rgba(151,205,58,.35);border-radius:9px;background:linear-gradient(180deg,rgba(62,84,24,.15),rgba(2,35,52,.20))}
+        .trjk-guides .trjg-lots-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+        .trjk-guides .trjg-lots-title{margin:0;font-size:13px}
+        .trjk-guides .trjg-lot-add{display:grid;grid-template-columns:1.1fr 1.5fr .75fr .65fr auto;gap:8px;align-items:end}
+        .trjk-guides .trjg-lot-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px}
+        .trjk-guides .trjg-balance{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(147,211,230,.08);font-size:10px}
+        .trjk-guides .trjg-note{font-size:10px;opacity:.82}
+        .trjk-guides .trjg-history summary{cursor:pointer;color:#a8ddec;font-size:10px}
+        .trjk-guides .trjg-history-box{overflow:auto;max-height:160px;margin-top:5px;border:1px solid rgba(147,211,230,.18);border-radius:6px;background:#073b54}
+        .trjk-guides .trjg-history-box table{font-size:10px}
+        .trjk-guides .trjg-history-box td,.trjk-guides .trjg-history-box th{padding:5px 7px}
         .trjk-guides button:disabled{opacity:.45;cursor:not-allowed}
-        .trjk-guides .trjg-note{font-size:12px;opacity:.8;margin-top:8px}
-        @media (max-width:900px){
-          .trjk-guides .trjg-grid{grid-template-columns:minmax(0,1fr)}
-          .trjk-guides .trjg-bar{align-items:stretch}
+        @media (max-width:1280px){
+          .trjk-guides .trjg-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+          .trjk-guides .trjg-span-4,.trjk-guides .trjg-span-3{grid-column:span 3}
+          .trjk-guides .trjg-span-2{grid-column:span 2}
+          .trjk-guides .trjg-lot-add{grid-template-columns:repeat(4,minmax(0,1fr))}
+          .trjk-guides .trjg-lot-add>div:last-child{grid-column:span 4;justify-self:end}
+        }
+        @media (max-width:760px){
+          .trjk-guides{max-height:calc(100dvh - 56px);padding-right:3px}
+          .trjk-guides .trjg-page-head{align-items:flex-start}
+          .trjk-guides .trjg-actions{width:100%}
+          .trjk-guides .trjg-actions button{flex:1}
+          .trjk-guides .trjg-guide-row{grid-template-columns:1fr}
+          .trjk-guides .trjg-grid{grid-template-columns:1fr}
+          .trjk-guides .trjg-field,.trjk-guides .trjg-span-2,.trjk-guides .trjg-span-3,.trjk-guides .trjg-span-4{grid-column:1/-1}
+          .trjk-guides .trjg-lot-add{grid-template-columns:1fr 1fr}
+          .trjk-guides .trjg-lot-add>div:last-child{grid-column:1/-1;justify-self:stretch}
+          .trjk-guides .trjg-lot-add>div:last-child button{width:100%}
         }
       `}</style>
 
-      <div className="trjg-bar">
+      <div className="trjg-page-head">
         <div>
-          <h2 style={{ margin: 0, fontSize: 19 }}>
-            Kardex de transporte · Guías
-          </h2>
-          <div className="muted" style={{ fontSize: 12 }}>
+          <h2 className="trjg-title">Kardex de transporte · Guías</h2>
+          <div className="trjg-subtitle">
             Registro de guías remitentes y salidas por lote
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="trjg-actions">
           <Button
             onClick={() => void refresh()}
             disabled={loading || saving}
@@ -998,14 +1078,10 @@ export default function TRJKardexGuides() {
         </div>
       )}
 
-      <section
-        className="panel-inner"
-        style={{ padding: 12, background: "#0b4d6b" }}
-      >
-        <div className="trjg-bar" style={{ marginBottom: 10 }}>
+      <section className="trjg-card trjg-list-card">
+        <div className="trjg-bar">
           <input
-            className="input"
-            style={{ maxWidth: 500 }}
+            className="input trjg-search"
             aria-label="Buscar guías"
             placeholder="Buscar guía, transportista, RUC o placa"
             value={search}
@@ -1015,12 +1091,12 @@ export default function TRJKardexGuides() {
             }}
           />
 
-          <span className="muted">
+          <span className="trjg-count">
             {filtered.length} guía(s)
           </span>
         </div>
 
-        <div className="trjg-scroll">
+        <div className="trjg-table-scroll">
           <table>
             <thead>
               <tr>
@@ -1074,12 +1150,12 @@ export default function TRJKardexGuides() {
           </table>
         </div>
 
-        <div className="trjg-bar" style={{ marginTop: 10 }}>
+        <div className="trjg-bar trjg-pagination">
           <span>
             Página {currentPage} de {pages}
           </span>
 
-          <div style={{ display: "flex", gap: 6 }}>
+          <div className="trjg-actions">
             <Button
               size="sm"
               disabled={currentPage <= 1}
@@ -1100,21 +1176,16 @@ export default function TRJKardexGuides() {
       </section>
 
       {(creating || active) && (
-        <section
-          className="panel-inner"
-          style={{
-            padding: 12,
-            background: "var(--panel2)",
-            borderColor: "rgba(147,211,230,.5)",
-            maxHeight: "calc(100vh - 330px)",
-            minHeight: 0,
-            overflow: "auto",
-          }}
-        >
-          <div className="trjg-bar">
-            <h3>
-              {creating ? "Nueva guía remitente" : `Guía ${active}`}
-            </h3>
+        <section className="trjg-card trjg-editor">
+          <div className="trjg-editor-head">
+            <div className="trjg-editor-title">
+              <h3>
+                {creating ? "Nueva guía remitente" : `Guía ${active}`}
+              </h3>
+              <span className="trjg-status">
+                {creating ? "NUEVA" : "REGISTRADA"}
+              </span>
+            </div>
 
             <Button
               onClick={() => void saveGuide()}
@@ -1136,81 +1207,80 @@ export default function TRJKardexGuides() {
           </div>
 
           <fieldset disabled={saving || loading}>
-            <label style={{ maxWidth: 350 }}>
-              Número de guía remitente
-              <input
-                className="input"
-                value={draft.guide_number}
-                maxLength={100}
-                readOnly={!creating}
-                onChange={(e) =>
-                  writeDraft({
-                    ...draftRef.current,
-                    guide_number: e.target.value,
-                  })
-                }
-              />
-            </label>
+            <div className="trjg-guide-row">
+              <label className="trjg-field">
+                Número de guía remitente
+                <input
+                  className="input"
+                  value={draft.guide_number}
+                  maxLength={100}
+                  readOnly={!creating}
+                  onChange={(e) =>
+                    writeDraft({
+                      ...draftRef.current,
+                      guide_number: e.target.value,
+                    })
+                  }
+                />
+              </label>
+
+              <div className="trjg-kpis">
+                <span className="trjg-kpi">
+                  TMH salida <strong>{fmt(activeGuide?.tmh_departure)}</strong>
+                </span>
+                <span className="trjg-kpi">
+                  TMH llegada <strong>{fmt(activeGuide?.tmh_arrival)}</strong>
+                </span>
+                <span className="trjg-kpi">
+                  Lotes <strong>{guideLots.length}</strong>
+                </span>
+              </div>
+            </div>
 
             {GROUPS.map((group) => (
               <div
-                className="trjg-section"
+                className="trjg-group"
+                data-tone={group.tone}
                 key={group.title}
               >
-                <h3>{group.title}</h3>
+                <div className="trjg-group-title">
+                  {group.title}
+                </div>
 
                 <div className="trjg-grid">
                   {group.fields.map((field) => (
-                    <label key={field.key}>
+                    <label className={fieldClass(field)} key={field.key}>
                       {field.label}
 
-                      <input
-                        className="input"
-                        type={
-                          field.kind === "datetime"
-                            ? "datetime-local"
-                            : "text"
-                        }
-                        step={
-                          field.kind === "datetime"
-                            ? "0.001"
-                            : undefined
-                        }
-                        inputMode={
-                          field.kind === "decimal" || field.role
-                            ? "decimal"
-                            : "text"
-                        }
-                        maxLength={field.max}
-                        value={draft[field.key]}
-                        onChange={(e) =>
-                          change(field, e.target.value)
-                        }
-                        onBlur={
-                          field.role
-                            ? () => void lookup(field.role!)
-                            : undefined
-                        }
-                      />
-
-                      {field.role && (
+                      {field.role ? (
                         <>
-                          <Button
-                            size="sm"
-                            onClick={() => void lookup(field.role!)}
-                            disabled={
-                              !!lookupBusy ||
-                              !/^\d{11}$/.test(draft[field.key])
-                            }
-                          >
-                            {lookupBusy === field.role
-                              ? "Buscando..."
-                              : "Buscar datos históricos"}
-                          </Button>
+                          <div className="trjg-input-action">
+                            <input
+                              className="input"
+                              inputMode="numeric"
+                              maxLength={field.max}
+                              value={draft[field.key]}
+                              onChange={(e) => change(field, e.target.value)}
+                              onBlur={() => void lookup(field.role!)}
+                            />
+
+                            <Button
+                              size="sm"
+                              onClick={() => void lookup(field.role!)}
+                              disabled={
+                                !!lookupBusy ||
+                                !/^\d{11}$/.test(draft[field.key])
+                              }
+                            >
+                              {lookupBusy === field.role
+                                ? "Buscando..."
+                                : "Buscar"}
+                            </Button>
+                          </div>
 
                           {!!candidates[field.role]?.length && (
                             <select
-                              className="input"
+                              className="input trjg-history-select"
                               value=""
                               aria-label={`Datos históricos de ${field.label}`}
                               onChange={(e) => {
@@ -1231,7 +1301,7 @@ export default function TRJKardexGuides() {
                               }}
                             >
                               <option value="">
-                                Aplicar otra referencia histórica
+                                Aplicar referencia histórica
                               </option>
 
                               {candidates[field.role]!.map(
@@ -1240,8 +1310,7 @@ export default function TRJKardexGuides() {
                                     value={index}
                                     key={index}
                                   >
-                                    {party.name} ·{" "}
-                                    {party.address || party.source}
+                                    {party.name} · {party.address || party.source}
                                     {party.guide_number
                                       ? ` · ${party.guide_number}`
                                       : ""}
@@ -1251,6 +1320,28 @@ export default function TRJKardexGuides() {
                             </select>
                           )}
                         </>
+                      ) : (
+                        <input
+                          className="input"
+                          type={
+                            field.kind === "datetime"
+                              ? "datetime-local"
+                              : "text"
+                          }
+                          step={
+                            field.kind === "datetime"
+                              ? "0.001"
+                              : undefined
+                          }
+                          inputMode={
+                            field.kind === "decimal"
+                              ? "decimal"
+                              : "text"
+                          }
+                          maxLength={field.max}
+                          value={draft[field.key]}
+                          onChange={(e) => change(field, e.target.value)}
+                        />
                       )}
                     </label>
                   ))}
@@ -1259,63 +1350,53 @@ export default function TRJKardexGuides() {
             ))}
           </fieldset>
 
-          <div className="trjg-metrics">
-            <span>
-              TMH salida:{" "}
-              <strong>{fmt(activeGuide?.tmh_departure)}</strong>
-            </span>
-
-            <span>
-              TMH llegada:{" "}
-              <strong>{fmt(activeGuide?.tmh_arrival)}</strong>
-            </span>
-
-            <span>
-              Importe guardado USD:{" "}
-              <strong>{fmt(activeGuide?.amount_usd, true)}</strong>
-            </span>
-          </div>
-
           {guideError && (
-            <div className="trjg-message trjg-error">
+            <div className="trjg-message trjg-error" style={{ marginTop: 9 }}>
               {guideError}
             </div>
           )}
 
-          <div className="trjg-section">
-            <h3>Lotes de la guía</h3>
+          <div className="trjg-lots">
+            <div className="trjg-lots-head">
+              <div>
+                <h3 className="trjg-lots-title">Lotes de la guía</h3>
+                <div className="trjg-note">
+                  El correlativo se asigna automáticamente al guardar.
+                </div>
+              </div>
+
+              {!creating && (
+                <span className="trjg-count">
+                  {guideLots.length} lote(s)
+                </span>
+              )}
+            </div>
 
             {creating ? (
-              <div className="trjg-note">
-                Primero crea la guía. Luego podrás agregar lotes.
+              <div className="trjg-message">
+                Primero crea la guía. Apenas se guarde se habilitará aquí el registro de lotes.
               </div>
             ) : (
               <>
                 {dirty && (
-                  <div className="trjg-note">
-                    Guarda los cambios de la guía antes de modificar
-                    sus lotes.
+                  <div className="trjg-message" style={{ marginBottom: 8 }}>
+                    Guarda los cambios de la guía antes de modificar sus lotes.
                   </div>
                 )}
 
-                <fieldset
-                  disabled={blockedLots || !!editing}
-                  style={{ margin: "12px 0" }}
-                >
-                  <div className="trjg-grid">
-                    <label>
-                      Filtrar histórico de lotes
+                <fieldset disabled={blockedLots || !!editing}>
+                  <div className="trjg-lot-add">
+                    <label className="trjg-field">
+                      Filtrar histórico
                       <input
                         className="input"
                         value={lotSearch}
-                        onChange={(e) =>
-                          setLotSearch(e.target.value)
-                        }
+                        onChange={(e) => setLotSearch(e.target.value)}
                         placeholder="Código de lote"
                       />
                     </label>
 
-                    <label>
+                    <label className="trjg-field">
                       Lote SGM
                       <select
                         className="input"
@@ -1348,28 +1429,25 @@ export default function TRJKardexGuides() {
                             key={row.lot}
                             value={row.lot}
                           >
-                            {row.lot} · Saldo{" "}
-                            {fmt(row.tmh_balance)} TMH
+                            {row.lot} · saldo {fmt(row.tmh_balance)} TMH
                           </option>
                         ))}
                       </select>
                     </label>
 
-                    <label>
-                      TMH de salida
+                    <label className="trjg-field">
+                      TMH salida
                       <input
                         className="input"
                         inputMode="decimal"
                         maxLength={19}
                         value={newDeparture}
-                        onChange={(e) =>
-                          setNewDeparture(e.target.value)
-                        }
+                        onChange={(e) => setNewDeparture(e.target.value)}
                       />
                     </label>
 
-                    <label>
-                      Correlativo automático
+                    <label className="trjg-field">
+                      Corr.
                       <input
                         className="input"
                         readOnly
@@ -1380,71 +1458,58 @@ export default function TRJKardexGuides() {
                         }
                       />
                     </label>
-                  </div>
 
-                  <div
-                    className="trjg-bar"
-                    style={{ marginTop: 10 }}
-                  >
                     <div>
                       <Button
-                        size="sm"
                         disabled={
                           blockedLots ||
-                          cleanupExists ||
-                          !!editing
+                          !!editing ||
+                          !!newLotError
                         }
-                        onClick={() => {
-                          setNewLot("LIMPIEZA");
-                          setNewDeparture("");
-                        }}
+                        onClick={() => void saveLot()}
                       >
-                        Agregar LIMPIEZA
+                        Guardar lote
                       </Button>
-
-                      <span
-                        style={{ marginLeft: 12, fontSize: 12 }}
-                      >
-                        {newLot === "LIMPIEZA"
-                          ? "Sin saldo SGM · una fila por guía"
-                          : `Saldo del lote: ${fmt(selectedSgm?.tmh_balance)} TMH`}
-                      </span>
                     </div>
+                  </div>
 
+                  <div className="trjg-lot-actions">
                     <Button
+                      size="sm"
                       disabled={
                         blockedLots ||
-                        !!editing ||
-                        !!newLotError
+                        cleanupExists ||
+                        !!editing
                       }
-                      onClick={() => void saveLot()}
+                      onClick={() => {
+                        setNewLot("LIMPIEZA");
+                        setNewDeparture("");
+                      }}
                     >
-                      Guardar lote
+                      Agregar LIMPIEZA
                     </Button>
-                  </div>
-                </fieldset>
 
-                {newLot && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 8,
-                      marginBottom: 12,
-                    }}
-                  >
+                    <span className="trjg-balance">
+                      {newLot === "LIMPIEZA"
+                        ? "LIMPIEZA no usa saldo SGM · máximo una por guía"
+                        : `Saldo disponible: ${fmt(selectedSgm?.tmh_balance)} TMH`}
+                    </span>
+
                     {newDeparture && newLotError && (
                       <span className="trjg-error">
                         {newLotError}
                       </span>
                     )}
+                  </div>
+                </fieldset>
 
-                    {newLot !== "LIMPIEZA" && (
-                      <LotHistory lot={newLot} rows={lots} />
-                    )}
+                {newLot && newLot !== "LIMPIEZA" && (
+                  <div style={{ marginTop: 7 }}>
+                    <LotHistory lot={newLot} rows={lots} />
                   </div>
                 )}
 
-                <div className="trjg-scroll">
+                <div className="trjg-table-scroll">
                   <table>
                     <thead>
                       <tr>
@@ -1453,7 +1518,7 @@ export default function TRJKardexGuides() {
                         <th>TMH salida</th>
                         <th>TMH llegada</th>
                         <th>Saldo total lote</th>
-                        <th>Distribución</th>
+                        <th>Otras guías</th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
@@ -1477,7 +1542,7 @@ export default function TRJKardexGuides() {
                                 <input
                                   aria-label={`Salida ${row.lot} ${row.lot_corr}`}
                                   className="input"
-                                  style={{ width: 130 }}
+                                  style={{ width: 118 }}
                                   inputMode="decimal"
                                   value={editing.value}
                                   disabled={saving}
@@ -1516,12 +1581,7 @@ export default function TRJKardexGuides() {
 
                             <td>
                               {isEditing ? (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: 6,
-                                  }}
-                                >
+                                <div className="trjg-actions">
                                   <Button
                                     size="sm"
                                     disabled={
@@ -1591,7 +1651,7 @@ export default function TRJKardexGuides() {
                 {editing && editError && (
                   <div
                     className="trjg-message trjg-error"
-                    style={{ marginTop: 8 }}
+                    style={{ marginTop: 7 }}
                   >
                     {editError}
                   </div>
