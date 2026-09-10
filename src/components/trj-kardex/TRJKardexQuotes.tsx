@@ -163,7 +163,7 @@ const identity = (row: Lot) =>
   ]);
 
 const decimalValid = (value: string) =>
-  /^(?:\d{1,12}(?:\.\d{1,6})?|\.\d{1,6})$/.test(value.trim());
+  /^(?:\d{1,12}(?:\.\d{1,3})?|\.\d{1,3})$/.test(value.trim());
 
 const moneyValid = (value: string) =>
   /^(?:\d{1,12}(?:\.\d{1,2})?|\.\d{1,2})$/.test(value.trim());
@@ -175,6 +175,27 @@ const decimalPayload = (value: string) => {
     ? `0${trimmed}`
     : trimmed;
 };
+
+function fixedInputValue(
+  value: unknown,
+  decimals: number
+) {
+  const raw = text(value).trim();
+
+  if (!raw) return "";
+
+  const number = Number(raw);
+
+  return Number.isFinite(number)
+    ? number.toFixed(decimals)
+    : raw;
+}
+
+const tmhInputValue = (value: unknown) =>
+  fixedInputValue(value, 3);
+
+const moneyInputValue = (value: unknown) =>
+  fixedInputValue(value, 2);
 
 function units(value: unknown): bigint | null {
   const raw = text(value).trim();
@@ -212,7 +233,7 @@ function fmt(value: unknown, money = false) {
 
   return Number(value).toLocaleString("es-PE", {
     minimumFractionDigits: money ? 2 : 3,
-    maximumFractionDigits: money ? 2 : 6,
+    maximumFractionDigits: money ? 2 : 3,
   });
 }
 
@@ -321,7 +342,7 @@ function QuoteEditor({
   );
 
   const [rate, setRate] = useState(
-    text(guide.pu_transport_usd)
+    moneyInputValue(guide.pu_transport_usd)
   );
 
   const [document, setDocument] = useState(
@@ -333,7 +354,7 @@ function QuoteEditor({
       Object.fromEntries(
         lots.map((row) => [
           identity(row),
-          text(row.tmh_arrival),
+          tmhInputValue(row.tmh_arrival),
         ])
       )
   );
@@ -349,12 +370,12 @@ function QuoteEditor({
 
   const dirty =
     arrival !== text(guide.arrival_date).slice(0, 16) ||
-    rate.trim() !== text(guide.pu_transport_usd).trim() ||
+    rate.trim() !== moneyInputValue(guide.pu_transport_usd) ||
     document.trim() !== text(guide.document_number).trim() ||
     lots.some(
       (row) =>
         values[identity(row)].trim() !==
-        text(row.tmh_arrival).trim()
+        tmhInputValue(row.tmh_arrival)
     );
 
   useEffect(() => {
@@ -495,7 +516,7 @@ function QuoteEditor({
     )
   ) {
     validation =
-      "Revisa las TMH de llegada: números no negativos, hasta 6 decimales";
+      "Revisa las TMH de llegada: números no negativos, hasta 3 decimales";
   }
 
   if (
@@ -531,7 +552,7 @@ function QuoteEditor({
       }
 
       if (
-        rate.trim() !== text(guide.pu_transport_usd).trim()
+        rate.trim() !== moneyInputValue(guide.pu_transport_usd)
       ) {
         body.pu_transport_usd = rate.trim()
           ? decimalPayload(rate)
@@ -548,7 +569,7 @@ function QuoteEditor({
       const changed = lots.filter(
         (row) =>
           values[identity(row)].trim() !==
-          text(row.tmh_arrival).trim()
+          tmhInputValue(row.tmh_arrival)
       );
 
       if (changed.length) {
@@ -765,14 +786,22 @@ function QuoteEditor({
                           aria-label={`Llegada ${row.lot} ${row.lot_corr}`}
                           aria-invalid={invalid}
                           inputMode="decimal"
-                          maxLength={19}
+                          maxLength={16}
                           value={value}
-                          onChange={(e) =>
-                            setValues((current) => ({
-                              ...current,
-                              [identity(row)]: e.target.value,
-                            }))
-                          }
+                          onChange={(e) => {
+                            const next = e.target.value;
+
+                            if (
+                              /^(?:\d{0,12}(?:\.\d{0,3})?|\.\d{0,3})$/.test(
+                                next
+                              )
+                            ) {
+                              setValues((current) => ({
+                                ...current,
+                                [identity(row)]: next,
+                              }));
+                            }
+                          }}
                         />
                       </td>
 

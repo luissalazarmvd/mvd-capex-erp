@@ -587,7 +587,7 @@ const identity = (row: Lot) =>
   ]);
 
 const decimalValid = (value: string) =>
-  /^(?:\d{1,12}(?:\.\d{1,6})?|\.\d{1,6})$/.test(value.trim());
+  /^(?:\d{1,12}(?:\.\d{1,3})?|\.\d{1,3})$/.test(value.trim());
 
 const decimalPayload = (value: string) => {
   const trimmed = value.trim();
@@ -596,6 +596,18 @@ const decimalPayload = (value: string) => {
     ? `0${trimmed}`
     : trimmed;
 };
+
+function tmhInputValue(value: unknown) {
+  const raw = text(value).trim();
+
+  if (!raw) return "";
+
+  const number = Number(raw);
+
+  return Number.isFinite(number)
+    ? number.toFixed(3)
+    : raw;
+}
 
 function fieldClass(field: Field) {
   if (field.kind === "datetime") return "trjg-field trjg-span-4";
@@ -641,7 +653,7 @@ function fmt(value: unknown, money = false) {
 
   return Number(value).toLocaleString("es-PE", {
     minimumFractionDigits: money ? 2 : 3,
-    maximumFractionDigits: money ? 2 : 6,
+    maximumFractionDigits: money ? 2 : 3,
   });
 }
 
@@ -1529,7 +1541,7 @@ export default function TRJKardexGuides() {
       !decimalValid(value)
     ) {
       guideError =
-        `${field.label}: número no negativo, hasta 6 decimales`;
+        `${field.label}: número no negativo, hasta 3 decimales`;
     }
 
     if (field.kind === "datetime" && value) {
@@ -1567,7 +1579,7 @@ export default function TRJKardexGuides() {
     if (!lot) return "Selecciona un lote";
 
     if (!decimalValid(value)) {
-      return "Ingresa TMH válidas, hasta 6 decimales";
+      return "Ingresa TMH válidas, hasta 3 decimales";
     }
 
     const amount = units(value)!;
@@ -2968,9 +2980,19 @@ export default function TRJKardexGuides() {
                       <input
                         className="input"
                         inputMode="decimal"
-                        maxLength={19}
+                        maxLength={16}
                         value={newDeparture}
-                        onChange={(e) => setNewDeparture(e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+
+                          if (
+                            /^(?:\d{0,12}(?:\.\d{0,3})?|\.\d{0,3})$/.test(
+                              value
+                            )
+                          ) {
+                            setNewDeparture(value);
+                          }
+                        }}
                       />
                     </label>
 
@@ -3072,14 +3094,23 @@ export default function TRJKardexGuides() {
                                   className="input"
                                   style={{ width: 118 }}
                                   inputMode="decimal"
+                                  maxLength={16}
                                   value={editing.value}
                                   disabled={saving}
-                                  onChange={(e) =>
-                                    setEditing({
-                                      row,
-                                      value: e.target.value,
-                                    })
-                                  }
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+
+                                    if (
+                                      /^(?:\d{0,12}(?:\.\d{0,3})?|\.\d{0,3})$/.test(
+                                        value
+                                      )
+                                    ) {
+                                      setEditing({
+                                        row,
+                                        value,
+                                      });
+                                    }
+                                  }}
                                 />
                               ) : (
                                 fmt(row.tmh_departure)
@@ -3142,7 +3173,7 @@ export default function TRJKardexGuides() {
                                   onClick={() =>
                                     setEditing({
                                       row,
-                                      value: text(
+                                      value: tmhInputValue(
                                         row.tmh_departure
                                       ),
                                     })
