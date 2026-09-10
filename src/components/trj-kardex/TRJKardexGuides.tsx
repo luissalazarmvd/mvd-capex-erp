@@ -303,7 +303,9 @@ function draftOf(guide?: Guide): Draft {
     ["guide_number", guide?.guide_number || ""],
     ...FIELDS.map((field) => [
       field.key,
-      text(guide?.[field.key]),
+      field.kind === "datetime"
+        ? text(guide?.[field.key]).slice(0, 16)
+        : text(guide?.[field.key]),
     ]),
   ]);
 }
@@ -810,7 +812,10 @@ export default function TRJKardexGuides() {
         const value = draft[field.key].trim();
 
         if (!creating || value) {
-          body[field.key] = value || null;
+          body[field.key] =
+            field.kind === "datetime" && value
+              ? `${value.slice(0, 16)}:00.000`
+              : value || null;
         }
       }
 
@@ -1330,7 +1335,7 @@ export default function TRJKardexGuides() {
                           }
                           step={
                             field.kind === "datetime"
-                              ? "0.001"
+                              ? "60"
                               : undefined
                           }
                           inputMode={
