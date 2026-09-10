@@ -52,6 +52,12 @@ type Party = {
   source: string;
 };
 
+type RucHistory = {
+  ruc: string;
+  name: string | null;
+  source: string;
+};
+
 type Field = {
   key: string;
   label: string;
@@ -695,6 +701,8 @@ export default function TRJKardexGuides() {
     Partial<Record<Role, Party[]>>
   >({});
 
+  const [rucHistory, setRucHistory] = useState<RucHistory[]>([]);
+
   const [peruDepartments, setPeruDepartments] = useState<PeruDepartment[]>([]);
   const [peruProvinces, setPeruProvinces] = useState<PeruProvince[]>([]);
   const [peruDistricts, setPeruDistricts] = useState<PeruDistrict[]>([]);
@@ -724,6 +732,7 @@ export default function TRJKardexGuides() {
       apiGet("/api/trjkar/guides"),
       apiGet("/api/trjkar"),
       apiGet("/api/trjkar/sgm-hist"),
+      apiGet("/api/trjkar/ruc-history"),
     ]);
 
     for (const response of responses) {
@@ -740,6 +749,7 @@ export default function TRJKardexGuides() {
     setGuides(next);
     setLots(responses[1].rows as Lot[]);
     setSgm(responses[2].rows as Sgm[]);
+    setRucHistory(responses[3].rows as RucHistory[]);
 
     return next;
   }, []);
@@ -841,6 +851,13 @@ export default function TRJKardexGuides() {
   const sgmByLot = useMemo(
     () => new Map(sgm.map((row) => [code(row.lot), row])),
     [sgm]
+  );
+
+  const rucHistoryByRuc = useMemo(
+    () => new Map(
+      rucHistory.map((row) => [row.ruc, row])
+    ),
+    [rucHistory]
   );
 
   const geoSuggestions = useMemo(() => {
@@ -1581,6 +1598,41 @@ export default function TRJKardexGuides() {
     }
   }
 
+  function changeRuc(role: Role, value: string) {
+    const selected = value.match(
+      /^(\d{11})\s+-\s+.*$/
+    );
+
+    const ruc = selected
+      ? selected[1]
+      : value.replace(/\D/g, "").slice(0, 11);
+
+    const fieldKey = `${role}_ruc`;
+
+    const next = {
+      ...draftRef.current,
+      [fieldKey]: ruc,
+    };
+
+    if (ruc !== draftRef.current[fieldKey]) {
+      Object.assign(next, partyValues(role));
+
+      setCandidates((current) => ({
+        ...current,
+        [role]: [],
+      }));
+    }
+
+    const historical =
+      rucHistoryByRuc.get(ruc);
+
+    if (historical?.name) {
+      next[`${role}_name`] = historical.name;
+    }
+
+    writeDraft(next);
+  }
+
   function change(field: Field, value: string) {
     const normalized =
       field.key === "transport_guide_number"
@@ -1762,7 +1814,7 @@ export default function TRJKardexGuides() {
         }
 
         writeDraft(next);
-      } else {
+      } else if (!rucHistoryByRuc.has(ruc)) {
         notify(
           "No hay datos históricos para ese RUC. Puedes completarlos manualmente"
         );
@@ -2402,9 +2454,16 @@ export default function TRJKardexGuides() {
                             <input
                               className="input"
                               inputMode="numeric"
-                              maxLength={field.max}
+                              list="trjkar-ruc-options"
+                              autoComplete="off"
+                              maxLength={280}
                               value={draft[field.key]}
-                              onChange={(e) => change(field, e.target.value)}
+                              onChange={(e) =>
+                                changeRuc(
+                                  field.role!,
+                                  e.target.value
+                                )
+                              }
                               onBlur={() => void lookup(field.role!)}
                             />
 
@@ -2584,6 +2643,15 @@ export default function TRJKardexGuides() {
               })}
             </datalist>
           ))}
+
+          <datalist id="trjkar-ruc-options">
+            {rucHistory.map((row) => (
+              <option
+                key={row.ruc}
+                value={`${row.ruc} - ${row.name || ""}`}
+              />
+            ))}
+          </datalist>
 
           {guideError && (
             <div className="trjg-message trjg-error" style={{ marginTop: 9 }}>
