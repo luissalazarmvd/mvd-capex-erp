@@ -98,12 +98,12 @@ const GROUPS: {
       },
       {
         key: "plate_1",
-        label: "Placa 1",
+        label: "Placa Camión",
         max: 6,
       },
       {
         key: "plate_2",
-        label: "Placa 2",
+        label: "Placa Carroza",
         max: 6,
       },
     ],
@@ -412,7 +412,7 @@ export default function TRJKardexGuides() {
     Partial<Record<Role, Party[]>>
   >({});
 
-  const [lookupBusy, setLookupBusy] = useState<Role | null>(null);
+  const [lookupBusy, setLookupBusy] = useState<Role | "driver" | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -676,6 +676,13 @@ export default function TRJKardexGuides() {
     };
 
     if (
+      field.key === "drive_license" &&
+      normalized !== draftRef.current[field.key]
+    ) {
+      next.driver_name = "";
+    }
+
+    if (
       field.role &&
       normalized !== draftRef.current[field.key]
     ) {
@@ -747,6 +754,59 @@ export default function TRJKardexGuides() {
           e instanceof Error
             ? e.message
             : "No se pudo consultar el RUC",
+          true
+        );
+      }
+    } finally {
+      if (ticket === epoch.current) {
+        setLookupBusy(null);
+      }
+    }
+  }
+
+  async function lookupDriver() {
+    const driveLicense = draftRef.current.drive_license.trim();
+
+    if (!driveLicense || gate.current) return;
+
+    const ticket = ++epoch.current;
+
+    setLookupBusy("driver");
+
+    try {
+      const response = await apiGet(
+        `/api/trjkar/driver-lookup?drive_license=${encodeURIComponent(driveLicense)}`
+      );
+
+      if (
+        ticket !== epoch.current ||
+        draftRef.current.drive_license.trim() !== driveLicense
+      ) {
+        return;
+      }
+
+      if (response?.ok === false) {
+        throw new Error(response.error);
+      }
+
+      const driverName = text(response?.row?.driver_name).trim();
+
+      if (driverName) {
+        writeDraft({
+          ...draftRef.current,
+          driver_name: driverName,
+        });
+      } else {
+        notify(
+          "No hay un conductor histórico para esa licencia. Puedes ingresarlo manualmente"
+        );
+      }
+    } catch (e) {
+      if (ticket === epoch.current) {
+        notify(
+          e instanceof Error
+            ? e.message
+            : "No se pudo consultar la licencia",
           true
         );
       }
@@ -1108,7 +1168,7 @@ export default function TRJKardexGuides() {
                 <th>Detalle</th>
                 <th>Guía remitente</th>
                 <th>Transportista</th>
-                <th>Placa</th>
+                <th>Placa Camión</th>
                 <th>Salida</th>
                 <th>TMH salida</th>
                 <th>TMH llegada</th>
@@ -1325,6 +1385,30 @@ export default function TRJKardexGuides() {
                             </select>
                           )}
                         </>
+                      ) : field.key === "drive_license" ? (
+                        <div className="trjg-input-action">
+                          <input
+                            className="input"
+                            type="text"
+                            maxLength={field.max}
+                            value={draft[field.key]}
+                            onChange={(e) => change(field, e.target.value)}
+                            onBlur={() => void lookupDriver()}
+                          />
+
+                          <Button
+                            size="sm"
+                            onClick={() => void lookupDriver()}
+                            disabled={
+                              !!lookupBusy ||
+                              !draft.drive_license.trim()
+                            }
+                          >
+                            {lookupBusy === "driver"
+                              ? "Buscando..."
+                              : "Buscar"}
+                          </Button>
+                        </div>
                       ) : (
                         <input
                           className="input"
