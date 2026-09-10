@@ -362,16 +362,85 @@ function guideDraftValue(value: string) {
       continue;
     }
 
-    if (suffixDigits.length < 10 && /\d/.test(char)) {
+    if (/\d/.test(char)) {
       suffixDigits += char;
     }
   }
 
   const prefix = `${letters}${prefixDigits}`;
 
-  return suffixDigits
-    ? `${prefix}-${suffixDigits}`
+  if (prefix.length < 4) {
+    return prefix;
+  }
+
+  const suffix = suffixDigits
+    .slice(0, 10)
+    .replace(/^0+(?=\d)/, "");
+
+  return suffix
+    ? `${prefix}-${suffix}`
     : prefix;
+}
+
+function guideDisplayValue(value: string) {
+  const draft = guideDraftValue(value);
+
+  const match = draft.match(
+    /^([A-Z]{2}\d{2})(?:-(\d{1,10}))?$/
+  );
+
+  if (!match) {
+    return draft;
+  }
+
+  return match[2]
+    ? `${match[1]}-${match[2].padStart(10, "0")}`
+    : `${match[1]}-`;
+}
+
+function guideEditValue(
+  value: string,
+  previousValue: string
+) {
+  const previousDraft = guideDraftValue(previousValue);
+  const previousDisplay = guideDisplayValue(previousDraft);
+
+  const previousMatch = previousDraft.match(
+    /^([A-Z]{2}\d{2})(?:-(\d{1,10}))?$/
+  );
+
+  if (
+    previousMatch &&
+    value.length === previousDisplay.length + 1 &&
+    value.startsWith(previousDisplay)
+  ) {
+    const char = value.slice(-1);
+    const suffix = previousMatch[2] || "";
+
+    if (/\d/.test(char) && suffix.length < 10) {
+      return `${previousMatch[1]}-${suffix}${char}`;
+    }
+  }
+
+  if (
+    previousMatch &&
+    value.length === previousDisplay.length - 1 &&
+    previousDisplay.startsWith(value)
+  ) {
+    const suffix = previousMatch[2] || "";
+
+    if (suffix.length > 1) {
+      return `${previousMatch[1]}-${suffix.slice(0, -1)}`;
+    }
+
+    if (suffix.length === 1) {
+      return previousMatch[1];
+    }
+
+    return previousMatch[1].slice(0, -1);
+  }
+
+  return guideDraftValue(value);
 }
 
 function guideStorageValue(value: string) {
@@ -501,7 +570,10 @@ function dateKey(value: string) {
 
 function draftOf(guide?: Guide): Draft {
   return Object.fromEntries([
-    ["guide_number", guide?.guide_number || ""],
+    [
+      "guide_number",
+      guideDraftValue(guide?.guide_number || ""),
+    ],
     ...FIELDS.map((field) => [
       field.key,
       field.kind === "datetime"
@@ -2281,13 +2353,16 @@ export default function TRJKardexGuides() {
                 Número de guía remitente
                 <input
                   className="input"
-                  value={draft.guide_number}
-                  maxLength={15}
+                  value={guideDisplayValue(draft.guide_number)}
+                  maxLength={16}
                   readOnly={!creating}
                   onChange={(e) =>
                     writeDraft({
                       ...draftRef.current,
-                      guide_number: guideDraftValue(e.target.value),
+                      guide_number: guideEditValue(
+                        e.target.value,
+                        draftRef.current.guide_number
+                      ),
                     })
                   }
                 />
@@ -2440,9 +2515,27 @@ export default function TRJKardexGuides() {
                               ? `trjkar-${field.key}-options`
                               : undefined
                           }
-                          maxLength={field.max}
-                          value={draft[field.key]}
-                          onChange={(e) => change(field, e.target.value)}
+                          maxLength={
+                            field.key === "transport_guide_number"
+                              ? 16
+                              : field.max
+                          }
+                          value={
+                            field.key === "transport_guide_number"
+                              ? guideDisplayValue(draft[field.key])
+                              : draft[field.key]
+                          }
+                          onChange={(e) =>
+                            field.key === "transport_guide_number"
+                              ? change(
+                                  field,
+                                  guideEditValue(
+                                    e.target.value,
+                                    draftRef.current[field.key]
+                                  )
+                                )
+                              : change(field, e.target.value)
+                          }
                           onBlur={
                             GEO_AUTOCOMPLETE_FIELDS.includes(
                               field.key as GeoAutocompleteField
