@@ -67,11 +67,6 @@ const GROUPS: {
         label: "Guía transportista",
         max: 100,
       },
-      {
-        key: "document_number",
-        label: "Factura de transporte",
-        max: 50,
-      },
     ],
   },
   {
@@ -101,12 +96,12 @@ const GROUPS: {
       {
         key: "plate_1",
         label: "Placa 1",
-        max: 50,
+        max: 6,
       },
       {
         key: "plate_2",
         label: "Placa 2",
-        max: 50,
+        max: 6,
       },
     ],
   },
@@ -202,18 +197,6 @@ const GROUPS: {
         label: "Salida",
         max: 23,
         kind: "datetime",
-      },
-      {
-        key: "arrival_date",
-        label: "Llegada",
-        max: 23,
-        kind: "datetime",
-      },
-      {
-        key: "pu_transport_usd",
-        label: "PU transporte · USD/TMH",
-        max: 19,
-        kind: "decimal",
       },
     ],
   },
@@ -515,7 +498,6 @@ export default function TRJKardexGuides() {
         guide.transport_ruc,
         guide.plate_1,
         guide.recipient_name,
-        guide.document_number,
       ].some((value) => code(text(value)).includes(needle))
     );
   }, [guides, search]);
@@ -587,13 +569,6 @@ export default function TRJKardexGuides() {
     guideError = "Fin de carga debe ser posterior al inicio";
   }
 
-  if (
-    draft.arrival_date &&
-    draft.departure_date &&
-    dateKey(draft.arrival_date) < dateKey(draft.departure_date)
-  ) {
-    guideError = "La llegada no puede ser anterior a la salida";
-  }
 
   function departureError(
     lot: string,
@@ -961,26 +936,30 @@ export default function TRJKardexGuides() {
   return (
     <div className="trjk-guides">
       <style>{`
-        .trjk-guides{display:grid;gap:12px;min-width:0}
-        .trjk-guides .trjg-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-        .trjk-guides .trjg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
-        .trjk-guides label{display:grid;gap:5px;font-size:12px;min-width:0}
-        .trjk-guides .input{width:100%;min-width:0;box-sizing:border-box}
+        .trjk-guides{position:relative;display:grid;gap:10px;min-width:0;min-height:0}
+        .trjk-guides .trjg-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;min-width:0}
+        .trjk-guides .trjg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;min-width:0}
+        .trjk-guides label{display:grid;gap:5px;font-size:12px;font-weight:800;min-width:0}
+        .trjk-guides .input{width:100%;min-width:0;height:34px;padding:6px 8px;box-sizing:border-box}
         .trjk-guides fieldset{border:0;padding:0;margin:0;min-width:0}
-        .trjk-guides .trjg-section{border-top:1px solid rgba(147,211,230,.22);padding-top:12px;margin-top:12px}
+        .trjk-guides .trjg-section{border-top:1px solid rgba(147,211,230,.22);padding-top:12px;margin-top:12px;min-width:0}
         .trjk-guides h3{margin:0 0 10px;font-size:14px}
-        .trjk-guides .trjg-scroll{overflow:auto;max-height:52vh;min-width:0}
-        .trjk-guides table{border-collapse:collapse;width:100%;font-size:12px}
+        .trjk-guides .trjg-scroll{overflow:auto;max-height:52vh;min-width:0;max-width:100%}
+        .trjk-guides table{border-collapse:collapse;width:max-content;min-width:100%;font-size:12px}
         .trjk-guides th{background:#163b49;position:sticky;top:0;z-index:1;text-align:left}
-        .trjk-guides td,.trjk-guides th{padding:9px 10px;border-bottom:1px solid rgba(147,211,230,.16);white-space:nowrap}
+        .trjk-guides td,.trjk-guides th{padding:8px 10px;border-bottom:1px solid rgba(147,211,230,.16);white-space:nowrap}
         .trjk-guides tr[data-active=true]{background:rgba(94,128,25,.28)}
-        .trjk-guides .trjg-message{padding:10px 12px;border:1px solid rgba(147,211,230,.35);border-radius:8px;background:rgba(11,77,107,.5)}
+        .trjk-guides .trjg-message{padding:8px 10px;border:1px solid rgba(147,211,230,.35);border-radius:8px;background:rgba(11,77,107,.5)}
         .trjk-guides .trjg-error{color:#ffd3ba;border-color:#d85d27}
         .trjk-guides .trjg-metrics{display:flex;gap:20px;flex-wrap:wrap;padding:10px 0;font-size:13px}
         .trjk-guides .trjg-history summary{cursor:pointer;color:#a4dbea}
-        .trjk-guides .trjg-history[open]{min-width:310px}
+        .trjk-guides .trjg-history[open]{min-width:min(310px,100%)}
         .trjk-guides button:disabled{opacity:.45;cursor:not-allowed}
         .trjk-guides .trjg-note{font-size:12px;opacity:.8;margin-top:8px}
+        @media (max-width:900px){
+          .trjk-guides .trjg-grid{grid-template-columns:minmax(0,1fr)}
+          .trjk-guides .trjg-bar{align-items:stretch}
+        }
       `}</style>
 
       <div className="trjg-bar">
@@ -1028,7 +1007,7 @@ export default function TRJKardexGuides() {
             className="input"
             style={{ maxWidth: 500 }}
             aria-label="Buscar guías"
-            placeholder="Buscar guía, transportista, RUC, placa o factura"
+            placeholder="Buscar guía, transportista, RUC o placa"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -1052,7 +1031,6 @@ export default function TRJKardexGuides() {
                 <th>Salida</th>
                 <th>TMH salida</th>
                 <th>TMH llegada</th>
-                <th>Factura</th>
               </tr>
             </thead>
 
@@ -1080,13 +1058,12 @@ export default function TRJKardexGuides() {
                   <td>{dateLabel(guide.departure_date)}</td>
                   <td>{fmt(guide.tmh_departure)}</td>
                   <td>{fmt(guide.tmh_arrival)}</td>
-                  <td>{guide.document_number || "—"}</td>
                 </tr>
               ))}
 
               {!visible.length && (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={7}>
                     {loading
                       ? "Cargando..."
                       : "No hay guías para mostrar"}
@@ -1126,9 +1103,12 @@ export default function TRJKardexGuides() {
         <section
           className="panel-inner"
           style={{
-            padding: 14,
+            padding: 12,
             background: "var(--panel2)",
             borderColor: "rgba(147,211,230,.5)",
+            maxHeight: "calc(100vh - 330px)",
+            minHeight: 0,
+            overflow: "auto",
           }}
         >
           <div className="trjg-bar">
