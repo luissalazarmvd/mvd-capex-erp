@@ -1068,6 +1068,7 @@ export default function TRJKardexQuotes() {
         .trjk-quotes .trjq-entry-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
         .trjk-quotes label{display:grid;gap:4px;min-width:0;font-size:11px;font-weight:800}
         .trjk-quotes .input{width:100%;min-width:0;height:30px;padding:4px 8px;font-size:11px;line-height:1.2;border-radius:6px}
+        .trjk-quotes input[list]{background:#073b54;color:#fff;border:1px solid rgba(147,211,230,.35)}
         .trjk-quotes input[readonly]{opacity:.82;background:rgba(255,255,255,.035)}
         .trjk-quotes fieldset{border:0;padding:0;margin:0;min-width:0}
         .trjk-quotes .trjq-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:9px}

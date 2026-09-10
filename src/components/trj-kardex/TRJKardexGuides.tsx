@@ -149,7 +149,7 @@ const GROUPS: {
       {
         key: "transport_guide_number",
         label: "Guía transportista",
-        max: 100,
+        max: 15,
       },
     ],
   },
@@ -171,7 +171,7 @@ const GROUPS: {
       {
         key: "drive_license",
         label: "Licencia de conducir",
-        max: 50,
+        max: 9,
       },
       {
         key: "driver_name",
@@ -342,6 +342,78 @@ const SCALE = BigInt(1000000);
 const text = (value: unknown) => value == null ? "" : String(value);
 const code = (value: string) => value.trim().toUpperCase();
 
+function guideDraftValue(value: string) {
+  const compact = value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+
+  let letters = "";
+  let prefixDigits = "";
+  let suffixDigits = "";
+
+  for (const char of compact) {
+    if (letters.length < 2) {
+      if (/[A-Z]/.test(char)) letters += char;
+      continue;
+    }
+
+    if (prefixDigits.length < 2) {
+      if (/\d/.test(char)) prefixDigits += char;
+      continue;
+    }
+
+    if (suffixDigits.length < 10 && /\d/.test(char)) {
+      suffixDigits += char;
+    }
+  }
+
+  const prefix = `${letters}${prefixDigits}`;
+
+  return suffixDigits
+    ? `${prefix}-${suffixDigits}`
+    : prefix;
+}
+
+function guideStorageValue(value: string) {
+  const match = guideDraftValue(value).match(
+    /^([A-Z]{2}\d{2})-(\d{1,10})$/
+  );
+
+  return match
+    ? `${match[1]}-${match[2].padStart(10, "0")}`
+    : "";
+}
+
+function driveLicenseDraftValue(value: string) {
+  const compact = value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+
+  let letter = "";
+  let digits = "";
+
+  for (const char of compact) {
+    if (!letter) {
+      if (/[A-Z]/.test(char)) letter = char;
+      continue;
+    }
+
+    if (digits.length < 8 && /\d/.test(char)) {
+      digits += char;
+    }
+  }
+
+  return `${letter}${digits}`;
+}
+
+function driveLicenseDisplay(value: string) {
+  const normalized = driveLicenseDraftValue(value);
+
+  return normalized.length > 1
+    ? `${normalized[0]}-${normalized.slice(1)}`
+    : normalized;
+}
+
 const identity = (row: Lot) =>
   JSON.stringify([
     row.lot,
@@ -434,7 +506,11 @@ function draftOf(guide?: Guide): Draft {
       field.key,
       field.kind === "datetime"
         ? text(guide?.[field.key]).slice(0, 16)
-        : text(guide?.[field.key]),
+        : field.key === "transport_guide_number"
+          ? guideDraftValue(text(guide?.[field.key]))
+          : field.key === "drive_license"
+            ? driveLicenseDraftValue(text(guide?.[field.key]))
+            : text(guide?.[field.key]),
     ]),
   ]);
 }
@@ -535,7 +611,6 @@ export default function TRJKardexGuides() {
     key: GuideExcelFilterKey;
     direction: ExcelSortDirection;
   } | null>(null);
-  const [lotSearch, setLotSearch] = useState("");
   const [newLot, setNewLot] = useState("");
   const [newDeparture, setNewDeparture] = useState("");
 
@@ -1068,9 +1143,7 @@ export default function TRJKardexGuides() {
     (row) => code(row.lot) === "LIMPIEZA"
   );
 
-  const availableLots = sgm.filter(
-    (row) => code(row.lot).includes(code(lotSearch))
-  );
+  const availableLots = sgm;
 
   const guideExcelValues = useMemo(
     () =>
@@ -1168,18 +1241,17 @@ export default function TRJKardexGuides() {
 
   let guideError = "";
 
-  if (
-    !draft.guide_number.trim() ||
-    draft.guide_number.trim().length > 100
-  ) {
-    guideError = "Ingresa el número de guía remitente";
+  if (!guideStorageValue(draft.guide_number)) {
+    guideError =
+      "Número de guía remitente: usa XX##-##########";
   }
 
   if (
     creating &&
     guides.some(
       (guide) =>
-        code(guide.guide_number) === code(draft.guide_number)
+        guideStorageValue(guide.guide_number) ===
+        guideStorageValue(draft.guide_number)
     )
   ) {
     guideError = "La guía ya existe; ábrela desde el histórico";
@@ -1195,6 +1267,22 @@ export default function TRJKardexGuides() {
 
     if (field.role && value && !/^\d{11}$/.test(value)) {
       guideError = `${field.label}: deben ser 11 dígitos`;
+    }
+
+    if (
+      field.key === "transport_guide_number" &&
+      value &&
+      !guideStorageValue(value)
+    ) {
+      guideError = `${field.label}: usa XX##-##########`;
+    }
+
+    if (
+      field.key === "drive_license" &&
+      value &&
+      !/^[A-Z]\d{8}$/.test(value)
+    ) {
+      guideError = `${field.label}: usa X-12345678`;
     }
 
     if (
@@ -1248,6 +1336,10 @@ export default function TRJKardexGuides() {
         : "";
     }
 
+    if (!sgmByLot.has(code(lot))) {
+      return "Selecciona un lote existente del histórico SGM";
+    }
+
     const balance = units(
       sgmByLot.get(code(lot))?.tmh_balance
     );
@@ -1291,7 +1383,6 @@ export default function TRJKardexGuides() {
     setNewLot("");
     setNewDeparture("");
     setEditing(null);
-    setLotSearch("");
     notify("");
   }
 
@@ -1419,9 +1510,14 @@ export default function TRJKardexGuides() {
   }
 
   function change(field: Field, value: string) {
-    const normalized = field.key.startsWith("plate_")
-      ? value.toUpperCase().slice(0, field.max)
-      : value;
+    const normalized =
+      field.key === "transport_guide_number"
+        ? guideDraftValue(value)
+        : field.key === "drive_license"
+          ? driveLicenseDraftValue(value)
+          : field.key.startsWith("plate_")
+            ? value.toUpperCase().slice(0, field.max)
+            : value;
 
     const isGeoField =
       GEO_AUTOCOMPLETE_FIELDS.includes(
@@ -1618,7 +1714,7 @@ export default function TRJKardexGuides() {
   async function lookupDriver() {
     const driveLicense = draftRef.current.drive_license.trim();
 
-    if (!driveLicense || gate.current) return;
+    if (!/^[A-Z]\d{8}$/.test(driveLicense) || gate.current) return;
 
     const ticket = ++epoch.current;
 
@@ -1713,7 +1809,7 @@ export default function TRJKardexGuides() {
 
     try {
       const body: Record<string, unknown> = {
-        guide_number: code(draft.guide_number),
+        guide_number: guideStorageValue(draft.guide_number),
         create_only: creating,
       };
 
@@ -1726,7 +1822,11 @@ export default function TRJKardexGuides() {
           body[field.key] =
             field.kind === "datetime" && value
               ? `${value.slice(0, 16)}:00.000`
-              : value || null;
+              : field.key === "transport_guide_number" && value
+                ? guideStorageValue(value)
+                : field.key === "drive_license" && value
+                  ? driveLicenseDraftValue(value)
+                  : value || null;
         }
       }
 
@@ -1916,7 +2016,9 @@ export default function TRJKardexGuides() {
         .trjk-guides .trjg-span-3{grid-column:span 3}
         .trjk-guides .trjg-span-4{grid-column:span 4}
         .trjk-guides .input{width:100%;min-width:0;height:30px;padding:4px 8px;font-size:11px;line-height:1.2;border-radius:6px}
+        .trjk-guides input[list],.trjk-guides select.input{background:#073b54;color:#fff;border:1px solid rgba(147,211,230,.35)}
         .trjk-guides select.input{padding-right:24px}
+        .trjk-guides select.input option{background:#073b54;color:#fff}
         .trjk-guides input[readonly]{opacity:.82;background:rgba(255,255,255,.035)}
         .trjk-guides fieldset{border:0;padding:0;margin:0;min-width:0}
         .trjk-guides .trjg-input-action{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:center}
@@ -1930,7 +2032,7 @@ export default function TRJKardexGuides() {
         .trjk-guides .trjg-lots{margin-top:10px;padding:10px;border:1px solid rgba(151,205,58,.35);border-radius:9px;background:linear-gradient(180deg,rgba(62,84,24,.15),rgba(2,35,52,.20))}
         .trjk-guides .trjg-lots-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
         .trjk-guides .trjg-lots-title{margin:0;font-size:13px}
-        .trjk-guides .trjg-lot-add{display:grid;grid-template-columns:1.1fr 1.5fr .75fr .65fr auto;gap:8px;align-items:end}
+        .trjk-guides .trjg-lot-add{display:grid;grid-template-columns:1.7fr .75fr .65fr auto;gap:8px;align-items:end}
         .trjk-guides .trjg-lot-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px}
         .trjk-guides .trjg-balance{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(147,211,230,.08);font-size:10px}
         .trjk-guides .trjg-note{font-size:10px;opacity:.82}
@@ -2180,12 +2282,12 @@ export default function TRJKardexGuides() {
                 <input
                   className="input"
                   value={draft.guide_number}
-                  maxLength={100}
+                  maxLength={15}
                   readOnly={!creating}
                   onChange={(e) =>
                     writeDraft({
                       ...draftRef.current,
-                      guide_number: e.target.value,
+                      guide_number: guideDraftValue(e.target.value),
                     })
                   }
                 />
@@ -2292,8 +2394,8 @@ export default function TRJKardexGuides() {
                           <input
                             className="input"
                             type="text"
-                            maxLength={field.max}
-                            value={draft[field.key]}
+                            maxLength={10}
+                            value={driveLicenseDisplay(draft[field.key])}
                             onChange={(e) => change(field, e.target.value)}
                             onBlur={() => void lookupDriver()}
                           />
@@ -2303,7 +2405,9 @@ export default function TRJKardexGuides() {
                             onClick={() => void lookupDriver()}
                             disabled={
                               !!lookupBusy ||
-                              !draft.drive_license.trim()
+                              !/^[A-Z]\d{8}$/.test(
+                                draft.drive_license.trim()
+                              )
                             }
                           >
                             {lookupBusy === "driver"
@@ -2425,52 +2529,38 @@ export default function TRJKardexGuides() {
                 <fieldset disabled={blockedLots || !!editing}>
                   <div className="trjg-lot-add">
                     <label className="trjg-field">
-                      Filtrar histórico
+                      Lote SGM
                       <input
                         className="input"
-                        value={lotSearch}
-                        onChange={(e) => setLotSearch(e.target.value)}
-                        placeholder="Código de lote"
-                      />
-                    </label>
-
-                    <label className="trjg-field">
-                      Lote SGM
-                      <select
-                        className="input"
+                        list="trjkar-sgm-lot-options"
                         value={newLot}
+                        placeholder="Seleccionar lote"
+                        autoComplete="off"
                         onChange={(e) => {
-                          setNewLot(e.target.value);
+                          setNewLot(code(e.target.value));
                           setNewDeparture("");
                         }}
-                      >
-                        <option value="">Seleccionar lote</option>
+                        onBlur={(e) => {
+                          const lot = code(e.currentTarget.value);
 
-                        {newLot === "LIMPIEZA" && (
-                          <option value="LIMPIEZA">
-                            LIMPIEZA
-                          </option>
-                        )}
+                          if (
+                            lot !== "LIMPIEZA" &&
+                            !sgmByLot.has(lot)
+                          ) {
+                            setNewLot("");
+                          }
+                        }}
+                      />
 
-                        {newLot &&
-                          newLot !== "LIMPIEZA" &&
-                          !availableLots.some(
-                            (row) => row.lot === newLot
-                          ) && (
-                            <option value={newLot}>
-                              {newLot}
-                            </option>
-                          )}
-
+                      <datalist id="trjkar-sgm-lot-options">
                         {availableLots.map((row) => (
                           <option
                             key={row.lot}
                             value={row.lot}
-                          >
-                            {row.lot} · saldo {fmt(row.tmh_balance)} TMH
-                          </option>
+                            label={`Saldo ${fmt(row.tmh_balance)} TMH`}
+                          />
                         ))}
-                      </select>
+                      </datalist>
                     </label>
 
                     <label className="trjg-field">
