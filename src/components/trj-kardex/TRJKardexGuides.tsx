@@ -63,6 +63,7 @@ type Field = {
   label: string;
   max: number;
   kind?: "datetime" | "decimal";
+  decimals?: number;
   role?: Role;
 };
 
@@ -274,6 +275,20 @@ const GROUPS: {
     title: "Carga y traslado · hora Perú",
     tone: "movement",
     fields: [
+      {
+        key: "bags_tot",
+        label: "Sacos Totales (Usados y rotos)",
+        max: 19,
+        kind: "decimal",
+        decimals: 6,
+      },
+      {
+        key: "bags_used",
+        label: "Sacos Enviados",
+        max: 19,
+        kind: "decimal",
+        decimals: 6,
+      },
       {
         key: "load_ini",
         label: "Inicio de carga",
@@ -586,8 +601,10 @@ const identity = (row: Lot) =>
     row.guide_number,
   ]);
 
-const decimalValid = (value: string) =>
-  /^(?:\d{1,12}(?:\.\d{1,3})?|\.\d{1,3})$/.test(value.trim());
+const decimalValid = (value: string, decimals = 3) =>
+  new RegExp(
+    `^(?:\\d{1,12}(?:\\.\\d{1,${decimals}})?|\\.\\d{1,${decimals}})$`
+  ).test(value.trim());
 
 const decimalPayload = (value: string) => {
   const trimmed = value.trim();
@@ -1538,10 +1555,10 @@ export default function TRJKardexGuides() {
     if (
       field.kind === "decimal" &&
       value &&
-      !decimalValid(value)
+      !decimalValid(value, field.decimals ?? 3)
     ) {
       guideError =
-        `${field.label}: número no negativo, hasta 3 decimales`;
+        `${field.label}: número no negativo, hasta ${field.decimals ?? 3} decimales`;
     }
 
     if (field.kind === "datetime" && value) {
@@ -2126,11 +2143,13 @@ export default function TRJKardexGuides() {
           body[field.key] =
             field.kind === "datetime" && value
               ? `${value.slice(0, 16)}:00.000`
-              : field.key === "transport_guide_number" && value
-                ? guideStorageValue(value)
-                : field.key === "drive_license" && value
-                  ? driveLicenseDraftValue(value)
-                  : value || null;
+              : field.kind === "decimal" && value
+                ? decimalPayload(value)
+                : field.key === "transport_guide_number" && value
+                  ? guideStorageValue(value)
+                  : field.key === "drive_license" && value
+                    ? driveLicenseDraftValue(value)
+                    : value || null;
         }
       }
 
