@@ -304,6 +304,40 @@ const GEO_AUTOCOMPLETE_FIELDS = [
 type GeoAutocompleteField =
   typeof GEO_AUTOCOMPLETE_FIELDS[number];
 
+type PeruDepartment = {
+  id: string;
+  name: string;
+};
+
+type PeruProvince = {
+  id: string;
+  name: string;
+  department_id: string;
+};
+
+type PeruDistrict = {
+  id: string;
+  name: string;
+  province_id: string;
+  department_id: string;
+};
+
+type GeoSuggestion = {
+  department: string;
+  province?: string;
+  district?: string;
+  source: "PERU" | "HIST";
+};
+
+const UBIGEO_PERU_URLS = {
+  departments:
+    "https://raw.githubusercontent.com/leandrofrancisco03/Ubigeo-Peru-2026/main/json/ubigeo_peru_2026_departamentos.json",
+  provinces:
+    "https://raw.githubusercontent.com/leandrofrancisco03/Ubigeo-Peru-2026/main/json/ubigeo_peru_2026_provincias.json",
+  districts:
+    "https://raw.githubusercontent.com/leandrofrancisco03/Ubigeo-Peru-2026/main/json/ubigeo_peru_2026_distritos.json",
+};
+
 const SCALE = BigInt(1000000);
 const text = (value: unknown) => value == null ? "" : String(value);
 const code = (value: string) => value.trim().toUpperCase();
@@ -514,6 +548,10 @@ export default function TRJKardexGuides() {
     Partial<Record<Role, Party[]>>
   >({});
 
+  const [peruDepartments, setPeruDepartments] = useState<PeruDepartment[]>([]);
+  const [peruProvinces, setPeruProvinces] = useState<PeruProvince[]>([]);
+  const [peruDistricts, setPeruDistricts] = useState<PeruDistrict[]>([]);
+
   const [lookupBusy, setLookupBusy] = useState<Role | "driver" | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -570,6 +608,80 @@ export default function TRJKardexGuides() {
       .finally(() => setLoading(false));
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void Promise.all([
+      fetch(
+        UBIGEO_PERU_URLS.departments,
+        { cache: "force-cache" }
+      ).then((response) => {
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar los departamentos del Perú");
+        }
+
+        return response.json() as Promise<PeruDepartment[]>;
+      }),
+      fetch(
+        UBIGEO_PERU_URLS.provinces,
+        { cache: "force-cache" }
+      ).then((response) => {
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar las provincias del Perú");
+        }
+
+        return response.json() as Promise<PeruProvince[]>;
+      }),
+      fetch(
+        UBIGEO_PERU_URLS.districts,
+        { cache: "force-cache" }
+      ).then((response) => {
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar los distritos del Perú");
+        }
+
+        return response.json() as Promise<PeruDistrict[]>;
+      }),
+    ])
+      .then(([
+        departments,
+        provinces,
+        districts,
+      ]) => {
+        if (cancelled) return;
+
+        setPeruDepartments(
+          Array.isArray(departments)
+            ? departments
+            : []
+        );
+
+        setPeruProvinces(
+          Array.isArray(provinces)
+            ? provinces
+            : []
+        );
+
+        setPeruDistricts(
+          Array.isArray(districts)
+            ? districts
+            : []
+        );
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          console.error(
+            "No se pudo cargar el catálogo UBIGEO Perú",
+            e
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const activeGuide = guides.find(
     (guide) => guide.guide_number === active
   );
@@ -585,100 +697,343 @@ export default function TRJKardexGuides() {
   );
 
   const geoSuggestions = useMemo(() => {
-    const unique = (values: Array<string | null>) =>
+    const normalizeGeo = (value: string) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toUpperCase();
+
+    const departmentById = new Map(
+      peruDepartments.map((row) => [
+        row.id,
+        row.name.trim(),
+      ])
+    );
+
+    const provinceById = new Map(
+      peruProvinces.map((row) => [
+        row.id,
+        row,
+      ])
+    );
+
+    const departmentMap =
+      new Map<string, GeoSuggestion>();
+
+    const provinceMap =
+      new Map<string, GeoSuggestion>();
+
+    const districtMap =
+      new Map<string, GeoSuggestion>();
+
+    const addDepartment = (
+      department: string,
+      source: GeoSuggestion["source"]
+    ) => {
+      const cleanDepartment =
+        department.trim();
+
+      if (!cleanDepartment) return;
+
+      const key =
+        normalizeGeo(cleanDepartment);
+
+      if (!departmentMap.has(key)) {
+        departmentMap.set(key, {
+          department: cleanDepartment,
+          source,
+        });
+      }
+    };
+
+    const addProvince = (
+      department: string,
+      province: string,
+      source: GeoSuggestion["source"]
+    ) => {
+      const cleanDepartment =
+        department.trim();
+
+      const cleanProvince =
+        province.trim();
+
+      if (
+        !cleanDepartment ||
+        !cleanProvince
+      ) {
+        return;
+      }
+
+      const key = [
+        normalizeGeo(cleanDepartment),
+        normalizeGeo(cleanProvince),
+      ].join("|");
+
+      if (!provinceMap.has(key)) {
+        provinceMap.set(key, {
+          department: cleanDepartment,
+          province: cleanProvince,
+          source,
+        });
+      }
+    };
+
+    const addDistrict = (
+      department: string,
+      province: string,
+      district: string,
+      source: GeoSuggestion["source"]
+    ) => {
+      const cleanDepartment =
+        department.trim();
+
+      const cleanProvince =
+        province.trim();
+
+      const cleanDistrict =
+        district.trim();
+
+      if (
+        !cleanDepartment ||
+        !cleanProvince ||
+        !cleanDistrict
+      ) {
+        return;
+      }
+
+      const key = [
+        normalizeGeo(cleanDepartment),
+        normalizeGeo(cleanProvince),
+        normalizeGeo(cleanDistrict),
+      ].join("|");
+
+      if (!districtMap.has(key)) {
+        districtMap.set(key, {
+          department: cleanDepartment,
+          province: cleanProvince,
+          district: cleanDistrict,
+          source,
+        });
+      }
+    };
+
+    for (const row of peruDepartments) {
+      addDepartment(
+        row.name,
+        "PERU"
+      );
+    }
+
+    for (const row of peruProvinces) {
+      const department =
+        departmentById.get(
+          row.department_id
+        );
+
+      if (!department) continue;
+
+      addProvince(
+        department,
+        row.name,
+        "PERU"
+      );
+    }
+
+    for (const row of peruDistricts) {
+      const province =
+        provinceById.get(
+          row.province_id
+        );
+
+      const department =
+        departmentById.get(
+          row.department_id
+        );
+
+      if (
+        !province ||
+        !department
+      ) {
+        continue;
+      }
+
+      addDistrict(
+        department,
+        province.name,
+        row.name,
+        "PERU"
+      );
+    }
+
+    for (const guide of guides) {
+      const locations = [
+        {
+          department: text(
+            guide.origin_department
+          ),
+          province: text(
+            guide.origin_province
+          ),
+          district: text(
+            guide.origin_district
+          ),
+        },
+        {
+          department: text(
+            guide.destination_department
+          ),
+          province: text(
+            guide.destination_province
+          ),
+          district: text(
+            guide.destination_district
+          ),
+        },
+      ];
+
+      for (const location of locations) {
+        addDepartment(
+          location.department,
+          "HIST"
+        );
+
+        addProvince(
+          location.department,
+          location.province,
+          "HIST"
+        );
+
+        addDistrict(
+          location.department,
+          location.province,
+          location.district,
+          "HIST"
+        );
+      }
+    }
+
+    const departments =
       Array.from(
-        new Set(
-          values
-            .map((value) => text(value).trim())
-            .filter(Boolean)
-        )
+        departmentMap.values()
       ).sort((a, b) =>
-        a.localeCompare(b, "es", {
-          sensitivity: "base",
-        })
+        a.department.localeCompare(
+          b.department,
+          "es",
+          {
+            sensitivity: "base",
+          }
+        )
       );
 
-    const originDepartment = code(
-      draft.origin_department
-    );
-
-    const originProvince = code(
-      draft.origin_province
-    );
-
-    const destinationDepartment = code(
-      draft.destination_department
-    );
-
-    const destinationProvince = code(
-      draft.destination_province
-    );
-
-    const originProvinceRows = guides.filter(
-      (guide) =>
-        !originDepartment ||
-        code(text(guide.origin_department)) ===
-          originDepartment
-    );
-
-    const originDistrictRows =
-      originProvinceRows.filter(
-        (guide) =>
-          !originProvince ||
-          code(text(guide.origin_province)) ===
-            originProvince
+    const provinces =
+      Array.from(
+        provinceMap.values()
+      ).sort((a, b) =>
+        (a.province || "").localeCompare(
+          b.province || "",
+          "es",
+          {
+            sensitivity: "base",
+          }
+        )
       );
 
-    const destinationProvinceRows =
-      guides.filter(
-        (guide) =>
-          !destinationDepartment ||
-          code(text(guide.destination_department)) ===
-            destinationDepartment
+    const districts =
+      Array.from(
+        districtMap.values()
+      ).sort((a, b) =>
+        (a.district || "").localeCompare(
+          b.district || "",
+          "es",
+          {
+            sensitivity: "base",
+          }
+        )
       );
 
-    const destinationDistrictRows =
-      destinationProvinceRows.filter(
-        (guide) =>
-          !destinationProvince ||
-          code(text(guide.destination_province)) ===
-            destinationProvince
+    const filterProvinces = (
+      department: string
+    ) => {
+      const selectedDepartment =
+        normalizeGeo(department);
+
+      if (!selectedDepartment) {
+        return provinces;
+      }
+
+      return provinces.filter(
+        (row) =>
+          normalizeGeo(
+            row.department
+          ) === selectedDepartment
       );
+    };
+
+    const filterDistricts = (
+      department: string,
+      province: string
+    ) => {
+      const selectedDepartment =
+        normalizeGeo(department);
+
+      const selectedProvince =
+        normalizeGeo(province);
+
+      return districts.filter(
+        (row) =>
+          (
+            !selectedDepartment ||
+            normalizeGeo(
+              row.department
+            ) === selectedDepartment
+          ) &&
+          (
+            !selectedProvince ||
+            normalizeGeo(
+              row.province || ""
+            ) === selectedProvince
+          )
+      );
+    };
 
     return {
-      origin_department: unique(
-        guides.map(
-          (guide) => guide.origin_department
-        )
-      ),
-      origin_province: unique(
-        originProvinceRows.map(
-          (guide) => guide.origin_province
-        )
-      ),
-      origin_district: unique(
-        originDistrictRows.map(
-          (guide) => guide.origin_district
-        )
-      ),
-      destination_department: unique(
-        guides.map(
-          (guide) => guide.destination_department
-        )
-      ),
-      destination_province: unique(
-        destinationProvinceRows.map(
-          (guide) => guide.destination_province
-        )
-      ),
-      destination_district: unique(
-        destinationDistrictRows.map(
-          (guide) => guide.destination_district
-        )
-      ),
-    };
+      origin_department:
+        departments,
+
+      origin_province:
+        filterProvinces(
+          draft.origin_department
+        ),
+
+      origin_district:
+        filterDistricts(
+          draft.origin_department,
+          draft.origin_province
+        ),
+
+      destination_department:
+        departments,
+
+      destination_province:
+        filterProvinces(
+          draft.destination_department
+        ),
+
+      destination_district:
+        filterDistricts(
+          draft.destination_department,
+          draft.destination_province
+        ),
+    } satisfies Record<
+      GeoAutocompleteField,
+      GeoSuggestion[]
+    >;
   }, [
     guides,
+    peruDepartments,
+    peruProvinces,
+    peruDistricts,
     draft.origin_department,
     draft.origin_province,
     draft.destination_department,
@@ -940,10 +1295,231 @@ export default function TRJKardexGuides() {
     notify("");
   }
 
+  function applyGeoSuggestion(
+    field: GeoAutocompleteField,
+    suggestion: GeoSuggestion
+  ) {
+    const prefix =
+      field.startsWith("origin_")
+        ? "origin"
+        : "destination";
+
+    const next = {
+      ...draftRef.current,
+    };
+
+    if (
+      field.endsWith("_department")
+    ) {
+      const changed =
+        next[
+          `${prefix}_department`
+        ] !== suggestion.department;
+
+      next[
+        `${prefix}_department`
+      ] = suggestion.department;
+
+      if (changed) {
+        next[
+          `${prefix}_province`
+        ] = "";
+
+        next[
+          `${prefix}_district`
+        ] = "";
+      }
+    }
+
+    if (
+      field.endsWith("_province") &&
+      suggestion.province
+    ) {
+      next[
+        `${prefix}_department`
+      ] = suggestion.department;
+
+      next[
+        `${prefix}_province`
+      ] = suggestion.province;
+
+      next[
+        `${prefix}_district`
+      ] = "";
+    }
+
+    if (
+      field.endsWith("_district") &&
+      suggestion.province &&
+      suggestion.district
+    ) {
+      next[
+        `${prefix}_department`
+      ] = suggestion.department;
+
+      next[
+        `${prefix}_province`
+      ] = suggestion.province;
+
+      next[
+        `${prefix}_district`
+      ] = suggestion.district;
+    }
+
+    writeDraft(next);
+  }
+
+  function resolveGeoField(
+    field: GeoAutocompleteField
+  ) {
+    const currentValue =
+      draftRef.current[field]
+        .trim();
+
+    if (!currentValue) return;
+
+    const normalizeGeo = (
+      value: string
+    ) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toUpperCase();
+
+    const matches =
+      geoSuggestions[field].filter(
+        (suggestion) => {
+          const target =
+            field.endsWith(
+              "_department"
+            )
+              ? suggestion.department
+              : field.endsWith(
+                    "_province"
+                  )
+                ? suggestion.province || ""
+                : suggestion.district || "";
+
+          return (
+            normalizeGeo(target) ===
+            normalizeGeo(
+              currentValue
+            )
+          );
+        }
+      );
+
+    if (matches.length === 1) {
+      applyGeoSuggestion(
+        field,
+        matches[0]
+      );
+    }
+  }
+
   function change(field: Field, value: string) {
     const normalized = field.key.startsWith("plate_")
       ? value.toUpperCase().slice(0, field.max)
       : value;
+
+    const isGeoField =
+      GEO_AUTOCOMPLETE_FIELDS.includes(
+        field.key as GeoAutocompleteField
+      );
+
+    if (isGeoField) {
+      const geoField =
+        field.key as GeoAutocompleteField;
+
+      const prefix =
+        geoField.startsWith("origin_")
+          ? "origin"
+          : "destination";
+
+      const parts = normalized
+        .split(" — ")
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+      if (
+        geoField.endsWith(
+          "_province"
+        ) &&
+        parts.length >= 2
+      ) {
+        applyGeoSuggestion(
+          geoField,
+          {
+            province: parts[0],
+            department: parts[1],
+            source: "PERU",
+          }
+        );
+
+        return;
+      }
+
+      if (
+        geoField.endsWith(
+          "_district"
+        ) &&
+        parts.length >= 3
+      ) {
+        applyGeoSuggestion(
+          geoField,
+          {
+            district: parts[0],
+            province: parts[1],
+            department: parts[2],
+            source: "PERU",
+          }
+        );
+
+        return;
+      }
+
+      const next = {
+        ...draftRef.current,
+        [geoField]: normalized,
+      };
+
+      if (
+        geoField.endsWith(
+          "_department"
+        ) &&
+        normalized !==
+          draftRef.current[
+            geoField
+          ]
+      ) {
+        next[
+          `${prefix}_province`
+        ] = "";
+
+        next[
+          `${prefix}_district`
+        ] = "";
+      }
+
+      if (
+        geoField.endsWith(
+          "_province"
+        ) &&
+        normalized !==
+          draftRef.current[
+            geoField
+          ]
+      ) {
+        next[
+          `${prefix}_district`
+        ] = "";
+      }
+
+      writeDraft(next);
+
+      return;
+    }
 
     const next = {
       ...draftRef.current,
@@ -1763,6 +2339,16 @@ export default function TRJKardexGuides() {
                           maxLength={field.max}
                           value={draft[field.key]}
                           onChange={(e) => change(field, e.target.value)}
+                          onBlur={
+                            GEO_AUTOCOMPLETE_FIELDS.includes(
+                              field.key as GeoAutocompleteField
+                            )
+                              ? () =>
+                                  resolveGeoField(
+                                    field.key as GeoAutocompleteField
+                                  )
+                              : undefined
+                          }
                         />
                       )}
                     </label>
@@ -1777,12 +2363,28 @@ export default function TRJKardexGuides() {
               key={field}
               id={`trjkar-${field}-options`}
             >
-              {geoSuggestions[field].map((value) => (
-                <option
-                  key={value}
-                  value={value}
-                />
-              ))}
+              {geoSuggestions[field].map((suggestion) => {
+                const value =
+                  field.endsWith("_department")
+                    ? suggestion.department
+                    : field.endsWith("_province")
+                      ? `${suggestion.province} — ${suggestion.department}`
+                      : `${suggestion.district} — ${suggestion.province} — ${suggestion.department}`;
+
+                const key = [
+                  field,
+                  suggestion.department,
+                  suggestion.province || "",
+                  suggestion.district || "",
+                ].join("|");
+
+                return (
+                  <option
+                    key={key}
+                    value={value}
+                  />
+                );
+              })}
             </datalist>
           ))}
 
