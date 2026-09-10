@@ -1613,7 +1613,9 @@ export default function TraceabilityCmInputsForm() {
     <div
       style={{
         display: "grid",
-        gridTemplateRows: "auto auto minmax(0, 1fr) auto",
+        gridTemplateRows: message
+          ? "auto auto minmax(0, 1fr) auto"
+          : "auto minmax(0, 1fr) auto",
         gap: 10,
         width: "100%",
         height: "100%",
@@ -1772,9 +1774,7 @@ export default function TraceabilityCmInputsForm() {
         >
           {message}
         </div>
-      ) : (
-        <div style={{ display: "none" }} />
-      )}
+      ) : null}
 
       <div
         className="panel-inner"
