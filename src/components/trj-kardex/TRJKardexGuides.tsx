@@ -1077,6 +1077,22 @@ export default function TRJKardexGuides() {
     [lots]
   );
 
+  const perdByLot = useMemo(
+    () =>
+      new Map(
+        lots
+          .filter(
+            (row) =>
+              row.lot_corr.trim().toUpperCase() === "PERD"
+          )
+          .map((row) => [
+            code(row.lot),
+            row,
+          ])
+      ),
+    [lots]
+  );
+
   const rucHistoryByRuc = useMemo(
     () => ({
       transport: new Map(
@@ -1763,8 +1779,21 @@ export default function TRJKardexGuides() {
       return "Se agotaron los correlativos";
     }
 
-    return amount >
-      balance + (units(old?.tmh_departure) ?? BigInt(0))
+    const editableBalance =
+      balance +
+      (units(old?.tmh_departure) ?? BigInt(0)) +
+      (
+        old
+          ? (
+              units(
+                perdByLot.get(code(lot))
+                  ?.tmh_departure
+              ) ?? BigInt(0)
+            )
+          : BigInt(0)
+      );
+
+    return amount > editableBalance
       ? "Las TMH superan el saldo del lote"
       : "";
   }
@@ -2547,6 +2576,81 @@ export default function TRJKardexGuides() {
     }
   }
 
+  async function deletePerd(row: Lot) {
+    if (
+      gate.current ||
+      blockedLots ||
+      !!editing ||
+      !!newLot
+    ) {
+      return;
+    }
+
+    const confirmation = window.prompt(
+      `Para eliminar el PERD de ${row.lot}, escribe "eliminar"`
+    );
+
+    if (confirmation == null) {
+      return;
+    }
+
+    if (
+      confirmation.trim().toLowerCase() !== "eliminar"
+    ) {
+      notify(
+        'Debes escribir "eliminar" para confirmar',
+        true
+      );
+      return;
+    }
+
+    gate.current = true;
+    setSaving(true);
+    notify("");
+
+    try {
+      const response = await apiPost(
+        "/api/trjkar/lots/delete-perd",
+        {
+          lot: row.lot,
+          guide_number: row.guide_number,
+          confirmation:
+            confirmation.trim(),
+        }
+      );
+
+      if (!response?.ok) {
+        throw new Error(
+          response?.error ||
+            "No se pudo eliminar PERD"
+        );
+      }
+
+      try {
+        await load();
+
+        notify(
+          `PERD eliminado de ${response.lot} · saldo reabierto ${fmt(response.tmh_reopened)} TMH`
+        );
+      } catch {
+        notify(
+          `PERD eliminado de ${response.lot}. Actualiza para ver el nuevo saldo`,
+          true
+        );
+      }
+    } catch (e) {
+      notify(
+        e instanceof Error
+          ? e.message
+          : "No se pudo eliminar PERD",
+        true
+      );
+    } finally {
+      gate.current = false;
+      setSaving(false);
+    }
+  }
+
   async function refresh() {
     if (
       gate.current ||
@@ -2706,7 +2810,7 @@ export default function TRJKardexGuides() {
         .trjk-guides .trjg-history-box{overflow:auto;max-height:160px;margin-top:5px;border:1px solid rgba(147,211,230,.18);border-radius:6px;background:#0d222e}
         .trjk-guides .trjg-history-box table{font-size:10px}
         .trjk-guides .trjg-history-box td,.trjk-guides .trjg-history-box th{padding:5px 7px}
-        .trjk-guides .trjg-perd-row{opacity:.52}
+        .trjk-guides .trjg-perd-row td:not(:last-child){opacity:.52}
         .trjk-guides button:disabled{opacity:.45;cursor:not-allowed}
         @media (max-width:1280px){
           .trjk-guides .trjg-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
@@ -3622,13 +3726,19 @@ export default function TRJKardexGuides() {
                               {row.lot_corr
                                 .trim()
                                 .toUpperCase() === "PERD" ? (
-                                <span className="trjg-note">
-                                  Cierre
-                                </span>
-                              ) : lotClosed ? (
-                                <span className="trjg-note">
-                                  Lote cerrado
-                                </span>
+                                <Button
+                                  size="sm"
+                                  disabled={
+                                    blockedLots ||
+                                    !!editing ||
+                                    !!newLot
+                                  }
+                                  onClick={() =>
+                                    void deletePerd(row)
+                                  }
+                                >
+                                  Eliminar PERD
+                                </Button>
                               ) : isEditing ? (
                                 <div className="trjg-actions">
                                   <Button
@@ -3653,24 +3763,32 @@ export default function TRJKardexGuides() {
                                   </Button>
                                 </div>
                               ) : (
-                                <Button
-                                  size="sm"
-                                  disabled={
-                                    blockedLots ||
-                                    !!editing ||
-                                    !!newLot
-                                  }
-                                  onClick={() =>
-                                    setEditing({
-                                      row,
-                                      value: tmhInputValue(
-                                        row.tmh_departure
-                                      ),
-                                    })
-                                  }
-                                >
-                                  Editar salida
-                                </Button>
+                                <div className="trjg-actions">
+                                  <Button
+                                    size="sm"
+                                    disabled={
+                                      blockedLots ||
+                                      !!editing ||
+                                      !!newLot
+                                    }
+                                    onClick={() =>
+                                      setEditing({
+                                        row,
+                                        value: tmhInputValue(
+                                          row.tmh_departure
+                                        ),
+                                      })
+                                    }
+                                  >
+                                    Editar salida
+                                  </Button>
+
+                                  {lotClosed && (
+                                    <span className="trjg-note">
+                                      PERD se ajustará automáticamente
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </td>
                           </tr>
