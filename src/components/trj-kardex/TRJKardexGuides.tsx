@@ -849,7 +849,9 @@ function LotHistory({
   rows: Lot[];
 }) {
   const matches = rows.filter(
-    (row) => code(row.lot) === code(lot)
+    (row) =>
+      code(row.lot) === code(lot) &&
+      row.lot_corr.trim().toUpperCase() !== "PERD"
   );
 
   if (!matches.length) {
