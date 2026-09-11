@@ -41,6 +41,7 @@ type Sgm = {
   tmh_departure: string | null;
   tmh_balance: string | null;
   next_corr: string | null;
+  last_guide_number: string | null;
 };
 
 type Role = "transport" | "sender" | "recipient";
@@ -870,6 +871,8 @@ export default function TRJKardexGuides() {
   const [newBagsUsed, setNewBagsUsed] = useState("");
   const [closeLot, setCloseLot] = useState(false);
   const [balanceObs, setBalanceObs] = useState("");
+  const [pendingCloseLot, setPendingCloseLot] = useState<string | null>(null);
+  const [pendingCloseObs, setPendingCloseObs] = useState("");
   const [lotMenuOpen, setLotMenuOpen] = useState(false);
 
   const [editing, setEditing] = useState<{
@@ -1434,14 +1437,29 @@ export default function TRJKardexGuides() {
     !!newBagsTot ||
     !!newBagsUsed ||
     closeLot ||
-    !!balanceObs;
+    !!balanceObs ||
+    !!pendingCloseLot ||
+    !!pendingCloseObs;
 
   const blockedLots =
     !active ||
     creating ||
     dirty ||
     loading ||
-    saving;
+    saving ||
+    !!pendingCloseLot;
+
+  const pendingCloseBlocked =
+    loading ||
+    saving ||
+    dirty ||
+    !!editing ||
+    !!newLot ||
+    !!newDeparture ||
+    !!newBagsTot ||
+    !!newBagsUsed ||
+    closeLot ||
+    !!balanceObs;
 
   const selectedSgm = sgmByLot.get(code(newLot));
 
@@ -1783,6 +1801,8 @@ export default function TRJKardexGuides() {
     setNewBagsUsed("");
     setCloseLot(false);
     setBalanceObs("");
+    setPendingCloseLot(null);
+    setPendingCloseObs("");
     setEditing(null);
     notify("");
 
@@ -2429,6 +2449,85 @@ export default function TRJKardexGuides() {
     }
   }
 
+  async function closePendingBalance(row: Sgm) {
+    const lot = code(row.lot);
+    const comment = pendingCloseObs.trim();
+    const balance = units(row.tmh_balance);
+
+    if (
+      gate.current ||
+      pendingCloseBlocked ||
+      pendingCloseLot !== row.lot ||
+      !lot ||
+      !row.last_guide_number ||
+      balance == null ||
+      balance <= BigInt(0) ||
+      comment.length > 255
+    ) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `¿Cerrar ${row.lot} con PERD ${fmt(row.tmh_balance)} TMH en la guía ${row.last_guide_number}?`
+      )
+    ) {
+      return;
+    }
+
+    gate.current = true;
+    setSaving(true);
+    notify("");
+
+    try {
+      const response = await apiPost(
+        "/api/trjkar/lots/close-balance",
+        {
+          lot,
+          ...(comment
+            ? { balance_obs: comment }
+            : {}),
+        }
+      );
+
+      if (!response?.ok) {
+        throw new Error(
+          response?.error || "No se pudo cerrar el lote"
+        );
+      }
+
+      setPendingCloseLot(null);
+      setPendingCloseObs("");
+
+      try {
+        await load();
+
+        notify(
+          `Lote ${response.lot} cerrado · PERD ${fmt(response.balance_loss)} TMH · guía ${response.guide_number}`
+        );
+      } catch {
+        notify(
+          `Lote ${response.lot} cerrado en la guía ${response.guide_number}. No se pudo refrescar la pantalla; actualiza para ver el saldo`,
+          true
+        );
+      }
+    } catch (e) {
+      notify(
+        e instanceof Error
+          ? e.message
+          : "No se pudo cerrar el lote",
+        true
+      );
+
+      try {
+        await load();
+      } catch {}
+    } finally {
+      gate.current = false;
+      setSaving(false);
+    }
+  }
+
   async function refresh() {
     if (
       gate.current ||
@@ -2464,6 +2563,8 @@ export default function TRJKardexGuides() {
       setNewBagsUsed("");
       setCloseLot(false);
       setBalanceObs("");
+      setPendingCloseLot(null);
+      setPendingCloseObs("");
       setEditing(null);
       setCreating(false);
       setActive(selected?.guide_number || null);
@@ -2562,8 +2663,11 @@ export default function TRJKardexGuides() {
         .trjk-guides .trjg-lots{min-width:0;padding:10px;border:1px solid rgba(151,205,58,.35);border-radius:6px;background:linear-gradient(180deg,rgba(62,84,24,.15),rgba(2,35,52,.20))}
         .trjk-guides .trjg-used-lots{min-width:0;padding:10px;border:1px solid rgba(147,211,230,.26);border-left:3px solid rgba(240,178,72,.70);border-radius:6px;background:rgba(103,67,13,.08)}
         .trjk-guides .trjg-used-list{display:grid;gap:6px;max-height:390px;overflow:auto}
-        .trjk-guides .trjg-used-row{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:7px 8px;border:1px solid rgba(147,211,230,.13);border-radius:6px;background:rgba(2,35,52,.23)}
-        .trjk-guides .trjg-used-row>div{display:grid;gap:2px;min-width:0}
+        .trjk-guides .trjg-used-row{display:grid;grid-template-columns:1fr;gap:7px;padding:7px 8px;border:1px solid rgba(147,211,230,.13);border-radius:6px;background:rgba(2,35,52,.23)}
+        .trjk-guides .trjg-used-main{display:grid;gap:3px;min-width:0}
+        .trjk-guides .trjg-used-actions{display:flex;align-items:flex-start;justify-content:flex-start;gap:6px;flex-wrap:wrap}
+        .trjk-guides .trjg-pending-close{display:grid;gap:6px;margin-top:2px;padding-top:7px;border-top:1px solid rgba(147,211,230,.13)}
+        .trjk-guides .trjg-pending-close-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
         .trjk-guides .trjg-used-row strong{font-size:11px}
         .trjk-guides .trjg-used-row span{font-size:9px;opacity:.78}
         .trjk-guides .trjg-lot-picker{position:relative}
@@ -3594,25 +3698,105 @@ export default function TRJKardexGuides() {
               </div>
 
               <div className="trjg-used-list">
-                {usedPendingLots.map((row) => (
-                  <div
-                    className="trjg-used-row"
-                    key={row.lot}
-                  >
-                    <div>
-                      <strong>{row.lot}</strong>
-                      <span>
-                        Usado {fmt(row.tmh_departure)} · Saldo{" "}
-                        {fmt(row.tmh_balance)} TMH
-                      </span>
-                    </div>
+                {usedPendingLots.map((row) => {
+                  const selected =
+                    pendingCloseLot === row.lot;
 
-                    <LotHistory
-                      lot={row.lot}
-                      rows={lots}
-                    />
-                  </div>
-                ))}
+                  return (
+                    <div
+                      className="trjg-used-row"
+                      key={row.lot}
+                    >
+                      <div className="trjg-used-main">
+                        <strong>{row.lot}</strong>
+                        <span>
+                          Usado {fmt(row.tmh_departure)} · Saldo{" "}
+                          {fmt(row.tmh_balance)} TMH
+                        </span>
+                        <span>
+                          Última guía: {row.last_guide_number || "—"}
+                        </span>
+                      </div>
+
+                      <div className="trjg-used-actions">
+                        <LotHistory
+                          lot={row.lot}
+                          rows={lots}
+                        />
+
+                        <Button
+                          size="sm"
+                          disabled={
+                            pendingCloseBlocked ||
+                            !row.last_guide_number
+                          }
+                          onClick={() => {
+                            if (selected) {
+                              setPendingCloseLot(null);
+                              setPendingCloseObs("");
+                              return;
+                            }
+
+                            setPendingCloseLot(row.lot);
+                            setPendingCloseObs("");
+                          }}
+                        >
+                          {selected
+                            ? "Cancelar cierre"
+                            : "Cerrar saldo"}
+                        </Button>
+                      </div>
+
+                      {selected && (
+                        <div className="trjg-pending-close">
+                          <label className="trjg-field">
+                            Comentario cierre (opcional)
+                            <input
+                              className="input"
+                              maxLength={255}
+                              value={pendingCloseObs}
+                              onChange={(e) =>
+                                setPendingCloseObs(
+                                  e.target.value
+                                )
+                              }
+                            />
+                          </label>
+
+                          <div className="trjg-note">
+                            Se registrará {fmt(row.tmh_balance)} TMH como PERD en la guía {row.last_guide_number}.
+                          </div>
+
+                          <div className="trjg-pending-close-actions">
+                            <Button
+                              size="sm"
+                              disabled={
+                                saving ||
+                                pendingCloseObs.length > 255
+                              }
+                              onClick={() =>
+                                void closePendingBalance(row)
+                              }
+                            >
+                              Confirmar cierre
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              disabled={saving}
+                              onClick={() => {
+                                setPendingCloseLot(null);
+                                setPendingCloseObs("");
+                              }}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
 
                 {!usedPendingLots.length && (
                   <div className="trjg-note">
