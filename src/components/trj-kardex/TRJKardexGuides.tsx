@@ -64,7 +64,7 @@ type Field = {
   key: string;
   label: string;
   max: number;
-  kind?: "datetime" | "decimal";
+  kind?: "date" | "datetime" | "decimal";
   decimals?: number;
   role?: Role;
 };
@@ -156,9 +156,21 @@ const GROUPS: {
     tone: "document",
     fields: [
       {
+        key: "guide_date",
+        label: "Fecha guía remitente",
+        max: 10,
+        kind: "date",
+      },
+      {
         key: "transport_guide_number",
         label: "Guía transportista",
         max: 15,
+      },
+      {
+        key: "transport_guide_date",
+        label: "Fecha guía transportista",
+        max: 10,
+        kind: "date",
       },
     ],
   },
@@ -382,6 +394,23 @@ function peruNowInputValue() {
   return new Date(Date.now() - 5 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 16);
+}
+
+function peruTodayInputValue() {
+  return peruNowInputValue().slice(0, 10);
+}
+
+function dateOnlyKey(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return "";
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+
+  return Number.isFinite(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
+    ? value
+    : "";
 }
 
 function lotInputValue(value: string) {
@@ -716,11 +745,13 @@ function draftOf(guide?: Guide): Draft {
       field.key,
       field.kind === "datetime"
         ? text(guide?.[field.key]).slice(0, 16)
-        : field.key === "transport_guide_number"
-          ? guideDraftValue(text(guide?.[field.key]))
-          : field.key === "drive_license"
-            ? driveLicenseDraftValue(text(guide?.[field.key]))
-            : text(guide?.[field.key]),
+        : field.kind === "date"
+          ? text(guide?.[field.key]).slice(0, 10)
+          : field.key === "transport_guide_number"
+            ? guideDraftValue(text(guide?.[field.key]))
+            : field.key === "drive_license"
+              ? driveLicenseDraftValue(text(guide?.[field.key]))
+              : text(guide?.[field.key]),
     ]),
   ]) as Draft;
 
@@ -1432,6 +1463,7 @@ export default function TRJKardexGuides() {
 
   const maxDateTimePe = peruNowInputValue();
   const maxDateTimeKeyPe = dateKey(maxDateTimePe);
+  const maxDatePe = peruTodayInputValue();
 
   const guideExcelValues = useMemo(
     () =>
@@ -1597,6 +1629,16 @@ export default function TRJKardexGuides() {
         guideError = `${field.label}: fecha u hora inválida`;
       } else if (key > maxDateTimeKeyPe) {
         guideError = `${field.label}: no puede ser futura (hora Perú)`;
+      }
+    }
+
+    if (field.kind === "date" && value) {
+      const key = dateOnlyKey(value);
+
+      if (!key) {
+        guideError = `${field.label}: fecha inválida`;
+      } else if (key > maxDatePe) {
+        guideError = `${field.label}: no puede ser futura (fecha Perú)`;
       }
     }
   }
@@ -2869,7 +2911,9 @@ export default function TRJKardexGuides() {
                           type={
                             field.kind === "datetime"
                               ? "datetime-local"
-                              : "text"
+                              : field.kind === "date"
+                                ? "date"
+                                : "text"
                           }
                           step={
                             field.kind === "datetime"
@@ -2886,7 +2930,9 @@ export default function TRJKardexGuides() {
                           max={
                             field.kind === "datetime"
                               ? maxDateTimePe
-                              : undefined
+                              : field.kind === "date"
+                                ? maxDatePe
+                                : undefined
                           }
                           inputMode={
                             field.kind === "decimal"
