@@ -1201,6 +1201,60 @@ export default function TRJKardexGuides() {
     sgmByLot,
   ]);
 
+  const guideOperationalLots = useMemo(
+    () =>
+      guideLots.filter(
+        (row) =>
+          row.lot_corr.trim().toUpperCase() !== "PERD"
+      ),
+    [guideLots]
+  );
+
+  const guidePerdRows = useMemo(
+    () =>
+      guideLots.filter(
+        (row) =>
+          row.lot_corr.trim().toUpperCase() === "PERD"
+      ),
+    [guideLots]
+  );
+
+  const guideDepartureUnits = useMemo(
+    () =>
+      guideOperationalLots.reduce(
+        (total, row) => {
+          const value =
+            editing &&
+            identity(editing.row) === identity(row)
+              ? roundTmhUnits(editing.value)
+              : roundTmhUnits(row.tmh_departure);
+
+          return total + (value ?? BigInt(0));
+        },
+        BigInt(0)
+      ),
+    [guideOperationalLots, editing]
+  );
+
+  const guidePerdUnits = useMemo(
+    () =>
+      guidePerdRows.reduce(
+        (total, row) => {
+          const value =
+            perdEditPreview?.lot === code(row.lot)
+              ? perdEditPreview.perd
+              : roundTmhUnits(row.tmh_departure);
+
+          return total + (value ?? BigInt(0));
+        },
+        BigInt(0)
+      ),
+    [guidePerdRows, perdEditPreview]
+  );
+
+  const guideControlUnits =
+    guideDepartureUnits + guidePerdUnits;
+
   const rucHistoryByRuc = useMemo(
     () => ({
       transport: new Map(
@@ -2900,6 +2954,8 @@ export default function TRJKardexGuides() {
         .trjk-guides .trjg-kpis{display:flex;gap:7px;flex-wrap:wrap;margin:9px 0 0}
         .trjk-guides .trjg-kpi{display:flex;align-items:baseline;gap:5px;padding:5px 9px;border-radius:6px;background:rgba(147,211,230,.07);border:1px solid rgba(147,211,230,.15);font-size:10px}
         .trjk-guides .trjg-kpi strong{font-size:12px}
+        .trjk-guides .trjg-perd-total th,.trjk-guides .trjg-perd-total td{opacity:.62;font-size:10px}
+        .trjk-guides .trjg-control-total th,.trjk-guides .trjg-control-total td{border-top:1px solid rgba(147,211,230,.28);font-weight:700}
         .trjk-guides .trjg-message{padding:7px 9px;border:1px solid rgba(147,211,230,.35);border-radius:6px;background:rgba(11,77,107,.45);font-size:11px}
         .trjk-guides .trjg-error{color:#ebb086;border-color:#d85d27}
         .trjk-guides .trjg-lots-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,320px);gap:10px;align-items:start;margin-top:10px}
@@ -3195,13 +3251,13 @@ export default function TRJKardexGuides() {
 
               <div className="trjg-kpis">
                 <span className="trjg-kpi">
-                  TMH salida <strong>{fmt(activeGuide?.tmh_departure)}</strong>
+                  TMH salida <strong>{fmtTmhUnits(guideDepartureUnits)}</strong>
                 </span>
                 <span className="trjg-kpi">
                   TMH llegada <strong>{fmt(activeGuide?.tmh_arrival)}</strong>
                 </span>
                 <span className="trjg-kpi">
-                  Lotes <strong>{guideLots.length}</strong>
+                  Lotes <strong>{guideOperationalLots.length}</strong>
                 </span>
               </div>
             </div>
@@ -3467,7 +3523,7 @@ export default function TRJKardexGuides() {
 
               {!creating && (
                 <span className="trjg-count">
-                  {guideLots.length} lote(s)
+                  {guideOperationalLots.length} lote(s)
                 </span>
               )}
             </div>
@@ -3971,10 +4027,20 @@ export default function TRJKardexGuides() {
                     <tfoot>
                       <tr>
                         <th colSpan={2}>Total guía</th>
-                        <td>{fmt(activeGuide?.tmh_departure)}</td>
+                        <td>{fmtTmhUnits(guideDepartureUnits)}</td>
                         <td colSpan={2} />
                         <td>{fmt(activeGuide?.tmh_arrival)}</td>
                         <td colSpan={4} />
+                      </tr>
+                      <tr className="trjg-perd-total">
+                        <th colSpan={2}>PERD control</th>
+                        <td>{fmtTmhUnits(guidePerdUnits)}</td>
+                        <td colSpan={7} />
+                      </tr>
+                      <tr className="trjg-control-total">
+                        <th colSpan={2}>Total control</th>
+                        <td>{fmtTmhUnits(guideControlUnits)}</td>
+                        <td colSpan={7} />
                       </tr>
                     </tfoot>
                   </table>
