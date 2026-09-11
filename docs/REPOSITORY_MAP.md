@@ -35,7 +35,7 @@ Este archivo es el índice operativo que debe leerse inmediatamente después de 
 | Logística | `src/app/logistics/downloads/page.tsx` | `src/components/logistics/*` | `/api/logistics/*` |
 | Flota | `src/app/fleet/mgmt`, `units` | `src/components/fleet/FleetMgmForm.tsx`, `FleetUnitsPermits.tsx` | Buscar bajo `/api/logistics/flota/*` desde cada componente |
 | Sostenibilidad | `src/app/sustainability/igafom`, `providers` | `src/components/sustainability/*` | `/api/sustainability/*` |
-| Kardex TRJ | `src/app/kardex/guides`, `quotes` | `src/components/trj-kardex/TRJKardexGuides.tsx`, `TRJKardexQuotes.tsx`, `TRJKardexTopNav.tsx` | Sin endpoints por ahora; ambas vistas son placeholders |
+| Kardex TRJ | `src/app/kardex/sum`, `guides`, `quotes` | `src/components/trj-kardex/TRJKardexSum.tsx`, `TRJKardexGuides.tsx`, `TRJKardexQuotes.tsx`, `TRJKardexTopNav.tsx` | `TRJKardexSum` no usa endpoints por ahora; localizar los contratos de Guías y Valorización desde sus componentes |
 | Activos Fijos | `src/app/fixassets/new`, `catalogue`, `depreciation`, `export` | `src/components/fixassets/FixAssetsNew.tsx`, `FixAssetsCat.tsx`, `FixAssetsDepr.tsx`, `FixAssetsExport.tsx`, `FixAssetsAudit.tsx`, `FastCellInput.tsx` | `/api/actfij/*`; consultar la sección detallada de Activos Fijos en `AGENTS.md` antes de cambiar contratos o lifecycle |
 | TI / eficiencia | `src/app/ti/page.tsx` | Página autocontenida con portfolio, cálculos, EN/FR y exportación Excel | Proxies locales en `src/app/api/ti-*`, `src/app/api/ai`, `src/app/api/web`; datos operativos externos `/api/dti/*` se localizan dentro de la página |
 

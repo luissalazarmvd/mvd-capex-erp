@@ -140,7 +140,7 @@ export default function PortalClient() {
           : area === "fleet"
           ? j?.defaultPath || "/fleet/mgmt"
           : area === "trj_kardex"
-          ? j?.defaultPath || "/kardex/guides"
+          ? j?.defaultPath || "/kardex/sum"
           : "/ti"
       );
     } catch (error: unknown) {

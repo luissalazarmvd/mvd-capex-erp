@@ -45,7 +45,7 @@ export default function TRJKardexLayout({ children }: { children: React.ReactNod
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>MVD – KARDEX TRJ</div>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Registrar Guías · Valorización
+                  Resumen · Registrar Guías · Valorización
                 </div>
               </div>
             </div>

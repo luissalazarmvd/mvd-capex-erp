@@ -132,6 +132,8 @@ export async function middleware(req: NextRequest) {
     ? "planta"
     : pathname.startsWith("/fixassets")
     ? "fixassets"
+    : pathname.startsWith("/kardex/sum")
+    ? "trjkardex_sum"
     : pathname.startsWith("/kardex/guides")
     ? "trjkardex_guides"
     : pathname.startsWith("/kardex/quotes")
@@ -161,7 +163,8 @@ export async function middleware(req: NextRequest) {
   const allowed =
     auth.scopes.includes(need) ||
     (need === "trjkardex" &&
-      (auth.scopes.includes("trjkardex_guides") ||
+      (auth.scopes.includes("trjkardex_sum") ||
+        auth.scopes.includes("trjkardex_guides") ||
         auth.scopes.includes("trjkardex_quotes"))) ||
     (need === "fleet" &&
       (auth.scopes.includes("fleet_mgmt") ||

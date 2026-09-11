@@ -71,6 +71,7 @@ export async function POST(req: Request) {
     const TRJKARDEX_PASSWORD_L1 = process.env.TRJKARDEX_PASSWORD_L1 || "";
     const TRJKARDEX_PASSWORD_L2 = process.env.TRJKARDEX_PASSWORD_L2 || "";
     const TRJKARDEX_PASSWORD_L3 = process.env.TRJKARDEX_PASSWORD_L3 || "";
+    const TRJKARDEX_PASSWORD_L4 = process.env.TRJKARDEX_PASSWORD_L4 || "";
     const DTI_PASSWORD = process.env.DTI_PASSWORD || "";
 
     let ok = false;
@@ -99,8 +100,8 @@ export async function POST(req: Request) {
       password === TRJKARDEX_PASSWORD_L1
     ) {
       ok = true;
-      scopes = ["trjkardex_guides", "trjkardex_quotes"];
-      defaultPath = "/kardex/guides";
+      scopes = ["trjkardex_sum", "trjkardex_guides", "trjkardex_quotes"];
+      defaultPath = "/kardex/sum";
     } else if (
       area === "trj_kardex" &&
       TRJKARDEX_PASSWORD_L2 &&
@@ -117,6 +118,14 @@ export async function POST(req: Request) {
       ok = true;
       scopes = ["trjkardex_quotes"];
       defaultPath = "/kardex/quotes";
+    } else if (
+      area === "trj_kardex" &&
+      TRJKARDEX_PASSWORD_L4 &&
+      password === TRJKARDEX_PASSWORD_L4
+    ) {
+      ok = true;
+      scopes = ["trjkardex_sum"];
+      defaultPath = "/kardex/sum";
     }
 
     if (!ok) {

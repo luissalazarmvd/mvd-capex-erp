@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV = [
+  { href: "/kardex/sum", label: "Resumen" },
   { href: "/kardex/guides", label: "Registrar Guías" },
   { href: "/kardex/quotes", label: "Valorización" },
 ];
