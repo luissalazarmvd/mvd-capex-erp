@@ -726,6 +726,39 @@ function hasVisibleTmhBalance(value: unknown) {
   ) > BigInt(0);
 }
 
+function roundTmhUnits(value: unknown) {
+  const amount = units(value);
+
+  if (amount == null) return null;
+
+  const step = BigInt(1000);
+  const half = BigInt(500);
+
+  if (amount >= BigInt(0)) {
+    return (
+      (amount + half) /
+      step
+    ) * step;
+  }
+
+  return -(
+    ((-amount + half) / step) *
+    step
+  );
+}
+
+function fmtTmhUnits(value: bigint | null) {
+  if (value == null) return "—";
+
+  return (
+    Number(value) /
+    Number(SCALE)
+  ).toLocaleString("es-PE", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  });
+}
+
 function dateLabel(value: unknown) {
   const raw = text(value);
 
@@ -1092,6 +1125,81 @@ export default function TRJKardexGuides() {
       ),
     [lots]
   );
+
+  const perdEditPreview = useMemo(() => {
+    if (!editing) return null;
+
+    const lot = code(editing.row.lot);
+
+    if (!perdByLot.has(lot)) {
+      return null;
+    }
+
+    const stock = roundTmhUnits(
+      sgmByLot.get(lot)?.tmh
+    );
+
+    const editedDeparture = roundTmhUnits(
+      editing.value
+    );
+
+    if (
+      stock == null ||
+      editedDeparture == null
+    ) {
+      return null;
+    }
+
+    let normalUsed = BigInt(0);
+
+    for (const row of lots) {
+      if (
+        code(row.lot) !== lot ||
+        row.lot_corr.trim().toUpperCase() === "PERD"
+      ) {
+        continue;
+      }
+
+      const departure =
+        identity(row) === identity(editing.row)
+          ? editedDeparture
+          : roundTmhUnits(row.tmh_departure);
+
+      if (departure == null) {
+        continue;
+      }
+
+      normalUsed += departure;
+    }
+
+    const remaining =
+      stock - normalUsed;
+
+    if (remaining < BigInt(0)) {
+      return null;
+    }
+
+    const projectedPerd =
+      remaining > BigInt(0)
+        ? remaining
+        : BigInt(0);
+
+    return {
+      lot,
+      perd: projectedPerd,
+      balance:
+        stock -
+        normalUsed -
+        projectedPerd,
+      deletePerd:
+        projectedPerd === BigInt(0),
+    };
+  }, [
+    editing,
+    lots,
+    perdByLot,
+    sgmByLot,
+  ]);
 
   const rucHistoryByRuc = useMemo(
     () => ({
@@ -2823,6 +2931,9 @@ export default function TRJKardexGuides() {
         .trjk-guides .trjg-history-box table{font-size:10px}
         .trjk-guides .trjg-history-box td,.trjk-guides .trjg-history-box th{padding:5px 7px}
         .trjk-guides .trjg-perd-row td:not(:last-child){opacity:.52}
+        .trjk-guides .trjg-perd-delete-preview td{background-image:linear-gradient(to bottom,transparent calc(50% - 1px),rgba(255,82,82,.95) calc(50% - 1px),rgba(255,82,82,.95) calc(50% + 1px),transparent calc(50% + 1px))}
+        .trjk-guides .trjg-perd-delete-preview td:not(:last-child){opacity:.72}
+        .trjk-guides .trjg-perd-delete-note{font-size:10px;font-weight:700;color:#ff8a8a}
         .trjk-guides button:disabled{opacity:.45;cursor:not-allowed}
         @media (max-width:1280px){
           .trjk-guides .trjg-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
@@ -3655,18 +3766,45 @@ export default function TRJKardexGuides() {
                           editing &&
                           identity(editing.row) === identity(row);
 
+                        const rowCode =
+                          code(row.lot);
+
+                        const isPerd =
+                          row.lot_corr
+                            .trim()
+                            .toUpperCase() === "PERD";
+
                         const lotClosed =
-                          closedLots.has(code(row.lot));
+                          closedLots.has(rowCode);
+
+                        const previewingPerd =
+                          isPerd &&
+                          perdEditPreview?.lot === rowCode;
+
+                        const previewingBalance =
+                          !isCleanupLot(row.lot) &&
+                          perdEditPreview?.lot === rowCode;
+
+                        const perdWillBeDeleted =
+                          previewingPerd &&
+                          perdEditPreview?.deletePerd === true;
+
+                        const rowClasses = [
+                          isPerd
+                            ? "trjg-perd-row"
+                            : "",
+                          perdWillBeDeleted
+                            ? "trjg-perd-delete-preview"
+                            : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
 
                         return (
                           <tr
                             key={identity(row)}
                             className={
-                              row.lot_corr
-                                .trim()
-                                .toUpperCase() === "PERD"
-                                ? "trjg-perd-row"
-                                : undefined
+                              rowClasses || undefined
                             }
                           >
                             <td>
@@ -3700,6 +3838,11 @@ export default function TRJKardexGuides() {
                                     }
                                   }}
                                 />
+                              ) : previewingPerd ? (
+                                fmtTmhUnits(
+                                  perdEditPreview?.perd ??
+                                    null
+                                )
                               ) : (
                                 fmt(row.tmh_departure)
                               )}
@@ -3714,11 +3857,16 @@ export default function TRJKardexGuides() {
                             <td>
                               {isCleanupLot(row.lot)
                                 ? "No aplica"
-                                : fmt(
-                                    sgmByLot.get(code(row.lot))
-                                      ?.tmh_balance ??
-                                    row.tmh_balance
-                                  )}
+                                : previewingBalance
+                                  ? fmtTmhUnits(
+                                      perdEditPreview?.balance ??
+                                        null
+                                    )
+                                  : fmt(
+                                      sgmByLot.get(rowCode)
+                                        ?.tmh_balance ??
+                                      row.tmh_balance
+                                    )}
                             </td>
 
                             <td>
@@ -3735,22 +3883,26 @@ export default function TRJKardexGuides() {
                             </td>
 
                             <td>
-                              {row.lot_corr
-                                .trim()
-                                .toUpperCase() === "PERD" ? (
-                                <Button
-                                  size="sm"
-                                  disabled={
-                                    blockedLots ||
-                                    !!editing ||
-                                    !!newLot
-                                  }
-                                  onClick={() =>
-                                    void deletePerd(row)
-                                  }
-                                >
-                                  Eliminar PERD
-                                </Button>
+                              {isPerd ? (
+                                perdWillBeDeleted ? (
+                                  <span className="trjg-perd-delete-note">
+                                    Se eliminará al guardar
+                                  </span>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    disabled={
+                                      blockedLots ||
+                                      !!editing ||
+                                      !!newLot
+                                    }
+                                    onClick={() =>
+                                      void deletePerd(row)
+                                    }
+                                  >
+                                    Eliminar PERD
+                                  </Button>
+                                )
                               ) : isEditing ? (
                                 <div className="trjg-actions">
                                   <Button
