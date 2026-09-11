@@ -2466,10 +2466,22 @@ export default function TRJKardexGuides() {
       const loss =
         response.saved?.[0]?.balance_loss;
 
+      const perdDeleted =
+        response.saved?.[0]?.perd_deleted === true ||
+        response.saved?.[0]?.perd_deleted === 1;
+
+      const perdAdjusted =
+        response.saved?.[0]?.perd_adjusted === true ||
+        response.saved?.[0]?.perd_adjusted === 1;
+
       notify(
-        loss != null && Number(loss) > 0
-          ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ${fmt(loss)} TMH`
-          : `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""}`
+        perdDeleted
+          ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD eliminado automáticamente`
+          : perdAdjusted
+            ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ajustado a ${fmt(loss)} TMH`
+            : loss != null && Number(loss) > 0
+              ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ${fmt(loss)} TMH`
+              : `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""}`
       );
 
       try {
