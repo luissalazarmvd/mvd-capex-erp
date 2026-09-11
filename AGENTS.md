@@ -110,7 +110,17 @@ Flota separa Gestión y Unidades por scopes. No agregar campos obligatorios que 
 IGAFOM y padrón de proveedores. Preservar claves y validaciones existentes.
 
 ### Kardex TRJ
-Rutas `/kardex/sum`, `/kardex/guides` y `/kardex/quotes`, con componentes en `src/components/trj-kardex`. `TRJKardexSum` es por ahora un placeholder sin contratos de backend.
+Rutas `/kardex/sum`, `/kardex/guides` y `/kardex/quotes`, con componentes en `src/components/trj-kardex`. `TRJKardexSum` consume `/api/trjkar`, `/api/trjkar/guides` y `/api/trjkar/invo` para detalle y estadísticas.
+
+- Facturas WEB: `stg.finance_trjkar_invo_web`, PK `(ruc, document_number)`, fecha e importe USD propios. `dw.v_finance_trjkar_invo_get` cruza con el histórico normalizado por RUC/documento y expone `amount_usd_con`, `subledger_num`, `comp_num` y `secu_num`. Se conserva la selección de la línea contable más reciente; el histórico de cuenta 631111/subdiario 820 es registro contable, no prueba de pago bancario.
+- Facturas: serie alfanumérica de cuatro caracteres (incluye E001 y FPP1), guion y diez dígitos. `dw.v_finance_trjkar_veta_hist` completa los ceros del correlativo sin truncar números inválidos. Las guías mantienen su formato `XX##-##########`.
+- `TRJKardexQuotes` organiza la valorización por factura: transportista histórico → buscar guías abiertas sin factura → vincular una o varias. `TRJKardexQuoteEditor` conserva la edición de llegada y tarifa por guía. El resumen muestra USD ingresado, suma de guías y diferencia, incluyendo la vista previa de la guía en edición.
+- `/api/trjkar/invo/insert` crea/vincula hasta 100 guías del mismo RUC por transacción. Repetir una vinculación exige la misma fecha e importe de la factura existente; `/invo/update` cambia esos datos explícitamente. No editar `document_number` desde `/guides/insert`. Cambiar el RUC de una guía vinculada exige desvincularla primero.
+- `status_name varchar(20)` en guías: `ABIERTO` por defecto y `CERRADO` tras `/invo/close`, con confirmación escrita `cerrar`. El cierre afecta todas las guías de esa factura; muestra la diferencia para confirmar, sin imponer una tolerancia de conciliación adicional. No existe reapertura.
+- Las guías cerradas y sus lotes son solo consulta en frontend y backend. El bloqueo también protege PERD y sus recálculos. Las escrituras de Kardex comparten un bloqueo transaccional para impedir carreras con el cierre.
+- `/invo/unlink` quita una guía de una factura abierta sin borrar datos. `/invo/delete`, con `eliminar`, borra la factura y limpia su `document_number` en las guías; conserva guías y lotes. Una factura con guías cerradas no permite modificaciones ni borrado.
+- `/guides/delete`, con `eliminar`, borra una guía abierta y todos sus lotes asociados, incluyendo PERD; conserva la factura. Los lotes pertenecen a la guía por FK y las guías vinculadas referencian la PK de la factura.
+- Estadísticas: guías únicas, lotes operativos sin PERD, importes de factura contados una sola vez por RUC/documento; semanas de lunes a domingo. Filtros generales por fecha de salida en guías y fecha de documento en facturas. Filtros Excel de Resumen se aplican solo a la tabla de detalle.
 
 ### TI
 Página principal `src/app/ti/page.tsx`, tickets, feedback, copiloto IA y búsqueda técnica. Los proxies pueden degradar a respuestas vacías/dummy sin romper UI.

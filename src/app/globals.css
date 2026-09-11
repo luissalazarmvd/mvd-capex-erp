@@ -74,6 +74,107 @@
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
 }
 
+/* Kardex TRJ: facturas, llegadas y resumen comparten los tokens de marca. */
+.trjk-guides .trjg-list-card td:first-child > button + button { margin-left: 6px; }
+.trjk-workspace { height: 100%; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px 8px 20px 0; font-size: 12px; }
+.trjk-workspace h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.trjk-workspace h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.trjk-workspace p { margin: 6px 0; }
+.trjk-workspace label { display: grid; gap: 5px; font-size: 11px; min-width: 0; }
+.trjk-workspace fieldset { padding: 0; border: 0; margin: 0; min-width: 0; }
+.trjk-workspace .input { min-width: 0; width: 100%; height: 32px; font-size: 12px; }
+.trjk-workspace input:disabled { opacity: .7; }
+.trjk-workspace .trjk-check { display: flex; flex-direction: row; align-items: center; }
+.trjk-card { background: var(--s-1); border: 1px solid var(--line); border-radius: var(--r-2); padding: 12px; min-width: 0; flex-shrink: 0; }
+.trjk-card > h3 { margin-bottom: 10px; }
+.trjk-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.trjk-card > .trjk-toolbar + * { margin-top: 10px; }
+.trjk-card > .trjk-toolbar:last-child { margin-top: 10px; }
+.trjk-actions, .trjk-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.trjk-builder { display: grid; grid-template-columns: minmax(200px, 2fr) auto minmax(155px, 1fr) minmax(130px, 1fr) minmax(115px, 1fr) auto; align-items: end; gap: 10px; }
+.trjk-search { max-width: 300px; }
+.trjk-table-scroll, .trjq-table-scroll { overflow: auto; border: 1px solid var(--line); border-radius: var(--r-1); min-width: 0; }
+.trjk-available { max-height: 210px; }
+.trjk-invoice-list { max-height: 240px; }
+.trjk-workspace table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; text-align: left; }
+.trjk-workspace th, .trjk-workspace td { padding: 7px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.trjk-workspace th { font-weight: 600; background: var(--s-2); position: sticky; top: 0; z-index: 2; }
+.trjk-workspace td { background: var(--s-1); }
+.trjk-workspace tr:hover td { background: var(--mod-soft); }
+.trjk-workspace tr[data-selected=true] td { background: var(--cell-selected); }
+.trjk-workspace tr[data-state=valid] td { background: var(--cell-valid); }
+.trjk-workspace tr[data-state=invalid] td { background: var(--cell-invalid); }
+.trjk-workspace tr[data-closed=true] td { background: var(--cell-sent); }
+.trjk-column { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.trjk-message { padding: 10px 12px; background: var(--mod-soft); border: 1px solid var(--line-2); border-radius: var(--r-1); }
+.trjk-message[data-error=true], .trjk-error { color: var(--bad); border-color: var(--bad-line); }
+.trjk-badge { font-size: 10px; font-weight: 500; border-radius: var(--r-pill); padding: 4px 9px; border: 1px solid var(--line-2); background: var(--s-3); }
+.trjk-invoice-detail { border-top: 3px solid var(--mod); }
+.trjk-invoice-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.trjk-invoice-metrics > div, .trjk-invoice-metrics > label { display: grid; gap: 5px; border-radius: var(--r-1); background: var(--s-2); padding: 10px; }
+.trjk-invoice-metrics span { color: var(--ink-2); font-size: 11px; }
+.trjk-invoice-metrics strong { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.trjk-invoice-metrics > [data-state=valid] { background: var(--cell-valid); }
+.trjk-invoice-metrics > [data-state=invalid] { background: var(--cell-invalid); }
+.trjk-guide-stack { display: grid; gap: 6px; margin-top: 10px; }
+.trjk-guide-item { border: 1px solid var(--line); border-radius: var(--r-1); overflow: hidden; }
+.trjk-guide-item > .trjk-toolbar { padding: 6px 8px; background: var(--s-2); }
+.trjk-expand { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; flex: 1; text-align: left; background: transparent; border: 0; color: var(--ink); cursor: pointer; padding: 5px 0; }
+.trjk-expand > span { color: var(--ink-2); font-size: 11px; }
+.trjq-editor { padding: 12px; }
+.trjq-editor-head, .trjq-editor-title { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.trjq-subtitle, .trjq-note { font-size: 11px; color: var(--ink-2); margin: 5px 0; }
+.trjq-status { border-radius: var(--r-pill); background: var(--mod-soft); color: var(--mod); font-size: 10px; padding: 4px 8px; }
+.trjq-entry-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.trjq-section-title { font-weight: 600; margin: 8px 0; }
+.trjq-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.trjq-kpi { display: grid; gap: 4px; padding: 8px 10px; background: var(--s-2); border-radius: var(--r-1); border-left: 3px solid var(--mod); }
+.trjq-kpi span { color: var(--ink-2); font-size: 10px; }
+.trjq-kpi strong { font-size: 16px; font-weight: 600; }
+.trjq-lots-card .trjq-table-scroll { max-height: 290px; }
+.trjq-tmh-input { max-width: 130px; }
+.trjq-input-error { border-color: var(--bad-line) !important; background: var(--cell-invalid) !important; }
+.trjq-error { color: var(--bad); }
+.trjq-message { padding: 8px; margin-top: 8px; border: 1px solid var(--bad-line); border-radius: var(--r-1); }
+.trjk-kpi-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.trjk-kpi { display: grid; gap: 8px; padding: 14px; background: var(--s-1); border: 1px solid var(--line); border-radius: var(--r-2); border-top: 3px solid var(--mod); }
+.trjk-kpi:nth-child(4), .trjk-kpi:nth-child(6) { border-top-color: var(--brand-gold); }
+.trjk-kpi span { font-size: 11px; color: var(--ink-2); }
+.trjk-kpi strong { font-size: 23px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.trjk-kpi small { color: var(--ink-3); font-size: 10px; }
+.trjk-method { font-size: 11px; color: var(--ink-2); }
+.trjk-summary-table { max-height: 55vh; }
+.trjk-summary-table th:first-child { left: 0; z-index: 3; }
+.trjk-summary-table td:first-child { position: sticky; left: 0; z-index: 1; font-weight: 600; }
+.trjk-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.trjk-chart-scroll { overflow-x: auto; margin-top: 12px; }
+.trjk-chart-scroll svg { display: block; min-width: 100%; }
+.trjk-chart .trjk-legend { display: flex; gap: 16px; margin-top: 12px; font-size: 11px; }
+.trjk-legend span { display: flex; align-items: center; gap: 6px; }
+.trjk-legend i { width: 9px; height: 9px; display: inline-block; border-radius: var(--r-pill); }
+.trjk-grid-line { stroke: var(--line); stroke-dasharray: 3 4; }
+.trjk-zero-line { stroke: var(--ink-3); }
+.trjk-axis { fill: var(--ink-2); font-size: 10px; }
+.trjk-chart-data summary { cursor: pointer; color: var(--ink-2); font-size: 11px; margin-top: 8px; }
+.trjk-chart-data .trjk-table-scroll { max-height: 220px; margin-top: 8px; }
+.trjk-empty { padding: 36px 12px; color: var(--ink-2); text-align: center; }
+.trjk-ranking { display: grid; gap: 12px; margin-top: 16px; }
+.trjk-ranking > div { display: grid; grid-template-columns: minmax(140px, 2fr) minmax(100px, 3fr) auto auto; gap: 12px; align-items: center; }
+.trjk-ranking meter { width: 100%; height: 12px; accent-color: var(--mod); }
+.trjk-ranking meter::-webkit-meter-bar { background: var(--s-3); border: 0; }
+.trjk-ranking meter::-webkit-meter-optimum-value { background: var(--mod); }
+@media (max-width: 1150px) {
+  .trjk-builder { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .trjk-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .trjk-invoice-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .trjk-builder, .trjq-entry-grid, .trjk-chart-grid { grid-template-columns: 1fr; }
+  .trjk-kpi-grid, .trjk-invoice-metrics, .trjq-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trjk-ranking > div { grid-template-columns: 1fr auto; }
+  .trjk-ranking meter { grid-column: 1 / -1; }
+}
+
 /* ── Acento por módulo. Las familias cromáticas agrupan por dominio:
       cian = transporte · verde = operaciones y ambiente
       azul/dorado = patrimonio · gris = administrativo ───────────────── */

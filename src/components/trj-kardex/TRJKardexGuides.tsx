@@ -79,13 +79,15 @@ type GuideExcelFilterKey =
   | "plate_1"
   | "departure_date"
   | "tmh_departure"
-  | "tmh_arrival";
+  | "tmh_arrival"
+  | "status_name";
 
 const GUIDE_EXCEL_COLUMNS: Array<{
   key: GuideExcelFilterKey;
   label: string;
   kind: ExcelFilterKind;
 }> = [
+  { key: "status_name", label: "Estado", kind: "text" },
   {
     key: "guide_number",
     label: "Guía remitente",
@@ -1088,6 +1090,7 @@ export default function TRJKardexGuides() {
   const activeGuide = guides.find(
     (guide) => guide.guide_number === active
   );
+  const readOnly = activeGuide?.status_name === "CERRADO";
 
   const guideLots = useMemo(
     () => lots.filter((row) => row.guide_number === active),
@@ -1638,6 +1641,7 @@ export default function TRJKardexGuides() {
     !!pendingCloseObs;
 
   const blockedLots =
+    readOnly ||
     !active ||
     creating ||
     dirty ||
@@ -1646,6 +1650,7 @@ export default function TRJKardexGuides() {
     !!pendingCloseLot;
 
   const pendingCloseBlocked =
+    readOnly ||
     loading ||
     saving ||
     dirty ||
@@ -2471,6 +2476,7 @@ export default function TRJKardexGuides() {
 
   async function saveGuide() {
     if (
+      readOnly ||
       gate.current ||
       guideError ||
       lookupBusy ||
@@ -2672,6 +2678,10 @@ export default function TRJKardexGuides() {
   }
 
   async function closePendingBalance(row: Sgm) {
+    if (guides.some((guide) => guide.guide_number === row.last_guide_number && guide.status_name === "CERRADO")) {
+      notify("La guía del último correlativo está CERRADA: no puede agregarse PERD", true);
+      return;
+    }
     const lot = code(row.lot);
     const comment = pendingCloseObs.trim();
     const balance = units(row.tmh_balance);
@@ -2821,6 +2831,37 @@ export default function TRJKardexGuides() {
           : "No se pudo eliminar PERD",
         true
       );
+    } finally {
+      gate.current = false;
+      setSaving(false);
+    }
+  }
+
+  async function deleteGuide(guide: Guide) {
+    if (gate.current || loading || guide.status_name === "CERRADO") return;
+    if (unsaved) {
+      notify("Guarda o descarta los cambios antes de eliminar una guía", true);
+      return;
+    }
+    const confirmation = window.prompt(`Se eliminará ${guide.guide_number} y todos sus lotes. La factura se conserva. Escribe "eliminar" para confirmar.`);
+    if (confirmation?.trim().toLowerCase() !== "eliminar") return;
+    gate.current = true;
+    setSaving(true);
+    try {
+      await apiPost("/api/trjkar/guides/delete", { guide_number: guide.guide_number, confirmation });
+      setGuides((current) => current.filter((row) => row.guide_number !== guide.guide_number));
+      setLots((current) => current.filter((row) => row.guide_number !== guide.guide_number));
+      if (active === guide.guide_number) {
+        setActive(null);
+        setCreating(false);
+        const empty = draftOf();
+        writeDraft(empty);
+        setOriginal(empty);
+      }
+      await load();
+      notify("Guía y lotes eliminados");
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "No se pudo eliminar", true);
     } finally {
       gate.current = false;
       setSaving(false);
@@ -3149,7 +3190,10 @@ export default function TRJKardexGuides() {
                     >
                       Abrir
                     </Button>
+                    <Button size="sm" variant="danger" disabled={saving || loading || guide.status_name === "CERRADO"}
+                      onClick={() => void deleteGuide(guide)}>Eliminar</Button>
                   </td>
+                  <td>{guide.status_name || "ABIERTO"}</td>
                   <td>
                     <strong>{guide.guide_number}</strong>
                   </td>
@@ -3163,7 +3207,7 @@ export default function TRJKardexGuides() {
 
               {!visible.length && (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     {loading
                       ? "Cargando..."
                       : "No hay guías para mostrar"}
@@ -3207,13 +3251,14 @@ export default function TRJKardexGuides() {
                 {creating ? "Nueva guía remitente" : `Guía ${active}`}
               </h3>
               <span className="trjg-status">
-                {creating ? "NUEVA" : "REGISTRADA"}
+                {creating ? "NUEVA" : readOnly ? "CERRADO · SOLO LECTURA" : "ABIERTO"}
               </span>
             </div>
 
             <Button
               onClick={() => void saveGuide()}
               disabled={
+                readOnly ||
                 saving ||
                 loading ||
                 !!lookupBusy ||
@@ -3230,7 +3275,7 @@ export default function TRJKardexGuides() {
             </Button>
           </div>
 
-          <fieldset disabled={saving || loading}>
+          <fieldset disabled={saving || loading || readOnly}>
             <div className="trjg-guide-row">
               <label className="trjg-field">
                 Número de guía remitente

@@ -3,1511 +3,928 @@
 import React, {
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
-import ExcelHeaderFilter, {
-  compareExcelValues,
-  matchesExcelFilter,
-  type ExcelColumnFilter,
-  type ExcelFilterKind,
-  type ExcelSortDirection,
-} from "./ExcelHeaderFilter";
+import {
+  ExcelHeaderFilter,
+  useExcelColumnFilters,
+  type ExcelColumnDef,
+} from "../ui/ExcelFilters";
+import TRJKardexQuoteEditor, { type QuoteSaved } from "./TRJKardexQuoteEditor";
+import {
+  invoiceKey,
+  isOperationalLot,
+  kardexCents,
+  kardexDecimal,
+  kardexFormat as fmt,
+  kardexUnits,
+  normalizeInvoiceNumber,
+  type KardexGuide,
+  type KardexInvoice,
+  type KardexLot,
+} from "../../lib/trjKardex";
 
-type Guide = {
-  guide_number: string;
-  [key: string]: string | null;
-};
-
-type Lot = {
-  lot: string;
-  lot_corr: string;
-  guide_number: string;
-  tmh_departure: string | null;
-  tmh_arrival: string | null;
-};
-
-type Sgm = {
-  lot: string;
-  tmh_departure: string | null;
-  tmh_balance: string | null;
-};
-
-type Invoice = {
-  document_number: string;
-  document_date: string | null;
-  subjournal_code: string;
-  voucher_number: string;
-  sequence_number: string;
-  usd_amount: string | null;
-};
-
-type Saved = {
-  guide: Guide;
-  rows: Lot[];
-};
-
-type QuoteExcelFilterKey =
-  | "guide_number"
-  | "transport_name"
-  | "arrival_date"
-  | "tmh_arrival"
-  | "pu_transport_usd"
-  | "amount_usd"
-  | "document_number"
-  | "invoice_amount_usd"
-  | "accounting_reference";
-
-const QUOTE_EXCEL_COLUMNS: Array<{
-  key: QuoteExcelFilterKey;
-  label: string;
-  kind: ExcelFilterKind;
-}> = [
-  {
-    key: "guide_number",
-    label: "Guía",
-    kind: "text",
-  },
+type Carrier = { ruc: string; name: string | null };
+const today = () =>
+  new Date(Date.now() - 5 * 3600000).toISOString().slice(0, 10);
+const moneyInput = (value: string) => Number(value).toFixed(2);
+const moneyValid = (value: string) => /^\d{1,12}(?:\.\d{1,2})?$/.test(value);
+const invoiceColumns: ExcelColumnDef<KardexInvoice>[] = [
+  { key: "document_number", label: "Factura", value: (r) => r.document_number },
   {
     key: "transport_name",
     label: "Transportista",
-    kind: "text",
+    value: (r) => r.transport_name,
   },
+  { key: "ruc", label: "RUC", value: (r) => r.ruc },
   {
-    key: "arrival_date",
-    label: "Llegada",
+    key: "document_date",
+    label: "Fecha",
     kind: "date",
+    value: (r) => r.document_date,
   },
   {
-    key: "tmh_arrival",
-    label: "TMH llegada",
+    key: "guide_count",
+    label: "Guías",
     kind: "number",
-  },
-  {
-    key: "pu_transport_usd",
-    label: "PU USD",
-    kind: "number",
+    value: (r) => r.guide_count,
   },
   {
     key: "amount_usd",
-    label: "Importe USD",
+    label: "USD ingresado",
     kind: "number",
+    value: (r) => r.amount_usd,
   },
   {
-    key: "document_number",
-    label: "Factura",
-    kind: "text",
-  },
-  {
-    key: "invoice_amount_usd",
-    label: "Importe contable USD",
+    key: "calculated",
+    label: "USD guías",
     kind: "number",
+    value: (r) => r.calculated_amount_usd,
   },
   {
-    key: "accounting_reference",
+    key: "difference",
+    label: "Diferencia USD",
+    kind: "number",
+    value: (r) =>
+      kardexDecimal(
+        kardexUnits(r.amount_usd) - kardexUnits(r.calculated_amount_usd),
+      ),
+  },
+  {
+    key: "amount_usd_con",
+    label: "USD Concar",
+    kind: "number",
+    value: (r) => r.amount_usd_con,
+  },
+  {
+    key: "accounting",
     label: "Subd. / Comp. / Sec.",
-    kind: "text",
+    value: (r) =>
+      r.subledger_num
+        ? `${r.subledger_num} / ${r.comp_num} / ${r.secu_num}`
+        : "",
+  },
+  { key: "status_name", label: "Estado", value: (r) => r.status_name },
+];
+const guideColumns: ExcelColumnDef<KardexGuide>[] = [
+  { key: "guide_number", label: "Guía", value: (r) => r.guide_number },
+  {
+    key: "departure_date",
+    label: "Salida",
+    kind: "date",
+    value: (r) => r.departure_date?.slice(0, 10),
+  },
+  { key: "plate_1", label: "Placa", value: (r) => r.plate_1 },
+  {
+    key: "tmh_departure",
+    label: "TMH salida",
+    kind: "number",
+    value: (r) => r.tmh_departure,
+  },
+  {
+    key: "amount_usd",
+    label: "USD calculado",
+    kind: "number",
+    value: (r) => r.amount_usd,
   },
 ];
 
-function quoteExcelFilterKind(
-  key: QuoteExcelFilterKey
-): ExcelFilterKind {
-  if (key === "arrival_date") {
-    return "date";
-  }
-
-  if (
-    key === "tmh_arrival" ||
-    key === "pu_transport_usd" ||
-    key === "amount_usd" ||
-    key === "invoice_amount_usd"
-  ) {
-    return "number";
-  }
-
-  return "text";
-}
-
-function quoteExcelValue(
-  guide: Guide,
-  key: QuoteExcelFilterKey
-) {
-  if (key === "arrival_date") {
-    return text(
-      guide.arrival_date
-    ).slice(0, 10);
-  }
-
-  if (key === "accounting_reference") {
-    return guide.subledger_num
-      ? `${guide.subledger_num} / ${guide.comp_num || ""} / ${guide.secu_num || ""}`
-      : "";
-  }
-
-  return text(guide[key]);
-}
-
-const SCALE = BigInt(1000000);
-const text = (value: unknown) => value == null ? "" : String(value);
-
-const identity = (row: Lot) =>
-  JSON.stringify([
-    row.lot,
-    row.lot_corr,
-    row.guide_number,
-  ]);
-
-const decimalValid = (value: string) =>
-  /^(?:\d{1,12}(?:\.\d{1,3})?|\.\d{1,3})$/.test(value.trim());
-
-const moneyValid = (value: string) =>
-  /^(?:\d{1,12}(?:\.\d{1,2})?|\.\d{1,2})$/.test(value.trim());
-
-const decimalPayload = (value: string) => {
-  const trimmed = value.trim();
-
-  return trimmed.startsWith(".")
-    ? `0${trimmed}`
-    : trimmed;
-};
-
-function fixedInputValue(
-  value: unknown,
-  decimals: number
-) {
-  const raw = text(value).trim();
-
-  if (!raw) return "";
-
-  const number = Number(raw);
-
-  return Number.isFinite(number)
-    ? number.toFixed(decimals)
-    : raw;
-}
-
-const tmhInputValue = (value: unknown) =>
-  fixedInputValue(value, 3);
-
-const moneyInputValue = (value: unknown) =>
-  fixedInputValue(value, 2);
-
-function units(value: unknown): bigint | null {
-  const raw = text(value).trim();
-
-  if (!/^-?(?:\d+(?:\.\d{1,6})?|\.\d{1,6})$/.test(raw)) return null;
-
-  const negative = raw.startsWith("-");
-  const [whole, fraction = ""] = raw.replace(/^-/, "").split(".");
-
-  const result =
-    BigInt(whole || "0") * SCALE +
-    BigInt(fraction.padEnd(6, "0"));
-
-  return negative ? -result : result;
-}
-
-function decimalString(value: bigint) {
-  const negative = value < BigInt(0);
-  const absolute = negative ? -value : value;
-
-  return (
-    `${negative ? "-" : ""}${absolute / SCALE}.` +
-    `${String(absolute % SCALE).padStart(6, "0")}`
-  );
-}
-
-function fmt(value: unknown, money = false) {
-  if (
-    value == null ||
-    value === "" ||
-    !Number.isFinite(Number(value))
-  ) {
-    return "—";
-  }
-
-  return Number(value).toLocaleString("es-PE", {
-    minimumFractionDigits: money ? 2 : 3,
-    maximumFractionDigits: money ? 2 : 3,
-  });
-}
-
-function dateLabel(value: unknown) {
-  const raw = text(value);
-
-  return raw
-    ? `${raw.slice(8, 10)}/${raw.slice(5, 7)}/${raw.slice(0, 4)} ${raw.slice(11, 16)}`.trim()
-    : "—";
-}
-
-function dateKey(value: string) {
-  const match = value.match(
-    /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/
-  );
-
-  if (!match || Number(value.slice(0, 4)) < 1) return "";
-
-  const normalized =
-    `${match[1]}T${match[2]}:${match[3] || "00"}.` +
-    `${(match[4] || "").padEnd(3, "0")}`;
-
-  const parsed = new Date(`${normalized}Z`);
-
-  return Number.isFinite(parsed.getTime()) &&
-    parsed.toISOString() === `${normalized}Z`
-    ? normalized
-    : "";
-}
-
-function peruNowInputValue() {
-  return new Date(Date.now() - 5 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 16);
-}
-
-function LotHistory({
-  lot,
-  rows,
-}: {
-  lot: string;
-  rows: Lot[];
-}) {
-  const matches = rows.filter(
-    (row) =>
-      row.lot_corr.trim().toUpperCase() !== "PERD" &&
-      row.lot.trim().toUpperCase() ===
-        lot.trim().toUpperCase()
-  );
-
-  if (!matches.length) {
-    return <span className="trjq-note">Sin guías</span>;
-  }
-
-  return (
-    <details className="trjq-history">
-      <summary>
-        Ver guías ({new Set(matches.map((row) => row.guide_number)).size})
-      </summary>
-
-      <div className="trjq-history-box">
-        <table>
-          <thead>
-            <tr>
-              <th>Guía</th>
-              <th>Corr.</th>
-              <th>Salida</th>
-              <th>Llegada</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {matches.map((row) => (
-              <tr key={identity(row)}>
-                <td>{row.guide_number}</td>
-                <td>{row.lot_corr}</td>
-                <td>{fmt(row.tmh_departure)}</td>
-                <td>{fmt(row.tmh_arrival)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </details>
-  );
-}
-
-function QuoteEditor({
-  guide,
+function InvoiceDetail({
+  invoice,
+  guides,
   lots,
-  allLots,
-  sgm,
-  onSaved,
+  busy,
   onBusy,
   onDirty,
+  onSaved,
+  mutate,
+  onAdd,
 }: {
-  guide: Guide;
-  lots: Lot[];
-  allLots: Lot[];
-  sgm: Sgm[];
-  onSaved: (result: Saved) => void;
-  onBusy: (busy: boolean) => void;
-  onDirty: (dirty: boolean) => void;
+  invoice: KardexInvoice;
+  guides: KardexGuide[];
+  lots: KardexLot[];
+  busy: boolean;
+  onBusy: (value: boolean) => void;
+  onDirty: (value: boolean) => void;
+  onSaved: (result: QuoteSaved) => void;
+  mutate: (path: string, body: Record<string, unknown>) => Promise<boolean>;
+  onAdd: () => void;
 }) {
-  const [arrival, setArrival] = useState(
-    text(guide.arrival_date).slice(0, 16)
-  );
-
-  const [rate, setRate] = useState(
-    moneyInputValue(guide.pu_transport_usd)
-  );
-
-  const [document, setDocument] = useState(
-    text(guide.document_number)
-  );
-
-  const [values, setValues] = useState<Record<string, string>>(
-    () =>
-      Object.fromEntries(
-        lots.map((row) => [
-          identity(row),
-          tmhInputValue(row.tmh_arrival),
-        ])
-      )
-  );
-
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [invoiceLoading, setInvoiceLoading] = useState(false);
-  const [invoiceError, setInvoiceError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-
-  const gate = useRef(false);
-  const listId = useId();
-
-  const dirty =
-    arrival !== text(guide.arrival_date).slice(0, 16) ||
-    rate.trim() !== moneyInputValue(guide.pu_transport_usd) ||
-    document.trim() !== text(guide.document_number).trim() ||
-    lots.some(
-      (row) =>
-        values[identity(row)].trim() !==
-        tmhInputValue(row.tmh_arrival)
-    );
-
-  useEffect(() => {
-    onDirty(dirty);
-  }, [dirty, onDirty]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!guide.transport_ruc) return;
-
-    setInvoiceLoading(true);
-    setInvoiceError("");
-
-    void apiGet(
-      `/api/trjkar/veta-hist?ruc=${encodeURIComponent(guide.transport_ruc)}`
-    )
-      .then((response) => {
-        if (cancelled) return;
-
-        if (
-          response?.ok === false ||
-          !Array.isArray(response?.rows)
-        ) {
-          throw new Error(
-            response?.error || "Respuesta inválida"
-          );
-        }
-
-        setInvoices(response.rows as Invoice[]);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setInvoiceError(
-            e instanceof Error
-              ? e.message
-              : "No se pudieron consultar las facturas"
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setInvoiceLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [guide.transport_ruc]);
-
-  const filled = lots.filter(
-    (row) => values[identity(row)].trim() !== ""
-  );
-
-  const total = filled.reduce(
-    (sum, row) =>
+  const [activeGuide, setActiveGuide] = useState<string | null>(null);
+  const [guideDirty, setGuideDirty] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [date, setDate] = useState(invoice.document_date);
+  const [amount, setAmount] = useState(moneyInput(invoice.amount_usd));
+  const [revision, setRevision] = useState(0);
+  const closed = invoice.status_name === "CERRADO";
+  const metadataDirty =
+    date !== invoice.document_date || amount !== moneyInput(invoice.amount_usd);
+  const dirty = metadataDirty || guideDirty;
+  useEffect(() => onDirty(dirty), [dirty, onDirty]);
+  const calculated = guides.reduce(
+    (sum, guide) =>
       sum +
-      (units(values[identity(row)]) ?? BigInt(0)),
-    BigInt(0)
+      kardexUnits(
+        guide.guide_number === activeGuide && guideDirty
+          ? preview
+          : guide.amount_usd,
+      ),
+    BigInt(0),
   );
+  const difference = kardexUnits(amount) - calculated;
+  const identity = {
+    ruc: invoice.ruc,
+    document_number: invoice.document_number,
+  };
+  const valid =
+    moneyValid(amount) && /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= today();
 
-  const rateUnits = units(rate);
-
-  const calculated =
-    rateUnits != null && filled.length
-      ? (
-          total * rateUnits +
-          SCALE / BigInt(2)
-        ) / SCALE
-      : null;
-
-  const usedPendingLots = sgm.filter(
-    (row) =>
-      (units(row.tmh_departure) ?? BigInt(0)) > BigInt(0) &&
-      (units(row.tmh_balance) ?? BigInt(0)) > BigInt(0)
-  );
-
-  const invoiceMatches = invoices.filter(
-    (row) =>
-      row.document_number.trim().toUpperCase() ===
-      document.trim().toUpperCase()
-  );
-
-  const invoice = invoiceMatches[0];
-
-  const documents = [
-    ...new Set(
-      invoices
-        .map((row) => row.document_number)
-        .filter((value) => value.length <= 50)
-    ),
-  ];
-
-  const reference = invoice
-    ? `${invoice.subjournal_code} / ${invoice.voucher_number} / ${invoice.sequence_number}`
-    : "—";
-
-  const arrivalKey = arrival ? dateKey(arrival) : "";
-  const departureKey = guide.departure_date
-    ? dateKey(text(guide.departure_date))
-    : "";
-
-  const maxDateTimePe = peruNowInputValue();
-  const maxDateTimeKeyPe = dateKey(maxDateTimePe);
-
-  let validation = "";
-
-  if (arrival && !arrivalKey) {
-    validation = "La fecha de llegada no es válida";
-  } else if (
-    arrivalKey &&
-    arrivalKey > maxDateTimeKeyPe
-  ) {
-    validation = "La llegada no puede ser futura (hora Perú)";
-  } else if (
-    arrivalKey &&
-    departureKey &&
-    arrivalKey < departureKey
-  ) {
-    validation = "La llegada no puede ser anterior a la salida";
-  }
-
-  if (rate.trim() && !moneyValid(rate)) {
-    validation =
-      "El PU debe ser no negativo y tener hasta 2 decimales";
-  }
-
-  if (document.trim().length > 50) {
-    validation = "La factura admite hasta 50 caracteres";
-  }
-
-  if (
-    lots.some(
-      (row) =>
-        values[identity(row)].trim() &&
-        !decimalValid(values[identity(row)])
+  function toggleGuide(guide: KardexGuide) {
+    if (busy) return;
+    if (
+      guideDirty &&
+      !window.confirm("Hay cambios de llegada sin guardar. ¿Descartarlos?")
     )
-  ) {
-    validation =
-      "Revisa las TMH de llegada: números no negativos, hasta 3 decimales";
+      return;
+    setGuideDirty(false);
+    setPreview(null);
+    setActiveGuide(
+      activeGuide === guide.guide_number ? null : guide.guide_number,
+    );
   }
-
-  if (
-    total >= BigInt("1000000000000000000") ||
-    (
-      calculated != null &&
-      calculated >= BigInt("1000000000000000000")
-    )
-  ) {
-    validation = "Las TMH o el importe superan el máximo permitido";
+  async function action(action: "close" | "delete") {
+    if (busy || dirty || closed) return;
+    const word = action === "close" ? "cerrar" : "eliminar";
+    const detail =
+      action === "close"
+        ? `Se bloquearán las ${guides.length} guías. Diferencia actual: USD ${fmt(kardexDecimal(difference))}.`
+        : "Se eliminará la factura y se quitará su vínculo; las guías y sus lotes se conservan.";
+    const confirmation = window.prompt(
+      `${detail} Escribe "${word}" para confirmar.`,
+    );
+    if (confirmation?.trim().toLowerCase() !== word) return;
+    await mutate(`/api/trjkar/invo/${action}`, { ...identity, confirmation });
   }
-
-  async function save() {
-    if (gate.current || validation || !dirty) return;
-
-    gate.current = true;
-    setSaving(true);
-    onBusy(true);
-    setMessage("");
-
-    try {
-      const body: Record<string, unknown> = {
-        guide_number: guide.guide_number,
-      };
-
-      if (
-        arrival !==
-        text(guide.arrival_date).slice(0, 16)
-      ) {
-        body.arrival_date = arrival
-          ? `${arrival.slice(0, 16)}:00.000`
-          : null;
-      }
-
-      if (
-        rate.trim() !== moneyInputValue(guide.pu_transport_usd)
-      ) {
-        body.pu_transport_usd = rate.trim()
-          ? decimalPayload(rate)
-          : null;
-      }
-
-      if (
-        document.trim() !==
-        text(guide.document_number).trim()
-      ) {
-        body.document_number = document.trim() || null;
-      }
-
-      const changed = lots.filter(
-        (row) =>
-          values[identity(row)].trim() !==
-          tmhInputValue(row.tmh_arrival)
-      );
-
-      if (changed.length) {
-        body.lots = changed.map((row) => ({
-          lot: row.lot,
-          lot_corr: row.lot_corr,
-          guide_number: row.guide_number,
-          tmh_arrival: values[identity(row)].trim()
-            ? decimalPayload(values[identity(row)])
-            : null,
-        }));
-      }
-
-      const response = await apiPost(
-        "/api/trjkar/guides/insert",
-        body
-      );
-
-      if (!response?.ok) {
-        throw new Error(
-          response?.error || "No se pudo guardar"
-        );
-      }
-
-      onDirty(false);
-      onSaved(response as Saved);
-    } catch (e) {
-      setMessage(
-        e instanceof Error ? e.message : "No se pudo guardar"
-      );
-    } finally {
-      gate.current = false;
-      setSaving(false);
-      onBusy(false);
-    }
-  }
-
   return (
-    <section className="trjq-card trjq-editor">
-      <div className="trjq-editor-head">
+    <section
+      className="trjk-card trjk-invoice-detail"
+      aria-label={`Detalle factura ${invoice.document_number}`}
+    >
+      <div className="trjk-toolbar">
         <div>
-          <div className="trjq-editor-title">
-            <h3>Guía {guide.guide_number}</h3>
-            <span className="trjq-status">
-              {filled.length === lots.length && lots.length
-                ? "COMPLETA"
-                : "PENDIENTE"}
-            </span>
-          </div>
-
-          <div className="trjq-subtitle">
-            {guide.transport_name || "Sin transportista"} · RUC{" "}
-            {guide.transport_ruc || "—"} · Placa{" "}
-            {guide.plate_1 || "—"}
-          </div>
+          <h3>
+            {invoice.document_number}{" "}
+            <span className="trjk-badge">{invoice.status_name}</span>
+          </h3>
+          <p className="muted">
+            {invoice.transport_name || invoice.ruc} · {invoice.ruc}
+          </p>
         </div>
-
-        <Button
-          onClick={() => void save()}
-          disabled={saving || !!validation || !dirty}
+        <div className="trjk-actions">
+          <Button size="sm" disabled={busy || dirty || closed} onClick={onAdd}>
+            Agregar guías
+          </Button>
+          <Button
+            size="sm"
+            disabled={busy || dirty || closed || !guides.length}
+            onClick={() => void action("close")}
+          >
+            Cerrar
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={busy || dirty || closed}
+            onClick={() => void action("delete")}
+          >
+            Eliminar factura
+          </Button>
+        </div>
+      </div>
+      <div className="trjk-invoice-metrics">
+        <label>
+          Fecha de factura
+          <input
+            className="input"
+            aria-label="Fecha de factura en edición"
+            type="date"
+            max={today()}
+            value={date}
+            disabled={busy || closed}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </label>
+        <label>
+          USD ingresado
+          <input
+            className="input"
+            aria-label="Monto de factura en edición"
+            inputMode="decimal"
+            value={amount}
+            disabled={busy || closed}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </label>
+        <div>
+          <span>
+            USD calculado de guías{guideDirty ? " · vista previa" : ""}
+          </span>
+          <strong>
+            {guideDirty && preview == null
+              ? "Revisar datos"
+              : fmt(kardexDecimal(calculated))}
+          </strong>
+        </div>
+        <div
+          data-state={
+            kardexCents(difference) === BigInt(0) ? "valid" : "invalid"
+          }
         >
-          {saving ? "Guardando..." : "Guardar valorización"}
+          <span>Diferencia USD</span>
+          <strong>
+            {guideDirty && preview == null
+              ? "—"
+              : fmt(kardexDecimal(difference))}
+          </strong>
+        </div>
+        <div>
+          <span>USD Concar</span>
+          <strong>{fmt(invoice.amount_usd_con)}</strong>
+        </div>
+      </div>
+      <div className="trjk-toolbar">
+        <span className="muted">
+          {invoice.subledger_num
+            ? `Asiento: ${invoice.subledger_num} / ${invoice.comp_num} / ${invoice.secu_num}`
+            : "Aún sin coincidencia en Concar"}
+        </span>
+        <Button
+          size="sm"
+          disabled={busy || closed || !metadataDirty || guideDirty || !valid}
+          onClick={async () => {
+            await mutate("/api/trjkar/invo/update", {
+              ...identity,
+              document_date: date,
+              amount_usd: amount,
+            });
+          }}
+        >
+          Guardar factura
         </Button>
       </div>
-
-      <fieldset disabled={saving}>
-        <div className="trjq-entry-card">
-          <div className="trjq-section-title">
-            Datos de valorización
-          </div>
-
-          <div className="trjq-entry-grid">
-            <label>
-              Fecha de salida
-              <input
-                className="input"
-                readOnly
-                value={dateLabel(guide.departure_date)}
-              />
-            </label>
-
-            <label>
-              Llegada · hora Perú
-              <input
-                className="input"
-                type="datetime-local"
-                step="60"
-                min={text(guide.departure_date).slice(0, 16) || undefined}
-                max={maxDateTimePe}
-                value={arrival}
-                onChange={(e) => setArrival(e.target.value)}
-              />
-            </label>
-
-            <label>
-              PU transporte · USD/TMH
-              <input
-                className="input"
-                inputMode="decimal"
-                maxLength={15}
-                value={rate}
-                onChange={(e) => {
-                  const value = e.target.value;
-
+      {dirty && (
+        <p className="muted">
+          Guarda los cambios antes de cerrar, quitar guías o eliminar la
+          factura.
+        </p>
+      )}
+      {metadataDirty && !valid && (
+        <p className="trjk-error" role="alert">
+          Revisa la fecha y el monto: usa una fecha no futura y USD no negativo
+          con hasta 2 decimales.
+        </p>
+      )}
+      <div className="trjk-guide-stack">
+        {guides.map((guide) => (
+          <div className="trjk-guide-item" key={guide.guide_number}>
+            <div className="trjk-toolbar">
+              <button
+                className="trjk-expand"
+                aria-expanded={activeGuide === guide.guide_number}
+                disabled={busy}
+                onClick={() => toggleGuide(guide)}
+              >
+                <span>{activeGuide === guide.guide_number ? "▾" : "▸"}</span>
+                <strong>{guide.guide_number}</strong>
+                <span>{guide.plate_1 || "Sin placa"}</span>
+                <span>Salida {fmt(guide.tmh_departure, 3)} TMH</span>
+                <span>Llegada {fmt(guide.tmh_arrival, 3)} TMH</span>
+                <span>USD {fmt(guide.amount_usd)}</span>
+              </button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy || dirty || closed}
+                onClick={() => {
                   if (
-                    /^(?:\d{0,12}(?:\.\d{0,2})?|\.\d{0,2})$/.test(
-                      value
+                    window.confirm(
+                      `¿Quitar ${guide.guide_number} de esta factura? Se conservarán la guía y sus lotes.`,
                     )
                   ) {
-                    setRate(value);
+                    void mutate("/api/trjkar/invo/unlink", {
+                      ...identity,
+                      guide_number: guide.guide_number,
+                    });
                   }
                 }}
-              />
-            </label>
-
-            <label>
-              Factura de transporte
-              <input
-                className="input"
-                maxLength={50}
-                list={listId}
-                value={document}
-                onChange={(e) => setDocument(e.target.value)}
-              />
-
-              <datalist id={listId}>
-                {documents.map((value) => (
-                  <option key={value} value={value} />
-                ))}
-              </datalist>
-            </label>
-          </div>
-        </div>
-
-        <div className="trjq-kpis">
-          <div className="trjq-kpi" data-tone="departure">
-            <span>TMH salida</span>
-            <strong>{fmt(guide.tmh_departure)}</strong>
-          </div>
-
-          <div className="trjq-kpi" data-tone="arrival">
-            <span>TMH llegada</span>
-            <strong>{fmt(decimalString(total))}</strong>
-          </div>
-
-          <div className="trjq-kpi" data-tone="amount">
-            <span>Importe calculado USD</span>
-            <strong>
-              {fmt(
-                calculated == null
-                  ? null
-                  : decimalString(calculated),
-                true
-              )}
-            </strong>
-          </div>
-
-          <div className="trjq-kpi" data-tone="lots">
-            <span>Lotes con llegada</span>
-            <strong>
-              {filled.length} / {lots.length}
-            </strong>
-          </div>
-        </div>
-
-        {filled.length < lots.length && (
-          <div className="trjq-note trjq-inline-note">
-            Importe parcial: faltan TMH de llegada en{" "}
-            {lots.length - filled.length} lote(s).
-          </div>
-        )}
-
-        <div className="trjq-lots-layout">
-          <div className="trjq-lots-card">
-            <div className="trjq-section-title">
-              Llegadas por lote
+              >
+                Quitar
+              </Button>
             </div>
-
-          <div className="trjq-table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Lote</th>
-                  <th>Correlativo</th>
-                  <th>TMH salida</th>
-                  <th>TMH llegada</th>
-                  <th>Diferencia TMH</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {lots.map((row) => {
-                  const value = values[identity(row)];
-                  const arrivalUnits = units(value);
-                  const departureUnits = units(row.tmh_departure);
-
-                  const invalid =
-                    !!value.trim() &&
-                    !decimalValid(value);
-
-                  return (
-                    <tr key={identity(row)}>
-                      <td>
-                        <strong>{row.lot}</strong>
-                      </td>
-
-                      <td>{row.lot_corr}</td>
-
-                      <td>{fmt(row.tmh_departure)}</td>
-
-                      <td>
-                        <input
-                          className={`input trjq-tmh-input ${invalid ? "trjq-input-error" : ""}`}
-                          aria-label={`Llegada ${row.lot} ${row.lot_corr}`}
-                          aria-invalid={invalid}
-                          inputMode="decimal"
-                          maxLength={16}
-                          value={value}
-                          onChange={(e) => {
-                            const next = e.target.value;
-
-                            if (
-                              /^(?:\d{0,12}(?:\.\d{0,3})?|\.\d{0,3})$/.test(
-                                next
-                              )
-                            ) {
-                              setValues((current) => ({
-                                ...current,
-                                [identity(row)]: next,
-                              }));
-                            }
-                          }}
-                        />
-                      </td>
-
-                      <td>
-                        {arrivalUnits != null &&
-                        departureUnits != null
-                          ? fmt(
-                              decimalString(
-                                arrivalUnits - departureUnits
-                              )
-                            )
-                          : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {!lots.length && (
-                  <tr>
-                    <td colSpan={5}>
-                      Agrega los lotes desde Guías.
-                    </td>
-                  </tr>
+            {activeGuide === guide.guide_number && (
+              <TRJKardexQuoteEditor
+                key={`${guide.guide_number}:${revision}`}
+                guide={guide}
+                lots={lots.filter(
+                  (row) =>
+                    row.guide_number === guide.guide_number &&
+                    isOperationalLot(row),
                 )}
-              </tbody>
-
-              <tfoot>
-                <tr>
-                  <th colSpan={2}>Total guía</th>
-                  <td>{fmt(guide.tmh_departure)}</td>
-                  <td>{fmt(decimalString(total))}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
+                disabled={busy || metadataDirty}
+                onBusy={onBusy}
+                onDirty={setGuideDirty}
+                onPreview={setPreview}
+                onSaved={(result) => {
+                  setGuideDirty(false);
+                  setRevision((n) => n + 1);
+                  onSaved(result);
+                }}
+              />
+            )}
           </div>
-          </div>
-
-          <aside className="trjq-used-lots">
-            <div className="trjq-used-head">
-              <div>
-                <div className="trjq-section-title">
-                  Lotes usados con saldo
-                </div>
-
-                <div className="trjq-note" style={{ marginTop: 0 }}>
-                  Usados anteriormente y todavía pendientes.
-                </div>
-              </div>
-
-              <span className="trjq-count">
-                {usedPendingLots.length}
-              </span>
-            </div>
-
-            <div className="trjq-used-list">
-              {usedPendingLots.map((row) => (
-                <div
-                  className="trjq-used-row"
-                  key={row.lot}
-                >
-                  <div>
-                    <strong>{row.lot}</strong>
-                    <span>
-                      Usado {fmt(row.tmh_departure)} · Saldo{" "}
-                      {fmt(row.tmh_balance)} TMH
-                    </span>
-                  </div>
-
-                  <LotHistory
-                    lot={row.lot}
-                    rows={allLots}
-                  />
-                </div>
-              ))}
-
-              {!usedPendingLots.length && (
-                <div className="trjq-note">
-                  No hay lotes usados con saldo pendiente.
-                </div>
-              )}
-            </div>
-          </aside>
-        </div>
-      </fieldset>
-
-      <div className="trjq-invoice-card">
-        <div className="trjq-section-title">
-          Factura · registro contable
-        </div>
-
-        <div className="trjq-invoice-grid">
-          <div>
-            <span>Documento</span>
-            <strong>{document || "—"}</strong>
-          </div>
-
-          <div>
-            <span>Fecha de documento</span>
-            <strong>{dateLabel(invoice?.document_date)}</strong>
-          </div>
-
-          <div>
-            <span>Subdiario / comprobante / secuencia</span>
-            <strong>{reference}</strong>
-          </div>
-
-          <div>
-            <span>Importe contable USD</span>
-            <strong>{fmt(invoice?.usd_amount, true)}</strong>
-          </div>
-        </div>
-
-        {invoiceLoading && (
-          <div className="trjq-note">
-            Consultando histórico contable...
-          </div>
-        )}
-
-        {invoiceError && (
-          <div className="trjq-error">
-            {invoiceError}
-          </div>
-        )}
-
-        {!invoiceLoading &&
-          !invoiceError &&
-          document.trim() &&
-          !invoice && (
-            <div className="trjq-note">
-              No se encontró esta factura para el RUC del transportista. Puedes guardarla y completar el cruce cuando esté en el histórico.
-            </div>
-          )}
-
-        {invoiceMatches.length > 1 && (
-          <div className="trjq-note">
-            Hay {invoiceMatches.length} líneas contables. Se muestra la más reciente con el mismo criterio de las vistas.
-          </div>
+        ))}
+        {!guides.length && (
+          <p className="muted">
+            Sin guías vinculadas. Puedes agregar guías o eliminar esta factura.
+          </p>
         )}
       </div>
-
-      {(validation || message) && (
-        <div
-          role="alert"
-          className="trjq-message trjq-error"
-        >
-          {validation || message}
-        </div>
-      )}
     </section>
   );
 }
 
 export default function TRJKardexQuotes() {
-  const [guides, setGuides] = useState<Guide[]>([]);
-  const [lots, setLots] = useState<Lot[]>([]);
-  const [sgm, setSgm] = useState<Sgm[]>([]);
-  const [active, setActive] = useState<string | null>(null);
+  const [guides, setGuides] = useState<KardexGuide[]>([]);
+  const [lots, setLots] = useState<KardexLot[]>([]);
+  const [invoices, setInvoices] = useState<KardexInvoice[]>([]);
+  const [carriers, setCarriers] = useState<Carrier[]>([]);
+  const [carrier, setCarrier] = useState("");
+  const [searchedCarrier, setSearchedCarrier] = useState("");
+  const [document, setDocument] = useState("");
+  const [date, setDate] = useState(today);
+  const [amount, setAmount] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [pendingOnly, setPendingOnly] = useState(false);
-  const [page, setPage] = useState(1);
-  const [quoteColumnFilters, setQuoteColumnFilters] = useState<
-    Partial<Record<QuoteExcelFilterKey, ExcelColumnFilter>>
-  >({});
-  const [quoteExcelSort, setQuoteExcelSort] = useState<{
-    key: QuoteExcelFilterKey;
-    direction: ExcelSortDirection;
-  } | null>(null);
-  const [revision, setRevision] = useState(0);
+  const [active, setActive] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
+  const [page, setPage] = useState(1);
+  const [revision, setRevision] = useState(0);
+  const gate = useRef(false);
+  const builder = useRef<HTMLElement>(null);
+  const normalized = normalizeInvoiceNumber(document);
+  const builderDirty = selected.size > 0 || !!document || !!amount;
 
   const load = useCallback(async () => {
-    const [headers, details, stock] = await Promise.all([
+    const responses = await Promise.all([
       apiGet("/api/trjkar/guides"),
       apiGet("/api/trjkar"),
-      apiGet("/api/trjkar/sgm-hist"),
+      apiGet("/api/trjkar/invo"),
+      apiGet("/api/trjkar/ruc-history?role=transport"),
     ]);
-
-    for (const response of [headers, details, stock]) {
-      if (
-        response?.ok === false ||
-        !Array.isArray(response?.rows)
-      ) {
-        throw new Error(
-          response?.error || "Respuesta inválida"
-        );
-      }
-    }
-
-    setGuides(headers.rows as Guide[]);
-    setLots(details.rows as Lot[]);
-    setSgm(stock.rows as Sgm[]);
-    setRevision((value) => value + 1);
+    for (const response of responses)
+      if (!Array.isArray(response?.rows))
+        throw new Error("Respuesta de Kardex inválida");
+    setGuides(responses[0].rows);
+    setLots(responses[1].rows);
+    setInvoices(responses[2].rows);
+    setCarriers(responses[3].rows);
   }, []);
-
   useEffect(() => {
     void load()
       .catch((e) => {
         setError(true);
-        setMessage(
-          e instanceof Error ? e.message : "No se pudo cargar"
-        );
+        setMessage(e.message);
       })
       .finally(() => setLoading(false));
   }, [load]);
+  useEffect(() => {
+    if (!dirty && !builderDirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, builderDirty]);
 
-  const byGuide = useMemo(() => {
-    const result = new Map<string, Lot[]>();
-
-    for (const row of lots) {
-      if (
-        row.lot_corr.trim().toUpperCase() === "PERD"
-      ) {
-        continue;
-      }
-
-      result.set(row.guide_number, [
-        ...(result.get(row.guide_number) || []),
-        row,
-      ]);
-    }
-
-    return result;
-  }, [lots]);
-
-  const quoteExcelValues = useMemo(
+  const available = useMemo(
     () =>
-      Object.fromEntries(
-        QUOTE_EXCEL_COLUMNS.map((column) => [
-          column.key,
-          guides.map((guide) =>
-            quoteExcelValue(
-              guide,
-              column.key
-            )
-          ),
-        ])
-      ) as Record<
-        QuoteExcelFilterKey,
-        string[]
-      >,
-    [guides]
+      guides.filter(
+        (g) =>
+          searchedCarrier &&
+          g.transport_ruc === searchedCarrier &&
+          !g.document_number &&
+          g.status_name !== "CERRADO",
+      ),
+    [guides, searchedCarrier],
   );
-
-  const filtered = useMemo(() => {
-    const needle =
-      search
-        .trim()
-        .toUpperCase();
-
-    const searched =
-      guides.filter((guide) => {
-        const matches = [
-          guide.guide_number,
-          guide.transport_name,
-          guide.transport_ruc,
-          guide.document_number,
-        ].some((value) =>
-          text(value)
+  const guideExcel = useExcelColumnFilters(available, guideColumns);
+  const filtered = useMemo(
+    () =>
+      invoices.filter(
+        (row) =>
+          (!pendingOnly || row.status_name !== "CERRADO") &&
+          `${row.document_number} ${row.ruc} ${row.transport_name || ""}`
             .toUpperCase()
-            .includes(needle)
-        );
-
-        const details =
-          byGuide.get(
-            guide.guide_number
-          ) || [];
-
-        const pending =
-          !guide.arrival_date ||
-          guide.pu_transport_usd == null ||
-          !guide.document_number ||
-          !details.length ||
-          details.some(
-            (row) =>
-              row.tmh_arrival == null
-          );
-
-        return (
-          matches &&
-          (
-            !pendingOnly ||
-            pending
-          )
-        );
-      });
-
-    const excelFiltered =
-      searched.filter((guide) =>
-        (
-          Object.entries(
-            quoteColumnFilters
-          ) as Array<
-            [
-              QuoteExcelFilterKey,
-              ExcelColumnFilter
-            ]
-          >
-        ).every(([key, filter]) =>
-          matchesExcelFilter(
-            quoteExcelValue(
-              guide,
-              key
-            ),
-            filter,
-            quoteExcelFilterKind(key)
-          )
-        )
-      );
-
-    if (!quoteExcelSort) {
-      return excelFiltered;
-    }
-
-    return [...excelFiltered].sort(
-      (a, b) =>
-        compareExcelValues(
-          quoteExcelValue(
-            a,
-            quoteExcelSort.key
-          ),
-          quoteExcelValue(
-            b,
-            quoteExcelSort.key
-          ),
-          quoteExcelFilterKind(
-            quoteExcelSort.key
-          ),
-          quoteExcelSort.direction
-        )
-    );
-  }, [
-    guides,
-    byGuide,
-    search,
-    pendingOnly,
-    quoteColumnFilters,
-    quoteExcelSort,
-  ]);
-
-  const pages = Math.max(1, Math.ceil(filtered.length / 20));
+            .includes(search.trim().toUpperCase()),
+      ),
+    [invoices, pendingOnly, search],
+  );
+  const excel = useExcelColumnFilters(filtered, invoiceColumns);
+  const pages = Math.max(1, Math.ceil(excel.rows.length / 20));
   const currentPage = Math.min(page, pages);
-
-  const selected = guides.find(
-    (guide) => guide.guide_number === active
-  );
-
-  const totalAmount = filtered.reduce(
-    (sum, guide) =>
-      sum + (units(guide.amount_usd) || BigInt(0)),
-    BigInt(0)
-  );
-
-  function open(guide: Guide) {
-    if (
-      busy ||
-      loading ||
-      (
-        dirty &&
-        !window.confirm(
-          "Hay cambios sin guardar. ¿Deseas descartarlos?"
-        )
+  const activeInvoice = invoices.find((row) => invoiceKey(row) === active);
+  const invoiceGuides = activeInvoice
+    ? guides.filter(
+        (g) =>
+          g.transport_ruc === activeInvoice.ruc &&
+          g.document_number === activeInvoice.document_number,
       )
-    ) {
-      return;
-    }
+    : [];
+  const carrierOptions = [
+    ...new Map(
+      [
+        ...carriers,
+        ...guides
+          .filter((g) => g.transport_ruc)
+          .map((g) => ({ ruc: g.transport_ruc!, name: g.transport_name })),
+      ].map((r) => [r.ruc, r]),
+    ).values(),
+  ].sort((a, b) => (a.name || a.ruc).localeCompare(b.name || b.ruc));
 
-    setActive(guide.guide_number);
-    setDirty(false);
-    setRevision((value) => value + 1);
+  async function mutate(path: string, body: Record<string, unknown>) {
+    if (gate.current || busy) return false;
+    gate.current = true;
+    setBusy(true);
+    setError(false);
     setMessage("");
-  }
-
-  async function refresh() {
-    if (
-      busy ||
-      (
-        dirty &&
-        !window.confirm(
-          "¿Descartar los cambios y actualizar?"
-        )
-      )
-    ) {
-      return;
-    }
-
-    setLoading(true);
-
+    let saved = false;
     try {
+      await apiPost(path, body);
+      saved = true;
+      if (path.endsWith("/insert")) {
+        setSelected(new Set());
+        setDocument("");
+        setAmount("");
+      }
+      if (path.endsWith("/delete")) setActive(null);
       await load();
+      setRevision((n) => n + 1);
       setDirty(false);
-      setMessage("");
+      setMessage("Operación guardada");
+      return true;
     } catch (e) {
       setError(true);
       setMessage(
-        e instanceof Error
-          ? e.message
-          : "No se pudo actualizar"
+        `${saved ? "La operación se guardó, pero falló la recarga. Pulsa Actualizar. " : ""}${e instanceof Error ? e.message : "No se pudo completar"}`,
       );
+      return false;
     } finally {
-      setLoading(false);
+      gate.current = false;
+      setBusy(false);
     }
   }
-
-  function saved(result: Saved) {
+  function savedGuide(result: QuoteSaved) {
     setGuides((current) =>
-      current.map((guide) =>
-        guide.guide_number === result.guide.guide_number
-          ? result.guide
-          : guide
-      )
-    );
-
-    setLots((current) => [
-      ...current.filter(
-        (row) =>
-          row.guide_number !== result.guide.guide_number
+      current.map((g) =>
+        g.guide_number === result.guide.guide_number ? result.guide : g,
       ),
+    );
+    setLots((current) => [
+      ...current.filter((r) => r.guide_number !== result.guide.guide_number),
       ...result.rows,
     ]);
-
+    setInvoices((current) =>
+      current.map((invoice) => {
+        if (
+          invoice.ruc !== result.guide.transport_ruc ||
+          invoice.document_number !== result.guide.document_number
+        )
+          return invoice;
+        const total = guides
+          .filter(
+            (g) =>
+              g.transport_ruc === invoice.ruc &&
+              g.document_number === invoice.document_number,
+          )
+          .reduce(
+            (sum, g) =>
+              sum +
+              kardexUnits(
+                g.guide_number === result.guide.guide_number
+                  ? result.guide.amount_usd
+                  : g.amount_usd,
+              ),
+            BigInt(0),
+          );
+        return { ...invoice, calculated_amount_usd: kardexDecimal(total) };
+      }),
+    );
+  }
+  function openInvoice(invoice: KardexInvoice) {
+    if (busy || loading) return;
+    if (
+      dirty &&
+      !window.confirm("¿Descartar cambios sin guardar de la factura abierta?")
+    )
+      return;
     setDirty(false);
-    setRevision((value) => value + 1);
-    setError(false);
-    setMessage("Valorización y llegadas guardadas");
+    setActive(active === invoiceKey(invoice) ? null : invoiceKey(invoice));
   }
 
   return (
-    <div className="trjk-quotes">
-      <style>{`
-        .trjk-quotes{height:100%;max-height:calc(100dvh - 68px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;display:grid;align-content:start;gap:10px;min-width:0;min-height:0;padding:0 6px 56px 0}
-        .trjk-quotes *{box-sizing:border-box}
-        .trjk-quotes .trjq-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:2px 2px 0}
-        .trjk-quotes .trjq-title{margin:0;font-size:18px;line-height:1.15}
-        .trjk-quotes .trjq-subtitle{font-size:11px;opacity:.78;margin-top:3px}
-        .trjk-quotes .trjq-card{min-width:0;border:1px solid rgba(147,211,230,.26);border-radius:10px;background:linear-gradient(180deg,rgba(7,71,101,.80),rgba(5,61,87,.72));box-shadow:0 6px 18px rgba(0,0,0,.08)}
-        .trjk-quotes .trjq-list-card{padding:10px 12px}
-        .trjk-quotes .trjq-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
-        .trjk-quotes .trjq-search{width:min(420px,100%);height:32px;padding:5px 9px;font-size:12px}
-        .trjk-quotes .trjq-toolbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px}
-        .trjk-quotes .trjq-check{display:flex;align-items:center;gap:6px!important;font-size:11px!important;font-weight:600;cursor:pointer}
-        .trjk-quotes .trjq-count{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:rgba(147,211,230,.10);font-size:11px}
-        .trjk-quotes .trjq-table-scroll{overflow-x:auto;overflow-y:visible;max-width:100%;margin-top:8px;border-radius:6px;border:1px solid rgba(147,211,230,.13)}
-        .trjk-quotes table{border-collapse:collapse;width:max-content;min-width:100%;font-size:11px}
-        .trjk-quotes th{background:#143444;text-align:left;color:#fff;font-weight:600}
-        .trjk-quotes th,.trjk-quotes td{padding:7px 9px;border-bottom:1px solid rgba(147,211,230,.13);white-space:nowrap;vertical-align:middle}
-        .trjk-quotes tbody tr:hover{background:rgba(147,211,230,.06)}
-        .trjk-quotes tr[data-active=true]{background:rgba(117,151,41,.24)}
-        .trjk-quotes .trjq-pagination{margin-top:8px;font-size:11px}
-        .trjk-quotes .trjq-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-        .trjk-quotes .trjq-editor{padding:11px 12px 14px;background:linear-gradient(180deg,rgba(5,56,82,.92),rgba(4,48,70,.82));border-color:rgba(151,205,58,.40)}
-        .trjk-quotes .trjq-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:9px}
-        .trjk-quotes .trjq-editor-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .trjk-quotes .trjq-editor-title h3{margin:0;font-size:14px}
-        .trjk-quotes .trjq-status{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:600;background:rgba(151,205,58,.13);border:1px solid rgba(151,205,58,.32)}
-        .trjk-quotes .trjq-entry-card{padding:9px 10px 10px;border:1px solid rgba(147,211,230,.18);border-left:3px solid rgba(191,145,217,.72);border-radius:6px;background:rgba(75,41,94,.08)}
-        .trjk-quotes .trjq-section-title{font-size:12px;font-weight:700;margin-bottom:8px}
-        .trjk-quotes .trjq-entry-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
-        .trjk-quotes label{display:grid;gap:4px;min-width:0;font-size:11px;font-weight:600}
-        .trjk-quotes .input{width:100%;min-width:0;height:30px;padding:4px 8px;font-size:11px;line-height:1.2;border-radius:6px}
-        .trjk-quotes input[list]{background:#0d222e;color:#fff;border:1px solid rgba(147,211,230,.35)}
-        .trjk-quotes input[readonly]{opacity:.82;background:rgba(255,255,255,.035)}
-        .trjk-quotes fieldset{border:0;padding:0;margin:0;min-width:0}
-        .trjk-quotes .trjq-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:9px}
-        .trjk-quotes .trjq-kpi{position:relative;display:grid;gap:3px;padding:8px 10px;border:1px solid rgba(147,211,230,.16);border-radius:6px;background:rgba(147,211,230,.055);overflow:hidden}
-        .trjk-quotes .trjq-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:rgba(147,211,230,.65)}
-        .trjk-quotes .trjq-kpi[data-tone=arrival]:before{background:rgba(151,205,58,.78)}
-        .trjk-quotes .trjq-kpi[data-tone=amount]:before{background:rgba(240,178,72,.78)}
-        .trjk-quotes .trjq-kpi[data-tone=lots]:before{background:rgba(191,145,217,.72)}
-        .trjk-quotes .trjq-kpi span{font-size:10px;opacity:.78}
-        .trjk-quotes .trjq-kpi strong{font-size:15px}
-        .trjk-quotes .trjq-inline-note{margin-top:7px;padding-left:1px}
-        .trjk-quotes .trjq-lots-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,320px);gap:10px;align-items:start;margin-top:9px}
-        .trjk-quotes .trjq-lots-card{min-width:0;padding:9px 10px 10px;border:1px solid rgba(151,205,58,.28);border-left:3px solid rgba(151,205,58,.78);border-radius:6px;background:rgba(62,84,24,.09)}
-        .trjk-quotes .trjq-used-lots{min-width:0;padding:9px 10px 10px;border:1px solid rgba(240,178,72,.28);border-left:3px solid rgba(240,178,72,.78);border-radius:6px;background:rgba(103,67,13,.08)}
-        .trjk-quotes .trjq-used-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
-        .trjk-quotes .trjq-used-list{display:grid;gap:6px;max-height:390px;overflow:auto}
-        .trjk-quotes .trjq-used-row{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:7px 8px;border:1px solid rgba(147,211,230,.13);border-radius:6px;background:rgba(2,35,52,.23)}
-        .trjk-quotes .trjq-used-row>div{display:grid;gap:2px;min-width:0}
-        .trjk-quotes .trjq-used-row strong{font-size:11px}
-        .trjk-quotes .trjq-used-row span{font-size:9px;opacity:.78}
-        .trjk-quotes .trjq-history summary{cursor:pointer;color:#a8c0cf;font-size:10px}
-        .trjk-quotes .trjq-history-box{overflow:auto;max-height:160px;margin-top:5px;border:1px solid rgba(147,211,230,.18);border-radius:6px;background:#0d222e}
-        .trjk-quotes .trjq-history-box table{font-size:10px}
-        .trjk-quotes .trjq-history-box td,.trjk-quotes .trjq-history-box th{padding:5px 7px}
-        .trjk-quotes .trjq-tmh-input{width:118px}
-        .trjk-quotes .trjq-input-error{border-color:#d85d27!important}
-        .trjk-quotes .trjq-invoice-card{margin-top:9px;padding:9px 10px 10px;border:1px solid rgba(240,178,72,.28);border-left:3px solid rgba(240,178,72,.78);border-radius:6px;background:rgba(103,67,13,.08)}
-        .trjk-quotes .trjq-invoice-grid{display:grid;grid-template-columns:1fr 1fr 1.5fr 1fr;gap:8px}
-        .trjk-quotes .trjq-invoice-grid>div{min-width:0;padding:7px 8px;border-radius:6px;background:rgba(2,35,52,.23);border:1px solid rgba(147,211,230,.10)}
-        .trjk-quotes .trjq-invoice-grid span{display:block;font-size:9px;opacity:.72;margin-bottom:3px}
-        .trjk-quotes .trjq-invoice-grid strong{display:block;font-size:11px;overflow-wrap:anywhere}
-        .trjk-quotes .trjq-message{padding:7px 9px;border:1px solid rgba(147,211,230,.35);border-radius:6px;background:rgba(11,77,107,.45);font-size:11px}
-        .trjk-quotes .trjq-error{color:#ebb086;border-color:#d85d27}
-        .trjk-quotes .trjq-note{font-size:10px;opacity:.82;margin-top:7px}
-        .trjk-quotes button:disabled{opacity:.45;cursor:not-allowed}
-        @media (max-width:1100px){
-          .trjk-quotes .trjq-entry-grid,.trjk-quotes .trjq-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
-          .trjk-quotes .trjq-invoice-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-          .trjk-quotes .trjq-lots-layout{grid-template-columns:1fr}
-        }
-        @media (max-width:700px){
-          .trjk-quotes{max-height:calc(100dvh - 56px);padding-right:3px}
-          .trjk-quotes .trjq-page-head{align-items:flex-start}
-          .trjk-quotes .trjq-toolbar-right{width:100%;justify-content:space-between}
-          .trjk-quotes .trjq-entry-grid,.trjk-quotes .trjq-kpis,.trjk-quotes .trjq-invoice-grid{grid-template-columns:1fr}
-        }
-      `}</style>
-
-      <div className="trjq-page-head">
+    <div className="trjk-workspace trjk-quotes">
+      <div className="trjk-toolbar">
         <div>
-          <h2 className="trjq-title">
-            Kardex de transporte · Valorización
-          </h2>
-
-          <div className="trjq-subtitle">
-            Llegadas, tarifa por guía y referencia de factura
-          </div>
+          <h2>Valorización de transporte</h2>
+          <p className="muted">
+            Vincula varias guías a una factura y concilia sus llegadas.
+          </p>
         </div>
-
         <Button
-          disabled={busy || loading}
-          onClick={() => void refresh()}
+          disabled={loading || busy}
+          onClick={async () => {
+            if (
+              dirty &&
+              !window.confirm("¿Descartar cambios del detalle y actualizar?")
+            )
+              return;
+            setLoading(true);
+            try {
+              await load();
+              setRevision((n) => n + 1);
+              setDirty(false);
+              setSelected(new Set());
+              setError(false);
+              setMessage("Datos actualizados");
+            } catch (e) {
+              setError(true);
+              setMessage(
+                e instanceof Error ? e.message : "No se pudo actualizar",
+              );
+            } finally {
+              setLoading(false);
+            }
+          }}
         >
           Actualizar
         </Button>
       </div>
-
       {message && (
         <div
+          className="trjk-message"
+          data-error={error}
           role={error ? "alert" : "status"}
-          className={`trjq-message ${error ? "trjq-error" : ""}`}
         >
           {message}
         </div>
       )}
-
-      <section className="trjq-card trjq-list-card">
-        <div className="trjq-bar">
+      <section ref={builder} className="trjk-card">
+        <h3>Vincular guías a una factura</h3>
+        <fieldset disabled={loading || busy || dirty}>
+          <div className="trjk-builder">
+            <label>
+              Transportista
+              <select
+                className="input"
+                value={carrier}
+                onChange={(e) => {
+                  setCarrier(e.target.value);
+                  setSearchedCarrier("");
+                  setSelected(new Set());
+                  setDocument("");
+                  setAmount("");
+                }}
+              >
+                <option value="">Seleccionar transportista</option>
+                {carrierOptions.map((r) => (
+                  <option key={r.ruc} value={r.ruc}>
+                    {r.name || r.ruc} · {r.ruc}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button
+              disabled={!carrier || busy || loading || dirty}
+              onClick={() => {
+                setSearchedCarrier(carrier);
+                setSelected(new Set());
+                guideExcel.clear();
+              }}
+            >
+              Buscar
+            </Button>
+            <label>
+              Factura
+              <input
+                className="input"
+                placeholder="E001-0000000123"
+                maxLength={15}
+                value={document}
+                onChange={(e) => setDocument(e.target.value.toUpperCase())}
+                onBlur={() => {
+                  if (normalized) {
+                    setDocument(normalized);
+                    const existing = invoices.find(
+                      (r) =>
+                        r.ruc === carrier && r.document_number === normalized,
+                    );
+                    if (existing) {
+                      setDate(existing.document_date);
+                      setAmount(moneyInput(existing.amount_usd));
+                    }
+                  }
+                }}
+              />
+            </label>
+            <label>
+              Fecha
+              <input
+                className="input"
+                type="date"
+                max={today()}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </label>
+            <label>
+              Monto USD
+              <input
+                className="input"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </label>
+            <Button
+              variant="primary"
+              disabled={
+                busy ||
+                loading ||
+                dirty ||
+                !normalized ||
+                !moneyValid(amount) ||
+                !date ||
+                date > today() ||
+                !selected.size ||
+                selected.size > 100 ||
+                carrier !== searchedCarrier
+              }
+              onClick={async () => {
+                const key = invoiceKey({
+                  ruc: carrier,
+                  document_number: normalized,
+                });
+                if (
+                  await mutate("/api/trjkar/invo/insert", {
+                    ruc: carrier,
+                    document_number: normalized,
+                    document_date: date,
+                    amount_usd: amount,
+                    guide_numbers: [...selected],
+                  })
+                )
+                  setActive(key);
+              }}
+            >
+              Vincular ({selected.size})
+            </Button>
+          </div>
+        </fieldset>
+        {document && !normalized && (
+          <p className="trjk-error">
+            Usa 4 caracteres de serie y hasta 10 dígitos después del guion.
+          </p>
+        )}
+        {searchedCarrier && (
+          <>
+            <div className="trjk-toolbar">
+              <span className="muted">
+                {available.length} guías abiertas sin factura · máximo 100 por
+                operación
+              </span>
+              <Button
+                size="sm"
+                disabled={busy || dirty}
+                onClick={() => {
+                  guideExcel.clear();
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            </div>
+            <div className="trjk-table-scroll trjk-available">
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        aria-label="Seleccionar guías visibles (hasta 100)"
+                        disabled={busy || dirty || !guideExcel.rows.length}
+                        checked={
+                          guideExcel.rows.length > 0 &&
+                          guideExcel.rows
+                            .slice(0, 100)
+                            .every((g) => selected.has(g.guide_number))
+                        }
+                        onChange={(e) =>
+                          setSelected(
+                            e.target.checked
+                              ? new Set(
+                                  guideExcel.rows
+                                    .slice(0, 100)
+                                    .map((g) => g.guide_number),
+                                )
+                              : new Set(),
+                          )
+                        }
+                      />
+                    </th>
+                    {guideColumns.map((c) => (
+                      <th key={c.key}>
+                        <div className="trjk-column">
+                          {c.label}
+                          <ExcelHeaderFilter
+                            {...guideExcel.headerProps(c.key)}
+                          />
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {guideExcel.rows.map((g) => (
+                    <tr
+                      key={g.guide_number}
+                      data-selected={selected.has(g.guide_number)}
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Vincular ${g.guide_number}`}
+                          checked={selected.has(g.guide_number)}
+                          disabled={
+                            busy ||
+                            dirty ||
+                            (!selected.has(g.guide_number) &&
+                              selected.size >= 100)
+                          }
+                          onChange={(e) => {
+                            const next = new Set(selected);
+                            if (e.target.checked) next.add(g.guide_number);
+                            else next.delete(g.guide_number);
+                            setSelected(next);
+                          }}
+                        />
+                      </td>
+                      {guideColumns.map((c) => (
+                        <td key={c.key}>
+                          {c.kind === "number"
+                            ? fmt(c.value(g), c.key === "tmh_departure" ? 3 : 2)
+                            : String(c.value(g) || "—")}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {!guideExcel.rows.length && (
+                    <tr>
+                      <td colSpan={6}>
+                        No hay guías disponibles para este transportista.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+      <section className="trjk-card">
+        <div className="trjk-toolbar">
+          <h3>Facturas ({excel.rows.length})</h3>
           <input
-            className="input trjq-search"
+            className="input trjk-search"
+            aria-label="Buscar facturas"
+            placeholder="Factura, RUC o transportista"
             value={search}
-            aria-label="Buscar valorizaciones"
-            placeholder="Buscar guía, transportista, RUC o factura"
             onChange={(e) => {
               setSearch(e.target.value);
               setPage(1);
             }}
           />
-
-          <div className="trjq-toolbar-right">
-            <label className="trjq-check">
-              <input
-                type="checkbox"
-                checked={pendingOnly}
-                onChange={(e) => {
-                  setPendingOnly(e.target.checked);
-                  setPage(1);
-                }}
-              />
-              Solo pendientes
-            </label>
-
-            <span className="trjq-count">
-              {filtered.length} guía(s)
-            </span>
-
-            <span className="trjq-count">
-              USD guardado {fmt(decimalString(totalAmount), true)}
-            </span>
-          </div>
+          <label className="trjk-check">
+            <input
+              type="checkbox"
+              checked={pendingOnly}
+              onChange={(e) => {
+                setPendingOnly(e.target.checked);
+                setPage(1);
+              }}
+            />
+            Solo abiertas
+          </label>
+          <Button
+            size="sm"
+            onClick={() => {
+              excel.clear();
+              setSearch("");
+              setPendingOnly(false);
+              setPage(1);
+            }}
+          >
+            Limpiar filtros
+          </Button>
         </div>
-
-        <div className="trjq-table-scroll">
+        <div className="trjk-table-scroll trjk-invoice-list">
           <table>
             <thead>
               <tr>
                 <th>Detalle</th>
-
-                {QUOTE_EXCEL_COLUMNS.map(
-                  (column) => (
-                    <th key={column.key}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 5,
-                        }}
-                      >
-                        <span>
-                          {column.label}
-                        </span>
-
-                        <ExcelHeaderFilter
-                          label={column.label}
-                          kind={column.kind}
-                          values={
-                            quoteExcelValues[
-                              column.key
-                            ] || []
-                          }
-                          filter={
-                            quoteColumnFilters[
-                              column.key
-                            ]
-                          }
-                          sortDirection={
-                            quoteExcelSort?.key ===
-                            column.key
-                              ? quoteExcelSort.direction
-                              : undefined
-                          }
-                          onApply={(filter) => {
-                            setQuoteColumnFilters(
-                              (current) => ({
-                                ...current,
-                                [column.key]:
-                                  filter,
-                              })
-                            );
-                            setPage(1);
-                          }}
-                          onSort={(direction) => {
-                            setQuoteExcelSort({
-                              key: column.key,
-                              direction,
-                            });
-                            setPage(1);
-                          }}
-                        />
-                      </div>
-                    </th>
-                  )
-                )}
+                {invoiceColumns.map((c) => (
+                  <th key={c.key}>
+                    <div className="trjk-column">
+                      {c.label}
+                      <ExcelHeaderFilter {...excel.headerProps(c.key)} />
+                    </div>
+                  </th>
+                ))}
               </tr>
             </thead>
-
             <tbody>
-              {filtered
-                .slice(
-                  (currentPage - 1) * 20,
-                  currentPage * 20
-                )
-                .map((guide) => (
+              {excel.rows
+                .slice((currentPage - 1) * 20, currentPage * 20)
+                .map((invoice) => (
                   <tr
-                    key={guide.guide_number}
-                    data-active={guide.guide_number === active}
+                    key={invoiceKey(invoice)}
+                    data-selected={active === invoiceKey(invoice)}
                   >
                     <td>
                       <Button
                         size="sm"
-                        disabled={busy || loading}
-                        onClick={() => open(guide)}
-                        aria-expanded={
-                          active === guide.guide_number
-                        }
+                        disabled={loading || busy}
+                        aria-expanded={active === invoiceKey(invoice)}
+                        onClick={() => openInvoice(invoice)}
                       >
-                        Abrir
+                        {active === invoiceKey(invoice) ? "Contraer" : "Abrir"}
                       </Button>
                     </td>
-
-                    <td>
-                      <strong>{guide.guide_number}</strong>
-                    </td>
-
-                    <td>{guide.transport_name || "—"}</td>
-                    <td>{dateLabel(guide.arrival_date)}</td>
-                    <td>{fmt(guide.tmh_arrival)}</td>
-                    <td>{fmt(guide.pu_transport_usd, true)}</td>
-                    <td>{fmt(guide.amount_usd, true)}</td>
-                    <td>{guide.document_number || "—"}</td>
-                    <td>{fmt(guide.invoice_amount_usd, true)}</td>
-
-                    <td>
-                      {guide.subledger_num
-                        ? `${guide.subledger_num} / ${guide.comp_num || "—"} / ${guide.secu_num || "—"}`
-                        : "—"}
-                    </td>
+                    {invoiceColumns.map((c) => (
+                      <td key={c.key}>
+                        {c.kind === "number"
+                          ? fmt(
+                              c.value(invoice),
+                              c.key === "guide_count" ? 0 : 2,
+                            )
+                          : String(c.value(invoice) || "—")}
+                      </td>
+                    ))}
                   </tr>
                 ))}
-
-              {!filtered.length && (
+              {!excel.rows.length && (
                 <tr>
-                  <td colSpan={10}>
-                    {loading
-                      ? "Cargando..."
-                      : "No hay guías para mostrar"}
+                  <td colSpan={12}>
+                    {loading ? "Cargando…" : "Sin facturas para mostrar"}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-
-        <div className="trjq-bar trjq-pagination">
-          <span>
+        <div className="trjk-toolbar">
+          <span className="muted">
             Página {currentPage} de {pages}
           </span>
-
-          <div className="trjq-actions">
+          <div className="trjk-actions">
             <Button
               size="sm"
               disabled={currentPage <= 1}
@@ -1515,7 +932,6 @@ export default function TRJKardexQuotes() {
             >
               Anterior
             </Button>
-
             <Button
               size="sm"
               disabled={currentPage >= pages}
@@ -1526,17 +942,37 @@ export default function TRJKardexQuotes() {
           </div>
         </div>
       </section>
-
-      {selected && !loading && (
-        <QuoteEditor
-          key={`${selected.guide_number}:${revision}`}
-          guide={selected}
-          lots={byGuide.get(selected.guide_number) || []}
-          allLots={lots}
-          sgm={sgm}
-          onSaved={saved}
+      {activeInvoice && (
+        <InvoiceDetail
+          key={`${invoiceKey(activeInvoice)}:${revision}`}
+          invoice={activeInvoice}
+          guides={invoiceGuides}
+          lots={lots}
+          busy={busy || loading}
           onBusy={setBusy}
           onDirty={setDirty}
+          onSaved={savedGuide}
+          mutate={mutate}
+          onAdd={() => {
+            if (
+              builderDirty &&
+              !window.confirm(
+                "¿Reemplazar los datos de vinculación que estás preparando?",
+              )
+            )
+              return;
+            setCarrier(activeInvoice.ruc);
+            setSearchedCarrier(activeInvoice.ruc);
+            setDocument(activeInvoice.document_number);
+            setDate(activeInvoice.document_date);
+            setAmount(moneyInput(activeInvoice.amount_usd));
+            setSelected(new Set());
+            guideExcel.clear();
+            builder.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }}
         />
       )}
     </div>
