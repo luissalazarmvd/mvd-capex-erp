@@ -279,8 +279,9 @@ function LotHistory({
 }) {
   const matches = rows.filter(
     (row) =>
+      row.lot_corr.trim().toUpperCase() !== "PERD" &&
       row.lot.trim().toUpperCase() ===
-      lot.trim().toUpperCase()
+        lot.trim().toUpperCase()
   );
 
   if (!matches.length) {
@@ -1016,6 +1017,12 @@ export default function TRJKardexQuotes() {
     const result = new Map<string, Lot[]>();
 
     for (const row of lots) {
+      if (
+        row.lot_corr.trim().toUpperCase() === "PERD"
+      ) {
+        continue;
+      }
+
       result.set(row.guide_number, [
         ...(result.get(row.guide_number) || []),
         row,

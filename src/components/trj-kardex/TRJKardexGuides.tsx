@@ -30,6 +30,7 @@ type Lot = {
   tmh_arrival: string | null;
   bags_tot: string | null;
   bags_used: string | null;
+  balance_obs: string | null;
   tmh_balance: string | null;
 };
 
@@ -826,6 +827,7 @@ function LotHistory({
               <th>Corr.</th>
               <th>Salida</th>
               <th>Llegada</th>
+              <th>Obs. cierre</th>
             </tr>
           </thead>
           <tbody>
@@ -835,6 +837,7 @@ function LotHistory({
                 <td>{row.lot_corr}</td>
                 <td>{fmt(row.tmh_departure)}</td>
                 <td>{fmt(row.tmh_arrival)}</td>
+                <td>{row.balance_obs || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -865,6 +868,8 @@ export default function TRJKardexGuides() {
   const [newDeparture, setNewDeparture] = useState("");
   const [newBagsTot, setNewBagsTot] = useState("");
   const [newBagsUsed, setNewBagsUsed] = useState("");
+  const [closeLot, setCloseLot] = useState(false);
+  const [balanceObs, setBalanceObs] = useState("");
   const [lotMenuOpen, setLotMenuOpen] = useState(false);
 
   const [editing, setEditing] = useState<{
@@ -1038,6 +1043,19 @@ export default function TRJKardexGuides() {
   const sgmByLot = useMemo(
     () => new Map(sgm.map((row) => [code(row.lot), row])),
     [sgm]
+  );
+
+  const closedLots = useMemo(
+    () =>
+      new Set(
+        lots
+          .filter(
+            (row) =>
+              row.lot_corr.trim().toUpperCase() === "PERD"
+          )
+          .map((row) => code(row.lot))
+      ),
+    [lots]
   );
 
   const rucHistoryByRuc = useMemo(
@@ -1414,7 +1432,9 @@ export default function TRJKardexGuides() {
     !!newLot ||
     !!newDeparture ||
     !!newBagsTot ||
-    !!newBagsUsed;
+    !!newBagsUsed ||
+    closeLot ||
+    !!balanceObs;
 
   const blockedLots =
     !active ||
@@ -1761,6 +1781,8 @@ export default function TRJKardexGuides() {
     setNewDeparture("");
     setNewBagsTot("");
     setNewBagsUsed("");
+    setCloseLot(false);
+    setBalanceObs("");
     setEditing(null);
     notify("");
 
@@ -2294,6 +2316,16 @@ export default function TRJKardexGuides() {
               newBagsTot,
               newBagsUsed
             )
+      ) ||
+      (
+        !old && closeLot && isCleanupLot(lot)
+          ? "LIMPIEZA no puede usar Cerrar lote"
+          : ""
+      ) ||
+      (
+        !old && balanceObs.length > 255
+          ? "El comentario de cierre admite máximo 255 caracteres"
+          : ""
       );
 
     if (
@@ -2332,6 +2364,21 @@ export default function TRJKardexGuides() {
                 }
               : {}
           ),
+          ...(
+            !old && closeLot
+              ? {
+                  close_lot: true,
+                  ...(
+                    balanceObs.trim()
+                      ? {
+                          balance_obs:
+                            balanceObs.trim(),
+                        }
+                      : {}
+                  ),
+                }
+              : {}
+          ),
         }
       );
 
@@ -2346,10 +2393,17 @@ export default function TRJKardexGuides() {
       setNewDeparture("");
       setNewBagsTot("");
       setNewBagsUsed("");
+      setCloseLot(false);
+      setBalanceObs("");
       setEditing(null);
 
+      const loss =
+        response.saved?.[0]?.balance_loss;
+
       notify(
-        `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""}`
+        loss != null && Number(loss) > 0
+          ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ${fmt(loss)} TMH`
+          : `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""}`
       );
 
       try {
@@ -2408,6 +2462,8 @@ export default function TRJKardexGuides() {
       setNewDeparture("");
       setNewBagsTot("");
       setNewBagsUsed("");
+      setCloseLot(false);
+      setBalanceObs("");
       setEditing(null);
       setCreating(false);
       setActive(selected?.guide_number || null);
@@ -2429,6 +2485,16 @@ export default function TRJKardexGuides() {
     bagsError(
       newBagsTot,
       newBagsUsed
+    ) ||
+    (
+      closeLot && isCleanupLot(newLot)
+        ? "LIMPIEZA no puede usar Cerrar lote"
+        : ""
+    ) ||
+    (
+      balanceObs.length > 255
+        ? "El comentario de cierre admite máximo 255 caracteres"
+        : ""
     );
 
   const editError = editing
@@ -3094,6 +3160,8 @@ export default function TRJKardexGuides() {
                           setNewDeparture("");
                           setNewBagsTot("");
                           setNewBagsUsed("");
+                          setCloseLot(false);
+                          setBalanceObs("");
                         }}
                         onBlur={() => {
                           setLotMenuOpen(false);
@@ -3106,6 +3174,8 @@ export default function TRJKardexGuides() {
                             !sgmByLot.has(lot)
                           ) {
                             setNewLot("");
+                            setCloseLot(false);
+                            setBalanceObs("");
                           }
                         }}
                       />
@@ -3123,6 +3193,8 @@ export default function TRJKardexGuides() {
                                 setNewDeparture("");
                                 setNewBagsTot("");
                                 setNewBagsUsed("");
+                                setCloseLot(false);
+                                setBalanceObs("");
                                 setLotMenuOpen(false);
                               }}
                             >
@@ -3245,10 +3317,55 @@ export default function TRJKardexGuides() {
                         setNewDeparture("");
                         setNewBagsTot("");
                         setNewBagsUsed("");
+                        setCloseLot(false);
+                        setBalanceObs("");
                       }}
                     >
                       Agregar LIMPIEZA
                     </Button>
+
+                    <Button
+                      size="sm"
+                      disabled={
+                        blockedLots ||
+                        !!editing ||
+                        !newLot ||
+                        !selectedSgm ||
+                        isCleanupLot(newLot)
+                      }
+                      onClick={() => {
+                        setCloseLot((current) => {
+                          const next = !current;
+
+                          if (!next) {
+                            setBalanceObs("");
+                          }
+
+                          return next;
+                        });
+                      }}
+                    >
+                      {closeLot
+                        ? "Cerrar lote ✓"
+                        : "Cerrar lote"}
+                    </Button>
+
+                    {closeLot && !isCleanupLot(newLot) && (
+                      <label
+                        className="trjg-field"
+                        style={{ minWidth: 280 }}
+                      >
+                        Comentario cierre (opcional)
+                        <input
+                          className="input"
+                          maxLength={255}
+                          value={balanceObs}
+                          onChange={(e) =>
+                            setBalanceObs(e.target.value)
+                          }
+                        />
+                      </label>
+                    )}
 
                     <span className="trjg-balance">
                       {isCleanupLot(newLot)
@@ -3256,7 +3373,11 @@ export default function TRJKardexGuides() {
                         : `Saldo disponible: ${fmt(selectedSgm?.tmh_balance)} TMH`}
                     </span>
 
-                    {(newDeparture || newBagsTot || newBagsUsed) &&
+                    {(newDeparture ||
+                      newBagsTot ||
+                      newBagsUsed ||
+                      closeLot ||
+                      balanceObs) &&
                       newLotError && (
                         <span className="trjg-error">
                           {newLotError}
@@ -3282,6 +3403,7 @@ export default function TRJKardexGuides() {
                         <th>Sacos Enviados</th>
                         <th>TMH llegada</th>
                         <th>Saldo total lote</th>
+                        <th>Obs. cierre</th>
                         <th>Otras guías</th>
                         <th>Acciones</th>
                       </tr>
@@ -3292,6 +3414,9 @@ export default function TRJKardexGuides() {
                         const isEditing =
                           editing &&
                           identity(editing.row) === identity(row);
+
+                        const lotClosed =
+                          closedLots.has(code(row.lot));
 
                         return (
                           <tr key={identity(row)}>
@@ -3348,6 +3473,10 @@ export default function TRJKardexGuides() {
                             </td>
 
                             <td>
+                              {row.balance_obs || "—"}
+                            </td>
+
+                            <td>
                               {!isCleanupLot(row.lot) && (
                                 <LotHistory
                                   lot={row.lot}
@@ -3357,7 +3486,17 @@ export default function TRJKardexGuides() {
                             </td>
 
                             <td>
-                              {isEditing ? (
+                              {row.lot_corr
+                                .trim()
+                                .toUpperCase() === "PERD" ? (
+                                <span className="trjg-note">
+                                  Cierre
+                                </span>
+                              ) : lotClosed ? (
+                                <span className="trjg-note">
+                                  Lote cerrado
+                                </span>
+                              ) : isEditing ? (
                                 <div className="trjg-actions">
                                   <Button
                                     size="sm"
@@ -3407,7 +3546,7 @@ export default function TRJKardexGuides() {
 
                       {!guideLots.length && (
                         <tr>
-                          <td colSpan={9}>
+                          <td colSpan={10}>
                             Esta guía todavía no tiene lotes.
                           </td>
                         </tr>
@@ -3420,7 +3559,7 @@ export default function TRJKardexGuides() {
                         <td>{fmt(activeGuide?.tmh_departure)}</td>
                         <td colSpan={2} />
                         <td>{fmt(activeGuide?.tmh_arrival)}</td>
-                        <td colSpan={3} />
+                        <td colSpan={4} />
                       </tr>
                     </tfoot>
                   </table>
