@@ -710,6 +710,22 @@ function fmtBags(value: unknown) {
   });
 }
 
+function hasVisibleTmhBalance(value: unknown) {
+  const amount = units(value);
+
+  if (
+    amount == null ||
+    amount <= BigInt(0)
+  ) {
+    return false;
+  }
+
+  return (
+    (amount + BigInt(500)) /
+      BigInt(1000)
+  ) > BigInt(0);
+}
+
 function dateLabel(value: unknown) {
   const raw = text(value);
 
@@ -1496,7 +1512,8 @@ export default function TRJKardexGuides() {
   const usedPendingLots = sgm.filter(
     (row) =>
       (units(row.tmh_departure) ?? BigInt(0)) > BigInt(0) &&
-      (units(row.tmh_balance) ?? BigInt(0)) > BigInt(0)
+      hasVisibleTmhBalance(row.tmh_balance) &&
+      !closedLots.has(code(row.lot))
   );
 
   const maxDateTimePe = peruNowInputValue();
@@ -2462,6 +2479,8 @@ export default function TRJKardexGuides() {
       !row.last_guide_number ||
       balance == null ||
       balance <= BigInt(0) ||
+      !hasVisibleTmhBalance(row.tmh_balance) ||
+      closedLots.has(lot) ||
       comment.length > 255
     ) {
       return;
@@ -2687,6 +2706,7 @@ export default function TRJKardexGuides() {
         .trjk-guides .trjg-history-box{overflow:auto;max-height:160px;margin-top:5px;border:1px solid rgba(147,211,230,.18);border-radius:6px;background:#0d222e}
         .trjk-guides .trjg-history-box table{font-size:10px}
         .trjk-guides .trjg-history-box td,.trjk-guides .trjg-history-box th{padding:5px 7px}
+        .trjk-guides .trjg-perd-row{opacity:.52}
         .trjk-guides button:disabled{opacity:.45;cursor:not-allowed}
         @media (max-width:1280px){
           .trjk-guides .trjg-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
@@ -3523,7 +3543,16 @@ export default function TRJKardexGuides() {
                           closedLots.has(code(row.lot));
 
                         return (
-                          <tr key={identity(row)}>
+                          <tr
+                            key={identity(row)}
+                            className={
+                              row.lot_corr
+                                .trim()
+                                .toUpperCase() === "PERD"
+                                ? "trjg-perd-row"
+                                : undefined
+                            }
+                          >
                             <td>
                               <strong>{row.lot}</strong>
                             </td>
@@ -3728,7 +3757,9 @@ export default function TRJKardexGuides() {
                           size="sm"
                           disabled={
                             pendingCloseBlocked ||
-                            !row.last_guide_number
+                            !row.last_guide_number ||
+                            !hasVisibleTmhBalance(row.tmh_balance) ||
+                            closedLots.has(code(row.lot))
                           }
                           onClick={() => {
                             if (selected) {
@@ -3772,7 +3803,9 @@ export default function TRJKardexGuides() {
                               size="sm"
                               disabled={
                                 saving ||
-                                pendingCloseObs.length > 255
+                                pendingCloseObs.length > 255 ||
+                                !hasVisibleTmhBalance(row.tmh_balance) ||
+                                closedLots.has(code(row.lot))
                               }
                               onClick={() =>
                                 void closePendingBalance(row)
