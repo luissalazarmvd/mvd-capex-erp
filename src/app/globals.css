@@ -151,7 +151,7 @@
 .trjk-kpi span { font-size: 11px; color: var(--ink-2); }
 .trjk-kpi strong { font-size: 23px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .trjk-kpi small { color: var(--ink-3); font-size: 10px; }
-/* Desglose de la tarjeta: tooltip flotante, visible únicamente mientras el cursor está sobre la tarjeta. */
+
 .trjk-kpi[data-tip] { position: relative; cursor: help; }
 .trjk-kpi[data-tip] > span::after { content: "i"; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; margin-left: 6px; border: 1px solid var(--line-2); border-radius: 50%; font-size: 8px; font-weight: 600; color: var(--ink-3); vertical-align: 1px; }
 .trjk-tip.trjk-kpi-tip { display: grid; opacity: 0; visibility: hidden; left: 0; top: calc(100% + 8px); width: 290px; min-width: 0; max-width: min(320px, calc(100vw - 24px)); transform: translateY(-6px) scale(.985); transform-origin: top left; transition: opacity .12s ease, transform .12s ease, visibility 0s linear .12s; }
