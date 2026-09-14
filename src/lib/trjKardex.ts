@@ -35,14 +35,14 @@ export function normalizeInvoiceNumber(value: string) {
   const match = value
     .trim()
     .toUpperCase()
-    .match(/^([A-Z0-9]{4})-?(\d{1,10})$/);
-  return match ? `${match[1]}-${match[2].padStart(10, "0")}` : "";
+    .match(/^([A-Z0-9]{4})-?(\d{1,8})$/);
+  return match ? `${match[1]}-${match[2].padStart(8, "0")}` : "";
 }
 
 // Máscara del número de factura mientras se escribe, igual que el número de
-// guía: serie de 4 alfanuméricos, guion y correlativo mostrado con sus diez
+// guía: serie de 4 alfanuméricos, guion y correlativo mostrado con sus ocho
 // dígitos. El borrador guarda el correlativo sin ceros a la izquierda.
-const INVOICE_DRAFT = /^([A-Z0-9]{4})(?:-(\d{1,10}))?$/;
+const INVOICE_DRAFT = /^([A-Z0-9]{4})(?:-(\d{1,8}))?$/;
 
 export function invoiceDraftValue(value: string) {
   const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -51,7 +51,7 @@ export function invoiceDraftValue(value: string) {
   const suffix = compact
     .slice(4)
     .replace(/\D/g, "")
-    .slice(0, 10)
+    .slice(0, 8)
     .replace(/^0+(?=\d)/, "");
   return suffix ? `${prefix}-${suffix}` : prefix;
 }
@@ -60,7 +60,7 @@ export function invoiceDisplayValue(value: string) {
   const draft = invoiceDraftValue(value);
   const match = draft.match(INVOICE_DRAFT);
   if (!match) return draft;
-  return match[2] ? `${match[1]}-${match[2].padStart(10, "0")}` : `${match[1]}-`;
+  return match[2] ? `${match[1]}-${match[2].padStart(8, "0")}` : `${match[1]}-`;
 }
 
 export function invoiceEditValue(value: string, previousValue: string) {
@@ -76,7 +76,7 @@ export function invoiceEditValue(value: string, previousValue: string) {
   ) {
     const char = next.slice(-1);
     const suffix = previousMatch[2] || "";
-    if (/\d/.test(char) && suffix.length < 10) {
+    if (/\d/.test(char) && suffix.length < 8) {
       return `${previousMatch[1]}-${suffix}${char}`;
     }
   }

@@ -170,7 +170,7 @@ const GROUPS: {
       {
         key: "transport_guide_number",
         label: "Guía transportista",
-        max: 15,
+        max: 13,
       },
       {
         key: "transport_guide_date",
@@ -511,7 +511,7 @@ function guideDraftValue(value: string) {
   }
 
   const suffix = suffixDigits
-    .slice(0, 10)
+    .slice(0, 8)
     .replace(/^0+(?=\d)/, "");
 
   return suffix
@@ -523,7 +523,7 @@ function guideDisplayValue(value: string) {
   const draft = guideDraftValue(value);
 
   const match = draft.match(
-    /^([A-Z]{2}\d{2})(?:-(\d{1,10}))?$/
+    /^([A-Z]{2}\d{2})(?:-(\d{1,8}))?$/
   );
 
   if (!match) {
@@ -531,7 +531,7 @@ function guideDisplayValue(value: string) {
   }
 
   return match[2]
-    ? `${match[1]}-${match[2].padStart(10, "0")}`
+    ? `${match[1]}-${match[2].padStart(8, "0")}`
     : `${match[1]}-`;
 }
 
@@ -543,7 +543,7 @@ function guideEditValue(
   const previousDisplay = guideDisplayValue(previousDraft);
 
   const previousMatch = previousDraft.match(
-    /^([A-Z]{2}\d{2})(?:-(\d{1,10}))?$/
+    /^([A-Z]{2}\d{2})(?:-(\d{1,8}))?$/
   );
 
   if (
@@ -554,7 +554,7 @@ function guideEditValue(
     const char = value.slice(-1);
     const suffix = previousMatch[2] || "";
 
-    if (/\d/.test(char) && suffix.length < 10) {
+    if (/\d/.test(char) && suffix.length < 8) {
       return `${previousMatch[1]}-${suffix}${char}`;
     }
   }
@@ -582,11 +582,11 @@ function guideEditValue(
 
 function guideStorageValue(value: string) {
   const match = guideDraftValue(value).match(
-    /^([A-Z]{2}\d{2})-(\d{1,10})$/
+    /^([A-Z]{2}\d{2})-(\d{1,8})$/
   );
 
   return match
-    ? `${match[1]}-${match[2].padStart(10, "0")}`
+    ? `${match[1]}-${match[2].padStart(8, "0")}`
     : "";
 }
 
@@ -1822,7 +1822,7 @@ export default function TRJKardexGuides() {
 
   if (!guideStorageValue(draft.guide_number)) {
     guideError =
-      "Número de guía remitente: usa XX##-##########";
+      "Número de guía remitente: usa XX##-########";
   }
 
   if (
@@ -1861,7 +1861,7 @@ export default function TRJKardexGuides() {
       value &&
       !guideStorageValue(value)
     ) {
-      guideError = `${field.label}: usa XX##-##########`;
+      guideError = `${field.label}: usa XX##-########`;
     }
 
     if (
@@ -3503,7 +3503,7 @@ export default function TRJKardexGuides() {
                 <input
                   className="input"
                   value={guideDisplayValue(draft.guide_number)}
-                  maxLength={16}
+                  maxLength={14}
                   readOnly={!creating}
                   onChange={(e) =>
                     writeDraft({
@@ -3691,7 +3691,7 @@ export default function TRJKardexGuides() {
                           }
                           maxLength={
                             field.key === "transport_guide_number"
-                              ? 16
+                              ? 14
                               : field.max
                           }
                           value={

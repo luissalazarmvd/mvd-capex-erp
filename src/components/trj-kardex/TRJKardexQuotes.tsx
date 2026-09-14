@@ -23,7 +23,6 @@ import {
   kardexDecimal,
   kardexFormat as fmt,
   kardexUnits,
-  normalizeInvoiceNumber,
   type KardexGuide,
   type KardexInvoice,
   type KardexLot,
@@ -50,7 +49,7 @@ function invoiceDraftValue(value: string) {
   const suffix = compact
     .slice(4)
     .replace(/\D/g, "")
-    .slice(0, 10)
+    .slice(0, 8)
     .replace(/^0+(?=\d)/, "");
 
   return suffix
@@ -62,7 +61,7 @@ function invoiceGuideDisplayValue(value: string) {
   const draft = invoiceDraftValue(value);
 
   const match = draft.match(
-    /^([A-Z0-9]{4})(?:-(\d{1,10}))?$/
+    /^([A-Z0-9]{4})(?:-(\d{1,8}))?$/
   );
 
   if (!match) {
@@ -70,7 +69,7 @@ function invoiceGuideDisplayValue(value: string) {
   }
 
   return match[2]
-    ? `${match[1]}-${match[2].padStart(10, "0")}`
+    ? `${match[1]}-${match[2].padStart(8, "0")}`
     : `${match[1]}-`;
 }
 
@@ -85,7 +84,7 @@ function invoiceGuideEditValue(
     invoiceGuideDisplayValue(previousDraft);
 
   const previousMatch = previousDraft.match(
-    /^([A-Z0-9]{4})(?:-(\d{1,10}))?$/
+    /^([A-Z0-9]{4})(?:-(\d{1,8}))?$/
   );
 
   if (
@@ -98,7 +97,7 @@ function invoiceGuideEditValue(
 
     if (
       /\d/.test(char) &&
-      suffix.length < 10
+      suffix.length < 8
     ) {
       return `${previousMatch[1]}-${suffix}${char}`;
     }
@@ -123,6 +122,16 @@ function invoiceGuideEditValue(
   }
 
   return invoiceDraftValue(value);
+}
+
+function invoiceStorageValue(value: string) {
+  const match = invoiceDraftValue(value).match(
+    /^([A-Z0-9]{4})-(\d{1,8})$/
+  );
+
+  return match
+    ? `${match[1]}-${match[2].padStart(8, "0")}`
+    : "";
 }
 
 const invoiceColumns: ExcelColumnDef<KardexInvoice>[] = [
@@ -495,7 +504,7 @@ export default function TRJKardexQuotes() {
   const [revision, setRevision] = useState(0);
   const gate = useRef(false);
   const builder = useRef<HTMLElement>(null);
-  const normalized = normalizeInvoiceNumber(document);
+  const normalized = invoiceStorageValue(document);
   const builderDirty = selected.size > 0 || !!document || !!amount;
 
   const load = useCallback(async () => {
@@ -802,8 +811,8 @@ export default function TRJKardexQuotes() {
               Factura
               <input
                 className="input"
-                placeholder="E001-0000000123"
-                maxLength={16}
+                placeholder="E001-00000123"
+                maxLength={14}
                 value={invoiceGuideDisplayValue(document)}
                 onChange={(e) =>
                   setDocument(
@@ -884,7 +893,7 @@ export default function TRJKardexQuotes() {
         </fieldset>
         {document && !normalized && (
           <p className="trjk-error">
-            Usa 4 caracteres de serie y hasta 10 dígitos después del guion.
+            Usa 4 caracteres de serie y hasta 8 dígitos después del guion.
           </p>
         )}
         {searchedCarrier && (
