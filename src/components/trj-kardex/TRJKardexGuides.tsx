@@ -948,6 +948,12 @@ export default function TRJKardexGuides() {
     recipient: [],
   });
 
+  const [rucSearch, setRucSearch] = useState<Record<Role, string>>({
+    transport: "",
+    sender: "",
+    recipient: "",
+  });
+
   const [peruDepartments, setPeruDepartments] = useState<PeruDepartment[]>([]);
   const [peruProvinces, setPeruProvinces] = useState<PeruProvince[]>([]);
   const [peruDistricts, setPeruDistricts] = useState<PeruDistrict[]>([]);
@@ -1200,25 +1206,112 @@ export default function TRJKardexGuides() {
     const remaining =
       stock - normalUsed;
 
+    const deletingLot =
+      editedDeparture === BigInt(0);
+
     const projectedPerd =
-      remaining > BigInt(0)
-        ? remaining
-        : BigInt(0);
+      deletingLot
+        ? BigInt(0)
+        : remaining > BigInt(0)
+          ? remaining
+          : BigInt(0);
 
     return {
       lot,
       perd: projectedPerd,
       balance:
-        remaining > BigInt(0)
-          ? remaining - projectedPerd
-          : BigInt(0),
+        deletingLot
+          ? remaining > BigInt(0)
+            ? remaining
+            : BigInt(0)
+          : remaining > BigInt(0)
+            ? remaining - projectedPerd
+            : BigInt(0),
       deletePerd:
+        deletingLot ||
         projectedPerd === BigInt(0),
     };
   }, [
     editing,
     lots,
     perdByLot,
+    sgmByLot,
+  ]);
+
+  const exceEditPreview = useMemo(() => {
+    if (!editing) return null;
+
+    const lot = code(editing.row.lot);
+
+    if (!exceByLot.has(lot)) {
+      return null;
+    }
+
+    const stock = roundTmhUnits(
+      sgmByLot.get(lot)?.tmh
+    );
+
+    const editedDeparture = roundTmhUnits(
+      editing.value
+    );
+
+    if (
+      stock == null ||
+      editedDeparture == null
+    ) {
+      return null;
+    }
+
+    let normalUsed = BigInt(0);
+
+    for (const row of lots) {
+      if (
+        code(row.lot) !== lot ||
+        isControlCorr(row.lot_corr)
+      ) {
+        continue;
+      }
+
+      const departure =
+        identity(row) === identity(editing.row)
+          ? editedDeparture
+          : roundTmhUnits(row.tmh_departure);
+
+      if (departure == null) {
+        continue;
+      }
+
+      normalUsed += departure;
+    }
+
+    const deletingLot =
+      editedDeparture === BigInt(0);
+
+    const projectedExce =
+      deletingLot
+        ? BigInt(0)
+        : normalUsed > stock
+          ? normalUsed - stock
+          : BigInt(0);
+
+    const remaining =
+      stock - normalUsed;
+
+    return {
+      lot,
+      exce: projectedExce,
+      balance:
+        remaining > BigInt(0)
+          ? remaining
+          : BigInt(0),
+      deleteExce:
+        deletingLot ||
+        projectedExce === BigInt(0),
+    };
+  }, [
+    editing,
+    lots,
+    exceByLot,
     sgmByLot,
   ]);
 
@@ -2110,6 +2203,11 @@ export default function TRJKardexGuides() {
     setActive(guide?.guide_number || null);
     setCreating(!guide);
     setCandidates({});
+    setRucSearch({
+      transport: next.transport_ruc,
+      sender: next.sender_ruc,
+      recipient: next.recipient_ruc,
+    });
     setNewLot("");
     setNewDeparture("");
     setNewBagsTot("");
@@ -2252,15 +2350,49 @@ export default function TRJKardexGuides() {
     }
   }
 
-  function changeRuc(role: Role, value: string) {
-    const selected = value.match(
-      /^(\d{11})\s+-\s+.*$/
+  function rucHistoryLabel(row: RucHistory) {
+    return `${row.name || row.ruc} · ${row.ruc}`;
+  }
+
+  function resolveRucSearch(role: Role, value: string) {
+    const raw = value.trim();
+
+    if (!raw) return "";
+
+    if (/^\d{11}$/.test(raw)) {
+      return raw;
+    }
+
+    const needle = raw.toLocaleLowerCase("es");
+
+    const exact = rucHistory[role].find(
+      (row) =>
+        row.ruc === raw ||
+        rucHistoryLabel(row).toLocaleLowerCase("es") === needle
     );
 
-    const ruc = selected
-      ? selected[1]
-      : value.replace(/\D/g, "").slice(0, 11);
+    if (exact) {
+      return exact.ruc;
+    }
 
+    const partial = rucHistory[role].filter((row) =>
+      rucHistoryLabel(row)
+        .toLocaleLowerCase("es")
+        .includes(needle)
+    );
+
+    return partial.length === 1
+      ? partial[0].ruc
+      : "";
+  }
+
+  function changeRuc(role: Role, value: string) {
+    setRucSearch((current) => ({
+      ...current,
+      [role]: value,
+    }));
+
+    const ruc = resolveRucSearch(role, value);
     const fieldKey = `${role}_ruc`;
 
     const next = {
@@ -2285,10 +2417,40 @@ export default function TRJKardexGuides() {
     }
 
     writeDraft(next);
+  }
 
-    if (ruc.length === 11) {
-      void lookup(role);
+  function commitRucSearch(role: Role) {
+    const ruc = resolveRucSearch(
+      role,
+      rucSearch[role]
+    );
+
+    if (!/^\d{11}$/.test(ruc)) {
+      return;
     }
+
+    const historical =
+      rucHistoryByRuc[role].get(ruc);
+
+    setRucSearch((current) => ({
+      ...current,
+      [role]: historical
+        ? rucHistoryLabel(historical)
+        : ruc,
+    }));
+
+    if (
+      draftRef.current[`${role}_ruc`].trim() !== ruc
+    ) {
+      changeRuc(
+        role,
+        historical
+          ? rucHistoryLabel(historical)
+          : ruc
+      );
+    }
+
+    void lookup(role);
   }
 
   function change(field: Field, value: string) {
@@ -2643,13 +2805,21 @@ export default function TRJKardexGuides() {
     const lot = old?.lot || newLot;
     const value = old ? editing?.value || "" : newDeparture;
 
-    const excessUnits = projectedExcessUnits(
-      lot,
-      value,
-      old
-    );
+    const deletingLot =
+      !!old &&
+      decimalValid(value) &&
+      (units(value) ?? BigInt(1)) === BigInt(0);
+
+    const excessUnits = deletingLot
+      ? BigInt(0)
+      : projectedExcessUnits(
+          lot,
+          value,
+          old
+        );
 
     const hasExcess =
+      !deletingLot &&
       (excessUnits ?? BigInt(0)) > BigInt(0);
 
     const error =
@@ -2780,18 +2950,24 @@ export default function TRJKardexGuides() {
         response.saved?.[0]?.perd_adjusted === true ||
         response.saved?.[0]?.perd_adjusted === 1;
 
+      const deletedLot =
+        response.saved?.[0]?.deleted_lot === true ||
+        response.saved?.[0]?.deleted_lot === 1;
+
       notify(
-        excess != null && Number(excess) > 0
-          ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · EXCE ${fmt(excess)} TMH`
-          : exceDeleted
-            ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · EXCE eliminado automáticamente`
-            : perdDeleted
-              ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD eliminado automáticamente`
-              : perdAdjusted
-                ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ajustado a ${fmt(loss)} TMH`
-                : loss != null && Number(loss) > 0
-                  ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ${fmt(loss)} TMH`
-                  : `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""}`
+        deletedLot
+          ? `Lote eliminado · correlativo ${response.saved?.[0]?.lot_corr || ""}${perdDeleted ? " · PERD eliminado" : ""}${exceDeleted ? " · EXCE eliminado" : ""}`
+          : excess != null && Number(excess) > 0
+            ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · EXCE ${fmt(excess)} TMH`
+            : exceDeleted
+              ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · EXCE eliminado automáticamente`
+              : perdDeleted
+                ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD eliminado automáticamente`
+                : perdAdjusted
+                  ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ajustado a ${fmt(loss)} TMH`
+                  : loss != null && Number(loss) > 0
+                    ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ${fmt(loss)} TMH`
+                    : `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""}`
       );
 
       try {
@@ -3100,18 +3276,26 @@ export default function TRJKardexGuides() {
     newDeparture
   );
 
+  const editWillDelete =
+    !!editing &&
+    decimalValid(editing.value) &&
+    (units(editing.value) ?? BigInt(1)) === BigInt(0);
+
   const editExcessUnits = editing
-    ? projectedExcessUnits(
-        editing.row.lot,
-        editing.value,
-        editing.row
-      )
+    ? editWillDelete
+      ? BigInt(0)
+      : projectedExcessUnits(
+          editing.row.lot,
+          editing.value,
+          editing.row
+        )
     : null;
 
   const newHasExcess =
     (newExcessUnits ?? BigInt(0)) > BigInt(0);
 
   const editHasExcess =
+    !editWillDelete &&
     (editExcessUnits ?? BigInt(0)) > BigInt(0);
 
   const newLotError =
@@ -3550,23 +3734,28 @@ export default function TRJKardexGuides() {
                           <div className="trjg-input-action">
                             <input
                               className="input"
-                              inputMode="numeric"
+                              inputMode="text"
                               list={`trjkar-${field.role}-ruc-options`}
                               autoComplete="off"
+                              placeholder="RUC o razón social"
                               maxLength={280}
-                              value={draft[field.key]}
+                              value={rucSearch[field.role!]}
                               onChange={(e) =>
                                 changeRuc(
                                   field.role!,
                                   e.target.value
                                 )
                               }
-                              onBlur={() => void lookup(field.role!)}
+                              onBlur={() =>
+                                commitRucSearch(field.role!)
+                              }
                             />
 
                             <Button
                               size="sm"
-                              onClick={() => void lookup(field.role!)}
+                              onClick={() =>
+                                commitRucSearch(field.role!)
+                              }
                               disabled={
                                 !!lookupBusy ||
                                 !/^\d{11}$/.test(draft[field.key])
@@ -3768,7 +3957,7 @@ export default function TRJKardexGuides() {
                 {rucHistory[role].map((row) => (
                   <option
                     key={row.ruc}
-                    value={`${row.ruc} - ${row.name || ""}`}
+                    value={rucHistoryLabel(row)}
                   />
                 ))}
               </datalist>
@@ -4115,19 +4304,36 @@ export default function TRJKardexGuides() {
                           isPerd &&
                           perdEditPreview?.lot === rowCode;
 
+                        const previewingExce =
+                          isExce &&
+                          exceEditPreview?.lot === rowCode;
+
                         const previewingBalance =
                           !isCleanupLot(row.lot) &&
-                          perdEditPreview?.lot === rowCode;
+                          (
+                            perdEditPreview?.lot === rowCode ||
+                            exceEditPreview?.lot === rowCode
+                          );
 
                         const perdWillBeDeleted =
                           previewingPerd &&
                           perdEditPreview?.deletePerd === true;
 
+                        const exceWillBeDeleted =
+                          previewingExce &&
+                          exceEditPreview?.deleteExce === true;
+
+                        const lotWillBeDeleted =
+                          !!isEditing &&
+                          editWillDelete;
+
                         const rowClasses = [
                           isPerd || isExce
                             ? "trjg-perd-row"
                             : "",
-                          perdWillBeDeleted
+                          perdWillBeDeleted ||
+                          exceWillBeDeleted ||
+                          lotWillBeDeleted
                             ? "trjg-perd-delete-preview"
                             : "",
                         ]
@@ -4177,6 +4383,11 @@ export default function TRJKardexGuides() {
                                   perdEditPreview?.perd ??
                                     null
                                 )
+                              ) : previewingExce ? (
+                                fmtTmhUnits(
+                                  exceEditPreview?.exce ??
+                                    null
+                                )
                               ) : (
                                 fmt(row.tmh_departure)
                               )}
@@ -4193,8 +4404,10 @@ export default function TRJKardexGuides() {
                                 ? "No aplica"
                                 : previewingBalance
                                   ? fmtTmhUnits(
-                                      perdEditPreview?.balance ??
-                                        null
+                                      perdEditPreview?.lot === rowCode
+                                        ? perdEditPreview.balance
+                                        : exceEditPreview?.balance ??
+                                            null
                                     )
                                   : fmt(
                                       sgmByLot.get(rowCode)
@@ -4238,9 +4451,15 @@ export default function TRJKardexGuides() {
                                   </Button>
                                 )
                               ) : isExce ? (
-                                <span className="trjg-note">
-                                  Control EXCE
-                                </span>
+                                exceWillBeDeleted ? (
+                                  <span className="trjg-perd-delete-note">
+                                    Se eliminará al guardar
+                                  </span>
+                                ) : (
+                                  <span className="trjg-note">
+                                    Control EXCE
+                                  </span>
+                                )
                               ) : isEditing ? (
                                 <div className="trjg-actions">
                                   <Button
@@ -4253,7 +4472,9 @@ export default function TRJKardexGuides() {
                                     }
                                     onClick={() => void saveLot(row)}
                                   >
-                                    Guardar
+                                    {editWillDelete
+                                      ? "Eliminar lote"
+                                      : "Guardar"}
                                   </Button>
 
                                   <Button
@@ -4294,6 +4515,12 @@ export default function TRJKardexGuides() {
                                   {lotClosed && (
                                     <span className="trjg-note">
                                       PERD se ajustará automáticamente
+                                    </span>
+                                  )}
+
+                                  {exceByLot.has(rowCode) && (
+                                    <span className="trjg-note">
+                                      EXCE se ajustará automáticamente
                                     </span>
                                   )}
                                 </div>
