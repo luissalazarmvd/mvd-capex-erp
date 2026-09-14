@@ -151,15 +151,25 @@
 .trjk-kpi span { font-size: 11px; color: var(--ink-2); }
 .trjk-kpi strong { font-size: 23px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .trjk-kpi small { color: var(--ink-3); font-size: 10px; }
-/* Desglose de la tarjeta: tooltip anclado bajo ella, visible al pasar o enfocar. */
+/* Desglose de la tarjeta: tooltip flotante, visible únicamente mientras el cursor está sobre la tarjeta. */
 .trjk-kpi[data-tip] { position: relative; cursor: help; }
-.trjk-kpi[data-tip]:focus-visible { outline: 2px solid var(--mod); outline-offset: 2px; }
 .trjk-kpi[data-tip] > span::after { content: "i"; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; margin-left: 6px; border: 1px solid var(--line-2); border-radius: 50%; font-size: 8px; font-weight: 600; color: var(--ink-3); vertical-align: 1px; }
-.trjk-kpi-tip { display: none; left: 0; top: calc(100% + 6px); min-width: 100%; }
-.trjk-kpi:hover .trjk-kpi-tip, .trjk-kpi:focus .trjk-kpi-tip { display: grid; }
-.trjk-kpi-tip div { justify-content: space-between; align-items: baseline; }
+.trjk-tip.trjk-kpi-tip { display: grid; opacity: 0; visibility: hidden; left: 0; top: calc(100% + 8px); width: 290px; min-width: 0; max-width: min(320px, calc(100vw - 24px)); transform: translateY(-6px) scale(.985); transform-origin: top left; transition: opacity .12s ease, transform .12s ease, visibility 0s linear .12s; }
+.trjk-kpi[data-tip]:hover { z-index: 20; }
+.trjk-kpi[data-tip]:hover .trjk-kpi-tip { opacity: 1; visibility: visible; transform: translateY(0) scale(1); transition-delay: 0s; }
+.trjk-kpi-grid .trjk-kpi:last-child .trjk-kpi-tip, .trjk-stat-grid .trjk-kpi:last-child .trjk-kpi-tip { left: auto; right: 0; transform-origin: top right; }
+.trjk-kpi-tip > header { padding-bottom: 2px; font-size: 11px; letter-spacing: .02em; }
+.trjk-kpi-tip > div:not(.trjk-kpi-trend) { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 2px 0; }
 .trjk-kpi-tip span { flex: 1; }
 .trjk-kpi-tip strong { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.trjk-kpi-tip .trjk-kpi-trend { display: grid; gap: 6px; margin: 2px 0 5px; padding: 8px; background: rgba(0, 0, 0, .14); border: 1px solid var(--line); border-radius: var(--r-1); }
+.trjk-kpi-tip .trjk-kpi-trend-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.trjk-kpi-trend-head span { color: var(--ink-2); font-size: 10px; }
+.trjk-kpi-trend-head small { flex: none; color: var(--ink-3); font-size: 9px; }
+.trjk-kpi-trend svg { display: block; width: 100%; height: 54px; overflow: visible; }
+.trjk-kpi-spark-area { fill: var(--mod-soft); }
+.trjk-kpi-spark-line { fill: none; stroke: var(--mod); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.trjk-kpi-spark-dot { fill: var(--mod); stroke: var(--s-3); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .trjk-method { font-size: 11px; color: var(--ink-2); }
 .trjk-summary-table { max-height: 55vh; }
 .trjk-summary-table th:first-child { left: 0; z-index: 3; }

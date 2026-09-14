@@ -97,16 +97,79 @@ const columns: ExcelColumnDef<KardexLot>[] = columnSpecs.map(
     value: (row) => (kind === "date" ? row[key]?.slice(0, 10) : row[key]),
   }),
 );
-// Tarjeta KPI con desglose en tooltip; se abre al pasar el puntero o al enfocar.
+// Tarjeta KPI con desglose en tooltip; solo se abre al pasar el puntero.
 type Kpi = { label: string; value: string; note: string; tip: [string, string][] };
-function KpiCard({ label, value, note, tip, loading }: Kpi & { loading: boolean }) {
+type KpiTrend = { label: string; values: (number | null)[] };
+function KpiCard({
+  label,
+  value,
+  note,
+  tip,
+  trend,
+  loading,
+}: Kpi & { loading: boolean; trend?: KpiTrend }) {
+  const trendValues = (trend?.values || []).filter(
+    (item): item is number => item != null && Number.isFinite(item),
+  );
+  const sparkWidth = 220;
+  const sparkHeight = 54;
+  const sparkPad = 4;
+  const min = trendValues.length ? Math.min(...trendValues) : 0;
+  const max = trendValues.length ? Math.max(...trendValues) : 0;
+  const span = max - min;
+  const spark =
+    trendValues.length > 1
+      ? trendValues.map((item, index) => ({
+          x:
+            sparkPad +
+            (index * (sparkWidth - sparkPad * 2)) / (trendValues.length - 1),
+          y:
+            span === 0
+              ? sparkHeight / 2
+              : sparkHeight -
+                sparkPad -
+                ((item - min) / span) * (sparkHeight - sparkPad * 2),
+        }))
+      : [];
+  const sparkPoints = spark
+    .map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(" ");
+  const areaPoints = spark.length
+    ? `${spark[0].x.toFixed(1)},${sparkHeight - sparkPad} ${sparkPoints} ${spark[spark.length - 1].x.toFixed(1)},${sparkHeight - sparkPad}`
+    : "";
+  const lastPoint = spark[spark.length - 1];
+
   return (
-    <div className="trjk-kpi" tabIndex={0} data-tip="true">
+    <div className="trjk-kpi" data-tip="true">
       <span>{label}</span>
       <strong>{loading ? "…" : value}</strong>
       <small>{note}</small>
       <div className="trjk-tip trjk-kpi-tip" role="tooltip">
         <header>{label}</header>
+        {spark.length > 1 && (
+          <div className="trjk-kpi-trend">
+            <div className="trjk-kpi-trend-head">
+              <span>{trend?.label}</span>
+              <small>{trendValues.length} puntos</small>
+            </div>
+            <svg
+              viewBox={`0 0 ${sparkWidth} ${sparkHeight}`}
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <polygon className="trjk-kpi-spark-area" points={areaPoints} />
+              <polyline className="trjk-kpi-spark-line" points={sparkPoints} />
+              {lastPoint && (
+                <circle
+                  className="trjk-kpi-spark-dot"
+                  cx={lastPoint.x}
+                  cy={lastPoint.y}
+                  r="2.8"
+                />
+              )}
+            </svg>
+          </div>
+        )}
         {tip.map(([name, amount]) => (
           <div key={name}>
             <span>{name}</span>
@@ -383,6 +446,62 @@ export default function TRJKardexSum() {
       ],
     },
   ];
+  const trendPeriodLabel =
+    period === "month"
+      ? "Evolución mensual"
+      : period === "week"
+        ? "Evolución semanal"
+        : "Evolución diaria";
+  const kpiTrend = (label: string): KpiTrend | undefined => {
+    const values = (pick: (row: KardexPeriodStats) => number | null) =>
+      stats.series.map(pick);
+
+    switch (label) {
+      case "Guías":
+        return { label: trendPeriodLabel, values: values((row) => row.guides) };
+      case "TMH enviadas":
+        return { label: trendPeriodLabel, values: values((row) => row.tmh) };
+      case "Lotes por guía":
+        return {
+          label: "Distribución · top 10 guías",
+          values: stats.lotsByGuide.slice(0, 10).map((row) => row.count),
+        };
+      case "USD ingresado":
+        return { label: trendPeriodLabel, values: values((row) => row.entered) };
+      case "USD Concar":
+        return { label: trendPeriodLabel, values: values((row) => row.concar) };
+      case "Diferencia USD":
+        return {
+          label: trendPeriodLabel,
+          values: values((row) => row.entered - row.concar),
+        };
+      case "Merma en tránsito":
+        return {
+          label: trendPeriodLabel,
+          values: values((row) =>
+            row.tmhDeparted != null &&
+            row.tmhDeparted > 0 &&
+            row.tmhArrival != null
+              ? ((row.tmhDeparted - row.tmhArrival) / row.tmhDeparted) * 100
+              : null,
+          ),
+        };
+      case "Tiempo de tránsito":
+        return {
+          label: trendPeriodLabel,
+          values: values((row) => row.transitHours),
+        };
+      case "Tarifa media":
+        return { label: trendPeriodLabel, values: values((row) => row.rate) };
+      case "TMH por guía":
+        return {
+          label: trendPeriodLabel,
+          values: values((row) => (row.guides ? row.tmh / row.guides : null)),
+        };
+      default:
+        return undefined;
+    }
+  };
   // Lotes de la guía elegida en «Lotes por guía»; PERD se lista al final.
   const focusedGuide = selectedGuide
     ? filtered.guides.find((g) => g.guide_number === selectedGuide)
@@ -516,7 +635,12 @@ export default function TRJKardexSum() {
       </section>
       <div className="trjk-kpi-grid">
         {cards.map((card) => (
-          <KpiCard key={card.label} {...card} loading={loading} />
+          <KpiCard
+            key={card.label}
+            {...card}
+            loading={loading}
+            trend={kpiTrend(card.label)}
+          />
         ))}
       </div>
       <p className="trjk-method">
@@ -641,7 +765,12 @@ export default function TRJKardexSum() {
 
           <div className="trjk-stat-grid">
             {operationCards.map((card) => (
-              <KpiCard key={card.label} {...card} loading={loading} />
+              <KpiCard
+                key={card.label}
+                {...card}
+                loading={loading}
+                trend={kpiTrend(card.label)}
+              />
             ))}
           </div>
 
