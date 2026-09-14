@@ -156,12 +156,6 @@ function text(value: unknown) {
   return value === null || value === undefined ? "" : String(value);
 }
 
-function typedDateInputValue(value: string) {
-  return value
-    .replace(/[^0-9-]/g, "")
-    .slice(0, 10);
-}
-
 function displayDate(value: unknown) {
   const parsed = parseIsoDate(value);
   if (!parsed) return dateText(value) || "—";
@@ -227,14 +221,6 @@ function toMappingDraft(
     zone_name: text(row.zone_name).trim(),
     office_code: text(row.office_code).trim(),
   };
-}
-
-function entryColumnValue(
-  row: CmEntryDateRow,
-  key: keyof CmEntryDateRow,
-  draftDates: Record<string, string>
-) {
-  return key === "entry_date_2" ? draftDates[rowLot(row)] : row[key];
 }
 
 function mappingColumnValue(
@@ -555,11 +541,6 @@ export default function TraceabilityCmInputsForm() {
     return matching
       .map((row, index) => ({ row, index }))
       .sort((left, right) => {
-        const leftLot = rowLot(left.row);
-        const rightLot = rowLot(right.row);
-        const leftEdited = editedLotSet.has(leftLot);
-        const rightEdited = editedLotSet.has(rightLot);
-        if (leftEdited !== rightEdited) return leftEdited ? -1 : 1;
 
         if (!hasManualSort) {
           const leftPending = !dateText(left.row.entry_date_2);
@@ -567,8 +548,8 @@ export default function TraceabilityCmInputsForm() {
           if (leftPending !== rightPending) return leftPending ? -1 : 1;
         }
 
-        const leftValue = entryColumnValue(left.row, sortColumn.key, draftDates);
-        const rightValue = entryColumnValue(right.row, sortColumn.key, draftDates);
+        const leftValue = left.row[sortColumn.key];
+        const rightValue = right.row[sortColumn.key];
         let result = 0;
 
         if (sortColumn.kind === "number") {
@@ -704,9 +685,6 @@ export default function TraceabilityCmInputsForm() {
         );
       })
       .sort((left, right) => {
-        const leftEdited = editedMappingSet.has(mappingKey(left));
-        const rightEdited = editedMappingSet.has(mappingKey(right));
-        if (leftEdited !== rightEdited) return leftEdited ? -1 : 1;
 
         if (!hasMappingManualSort) {
           const leftPending = !text(left.office_name).trim();
@@ -714,16 +692,14 @@ export default function TraceabilityCmInputsForm() {
           if (leftPending !== rightPending) return leftPending ? -1 : 1;
         }
 
-        const leftDraft = mappingDrafts[mappingKey(left)] ?? toMappingDraft(left);
-        const rightDraft = mappingDrafts[mappingKey(right)] ?? toMappingDraft(right);
         const result = text(
-          mappingColumnValue(left, mappingSortKey, leftDraft)
+          left[mappingSortKey]
         ).localeCompare(
-          text(mappingColumnValue(right, mappingSortKey, rightDraft)),
+          text(right[mappingSortKey]),
           "es",
           {
-          numeric: true,
-          sensitivity: "base",
+            numeric: true,
+            sensitivity: "base",
           }
         );
         return mappingSortDirection === "asc" ? result : -result;
@@ -1748,18 +1724,15 @@ export default function TraceabilityCmInputsForm() {
                       >
                         {column.key === "entry_date_2" ? (
                           <input
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={10}
-                            pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}"
-                            placeholder="YYYY-MM-DD"
+                            type="date"
+                            inputMode="text"
                             value={draftDates[lot] ?? ""}
+                            min={dateText(row.entry_date) || undefined}
+                            max={maximumEntryDate2}
                             onChange={(event) =>
                               updateEntryDate(
                                 lot,
-                                typedDateInputValue(
-                                  event.target.value
-                                )
+                                event.target.value
                               )
                             }
                             disabled={loading || saving || !lot}
@@ -1767,7 +1740,7 @@ export default function TraceabilityCmInputsForm() {
                             aria-invalid={Boolean(dateError)}
                             title={
                               dateError ??
-                              `Formato YYYY-MM-DD. Rango permitido: ${displayDate(row.entry_date)} a ${displayDate(maximumEntryDate2)}`
+                              `Rango permitido: ${displayDate(row.entry_date)} a ${displayDate(maximumEntryDate2)}`
                             }
                             style={{
                               ...inputStyle,
