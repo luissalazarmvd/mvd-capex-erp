@@ -339,19 +339,16 @@ export default function TraceabilityCmInputsForm() {
         "/api/traceability/cm/entrydate"
       )) as GetResponse<CmEntryDateRow>;
       const nextRows = Array.isArray(response.rows) ? response.rows : [];
-      const nextDrafts: Record<string, string> = {};
       const nextOriginals: Record<string, string> = {};
 
       nextRows.forEach((row) => {
         const lot = rowLot(row);
         if (!lot) return;
-        const value = dateText(row.entry_date_2);
-        nextDrafts[lot] = value;
-        nextOriginals[lot] = value;
+        nextOriginals[lot] = dateText(row.entry_date_2);
       });
 
       setRows(nextRows);
-      setDraftDates(nextDrafts);
+      setDraftDates({});
       setOriginalDates(nextOriginals);
       setEntrySaveErrors({});
       setShowEditedOnly(false);
@@ -431,30 +428,46 @@ export default function TraceabilityCmInputsForm() {
 
   const editedLots = useMemo(
     () =>
-      rows
-        .map(rowLot)
-        .filter(
-          (lot) => lot && dateText(draftDates[lot]) !== dateText(originalDates[lot])
-        ),
-    [rows, draftDates, originalDates]
+      Object.keys(draftDates).filter(
+        (lot) => dateText(draftDates[lot]) !== dateText(originalDates[lot])
+      ),
+    [draftDates, originalDates]
   );
 
   const editedLotSet = useMemo(() => new Set(editedLots), [editedLots]);
+  const activeEditedLotSet = showEditedOnly ? editedLotSet : null;
+
   const entryDate2Errors = useMemo(() => {
     const errors = new Map<string, string>();
-    rows.forEach((row) => {
-      const lot = rowLot(row);
-      if (!lot) return;
+
+    editedLots.forEach((lot) => {
+      const row = entryRowsByLot.get(lot);
+      if (!row) return;
+
       const draftDate = dateText(draftDates[lot]);
-      const error = (
-        editedLotSet.has(lot) && !draftDate
-          ? "La fecha de ingreso 2 es obligatoria para guardar esta fila."
-          : entryDate2Error(draftDate, row.entry_date, maximumEntryDate2)
-      ) ?? entrySaveErrors[lot];
+      const error =
+        (
+          !draftDate
+            ? "La fecha de ingreso 2 es obligatoria para guardar esta fila."
+            : entryDate2Error(
+                draftDate,
+                row.entry_date,
+                maximumEntryDate2
+              )
+        ) ?? entrySaveErrors[lot];
+
       if (error) errors.set(lot, error);
     });
+
     return errors;
-  }, [draftDates, editedLotSet, entrySaveErrors, maximumEntryDate2, rows]);
+  }, [
+    draftDates,
+    editedLots,
+    entryRowsByLot,
+    entrySaveErrors,
+    maximumEntryDate2,
+  ]);
+
   const invalidEditedLots = useMemo(
     () => editedLots.filter((lot) => entryDate2Errors.has(lot)),
     [editedLots, entryDate2Errors]
@@ -478,7 +491,7 @@ export default function TraceabilityCmInputsForm() {
       const entryDate = dateText(row.entry_date);
       if (dateFrom && entryDate < dateFrom) return false;
       if (dateTo && entryDate > dateTo) return false;
-      if (showEditedOnly && !editedLotSet.has(lot)) return false;
+      if (activeEditedLotSet && !activeEditedLotSet.has(lot)) return false;
       if (!query) return true;
       return ENTRY_COLUMNS.some((column) =>
         text(row[column.key])
@@ -497,7 +510,7 @@ export default function TraceabilityCmInputsForm() {
       );
     });
     return values;
-  }, [rows, search, dateFrom, dateTo, showEditedOnly, editedLotSet]);
+  }, [rows, search, dateFrom, dateTo, activeEditedLotSet]);
 
   useEffect(() => {
     setPage(1);
@@ -510,7 +523,7 @@ export default function TraceabilityCmInputsForm() {
       const entryDate = dateText(row.entry_date);
       if (dateFrom && entryDate < dateFrom) return false;
       if (dateTo && entryDate > dateTo) return false;
-      if (showEditedOnly && !editedLotSet.has(lot)) return false;
+      if (activeEditedLotSet && !activeEditedLotSet.has(lot)) return false;
       if (
         query &&
         !ENTRY_COLUMNS.some((column) =>
@@ -574,9 +587,7 @@ export default function TraceabilityCmInputsForm() {
     search,
     dateFrom,
     dateTo,
-    showEditedOnly,
-    editedLotSet,
-    draftDates,
+    activeEditedLotSet,
     hasManualSort,
     sortKey,
     sortDirection,
@@ -795,7 +806,26 @@ export default function TraceabilityCmInputsForm() {
   }
 
   function updateEntryDate(lot: string, value: string) {
-    setDraftDates((current) => ({ ...current, [lot]: value }));
+    setDraftDates((current) => {
+      const normalized = dateText(value);
+      const original = dateText(originalDates[lot]);
+      const currentValue = dateText(current[lot] ?? original);
+
+      if (currentValue === normalized) {
+        return current;
+      }
+
+      const next = { ...current };
+
+      if (normalized === original) {
+        delete next[lot];
+      } else {
+        next[lot] = value;
+      }
+
+      return next;
+    });
+
     setEntrySaveErrors((current) => {
       if (!current[lot]) return current;
       const next = { ...current };
@@ -994,6 +1024,17 @@ export default function TraceabilityCmInputsForm() {
 
     if (fulfilled.length) {
       const fulfilledSet = new Set(fulfilled);
+
+      setDraftDates((current) => {
+        const next = { ...current };
+
+        fulfilled.forEach((lot) => {
+          delete next[lot];
+        });
+
+        return next;
+      });
+
       setOriginalDates((current) => {
         const next = { ...current };
         fulfilled.forEach((lot) => {
@@ -1724,15 +1765,27 @@ export default function TraceabilityCmInputsForm() {
                       >
                         {column.key === "entry_date_2" ? (
                           <input
+                            key={`${lot}:${originalDates[lot] ?? ""}`}
                             type="date"
                             inputMode="text"
-                            value={draftDates[lot] ?? ""}
+                            defaultValue={
+                              draftDates[lot] ??
+                              originalDates[lot] ??
+                              ""
+                            }
                             min={dateText(row.entry_date) || undefined}
                             max={maximumEntryDate2}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                              const value = event.currentTarget.value;
+
+                              React.startTransition(() => {
+                                updateEntryDate(lot, value);
+                              });
+                            }}
+                            onBlur={(event) =>
                               updateEntryDate(
                                 lot,
-                                event.target.value
+                                event.currentTarget.value
                               )
                             }
                             disabled={loading || saving || !lot}
