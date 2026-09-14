@@ -270,6 +270,81 @@ const summaryColumns: ExcelColumnDef<SummaryRow>[] =
     }),
   );
 
+const SUMMARY_COLUMN_KEYS_BY_STATUS: Record<LotStatus, string[]> = {
+  "Sin valorización": [
+    "lot",
+    "entry_date",
+    "process_date",
+    "miner_name",
+    "ruc",
+    "concession_name",
+    "tmh",
+    "tms",
+    "control_status_desc",
+    "control_status_comment",
+  ],
+  "Sin pago": [
+    "lot",
+    "entry_date",
+    "valuation_date",
+    "miner_name",
+    "ruc",
+    "concession_name",
+    "tmh",
+    "tms",
+    "au_grade_oztc",
+    "control_status_desc",
+    "control_status_comment",
+  ],
+  "No enviado": [
+    "lot",
+    "entry_date",
+    "valuation_date",
+    "miner_name",
+    "ruc",
+    "tmh",
+    "tms",
+    "au_grade_oztc",
+    "doc_number",
+    "payment_date",
+    "control_status_desc",
+    "control_status_comment",
+  ],
+  "En ruta": [
+    "lot",
+    "lot_corr",
+    "guide_number",
+    "guide_date",
+    "tmh_departure",
+    "tmh_balance",
+    "trjkar_transport_name",
+    "transport_ruc",
+    "trjkar_transport_guide_number",
+    "departure_date",
+    "control_status_desc",
+    "control_status_comment",
+  ],
+  "Finalizado": [
+    "lot",
+    "lot_corr",
+    "guide_number",
+    "guide_date",
+    "tmh_departure",
+    "tmh_arrival",
+    "tmh_balance",
+    "trjkar_transport_name",
+    "transport_ruc",
+    "trjkar_transport_guide_number",
+    "departure_date",
+    "arrival_date",
+    "trjkar_document_number",
+    "invoice_amount_usd_web",
+    "invoice_amount_usd_con",
+    "control_status_desc",
+    "control_status_comment",
+  ],
+};
+
 const EXPORT_LABELS: Record<string, string> = {
   lot: "Lote",
   lot_corr: "Correlativo",
@@ -1718,10 +1793,39 @@ export default function TRJKardexSum() {
       ]
     );
 
+  const visibleSummaryColumns =
+    useMemo(
+      () => {
+        if (
+          selectedLotStatus ===
+          "TODOS"
+        ) {
+          return summaryColumns;
+        }
+
+        const visibleKeys =
+          new Set(
+            SUMMARY_COLUMN_KEYS_BY_STATUS[
+              selectedLotStatus
+            ]
+          );
+
+        return summaryColumns.filter(
+          (column) =>
+            visibleKeys.has(
+              column.key
+            )
+        );
+      },
+      [
+        selectedLotStatus,
+      ]
+    );
+
   const summaryExcel =
     useExcelColumnFilters(
       statusRows,
-      summaryColumns
+      visibleSummaryColumns
     );
 
   const pages =
@@ -3882,7 +3986,7 @@ export default function TRJKardexSum() {
             <table>
               <thead>
                 <tr>
-                  {summaryColumns.map(
+                  {visibleSummaryColumns.map(
                     (column) => (
                       <th
                         key={
@@ -3937,7 +4041,7 @@ export default function TRJKardexSum() {
                             "CERRADO"
                           }
                         >
-                          {summaryColumns.map(
+                          {visibleSummaryColumns.map(
                             (
                               column
                             ) => {
@@ -4182,7 +4286,7 @@ export default function TRJKardexSum() {
                   <tr>
                     <td
                       colSpan={
-                        summaryColumns.length
+                        visibleSummaryColumns.length
                       }
                     >
                       {loading
