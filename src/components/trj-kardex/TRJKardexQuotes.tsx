@@ -15,6 +15,7 @@ import {
   type ExcelColumnDef,
 } from "../ui/ExcelFilters";
 import TRJKardexQuoteEditor, { type QuoteSaved } from "./TRJKardexQuoteEditor";
+import { exportKardexWorkbook } from "../../lib/trjKardexExport";
 import {
   invoiceKey,
   isOperationalLot,
@@ -486,6 +487,7 @@ export default function TRJKardexQuotes() {
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
   const [page, setPage] = useState(1);
@@ -679,6 +681,32 @@ export default function TRJKardexQuotes() {
     setActive(active === invoiceKey(invoice) ? null : invoiceKey(invoice));
   }
 
+  async function exportExcel() {
+    if (exporting) return;
+
+    setExporting(true);
+    setError(false);
+    setMessage("");
+
+    try {
+      exportKardexWorkbook(
+        { guides, lots, invoices },
+        today(),
+      );
+
+      setMessage(
+        `Excel exportado · ${guides.length} guías · ${lots.length} lotes · ${invoices.length} facturas`,
+      );
+    } catch (e) {
+      setError(true);
+      setMessage(
+        e instanceof Error ? e.message : "No se pudo exportar",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="trjk-workspace trjk-quotes">
       <div className="trjk-toolbar">
@@ -688,34 +716,43 @@ export default function TRJKardexQuotes() {
             Vincula varias guías a una factura y concilia sus llegadas.
           </p>
         </div>
-        <Button
-          disabled={loading || busy}
-          onClick={async () => {
-            if (
-              dirty &&
-              !window.confirm("¿Descartar cambios del detalle y actualizar?")
-            )
-              return;
-            setLoading(true);
-            try {
-              await load();
-              setRevision((n) => n + 1);
-              setDirty(false);
-              setSelected(new Set());
-              setError(false);
-              setMessage("Datos actualizados");
-            } catch (e) {
-              setError(true);
-              setMessage(
-                e instanceof Error ? e.message : "No se pudo actualizar",
-              );
-            } finally {
-              setLoading(false);
-            }
-          }}
-        >
-          Actualizar
-        </Button>
+        <div className="trjk-actions">
+          <Button
+            disabled={loading || busy || exporting}
+            onClick={() => void exportExcel()}
+            title="Detalle completo de guías, lotes y facturas"
+          >
+            {exporting ? "Exportando…" : "Exportar Excel"}
+          </Button>
+          <Button
+            disabled={loading || busy}
+            onClick={async () => {
+              if (
+                dirty &&
+                !window.confirm("¿Descartar cambios del detalle y actualizar?")
+              )
+                return;
+              setLoading(true);
+              try {
+                await load();
+                setRevision((n) => n + 1);
+                setDirty(false);
+                setSelected(new Set());
+                setError(false);
+                setMessage("Datos actualizados");
+              } catch (e) {
+                setError(true);
+                setMessage(
+                  e instanceof Error ? e.message : "No se pudo actualizar",
+                );
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            Actualizar
+          </Button>
+        </div>
       </div>
       {message && (
         <div

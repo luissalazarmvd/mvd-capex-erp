@@ -67,6 +67,7 @@ function ChartCard({
   kind,
   empty,
   table,
+  panel,
   children,
 }: {
   title: string;
@@ -75,6 +76,8 @@ function ChartCard({
   kind?: "bar" | "line";
   empty: boolean;
   table?: ReactNode;
+  /** Detalle propio del gráfico; sustituye a la tabla «Ver datos». */
+  panel?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -100,7 +103,9 @@ function ChartCard({
       ) : (
         children
       )}
-      {!empty && table ? (
+      {!empty && panel ? (
+        <div className="trjk-chart-data">{panel}</div>
+      ) : !empty && table ? (
         <details className="trjk-chart-data">
           <summary>Ver datos</summary>
           <div className="trjk-table-scroll">{table}</div>
@@ -552,6 +557,9 @@ export function RankChart({
   digits = 0,
   unit = "",
   color = CHART_COLORS[0],
+  selected,
+  onSelect,
+  panel,
 }: {
   title: string;
   subtitle: string;
@@ -559,6 +567,11 @@ export function RankChart({
   digits?: number;
   unit?: string;
   color?: string;
+  /** Fila seleccionada; con `onSelect` cada fila es un botón. */
+  selected?: string | null;
+  onSelect?: (label: string) => void;
+  /** Detalle de la selección; sustituye a «Ver datos». */
+  panel?: ReactNode;
 }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
@@ -566,6 +579,7 @@ export function RankChart({
       title={title}
       subtitle={subtitle}
       empty={!rows.length}
+      panel={panel}
       table={
         <table>
           <thead>
@@ -590,20 +604,34 @@ export function RankChart({
       }
     >
       <div className="trjk-rank">
-        {rows.map((r, i) => (
-          <div className="trjk-rank-row" key={r.label} title={`${r.label}: ${value(r.value, digits, unit)}${r.note ? ` · ${r.note}` : ""}`}>
-            <span>
-              {i + 1}. {r.label}
-            </span>
-            <div>
-              <div className="trjk-rank-bar" style={{ width: `${(r.value / max) * 100}%`, background: color }} />
-            </div>
-            <strong>
-              {value(r.value, digits, unit)}
-              {r.note ? <small>{r.note}</small> : null}
-            </strong>
-          </div>
-        ))}
+        {rows.map((r, i) => {
+          const Row = onSelect ? "button" : "div";
+          return (
+            <Row
+              className="trjk-rank-row"
+              key={r.label}
+              title={`${r.label}: ${value(r.value, digits, unit)}${r.note ? ` · ${r.note}` : ""}`}
+              {...(onSelect
+                ? {
+                    type: "button" as const,
+                    "aria-pressed": selected === r.label,
+                    onClick: () => onSelect(r.label),
+                  }
+                : {})}
+            >
+              <span>
+                {i + 1}. {r.label}
+              </span>
+              <div>
+                <div className="trjk-rank-bar" style={{ width: `${(r.value / max) * 100}%`, background: color }} />
+              </div>
+              <strong>
+                {value(r.value, digits, unit)}
+                {r.note ? <small>{r.note}</small> : null}
+              </strong>
+            </Row>
+          );
+        })}
       </div>
     </ChartCard>
   );

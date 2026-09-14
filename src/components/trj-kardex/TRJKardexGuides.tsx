@@ -8,6 +8,8 @@ import React, {
   useState,
 } from "react";
 import { apiGet, apiPost } from "../../lib/apiClient";
+import { isCleanupLot } from "../../lib/trjKardex";
+import { exportKardexWorkbook } from "../../lib/trjKardexExport";
 import { Button } from "../ui/Button";
 import ExcelHeaderFilter, {
   compareExcelValues,
@@ -388,8 +390,6 @@ const UBIGEO_PERU_URLS = {
 const SCALE = BigInt(1000000);
 const text = (value: unknown) => value == null ? "" : String(value);
 const code = (value: string) => value.trim().toUpperCase();
-const isCleanupLot = (value: string) =>
-  /^(?:\d{2}-)?LIMPIEZA$/.test(code(value));
 
 const DEFAULT_MVD_RUC = "20536126440";
 const DEFAULT_MVD_NAME = "MINERA VETA DORADA S.A.C.";
@@ -952,6 +952,7 @@ export default function TRJKardexGuides() {
   const [lookupBusy, setLookupBusy] = useState<Role | "driver" | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
 
@@ -2921,6 +2922,40 @@ export default function TRJKardexGuides() {
     }
   }
 
+  // Exporta el detalle completo cargado; las facturas se consultan al momento.
+  async function exportExcel() {
+    setExporting(true);
+
+    try {
+      const response = await apiGet("/api/trjkar/invo");
+
+      if (
+        response?.ok === false ||
+        !Array.isArray(response?.rows)
+      ) {
+        throw new Error(response?.error || "Respuesta inválida");
+      }
+
+      exportKardexWorkbook(
+        { guides, lots, invoices: response.rows },
+        peruTodayInputValue()
+      );
+
+      notify(
+        `Excel exportado · ${guides.length} guías · ${lots.length} lotes · ${response.rows.length} facturas`
+      );
+    } catch (e) {
+      notify(
+        e instanceof Error
+          ? e.message
+          : "No se pudo exportar",
+        true
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const newLotError =
     departureError(newLot, newDeparture) ||
     bagsError(
@@ -3067,6 +3102,14 @@ export default function TRJKardexGuides() {
         </div>
 
         <div className="trjg-actions">
+          <Button
+            onClick={() => void exportExcel()}
+            disabled={loading || saving || exporting}
+            title="Detalle completo de guías, lotes y facturas"
+          >
+            {exporting ? "Exportando…" : "Exportar Excel"}
+          </Button>
+
           <Button
             onClick={() => void refresh()}
             disabled={loading || saving}

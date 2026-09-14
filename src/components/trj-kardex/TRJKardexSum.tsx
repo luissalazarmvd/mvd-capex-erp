@@ -10,6 +10,7 @@ import {
   type ExcelFilterKind,
 } from "../ui/ExcelFilters";
 import {
+  isOperationalLot,
   kardexDecimal,
   kardexFormat as fmt,
   kardexStatistics,
@@ -96,6 +97,28 @@ const columns: ExcelColumnDef<KardexLot>[] = columnSpecs.map(
     value: (row) => (kind === "date" ? row[key]?.slice(0, 10) : row[key]),
   }),
 );
+// Tarjeta KPI con desglose en tooltip; se abre al pasar el puntero o al enfocar.
+type Kpi = { label: string; value: string; note: string; tip: [string, string][] };
+function KpiCard({ label, value, note, tip, loading }: Kpi & { loading: boolean }) {
+  return (
+    <div className="trjk-kpi" tabIndex={0} data-tip="true">
+      <span>{label}</span>
+      <strong>{loading ? "…" : value}</strong>
+      <small>{note}</small>
+      <div className="trjk-tip trjk-kpi-tip" role="tooltip">
+        <header>{label}</header>
+        {tip.map(([name, amount]) => (
+          <div key={name}>
+            <span>{name}</span>
+            <strong>{loading ? "…" : amount}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+const dateTime = (value: string | null | undefined) =>
+  value?.replace("T", " ").slice(0, 16) || "—";
 export default function TRJKardexSum() {
   const [rows, setRows] = useState<KardexLot[]>([]);
   const [guides, setGuides] = useState<KardexGuide[]>([]);
@@ -107,6 +130,7 @@ export default function TRJKardexSum() {
   const [ruc, setRuc] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedGuide, setSelectedGuide] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
@@ -200,33 +224,89 @@ export default function TRJKardexSum() {
   ].sort((a, b) => a[1].localeCompare(b[1]));
   const pages = Math.max(1, Math.ceil(excel.rows.length / 100));
   const currentPage = Math.min(page, pages);
-  const cards = [
-    [
-      "Guías",
-      fmt(stats.guideCount, 0),
-      `${stats.closed} cerradas · ${stats.pending} sin factura`,
-    ],
-    ["TMH enviadas", fmt(stats.tmh, 3), "Salidas operativas · excluye PERD"],
-    [
-      "Lotes por guía",
-      fmt(stats.lotsPerGuide),
-      `${stats.lotCount} lotes distintos`,
-    ],
-    [
-      "USD ingresado",
-      fmt(kardexDecimal(stats.entered)),
-      `${filtered.invoices.length} facturas web`,
-    ],
-    [
-      "USD Concar",
-      fmt(kardexDecimal(stats.concar)),
-      `${stats.unmatched} facturas sin cruce contable`,
-    ],
-    [
-      "Diferencia USD",
-      fmt(kardexDecimal(stats.entered - stats.concar)),
-      "Ingresado menos registrado en Concar",
-    ],
+  const entered = Number(kardexDecimal(stats.entered));
+  const concar = Number(kardexDecimal(stats.concar));
+  const invoiceCount = filtered.invoices.length;
+  const topGuide = stats.lotsByGuide[0];
+  const cards: Kpi[] = [
+    {
+      label: "Guías",
+      value: fmt(stats.guideCount, 0),
+      note: `${stats.closed} cerradas · ${stats.pending} sin factura`,
+      tip: [
+        ["Cerradas", fmt(stats.status.closed, 0)],
+        ["Con factura abierta", fmt(stats.status.invoiced, 0)],
+        ["Sin factura", fmt(stats.status.pending, 0)],
+        ["Con llegada registrada", fmt(stats.arrivedCount, 0)],
+        ["Transportistas distintos", fmt(stats.carrierCount, 0)],
+      ],
+    },
+    {
+      label: "TMH enviadas",
+      value: fmt(stats.tmh, 3),
+      note: "Salidas operativas · excluye PERD",
+      tip: [
+        [`TMH LIMPIEZA · ${stats.cleanupLots} lotes`, fmt(stats.tmhCleanup, 3)],
+        [`TMH PERD · ${stats.perdLots} lotes`, fmt(stats.tmhPerd, 3)],
+        ["LIMPIEZA + PERD", fmt(stats.tmhCleanup + stats.tmhPerd, 3)],
+        [`TMH llegadas · ${stats.arrivedCount} guías`, fmt(stats.tmhArrived, 3)],
+        [
+          stats.tmhMaxGuide ? `Mayor guía · ${stats.tmhMaxGuide.label}` : "Mayor guía",
+          fmt(stats.tmhMaxGuide?.tmh, 3),
+        ],
+      ],
+    },
+    {
+      label: "Lotes por guía",
+      value: fmt(stats.lotsPerGuide),
+      note: `${stats.lotCount} lotes distintos`,
+      tip: [
+        ["Lotes operativos", fmt(stats.lotRows, 0)],
+        ["Lotes distintos", fmt(stats.lotCount, 0)],
+        [
+          topGuide ? `Guía con más lotes · ${topGuide.label}` : "Guía con más lotes",
+          fmt(topGuide?.count, 0),
+        ],
+        ["Lotes LIMPIEZA", fmt(stats.cleanupLots, 0)],
+        ["Lotes con PERD", fmt(stats.perdLots, 0)],
+      ],
+    },
+    {
+      label: "USD ingresado",
+      value: fmt(kardexDecimal(stats.entered)),
+      note: `${invoiceCount} facturas web`,
+      tip: [
+        ["Facturas cerradas", fmt(stats.invoicesClosed, 0)],
+        ["Facturas abiertas", fmt(invoiceCount - stats.invoicesClosed, 0)],
+        ["Promedio por factura", fmt(invoiceCount ? entered / invoiceCount : null)],
+        [`USD en guías valorizadas · ${stats.billedGuides}`, fmt(stats.billedUsd)],
+        ["Ingresado menos guías", fmt(entered - stats.billedUsd)],
+      ],
+    },
+    {
+      label: "USD Concar",
+      value: fmt(kardexDecimal(stats.concar)),
+      note: `${stats.unmatched} facturas sin cruce contable`,
+      tip: [
+        ["Con cruce contable", fmt(invoiceCount - stats.unmatched, 0)],
+        ["Sin cruce contable", fmt(stats.unmatched, 0)],
+        ["Con importe distinto al ingresado", fmt(stats.mismatched, 0)],
+        ["Cobertura sobre ingresado", entered ? `${fmt((concar / entered) * 100, 1)} %` : "—"],
+      ],
+    },
+    {
+      label: "Diferencia USD",
+      value: fmt(kardexDecimal(stats.entered - stats.concar)),
+      note: "Ingresado menos registrado en Concar",
+      tip: [
+        [`Facturas sin cruce · ${stats.unmatched}`, fmt(kardexDecimal(stats.enteredUnmatched))],
+        [
+          `Importes distintos · ${stats.mismatched}`,
+          fmt(kardexDecimal(stats.entered - stats.enteredUnmatched - stats.concar)),
+        ],
+        ["Facturas conciliadas", fmt(invoiceCount - stats.unmatched - stats.mismatched, 0)],
+      ],
+    },
   ];
   const periodRows = (pick: (r: KardexPeriodStats) => (number | null)[]): ChartRow[] =>
     stats.series.map((r) => ({
@@ -248,30 +328,79 @@ export default function TRJKardexSum() {
       note: `${stats.carriers.slice(5).length} transportistas`,
     },
   ];
-  const operationCards = [
-    [
-      "Merma en tránsito",
-      stats.lossPct == null ? "—" : `${fmt(stats.lossPct, 2)} %`,
-      stats.lossPct == null
-        ? "Sin guías con llegada registrada"
-        : `Sobre ${fmt(stats.arrivedGuidesTmh, 1)} TMH con llegada`,
-    ],
-    [
-      "Tiempo de tránsito",
-      stats.avgTransitHours == null ? "—" : `${fmt(stats.avgTransitHours, 1)} h`,
-      `${stats.transitCount} guías con salida y llegada`,
-    ],
-    [
-      "Tarifa media",
-      stats.avgRate == null ? "—" : `${fmt(stats.avgRate, 2)} USD/TMH`,
-      "Ponderada por TMH de guía valorizada",
-    ],
-    [
-      "TMH por guía",
-      fmt(stats.guideCount ? stats.tmh / stats.guideCount : 0, 2),
-      "Promedio de las guías filtradas",
-    ],
+  const hours = (v: number | null) => (v == null ? "—" : `${fmt(v, 1)} h`);
+  const operationCards: Kpi[] = [
+    {
+      label: "Merma en tránsito",
+      value: stats.lossPct == null ? "—" : `${fmt(stats.lossPct, 2)} %`,
+      note:
+        stats.lossPct == null
+          ? "Sin guías con llegada registrada"
+          : `Sobre ${fmt(stats.arrivedGuidesTmh, 1)} TMH con llegada`,
+      tip: [
+        ["TMH salida con llegada", fmt(stats.arrivedGuidesTmh, 3)],
+        ["TMH llegada", fmt(stats.tmhArrived, 3)],
+        ["Merma TMH", fmt(stats.arrivedGuidesTmh - stats.tmhArrived, 3)],
+        ["Guías con llegada", fmt(stats.arrivedCount, 0)],
+        ["Guías sin llegada", fmt(stats.guideCount - stats.arrivedCount, 0)],
+      ],
+    },
+    {
+      label: "Tiempo de tránsito",
+      value: hours(stats.avgTransitHours),
+      note: `${stats.transitCount} guías con salida y llegada`,
+      tip: [
+        ["Mínimo", hours(stats.transitMin)],
+        ["Máximo", hours(stats.transitMax)],
+        ["Guías con salida y llegada", fmt(stats.transitCount, 0)],
+        ["Guías sin llegada", fmt(stats.guideCount - stats.transitCount, 0)],
+      ],
+    },
+    {
+      label: "Tarifa media",
+      value: stats.avgRate == null ? "—" : `${fmt(stats.avgRate, 2)} USD/TMH`,
+      note: "Ponderada por TMH de guía valorizada",
+      tip: [
+        ["Guías valorizadas", fmt(stats.billedGuides, 0)],
+        ["TMH valorizadas", fmt(stats.billedTmh, 3)],
+        ["USD valorizados", fmt(stats.billedUsd)],
+        ["Tarifa mínima", stats.rateMin == null ? "—" : `${fmt(stats.rateMin)} USD/TMH`],
+        ["Tarifa máxima", stats.rateMax == null ? "—" : `${fmt(stats.rateMax)} USD/TMH`],
+      ],
+    },
+    {
+      label: "TMH por guía",
+      value: fmt(stats.guideCount ? stats.tmh / stats.guideCount : 0, 2),
+      note: "Promedio de las guías filtradas",
+      tip: [
+        ["TMH enviadas", fmt(stats.tmh, 3)],
+        ["Guías", fmt(stats.guideCount, 0)],
+        [
+          stats.tmhMaxGuide ? `Mayor guía · ${stats.tmhMaxGuide.label}` : "Mayor guía",
+          fmt(stats.tmhMaxGuide?.tmh, 3),
+        ],
+        ["Lotes por guía", fmt(stats.lotsPerGuide)],
+      ],
+    },
   ];
+  // Lotes de la guía elegida en «Lotes por guía»; PERD se lista al final.
+  const focusedGuide = selectedGuide
+    ? filtered.guides.find((g) => g.guide_number === selectedGuide)
+    : undefined;
+  const focusedLots = focusedGuide
+    ? filtered.rows
+        .filter((row) => row.guide_number === selectedGuide)
+        .sort(
+          (a, b) =>
+            Number(isOperationalLot(b)) - Number(isOperationalLot(a)) ||
+            a.lot.localeCompare(b.lot) ||
+            a.lot_corr.localeCompare(b.lot_corr),
+        )
+    : [];
+  const focusedTmh = (key: string) =>
+    focusedLots
+      .filter(isOperationalLot)
+      .reduce((sum, row) => sum + Number(row[key] || 0), 0);
   return (
     <div className="trjk-workspace trjk-summary">
       <div className="trjk-toolbar">
@@ -386,12 +515,8 @@ export default function TRJKardexSum() {
         </Button>
       </section>
       <div className="trjk-kpi-grid">
-        {cards.map(([label, value, note]) => (
-          <div className="trjk-kpi" key={label}>
-            <span>{label}</span>
-            <strong>{loading ? "…" : value}</strong>
-            <small>{note}</small>
-          </div>
+        {cards.map((card) => (
+          <KpiCard key={card.label} {...card} loading={loading} />
         ))}
       </div>
       <p className="trjk-method">
@@ -515,12 +640,8 @@ export default function TRJKardexSum() {
           </div>
 
           <div className="trjk-stat-grid">
-            {operationCards.map(([label, value, note]) => (
-              <div className="trjk-kpi" key={label}>
-                <span>{label}</span>
-                <strong>{loading ? "…" : value}</strong>
-                <small>{note}</small>
-              </div>
+            {operationCards.map((card) => (
+              <KpiCard key={card.label} {...card} loading={loading} />
             ))}
           </div>
 
@@ -596,7 +717,7 @@ export default function TRJKardexSum() {
             />
           </div>
 
-          <div className="trjk-chart-grid trjk-chart-grid-3">
+          <div className="trjk-chart-grid">
             <DonutChart
               title="Estado de guías"
               subtitle="Cerradas, abiertas con factura y pendientes de facturar"
@@ -614,16 +735,6 @@ export default function TRJKardexSum() {
               digits={1}
               items={carrierShare}
             />
-            <RankChart
-              title="Origen de la carga"
-              subtitle="TMH enviadas por provincia de origen"
-              digits={1}
-              rows={stats.origins.slice(0, 8).map((o) => ({
-                label: o.label,
-                value: o.tmh,
-                note: `${o.guides} guías`,
-              }))}
-            />
           </div>
 
           <div className="trjk-chart-grid">
@@ -639,10 +750,86 @@ export default function TRJKardexSum() {
             />
             <RankChart
               title="Lotes por guía"
-              subtitle="Las diez guías con más lotes distintos"
+              subtitle="Las diez guías con más lotes distintos · elige una para ver sus lotes"
               rows={stats.lotsByGuide
                 .slice(0, 10)
                 .map((r) => ({ label: r.label, value: r.count }))}
+              selected={selectedGuide}
+              onSelect={(guide) =>
+                setSelectedGuide(guide === selectedGuide ? null : guide)
+              }
+              panel={
+                focusedGuide ? (
+                  <div className="trjk-guide-lots">
+                    <div className="trjk-toolbar">
+                      <div className="trjk-guide-lots-head">
+                        <strong>{focusedGuide.guide_number}</strong>
+                        <span>
+                          {focusedGuide.transport_name || focusedGuide.transport_ruc || "Sin transportista"}
+                          {" · salida "}
+                          {dateTime(focusedGuide.departure_date)}
+                          {" · "}
+                          {focusedGuide.status_name === "CERRADO"
+                            ? `cerrada · factura ${focusedGuide.document_number}`
+                            : focusedGuide.document_number
+                              ? `factura ${focusedGuide.document_number}`
+                              : "sin factura"}
+                        </span>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => setSelectedGuide(null)}>
+                        Quitar selección
+                      </Button>
+                    </div>
+                    <div className="trjk-table-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Lote</th>
+                            <th>Corr.</th>
+                            <th>TMH salida</th>
+                            <th>TMH llegada</th>
+                            <th>Saldo SGM</th>
+                            <th>Sacos usados / totales</th>
+                            <th>Observación</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {focusedLots.map((row) => (
+                            <tr key={lotKey(row)} data-perd={!isOperationalLot(row)}>
+                              <td>{row.lot}</td>
+                              <td>{row.lot_corr}</td>
+                              <td>{fmt(row.tmh_departure, 3)}</td>
+                              <td>{fmt(row.tmh_arrival, 3)}</td>
+                              <td>{fmt(row.tmh_balance, 3)}</td>
+                              <td>
+                                {fmt(row.bags_used, 0)} / {fmt(row.bags_tot, 0)}
+                              </td>
+                              <td>{row.balance_obs || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <th colSpan={2}>Total operativo · sin PERD</th>
+                            <th>{fmt(focusedTmh("tmh_departure"), 3)}</th>
+                            <th>{fmt(focusedTmh("tmh_arrival"), 3)}</th>
+                            <th colSpan={3}>
+                              {focusedLots.filter(isOperationalLot).length} lotes ·{" "}
+                              {focusedLots.filter((row) => !isOperationalLot(row)).length} PERD
+                            </th>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="trjk-chart-hint">
+                    {selectedGuide
+                      ? `La guía ${selectedGuide} no está en los filtros actuales.`
+                      : "Selecciona una guía del ranking para ver los lotes que la componen."}
+                  </p>
+                )
+              }
             />
           </div>
         </>

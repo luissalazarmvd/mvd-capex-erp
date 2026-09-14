@@ -151,6 +151,15 @@
 .trjk-kpi span { font-size: 11px; color: var(--ink-2); }
 .trjk-kpi strong { font-size: 23px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .trjk-kpi small { color: var(--ink-3); font-size: 10px; }
+/* Desglose de la tarjeta: tooltip anclado bajo ella, visible al pasar o enfocar. */
+.trjk-kpi[data-tip] { position: relative; cursor: help; }
+.trjk-kpi[data-tip]:focus-visible { outline: 2px solid var(--mod); outline-offset: 2px; }
+.trjk-kpi[data-tip] > span::after { content: "i"; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; margin-left: 6px; border: 1px solid var(--line-2); border-radius: 50%; font-size: 8px; font-weight: 600; color: var(--ink-3); vertical-align: 1px; }
+.trjk-kpi-tip { display: none; left: 0; top: calc(100% + 6px); min-width: 100%; }
+.trjk-kpi:hover .trjk-kpi-tip, .trjk-kpi:focus .trjk-kpi-tip { display: grid; }
+.trjk-kpi-tip div { justify-content: space-between; align-items: baseline; }
+.trjk-kpi-tip span { flex: 1; }
+.trjk-kpi-tip strong { font-size: 11px; font-weight: 600; white-space: nowrap; }
 .trjk-method { font-size: 11px; color: var(--ink-2); }
 .trjk-summary-table { max-height: 55vh; }
 .trjk-summary-table th:first-child { left: 0; z-index: 3; }
@@ -202,8 +211,19 @@
 .trjk-rank-bar { height: 10px; min-width: 2px; border-radius: 0 4px 4px 0; }
 .trjk-rank-row strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .trjk-rank-row small { color: var(--ink-3); margin-left: 6px; font-weight: 400; }
+/* Ranking seleccionable: cada fila es un botón y la elegida toma el acento del módulo. */
+button.trjk-rank-row { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+button.trjk-rank-row[aria-pressed="true"] { background: var(--mod-soft); }
+button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offset: -2px; }
 .trjk-chart-data summary { cursor: pointer; color: var(--ink-2); font-size: 11px; }
 .trjk-chart-data .trjk-table-scroll { max-height: 220px; margin-top: 8px; }
+.trjk-chart-hint { margin: 0; font-size: 11px; color: var(--ink-2); }
+.trjk-guide-lots { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.trjk-guide-lots .trjk-table-scroll { margin-top: 0; }
+.trjk-guide-lots-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.trjk-guide-lots-head span { color: var(--ink-2); }
+.trjk-guide-lots tr[data-perd="true"] td { color: var(--ink-3); }
+.trjk-guide-lots tfoot th { position: static; }
 .trjk-empty { padding: 36px 12px; color: var(--ink-2); text-align: center; }
 @media (max-width: 1150px) {
   .trjk-builder { grid-template-columns: repeat(3, minmax(0, 1fr)); }
