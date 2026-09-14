@@ -622,6 +622,247 @@ export default function TRJKardexSum() {
       )
     : [];
 
+  function exportStatsPdf() {
+    const kpis = document.querySelector<HTMLElement>(".trjk-kpi-grid");
+    const stats = document.querySelector<HTMLElement>(".trjk-stats-export");
+
+    if (!kpis || !stats) {
+      setError("No se encontraron las estadísticas para exportar.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=1400,height=900");
+
+    if (!printWindow) {
+      setError("El navegador bloqueó la ventana de exportación a PDF.");
+      return;
+    }
+
+    const styles = Array.from(
+      document.head.querySelectorAll('link[rel="stylesheet"], style'),
+    )
+      .map((node) => node.outerHTML)
+      .join("");
+
+    const carrierLabel = ruc
+      ? carrierOptions.find(([id]) => id === ruc)?.[1] || ruc
+      : "Todos";
+
+    const periodText =
+      period === "day" ? "Día" : period === "week" ? "Semana" : "Mes";
+
+    const generatedAt = new Intl.DateTimeFormat("es-PE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date());
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>TRJ Kardex - Estadísticas</title>
+          ${styles}
+          <style>
+            @page {
+              size: A4 landscape;
+              margin: 10mm;
+            }
+
+            html,
+            body {
+              width: auto !important;
+              height: auto !important;
+              overflow: visible !important;
+            }
+
+            body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: var(--s-canvas) !important;
+              color: var(--ink) !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            .trjk-pdf-page {
+              width: 100%;
+              display: grid;
+              gap: 12px;
+              font-size: 11px;
+            }
+
+            .trjk-pdf-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              gap: 24px;
+              padding-bottom: 10px;
+              border-bottom: 2px solid var(--mod);
+            }
+
+            .trjk-pdf-header h1 {
+              margin: 0;
+              font-size: 20px;
+              font-weight: 600;
+            }
+
+            .trjk-pdf-header p {
+              margin: 4px 0 0;
+              color: var(--ink-2);
+            }
+
+            .trjk-pdf-meta {
+              display: grid;
+              grid-template-columns: repeat(4, auto);
+              gap: 5px 18px;
+              padding: 8px 10px;
+              background: var(--s-1);
+              border: 1px solid var(--line);
+              border-radius: var(--r-2);
+            }
+
+            .trjk-pdf-meta div {
+              display: grid;
+              gap: 2px;
+            }
+
+            .trjk-pdf-meta span {
+              color: var(--ink-3);
+              font-size: 9px;
+              text-transform: uppercase;
+              letter-spacing: .05em;
+            }
+
+            .trjk-pdf-meta strong {
+              font-size: 10px;
+              white-space: nowrap;
+            }
+
+            .trjk-kpi-grid {
+              grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            }
+
+            .trjk-stat-grid {
+              grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            }
+
+            .trjk-chart-grid,
+            .trjk-chart-grid-3 {
+              grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+
+            .trjk-card,
+            .trjk-kpi,
+            .trjk-chart {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+
+            .trjk-chart-plot,
+            .trjk-chart-plot svg {
+              max-width: 100% !important;
+            }
+
+            .trjk-kpi-tip,
+            .trjk-chart-data,
+            button,
+            .trjk-toggle,
+            .trjk-chart-hint {
+              display: none !important;
+            }
+
+            .trjk-stats-export {
+              display: grid;
+              gap: 12px;
+            }
+
+            .trjk-stats-export > .trjk-toolbar:first-child .trjk-toggle {
+              display: none !important;
+            }
+
+            .trjk-workspace,
+            .trjk-summary {
+              overflow: visible !important;
+              height: auto !important;
+              padding: 0 !important;
+            }
+
+            @media print {
+              .trjk-pdf-page {
+                display: block;
+              }
+
+              .trjk-pdf-header,
+              .trjk-pdf-meta,
+              .trjk-kpi-grid,
+              .trjk-stat-grid,
+              .trjk-chart-grid {
+                margin-bottom: 12px;
+              }
+            }
+          </style>
+        </head>
+        <body data-module="kardex">
+          <main class="trjk-pdf-page trjk-workspace">
+            <header class="trjk-pdf-header">
+              <div>
+                <h1>MVD · Kardex TRJ — Estadísticas</h1>
+                <p>Operación, transporte, facturación y conciliación contable</p>
+              </div>
+              <p>Generado: ${generatedAt}</p>
+            </header>
+
+            <section class="trjk-pdf-meta">
+              <div>
+                <span>Desde</span>
+                <strong>${from || "Inicio"}</strong>
+              </div>
+              <div>
+                <span>Hasta</span>
+                <strong>${to || "Actualidad"}</strong>
+              </div>
+              <div>
+                <span>Transportista</span>
+                <strong>${carrierLabel}</strong>
+              </div>
+              <div>
+                <span>Agrupación</span>
+                <strong>${periodText}</strong>
+              </div>
+              ${
+                search
+                  ? `<div>
+                      <span>Búsqueda</span>
+                      <strong>${search}</strong>
+                    </div>`
+                  : ""
+              }
+            </section>
+
+            ${kpis.outerHTML}
+            ${stats.outerHTML}
+          </main>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+
+    const runPrint = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+
+    if (printWindow.document.fonts?.ready) {
+      void printWindow.document.fonts.ready.then(() => {
+        window.setTimeout(runPrint, 300);
+      });
+    } else {
+      window.setTimeout(runPrint, 700);
+    }
+  }
+
   return (
     <div className="trjk-workspace trjk-summary">
       <div className="trjk-toolbar">
@@ -654,6 +895,16 @@ export default function TRJKardexSum() {
               Estadísticas
             </Button>
           </div>
+          {view === "stats" && (
+            <Button
+              size="sm"
+              disabled={loading}
+              onClick={exportStatsPdf}
+              title="Exportar las estadísticas actuales a PDF"
+            >
+              Exportar PDF
+            </Button>
+          )}
           <Button size="sm" disabled={loading} onClick={() => void load()}>
             Actualizar
           </Button>
@@ -828,7 +1079,7 @@ export default function TRJKardexSum() {
           </div>
         </section>
       ) : (
-        <>
+        <div className="trjk-stats-export">
           <div className="trjk-toolbar">
             <div>
               <h3>Actividad y conciliación</h3>
@@ -1100,7 +1351,7 @@ export default function TRJKardexSum() {
               }
             />
           </div>
-        </>
+        </div>
       )}
     </div>
   );

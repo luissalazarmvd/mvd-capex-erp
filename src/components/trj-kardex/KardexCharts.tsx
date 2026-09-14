@@ -468,6 +468,7 @@ export function DonutChart({
   panel?: ReactNode;
   showTable?: boolean;
 }) {
+  
   const [active, setActive] = useState<number | null>(null);
   const shown = items.filter((i) => i.value > 0);
   const total = shown.reduce((sum, i) => sum + i.value, 0);
