@@ -134,6 +134,41 @@ export function kardexPeriodKey(value: string | null, period: KardexPeriod) {
   return parsed.toISOString().slice(0, 10);
 }
 
+export type KardexPeriodStats = {
+  label: string;
+  guides: number;
+  tmh: number;
+  entered: number;
+  concar: number;
+  invoices: number;
+  /** TMH llegadas y sus TMH de salida, solo guías con llegada registrada. */
+  tmhArrival: number | null;
+  tmhDeparted: number | null;
+  /** USD/TMH ponderado de las guías con importe. */
+  rate: number | null;
+  /** Horas promedio entre salida y llegada. */
+  transitHours: number | null;
+};
+
+// Horas entre salida y llegada; ambas fechas llegan en la misma zona horaria.
+export function kardexTransitHours(
+  departure: string | null,
+  arrival: string | null,
+) {
+  if (!departure || !arrival) return null;
+  const start = Date.parse(departure);
+  const end = Date.parse(arrival);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+  return (end - start) / 3600000;
+}
+
+/** 0 = lunes … 6 = domingo, a partir de la fecha local recibida de SQL. */
+export function kardexWeekday(value: string | null) {
+  const date = (value || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  return (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+}
+
 export function kardexStatistics(
   lots: KardexLot[],
   guides: KardexGuide[],
@@ -151,16 +186,7 @@ export function kardexStatistics(
   const uniqueInvoices = [
     ...new Map(invoices.map((row) => [invoiceKey(row), row])).values(),
   ];
-  const byPeriod = new Map<
-    string,
-    {
-      label: string;
-      guides: number;
-      tmh: number;
-      entered: number;
-      concar: number;
-    }
-  >();
+  const byPeriod = new Map<string, KardexPeriodStats>();
   const bucket = (key: string) => {
     if (!byPeriod.has(key))
       byPeriod.set(key, {
@@ -169,8 +195,23 @@ export function kardexStatistics(
         tmh: 0,
         entered: 0,
         concar: 0,
+        invoices: 0,
+        tmhArrival: null,
+        tmhDeparted: null,
+        rate: null,
+        transitHours: null,
       });
     return byPeriod.get(key)!;
+  };
+  // Acumuladores por período de medidas que solo aplican a guías completas.
+  const partial = new Map<
+    string,
+    { amount: number; tmhBilled: number; hours: number; withHours: number }
+  >();
+  const partialOf = (key: string) => {
+    if (!partial.has(key))
+      partial.set(key, { amount: 0, tmhBilled: 0, hours: 0, withHours: 0 });
+    return partial.get(key)!;
   };
   const lotsByGuide = new Map<string, Set<string>>();
   for (const row of uniqueLots) {
@@ -180,25 +221,88 @@ export function kardexStatistics(
   }
   const carriers = new Map<
     string,
-    { label: string; guides: number; tmh: number }
+    { label: string; guides: number; tmh: number; usd: number }
   >();
+  const origins = new Map<string, { label: string; guides: number; tmh: number }>();
+  const weekdays = Array.from({ length: 7 }, () => ({ guides: 0, tmh: 0 }));
+  let departed = 0;
+  let arrived = 0;
+  let billedTmh = 0;
+  let billedUsd = 0;
+  let transitHours = 0;
+  let transitCount = 0;
+  const status = { closed: 0, invoiced: 0, pending: 0 };
   for (const guide of uniqueGuides) {
-    const group = bucket(kardexPeriodKey(guide.departure_date, period));
+    const key = kardexPeriodKey(guide.departure_date, period);
+    const group = bucket(key);
+    const tmh = Number(guide.tmh_departure || 0);
+    const arrival = Number(guide.tmh_arrival || 0);
+    const amount = Number(guide.amount_usd || 0);
     group.guides++;
-    group.tmh += Number(guide.tmh_departure || 0);
+    group.tmh += tmh;
+    if (arrival > 0) {
+      group.tmhArrival = (group.tmhArrival ?? 0) + arrival;
+      group.tmhDeparted = (group.tmhDeparted ?? 0) + tmh;
+      departed += tmh;
+      arrived += arrival;
+    }
+    const extra = partialOf(key);
+    if (amount > 0 && tmh > 0) {
+      extra.amount += amount;
+      extra.tmhBilled += tmh;
+      billedUsd += amount;
+      billedTmh += tmh;
+    }
+    const hours = kardexTransitHours(guide.departure_date, guide.arrival_date);
+    if (hours != null) {
+      extra.hours += hours;
+      extra.withHours++;
+      transitHours += hours;
+      transitCount++;
+    }
+    if (guide.status_name === "CERRADO") status.closed++;
+    else if (guide.document_number) status.invoiced++;
+    else status.pending++;
+    const weekday = kardexWeekday(guide.departure_date);
+    if (weekday != null) {
+      weekdays[weekday].guides++;
+      weekdays[weekday].tmh += tmh;
+    }
     const ruc = guide.transport_ruc || "Sin transportista";
     if (!carriers.has(ruc))
       carriers.set(ruc, {
         label: guide.transport_name || ruc,
         guides: 0,
         tmh: 0,
+        usd: 0,
       });
     const carrier = carriers.get(ruc)!;
     carrier.guides++;
-    carrier.tmh += Number(guide.tmh_departure || 0);
+    carrier.tmh += tmh;
+    carrier.usd += amount;
+    const origin =
+      guide.origin_province || guide.origin_department || "Sin origen";
+    if (!origins.has(origin))
+      origins.set(origin, {
+        label:
+          guide.origin_province && guide.origin_department
+            ? `${guide.origin_province} · ${guide.origin_department}`
+            : origin,
+        guides: 0,
+        tmh: 0,
+      });
+    const place = origins.get(origin)!;
+    place.guides++;
+    place.tmh += tmh;
+  }
+  for (const [key, extra] of partial) {
+    const group = bucket(key);
+    if (extra.tmhBilled > 0) group.rate = extra.amount / extra.tmhBilled;
+    if (extra.withHours > 0) group.transitHours = extra.hours / extra.withHours;
   }
   for (const invoice of uniqueInvoices) {
     const group = bucket(kardexPeriodKey(invoice.document_date, period));
+    group.invoices++;
     group.entered += Number(invoice.amount_usd);
     group.concar += Number(invoice.amount_usd_con || 0);
   }
@@ -228,6 +332,15 @@ export function kardexStatistics(
       a.label.localeCompare(b.label),
     ),
     carriers: [...carriers.values()].sort((a, b) => b.tmh - a.tmh),
+    origins: [...origins.values()].sort((a, b) => b.tmh - a.tmh),
+    weekdays,
+    status,
+    // Merma sobre guías con llegada registrada; null si ninguna la tiene.
+    lossPct: departed > 0 ? ((departed - arrived) / departed) * 100 : null,
+    arrivedGuidesTmh: departed,
+    avgRate: billedTmh > 0 ? billedUsd / billedTmh : null,
+    avgTransitHours: transitCount > 0 ? transitHours / transitCount : null,
+    transitCount,
     lotsByGuide: uniqueGuides
       .map((row) => ({
         label: row.guide_number,

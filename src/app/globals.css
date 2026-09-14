@@ -55,6 +55,15 @@
   --mod: #1b93e3;
   --mod-soft: rgba(27, 147, 227, 0.14);
 
+  /* ── Series de gráficos: orden fijo, validado para daltonismo sobre --s-1.
+        Se asignan en secuencia y nunca se reciclan; el resto va a --chart-other. */
+  --chart-1: var(--brand-info);
+  --chart-2: var(--brand-gold);
+  --chart-3: var(--brand-blue-light);
+  --chart-4: #a669a6;
+  --chart-5: var(--brand-success);
+  --chart-other: var(--ink-3);
+
   /* ── Geometría: cuatro pasos ─────────────────────────────────────── */
   --r-1: 6px;
   --r-2: 10px;
@@ -146,33 +155,68 @@
 .trjk-summary-table { max-height: 55vh; }
 .trjk-summary-table th:first-child { left: 0; z-index: 3; }
 .trjk-summary-table td:first-child { position: sticky; left: 0; z-index: 1; font-weight: 600; }
+/* Gráficos de estadísticas: marcas finas, grilla recesiva, tooltip y tabla de datos. */
+.trjk-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.trjk-stat-grid .trjk-kpi { border-top-color: var(--brand-gold); }
 .trjk-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.trjk-chart-scroll { overflow-x: auto; margin-top: 12px; }
-.trjk-chart-scroll svg { display: block; min-width: 100%; }
-.trjk-chart .trjk-legend { display: flex; gap: 16px; margin-top: 12px; font-size: 11px; }
-.trjk-legend span { display: flex; align-items: center; gap: 6px; }
-.trjk-legend i { width: 9px; height: 9px; display: inline-block; border-radius: var(--r-pill); }
-.trjk-grid-line { stroke: var(--line); stroke-dasharray: 3 4; }
-.trjk-zero-line { stroke: var(--ink-3); }
-.trjk-axis { fill: var(--ink-2); font-size: 10px; }
-.trjk-chart-data summary { cursor: pointer; color: var(--ink-2); font-size: 11px; margin-top: 8px; }
+.trjk-chart-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.trjk-chart { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.trjk-chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.trjk-chart-head h3 { margin: 0; }
+.trjk-chart-sub { margin: 3px 0 0; font-size: 11px; color: var(--ink-2); }
+.trjk-chart-plot { position: relative; min-width: 0; }
+.trjk-chart-plot svg { display: block; overflow: visible; }
+.trjk-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--ink-2); }
+.trjk-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.trjk-legend i { width: 10px; height: 10px; display: inline-block; border-radius: 3px; }
+.trjk-legend i[data-kind="line"] { width: 14px; height: 2px; border-radius: 1px; }
+.trjk-grid-line { stroke: var(--line); stroke-width: 1; }
+.trjk-zero-line { stroke: var(--line-2); stroke-width: 1; }
+.trjk-crosshair { stroke: var(--ink-3); stroke-width: 1; }
+.trjk-axis { fill: var(--ink-2); font-size: 10px; font-variant-numeric: tabular-nums; }
+.trjk-mark-label { fill: var(--ink-2); font-size: 10px; font-variant-numeric: tabular-nums; }
+.trjk-mark { transition: opacity .12s ease; }
+.trjk-band { fill: transparent; }
+.trjk-band:hover { fill: rgba(255, 255, 255, .045); }
+.trjk-tip { position: absolute; z-index: 5; pointer-events: none; min-width: 140px; padding: 8px 10px; display: grid; gap: 4px; font-size: 11px; background: var(--s-3); border: 1px solid var(--line-2); border-radius: var(--r-1); box-shadow: var(--shadow); }
+.trjk-tip header { color: var(--ink-2); font-weight: 600; }
+.trjk-tip div { display: flex; align-items: center; gap: 7px; }
+.trjk-tip i { width: 12px; height: 2px; border-radius: 1px; display: inline-block; flex-shrink: 0; }
+.trjk-tip strong { font-variant-numeric: tabular-nums; }
+.trjk-tip span { color: var(--ink-2); }
+.trjk-donut { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: center; }
+.trjk-donut path { transition: opacity .12s ease; cursor: default; }
+.trjk-donut-value { fill: var(--ink); font-size: 22px; font-weight: 600; }
+.trjk-donut-label { fill: var(--ink-2); font-size: 10px; }
+.trjk-donut-list { display: grid; gap: 4px; font-size: 11px; min-width: 0; }
+.trjk-donut-list button { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; width: 100%; padding: 4px 6px; border: 0; border-radius: var(--r-1); background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: default; }
+.trjk-donut-list button:hover, .trjk-donut-list button[data-active="true"] { background: rgba(255, 255, 255, .05); }
+.trjk-donut-list i { width: 10px; height: 10px; border-radius: 3px; }
+.trjk-donut-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trjk-donut-list strong { font-variant-numeric: tabular-nums; }
+.trjk-donut-list em { font-style: normal; color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.trjk-rank { display: grid; gap: 6px; }
+.trjk-rank-row { display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(0, 3fr) auto; gap: 10px; align-items: center; padding: 3px 6px; border-radius: var(--r-1); font-size: 11px; }
+.trjk-rank-row:hover { background: rgba(255, 255, 255, .045); }
+.trjk-rank-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trjk-rank-bar { height: 10px; min-width: 2px; border-radius: 0 4px 4px 0; }
+.trjk-rank-row strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.trjk-rank-row small { color: var(--ink-3); margin-left: 6px; font-weight: 400; }
+.trjk-chart-data summary { cursor: pointer; color: var(--ink-2); font-size: 11px; }
 .trjk-chart-data .trjk-table-scroll { max-height: 220px; margin-top: 8px; }
 .trjk-empty { padding: 36px 12px; color: var(--ink-2); text-align: center; }
-.trjk-ranking { display: grid; gap: 12px; margin-top: 16px; }
-.trjk-ranking > div { display: grid; grid-template-columns: minmax(140px, 2fr) minmax(100px, 3fr) auto auto; gap: 12px; align-items: center; }
-.trjk-ranking meter { width: 100%; height: 12px; accent-color: var(--mod); }
-.trjk-ranking meter::-webkit-meter-bar { background: var(--s-3); border: 0; }
-.trjk-ranking meter::-webkit-meter-optimum-value { background: var(--mod); }
 @media (max-width: 1150px) {
   .trjk-builder { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .trjk-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .trjk-invoice-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .trjk-chart-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trjk-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
   .trjk-builder, .trjq-entry-grid, .trjk-chart-grid { grid-template-columns: 1fr; }
   .trjk-kpi-grid, .trjk-invoice-metrics, .trjq-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .trjk-ranking > div { grid-template-columns: 1fr auto; }
-  .trjk-ranking meter { grid-column: 1 / -1; }
+  .trjk-chart-grid-3, .trjk-stat-grid { grid-template-columns: 1fr; }
+  .trjk-donut { grid-template-columns: 1fr; justify-items: center; }
 }
 
 /* ── Acento por módulo. Las familias cromáticas agrupan por dominio:

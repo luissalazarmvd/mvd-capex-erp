@@ -18,7 +18,18 @@ import {
   type KardexInvoice,
   type KardexLot,
   type KardexPeriod,
+  type KardexPeriodStats,
 } from "../../lib/trjKardex";
+import {
+  CHART_COLORS,
+  CHART_OTHER,
+  ColumnChart,
+  DonutChart,
+  LineChart,
+  RankChart,
+  type ChartRow,
+  type DonutItem,
+} from "./KardexCharts";
 
 const columnSpecs: [string, string, ExcelFilterKind?][] = [
   ["guide_number", "Guía"],
@@ -66,6 +77,17 @@ const columnSpecs: [string, string, ExcelFilterKind?][] = [
   ["load_fin", "Fin carga", "date"],
   ["balance_obs", "Observación saldo"],
 ];
+const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+// Etiqueta corta del eje X; la clave completa queda en la tabla «Ver datos».
+function periodLabel(key: string, period: KardexPeriod) {
+  const match = key.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (!match) return key;
+  const month = MONTHS[Number(match[2]) - 1] ?? match[2];
+  if (period === "month") return `${month} ${match[1]}`;
+  const text = `${match[3]} ${month}`;
+  return period === "week" ? `sem ${text}` : text;
+}
 const columns: ExcelColumnDef<KardexLot>[] = columnSpecs.map(
   ([key, label, kind]) => ({
     key,
@@ -74,152 +96,6 @@ const columns: ExcelColumnDef<KardexLot>[] = columnSpecs.map(
     value: (row) => (kind === "date" ? row[key]?.slice(0, 10) : row[key]),
   }),
 );
-type BarRow = { label: string; values: number[] };
-type BarSeries = { label: string; color: string };
-
-function Bars({
-  title,
-  subtitle,
-  rows,
-  series,
-  digits = 0,
-}: {
-  title: string;
-  subtitle: string;
-  rows: BarRow[];
-  series: BarSeries[];
-  digits?: number;
-}) {
-  const finite = rows.flatMap((r) => r.values).filter(Number.isFinite);
-  const max = Math.max(1, ...finite);
-  const min = Math.min(0, ...finite);
-  const scale = (n: number) => 175 - ((n - min) / (max - min)) * 150;
-  const width = Math.max(550, rows.length * 76 + 70);
-  const groupWidth = (width - 70) / Math.max(1, rows.length);
-  const barWidth = Math.min(26, groupWidth / (series.length + 1));
-  return (
-    <section className="trjk-card trjk-chart">
-      <h3>{title}</h3>
-      <p className="muted">{subtitle}</p>
-      <div className="trjk-legend">
-        {series.map((s) => (
-          <span key={s.label}>
-            <i style={{ background: s.color }} />
-            {s.label}
-          </span>
-        ))}
-      </div>
-      {!rows.length ? (
-        <div className="trjk-empty">Sin datos para este período.</div>
-      ) : (
-        <>
-          <div className="trjk-chart-scroll">
-            <svg
-              role="img"
-              aria-label={title}
-              width={width}
-              height="235"
-              viewBox={`0 0 ${width} 235`}
-            >
-              <title>
-                {title}. Los valores también están disponibles en la tabla de
-                datos.
-              </title>
-              {[0, 0.5, 1].map((ratio) => {
-                const value = min + (max - min) * ratio;
-                return (
-                  <g key={ratio}>
-                    <line
-                      className="trjk-grid-line"
-                      x1="55"
-                      x2={width - 10}
-                      y1={scale(value)}
-                      y2={scale(value)}
-                    />
-                    <text
-                      className="trjk-axis"
-                      x="50"
-                      y={scale(value) + 4}
-                      textAnchor="end"
-                    >
-                      {Intl.NumberFormat("es", {
-                        notation: "compact",
-                        maximumFractionDigits: 1,
-                      }).format(value)}
-                    </text>
-                  </g>
-                );
-              })}
-              <line
-                className="trjk-zero-line"
-                x1="55"
-                x2={width - 10}
-                y1={scale(0)}
-                y2={scale(0)}
-              />
-              {rows.map((row, index) => (
-                <g key={row.label}>
-                  {row.values.map((value, j) => (
-                    <rect
-                      key={j}
-                      x={60 + groupWidth * index + barWidth * j}
-                      y={Math.min(scale(value), scale(0))}
-                      width={barWidth - 3}
-                      height={Math.max(
-                        value === 0 ? 0 : 1,
-                        Math.abs(scale(0) - scale(value)),
-                      )}
-                      rx="2"
-                      fill={series[j].color}
-                    >
-                      <title>
-                        {row.label} · {series[j].label}: {fmt(value, digits)}
-                      </title>
-                    </rect>
-                  ))}
-                  <text
-                    className="trjk-axis"
-                    x={60 + groupWidth * index}
-                    y="195"
-                    transform={`rotate(25 ${60 + groupWidth * index} 195)`}
-                  >
-                    {row.label}
-                  </text>
-                </g>
-              ))}
-            </svg>
-          </div>
-          <details className="trjk-chart-data">
-            <summary>Ver datos</summary>
-            <div className="trjk-table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Período</th>
-                    {series.map((s) => (
-                      <th key={s.label}>{s.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.label}>
-                      <td>{r.label}</td>
-                      {r.values.map((v, j) => (
-                        <td key={j}>{fmt(v, digits)}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        </>
-      )}
-    </section>
-  );
-}
-
 export default function TRJKardexSum() {
   const [rows, setRows] = useState<KardexLot[]>([]);
   const [guides, setGuides] = useState<KardexGuide[]>([]);
@@ -350,6 +226,50 @@ export default function TRJKardexSum() {
       "Diferencia USD",
       fmt(kardexDecimal(stats.entered - stats.concar)),
       "Ingresado menos registrado en Concar",
+    ],
+  ];
+  const periodRows = (pick: (r: KardexPeriodStats) => (number | null)[]): ChartRow[] =>
+    stats.series.map((r) => ({
+      key: r.label,
+      label: periodLabel(r.label, period),
+      values: pick(r),
+    }));
+  const carrierShare: DonutItem[] = [
+    ...stats.carriers.slice(0, 5).map((c, i) => ({
+      label: c.label,
+      value: c.tmh,
+      color: CHART_COLORS[i],
+      note: `${c.guides} guías`,
+    })),
+    {
+      label: "Otros",
+      value: stats.carriers.slice(5).reduce((sum, c) => sum + c.tmh, 0),
+      color: CHART_OTHER,
+      note: `${stats.carriers.slice(5).length} transportistas`,
+    },
+  ];
+  const operationCards = [
+    [
+      "Merma en tránsito",
+      stats.lossPct == null ? "—" : `${fmt(stats.lossPct, 2)} %`,
+      stats.lossPct == null
+        ? "Sin guías con llegada registrada"
+        : `Sobre ${fmt(stats.arrivedGuidesTmh, 1)} TMH con llegada`,
+    ],
+    [
+      "Tiempo de tránsito",
+      stats.avgTransitHours == null ? "—" : `${fmt(stats.avgTransitHours, 1)} h`,
+      `${stats.transitCount} guías con salida y llegada`,
+    ],
+    [
+      "Tarifa media",
+      stats.avgRate == null ? "—" : `${fmt(stats.avgRate, 2)} USD/TMH`,
+      "Ponderada por TMH de guía valorizada",
+    ],
+    [
+      "TMH por guía",
+      fmt(stats.guideCount ? stats.tmh / stats.guideCount : 0, 2),
+      "Promedio de las guías filtradas",
     ],
   ];
   return (
@@ -559,7 +479,16 @@ export default function TRJKardexSum() {
       ) : (
         <>
           <div className="trjk-toolbar">
-            <h3>Actividad y conciliación</h3>
+            <div>
+              <h3>Actividad y conciliación</h3>
+              <p className="muted" style={{ margin: "3px 0 0" }}>
+                {period === "week"
+                  ? "Semanas de lunes a domingo, identificadas por la fecha del lunes."
+                  : period === "month"
+                    ? "Agrupado por mes de salida de la guía."
+                    : "Agrupado por día de salida de la guía."}
+              </p>
+            </div>
             <div
               className="trjk-toggle"
               role="group"
@@ -584,78 +513,138 @@ export default function TRJKardexSum() {
               ))}
             </div>
           </div>
-          {period === "week" && (
-            <p className="muted">
-              Semanas de lunes a domingo, identificadas por la fecha del lunes.
-            </p>
-          )}
+
+          <div className="trjk-stat-grid">
+            {operationCards.map(([label, value, note]) => (
+              <div className="trjk-kpi" key={label}>
+                <span>{label}</span>
+                <strong>{loading ? "…" : value}</strong>
+                <small>{note}</small>
+              </div>
+            ))}
+          </div>
+
           <div className="trjk-chart-grid">
-            <Bars
+            <ColumnChart
               title="Guías despachadas"
               subtitle="Ritmo de salida por período"
-              rows={stats.series.map((r) => ({
-                label: r.label,
-                values: [r.guides],
-              }))}
-              series={[{ label: "Guías", color: "var(--mod)" }]}
+              rows={periodRows((r) => [r.guides])}
+              series={[{ label: "Guías", color: CHART_COLORS[0] }]}
             />
-            <Bars
+            <LineChart
               title="TMH enviadas"
-              subtitle="Volumen transportado, sin pérdidas PERD"
-              digits={3}
-              rows={stats.series.map((r) => ({
-                label: r.label,
-                values: [r.tmh],
-              }))}
-              series={[{ label: "TMH", color: "var(--brand-blue-light)" }]}
-            />
-            <Bars
-              title="Facturación y Concar"
-              subtitle="Comparación por fecha de factura · importes únicos"
+              subtitle="Volumen de salida operativo por período, sin PERD"
               digits={2}
-              rows={stats.series.map((r) => ({
-                label: r.label,
-                values: [r.entered, r.concar],
-              }))}
+              area
+              rows={periodRows((r) => [r.tmh])}
+              series={[{ label: "TMH", color: CHART_COLORS[0] }]}
+            />
+            <ColumnChart
+              title="Merma en tránsito"
+              subtitle="TMH salida menos llegada, solo guías con llegada registrada"
+              digits={2}
+              unit=" %"
+              rows={periodRows((r) => [
+                r.tmhDeparted && r.tmhArrival != null
+                  ? ((r.tmhDeparted - r.tmhArrival) / r.tmhDeparted) * 100
+                  : null,
+              ])}
+              series={[{ label: "Merma %", color: CHART_COLORS[0] }]}
+            />
+            <LineChart
+              title="Tiempo de tránsito"
+              subtitle="Horas promedio entre salida y llegada registrada"
+              digits={1}
+              unit=" h"
+              rows={periodRows((r) => [r.transitHours])}
+              series={[{ label: "Horas", color: CHART_COLORS[0] }]}
+            />
+            <ColumnChart
+              title="Facturación y Concar"
+              subtitle="Por fecha de factura · cada factura una vez por RUC y número"
+              digits={2}
+              unit=" USD"
+              rows={periodRows((r) => [r.entered, r.concar])}
               series={[
-                { label: "USD ingresado", color: "var(--brand-gold)" },
-                { label: "USD Concar", color: "var(--mod)" },
+                { label: "USD ingresado", color: CHART_COLORS[0] },
+                { label: "USD Concar", color: CHART_COLORS[1] },
               ]}
             />
-            <Bars
-              title="Lotes por guía"
-              subtitle="Las 12 guías con más lotes distintos"
-              rows={stats.lotsByGuide
-                .slice(0, 12)
-                .map((r) => ({ label: r.label, values: [r.count] }))}
-              series={[{ label: "Lotes", color: "var(--ok)" }]}
+            <LineChart
+              title="Tarifa media de transporte"
+              subtitle="USD por TMH de salida, ponderado por guía valorizada"
+              digits={2}
+              unit=" USD/TMH"
+              rows={periodRows((r) => [r.rate])}
+              series={[{ label: "USD/TMH", color: CHART_COLORS[0] }]}
+            />
+            <ColumnChart
+              title="Facturas registradas"
+              subtitle="Facturas web por fecha de documento"
+              rows={periodRows((r) => [r.invoices])}
+              series={[{ label: "Facturas", color: CHART_COLORS[0] }]}
+            />
+            <ColumnChart
+              title="Salidas por día de la semana"
+              subtitle="Guías despachadas según el día de salida"
+              rows={WEEKDAYS.map((label, i) => ({
+                key: label,
+                label,
+                values: [stats.weekdays[i].guides],
+              }))}
+              series={[{ label: "Guías", color: CHART_COLORS[0] }]}
             />
           </div>
-          <section className="trjk-card">
-            <h3>Transportistas por TMH enviadas</h3>
-            <div className="trjk-ranking">
-              {stats.carriers.slice(0, 10).map((c, index) => (
-                <div key={`${c.label}:${index}`}>
-                  <span>
-                    {index + 1}. {c.label}
-                  </span>
-                  <meter
-                    min="0"
-                    max={Math.max(1, stats.tmh)}
-                    value={c.tmh}
-                    aria-label={`TMH de ${c.label}`}
-                  />
-                  <strong>{fmt(c.tmh, 3)} TMH</strong>
-                  <small>{c.guides} guías</small>
-                </div>
-              ))}
-              {!stats.carriers.length && (
-                <p className="muted">
-                  Sin transportistas para los filtros seleccionados.
-                </p>
-              )}
-            </div>
-          </section>
+
+          <div className="trjk-chart-grid trjk-chart-grid-3">
+            <DonutChart
+              title="Estado de guías"
+              subtitle="Cerradas, abiertas con factura y pendientes de facturar"
+              centerLabel="guías"
+              items={[
+                { label: "Cerradas", value: stats.status.closed, color: "var(--brand-success)" },
+                { label: "Con factura abierta", value: stats.status.invoiced, color: "var(--brand-blue-light)" },
+                { label: "Sin factura", value: stats.status.pending, color: "var(--brand-warning)" },
+              ]}
+            />
+            <DonutChart
+              title="Participación por transportista"
+              subtitle="TMH enviadas · los cinco mayores y el resto"
+              centerLabel="TMH"
+              digits={1}
+              items={carrierShare}
+            />
+            <RankChart
+              title="Origen de la carga"
+              subtitle="TMH enviadas por provincia de origen"
+              digits={1}
+              rows={stats.origins.slice(0, 8).map((o) => ({
+                label: o.label,
+                value: o.tmh,
+                note: `${o.guides} guías`,
+              }))}
+            />
+          </div>
+
+          <div className="trjk-chart-grid">
+            <RankChart
+              title="Transportistas por TMH enviadas"
+              subtitle="Los diez con mayor volumen · guías y USD valorizados"
+              digits={2}
+              rows={stats.carriers.slice(0, 10).map((c) => ({
+                label: c.label,
+                value: c.tmh,
+                note: `${c.guides} guías · USD ${fmt(c.usd, 0)}`,
+              }))}
+            />
+            <RankChart
+              title="Lotes por guía"
+              subtitle="Las diez guías con más lotes distintos"
+              rows={stats.lotsByGuide
+                .slice(0, 10)
+                .map((r) => ({ label: r.label, value: r.count }))}
+            />
+          </div>
         </>
       )}
     </div>

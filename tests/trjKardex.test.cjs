@@ -116,6 +116,47 @@ test("estadísticas: no duplicar factura por guías/lotes, ni PERD como envío",
   assert.equal(stats.series[1].label, "2026-09-07");
 });
 
+test("estadísticas operativas: merma, tránsito, tarifa, estado y origen", () => {
+  const base = {
+    guide_number: "GR01-0000000001",
+    transport_ruc: "20123456789",
+    transport_name: "Transporte",
+    departure_date: "2026-09-07T08:00:00.000",
+    arrival_date: "2026-09-08T14:00:00.000",
+    tmh_departure: "10",
+    tmh_arrival: "9.8",
+    amount_usd: "400",
+    origin_province: "Caravelí",
+    origin_department: "Arequipa",
+    document_number: "E001-0000000001",
+    status_name: "ABIERTO",
+  };
+  const guides = [
+    base,
+    // Sin llegada ni importe: cuenta en volumen y estado, no en merma ni tarifa.
+    { ...base, guide_number: "GR01-0000000002", tmh_arrival: null, arrival_date: null, amount_usd: null, document_number: null, departure_date: "2026-09-13" },
+    { ...base, guide_number: "GR01-0000000003", tmh_departure: "20", tmh_arrival: "19.6", amount_usd: "700", arrival_date: "2026-09-07T20:00:00.000", status_name: "CERRADO", origin_province: "Nasca", origin_department: "Ica" },
+  ];
+  const stats = domain.kardexStatistics([], guides, [], "week");
+  assert.equal(stats.lossPct.toFixed(4), "2.0000");
+  assert.equal(stats.arrivedGuidesTmh, 30);
+  assert.equal(stats.avgTransitHours, 21);
+  assert.equal(stats.transitCount, 2);
+  assert.equal(stats.avgRate.toFixed(4), (1100 / 30).toFixed(4));
+  assert.equal(JSON.stringify(stats.status), JSON.stringify({ closed: 1, invoiced: 1, pending: 1 }));
+  // Lunes 7 y domingo 13 de septiembre caen en la misma semana.
+  assert.equal(stats.series.length, 1);
+  assert.equal(stats.series[0].invoices, 0);
+  assert.equal(stats.series[0].tmhDeparted, 30);
+  assert.equal(stats.series[0].tmhArrival.toFixed(4), "29.4000");
+  assert.equal(stats.series[0].transitHours, 21);
+  assert.equal(stats.weekdays[0].guides, 2);
+  assert.equal(stats.weekdays[6].guides, 1);
+  assert.equal(stats.origins[0].label, "Caravelí · Arequipa");
+  assert.equal(stats.origins[0].tmh, 20);
+  assert.equal(stats.carriers[0].usd, 1100);
+});
+
 test("facturas de distinto RUC y sin guías se cuentan independientemente", () => {
   const invoices = [
     {
