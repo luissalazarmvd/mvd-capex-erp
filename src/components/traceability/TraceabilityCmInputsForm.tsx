@@ -312,6 +312,7 @@ export default function TraceabilityCmInputsForm() {
     Partial<Record<keyof CmEntryDateRow, ExcelColumnFilter>>
   >({});
   const [page, setPage] = useState(1);
+  const entryDateInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [mappingOpen, setMappingOpen] = useState(false);
   const [mappingRows, setMappingRows] = useState<RucConMapRow[]>([]);
@@ -803,6 +804,136 @@ export default function TraceabilityCmInputsForm() {
     setMappingSortKey("ruc");
     setMappingSortDirection("asc");
     setMappingPage(1);
+  }
+
+  function pasteEntryDates(startLot: string, clipboardText: string) {
+    const normalizePastedDate = (raw: string): string | null => {
+      const value = raw.trim();
+
+      if (!value) return "";
+
+      const isoMatch = value.match(
+        /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/
+      );
+
+      const localMatch = value.match(
+        /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/
+      );
+
+      let candidate = "";
+
+      if (isoMatch) {
+        candidate =
+          `${isoMatch[1]}-` +
+          `${isoMatch[2].padStart(2, "0")}-` +
+          `${isoMatch[3].padStart(2, "0")}`;
+      } else if (localMatch) {
+        candidate =
+          `${localMatch[3]}-` +
+          `${localMatch[2].padStart(2, "0")}-` +
+          `${localMatch[1].padStart(2, "0")}`;
+      } else {
+        return null;
+      }
+
+      return parseIsoDate(candidate)?.normalized ?? null;
+    };
+
+    const cells = clipboardText
+      .replace(/\r/g, "")
+      .split(/\n|\t/);
+
+    while (
+      cells.length > 0 &&
+      !cells[cells.length - 1].trim()
+    ) {
+      cells.pop();
+    }
+
+    if (!cells.length) return;
+
+    const normalizedDates = cells.map(normalizePastedDate);
+
+    const invalidIndex = normalizedDates.findIndex(
+      (value) => value === null
+    );
+
+    if (invalidIndex >= 0) {
+      setMessage(
+        `ERROR: "${cells[invalidIndex].trim()}" no es una fecha válida. Usa YYYY-MM-DD o DD/MM/YYYY.`
+      );
+      return;
+    }
+
+    const startIndex = filteredRows.findIndex(
+      (row) => rowLot(row) === startLot
+    );
+
+    if (startIndex < 0) return;
+
+    const targetRows = filteredRows.slice(
+      startIndex,
+      startIndex + normalizedDates.length
+    );
+
+    if (!targetRows.length) return;
+
+    const assignments = targetRows
+      .map((row, index) => ({
+        lot: rowLot(row),
+        value: normalizedDates[index] ?? "",
+      }))
+      .filter((item) => item.lot);
+
+    setDraftDates((current) => {
+      const next = { ...current };
+
+      assignments.forEach(({ lot, value }) => {
+        const original = dateText(
+          originalDates[lot]
+        );
+
+        if (dateText(value) === original) {
+          delete next[lot];
+        } else {
+          next[lot] = value;
+        }
+      });
+
+      return next;
+    });
+
+    setEntrySaveErrors((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      assignments.forEach(({ lot }) => {
+        if (next[lot]) {
+          delete next[lot];
+          changed = true;
+        }
+      });
+
+      return changed ? next : current;
+    });
+
+    assignments.forEach(({ lot, value }) => {
+      const input =
+        entryDateInputRefs.current[lot];
+
+      if (input) {
+        input.value = value;
+      }
+    });
+
+    const omitted =
+      normalizedDates.length - assignments.length;
+
+    setMessage(
+      omitted > 0
+        ? `OK: se pegaron ${assignments.length} fecha(s). ${omitted} no se aplicaron porque no había más filas.`
+        : `OK: se pegaron ${assignments.length} fecha(s).`
+    );
   }
 
   function updateEntryDate(lot: string, value: string) {
@@ -1766,6 +1897,13 @@ export default function TraceabilityCmInputsForm() {
                         {column.key === "entry_date_2" ? (
                           <input
                             key={`${lot}:${originalDates[lot] ?? ""}`}
+                            ref={(node) => {
+                              if (node) {
+                                entryDateInputRefs.current[lot] = node;
+                              } else {
+                                delete entryDateInputRefs.current[lot];
+                              }
+                            }}
                             type="date"
                             inputMode="text"
                             defaultValue={
@@ -1775,6 +1913,18 @@ export default function TraceabilityCmInputsForm() {
                             }
                             min={dateText(row.entry_date) || undefined}
                             max={maximumEntryDate2}
+                            onPaste={(event) => {
+                              const clipboardText =
+                                event.clipboardData.getData("text");
+
+                              if (!clipboardText.trim()) return;
+
+                              event.preventDefault();
+                              pasteEntryDates(
+                                lot,
+                                clipboardText
+                              );
+                            }}
                             onChange={(event) => {
                               const value = event.currentTarget.value;
 
