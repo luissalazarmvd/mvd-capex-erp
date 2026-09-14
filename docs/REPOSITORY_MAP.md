@@ -62,8 +62,6 @@ rg -n "<nombre_de_campo_o_endpoint>" src/app/<ruta> src/components/<modulo> src/
 ## Verificación y entrega
 
 - Backend/SQL Kardex externo: carpeta `MVD-BOF-FIN-010 - Trazabilidad TRJ/02_SQL`. `server.js` contiene los bloques `FINANZAS KARDEX TRJ - HELPERS` y `FINANZAS KARDEX TRJ - ENDPOINTS`; tablas en `01_Tables/stg_all.sql` y una vista por archivo en `02_Views`. Orden de aplicación en `02_SQL/README_KARDEX_TRJ.md`.
-- Pruebas Kardex: `node --test tests/trjKardex.test.cjs`. Para incluir los contratos del backend externo, definir `TRJKAR_SERVER_FILE` con la ruta de su `server.js`; estas pruebas usan un adaptador simulado y no ejecutan SQL.
-
 - Lint acotado: `npx eslint <archivos TypeScript/TSX modificados>`.
 - Validación integral: `npm run build`.
 - Integridad del diff: `git diff --check` y `git status --short`.

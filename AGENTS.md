@@ -46,6 +46,15 @@ Toda la presentación se resuelve por tokens en `src/app/globals.css`; los compo
 - Verificación de cambios: `npx eslint <archivos>` y `npm run build`.
 - No exponer contraseñas, API keys ni secretos.
 
+## Higiene del repositorio
+
+El repositorio contiene solo lo que la aplicación necesita para compilar y desplegarse: `src`, `public`, configuración de Next/ESLint/TypeScript, `AGENTS.md`, `CLAUDE.md`, `README.md` y `docs/REPOSITORY_MAP.md`.
+
+- No crear archivos de pruebas (`tests/`, `*.test.*`, `*.spec.*`), fixtures, scripts sueltos (`scripts/`), páginas o rutas de previsualización, datos de ejemplo, capturas ni documentos adicionales. La verificación es únicamente `npx eslint` y `npm run build`; una comprobación puntual se hace con un archivo temporal fuera del repositorio o se borra antes de terminar la tarea.
+- No añadir carpetas de herramientas (`.claude/`, `.vscode/`, etc.) ni configuraciones locales al árbol.
+- No dejar código de depuración, `console.log`, componentes sin uso ni copias locales de algo que ya existe en `src/components/ui`.
+- Si una tarea genera un artefacto temporal, eliminarlo y dejar `git status` limpio de restos antes de dar por terminada la tarea.
+
 ## Auth y scopes
 
 Login general mediante `/api/auth/login`, cookie `mvd_auth`, HMAC `AUTH_SECRET`, duración 12 h. `middleware.ts` protege por scopes.
