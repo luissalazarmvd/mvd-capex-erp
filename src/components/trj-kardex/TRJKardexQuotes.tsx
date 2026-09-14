@@ -16,8 +16,6 @@ import {
 } from "../ui/ExcelFilters";
 import TRJKardexQuoteEditor, { type QuoteSaved } from "./TRJKardexQuoteEditor";
 import {
-  invoiceDisplayValue,
-  invoiceEditValue,
   invoiceKey,
   isOperationalLot,
   kardexCents,
@@ -36,6 +34,96 @@ const today = () =>
   new Date(Date.now() - 5 * 3600000).toISOString().slice(0, 10);
 const moneyInput = (value: string) => Number(value).toFixed(2);
 const moneyValid = (value: string) => /^\d{1,12}(?:\.\d{1,2})?$/.test(value);
+
+function invoiceDraftValue(value: string) {
+  const compact = value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+
+  const series = compact.slice(0, 4);
+
+  if (series.length < 4) {
+    return series;
+  }
+
+  const suffix = compact
+    .slice(4)
+    .replace(/\D/g, "")
+    .slice(0, 10)
+    .replace(/^0+(?=\d)/, "");
+
+  return suffix
+    ? `${series}-${suffix}`
+    : series;
+}
+
+function invoiceGuideDisplayValue(value: string) {
+  const draft = invoiceDraftValue(value);
+
+  const match = draft.match(
+    /^([A-Z0-9]{4})(?:-(\d{1,10}))?$/
+  );
+
+  if (!match) {
+    return draft;
+  }
+
+  return match[2]
+    ? `${match[1]}-${match[2].padStart(10, "0")}`
+    : `${match[1]}-`;
+}
+
+function invoiceGuideEditValue(
+  value: string,
+  previousValue: string
+) {
+  const previousDraft =
+    invoiceDraftValue(previousValue);
+
+  const previousDisplay =
+    invoiceGuideDisplayValue(previousDraft);
+
+  const previousMatch = previousDraft.match(
+    /^([A-Z0-9]{4})(?:-(\d{1,10}))?$/
+  );
+
+  if (
+    previousMatch &&
+    value.length === previousDisplay.length + 1 &&
+    value.startsWith(previousDisplay)
+  ) {
+    const char = value.slice(-1);
+    const suffix = previousMatch[2] || "";
+
+    if (
+      /\d/.test(char) &&
+      suffix.length < 10
+    ) {
+      return `${previousMatch[1]}-${suffix}${char}`;
+    }
+  }
+
+  if (
+    previousMatch &&
+    value.length === previousDisplay.length - 1 &&
+    previousDisplay.startsWith(value)
+  ) {
+    const suffix = previousMatch[2] || "";
+
+    if (suffix.length > 1) {
+      return `${previousMatch[1]}-${suffix.slice(0, -1)}`;
+    }
+
+    if (suffix.length === 1) {
+      return previousMatch[1];
+    }
+
+    return previousMatch[1].slice(0, -1);
+  }
+
+  return invoiceDraftValue(value);
+}
+
 const invoiceColumns: ExcelColumnDef<KardexInvoice>[] = [
   { key: "document_number", label: "Factura", value: (r) => r.document_number },
   {
@@ -677,9 +765,16 @@ export default function TRJKardexQuotes() {
               <input
                 className="input"
                 placeholder="E001-0000000123"
-                maxLength={15}
-                value={invoiceDisplayValue(document)}
-                onChange={(e) => setDocument(invoiceEditValue(e.target.value, document))}
+                maxLength={16}
+                value={invoiceGuideDisplayValue(document)}
+                onChange={(e) =>
+                  setDocument(
+                    invoiceGuideEditValue(
+                      e.target.value,
+                      document
+                    )
+                  )
+                }
                 onBlur={() => {
                   if (normalized) {
                     setDocument(normalized);
