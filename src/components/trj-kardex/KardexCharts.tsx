@@ -107,7 +107,7 @@ function ChartCard({
         <div className="trjk-chart-data">{panel}</div>
       ) : !empty && table ? (
         <details className="trjk-chart-data">
-          <summary>Ver datos</summary>
+          <summary>Ver cifras exactas</summary>
           <div className="trjk-table-scroll">{table}</div>
         </details>
       ) : null}
@@ -218,7 +218,7 @@ export function ColumnChart({
       <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
         {width > 0 && (
           <svg role="img" aria-label={title} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-            <title>{`${title}. Los valores están en la tabla «Ver datos».`}</title>
+            <title>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</title>
             {scale.ticks.map((t) => (
               <g key={t}>
                 <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={y(t)} y2={y(t)} />
@@ -367,7 +367,7 @@ export function LineChart({
             }}
             onPointerLeave={() => setHover(null)}
           >
-            <title>{`${title}. Los valores están en la tabla «Ver datos».`}</title>
+            <title>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</title>
             {scale.ticks.map((t) => (
               <g key={t}>
                 <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={y(t)} y2={y(t)} />
@@ -452,6 +452,10 @@ export function DonutChart({
   digits = 0,
   unit = "",
   centerLabel,
+  selected,
+  onSelect,
+  panel,
+  showTable = true,
 }: {
   title: string;
   subtitle: string;
@@ -459,6 +463,10 @@ export function DonutChart({
   digits?: number;
   unit?: string;
   centerLabel: string;
+  selected?: string | null;
+  onSelect?: (label: string | null) => void;
+  panel?: ReactNode;
+  showTable?: boolean;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const shown = items.filter((i) => i.value > 0);
@@ -477,44 +485,65 @@ export function DonutChart({
     angle += sweep;
     segments.push({ item, d: arc(cx, cx, r0, r1, a0, a1), pct: (item.value / total) * 100 });
   }
-  const focus = active != null ? shown[active] : null;
+  const selectedIndex = selected
+    ? shown.findIndex((item) => item.label === selected)
+    : -1;
+  const focusIndex =
+    active != null ? active : selectedIndex >= 0 ? selectedIndex : null;
+  const focus = focusIndex != null ? shown[focusIndex] : null;
 
   return (
     <ChartCard
       title={title}
       subtitle={subtitle}
       empty={!shown.length}
+      panel={panel}
       table={
-        <table>
-          <thead>
-            <tr>
-              <th>Categoría</th>
-              <th>Valor</th>
-              <th>%</th>
-            </tr>
-          </thead>
-          <tbody>
-            {segments.map((s) => (
-              <tr key={s.item.label}>
-                <td>{s.item.label}</td>
-                <td>{value(s.item.value, digits, unit)}</td>
-                <td>{fmt(s.pct, 1)} %</td>
+        showTable ? (
+          <table>
+            <thead>
+              <tr>
+                <th>Categoría</th>
+                <th>Valor</th>
+                <th>%</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {segments.map((s) => (
+                <tr key={s.item.label}>
+                  <td>{s.item.label}</td>
+                  <td>{value(s.item.value, digits, unit)}</td>
+                  <td>{fmt(s.pct, 1)} %</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : undefined
       }
     >
       <div className="trjk-donut" onPointerLeave={() => setActive(null)}>
         <svg role="img" aria-label={title} width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <title>{`${title}. Los valores están en la tabla «Ver datos».`}</title>
+          <title>
+            {showTable
+              ? `${title}. Los valores exactos están en «Ver cifras exactas».`
+              : title}
+          </title>
           {segments.map((s, i) => (
             <path
               key={s.item.label}
               d={s.d}
               fill={s.item.color}
-              opacity={active == null || active === i ? 1 : 0.35}
+              opacity={focusIndex == null || focusIndex === i ? 1 : 0.35}
               onPointerEnter={() => setActive(i)}
+              onClick={
+                onSelect
+                  ? () =>
+                      onSelect(
+                        selected === s.item.label ? null : s.item.label,
+                      )
+                  : undefined
+              }
+              style={onSelect ? { cursor: "pointer" } : undefined}
             >
               <title>{`${s.item.label}: ${value(s.item.value, digits, unit)} (${fmt(s.pct, 1)} %)`}</title>
             </path>
@@ -531,10 +560,19 @@ export function DonutChart({
             <button
               type="button"
               key={s.item.label}
-              data-active={active === i}
+              data-active={focusIndex === i}
+              aria-pressed={onSelect ? selected === s.item.label : undefined}
               onPointerEnter={() => setActive(i)}
               onFocus={() => setActive(i)}
               onBlur={() => setActive(null)}
+              onClick={
+                onSelect
+                  ? () =>
+                      onSelect(
+                        selected === s.item.label ? null : s.item.label,
+                      )
+                  : undefined
+              }
             >
               <i style={{ background: s.item.color }} />
               <span title={s.item.note ? `${s.item.label} · ${s.item.note}` : s.item.label}>{s.item.label}</span>

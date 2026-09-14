@@ -182,6 +182,82 @@ function KpiCard({
 }
 const dateTime = (value: string | null | undefined) =>
   value?.replace("T", " ").slice(0, 16) || "—";
+
+function GuideDetailPanel({
+  label,
+  rows,
+  emptyHint,
+  onClear,
+}: {
+  label: string | null;
+  rows: KardexGuide[];
+  emptyHint: string;
+  onClear: () => void;
+}) {
+  if (!label) return <p className="trjk-chart-hint">{emptyHint}</p>;
+
+  return (
+    <div className="trjk-guide-lots">
+      <div className="trjk-toolbar">
+        <div className="trjk-guide-lots-head">
+          <strong>{label}</strong>
+          <span>{rows.length} guías en los filtros actuales</span>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onClear}>
+          Quitar selección
+        </Button>
+      </div>
+
+      {rows.length ? (
+        <div className="trjk-table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Guía</th>
+                <th>Guía transportista</th>
+                <th>Transportista</th>
+                <th>Salida</th>
+                <th>TMH salida</th>
+                <th>Llegada</th>
+                <th>TMH llegada</th>
+                <th>USD/TMH</th>
+                <th>USD guía</th>
+                <th>Factura</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((guide) => (
+                <tr key={guide.guide_number}>
+                  <td>{guide.guide_number}</td>
+                  <td>{guide.transport_guide_number || "—"}</td>
+                  <td>
+                    {guide.transport_name ||
+                      guide.transport_ruc ||
+                      "—"}
+                  </td>
+                  <td>{dateTime(guide.departure_date)}</td>
+                  <td>{fmt(guide.tmh_departure, 3)}</td>
+                  <td>{dateTime(guide.arrival_date)}</td>
+                  <td>{fmt(guide.tmh_arrival, 3)}</td>
+                  <td>{fmt(guide.pu_transport_usd, 2)}</td>
+                  <td>{fmt(guide.amount_usd, 2)}</td>
+                  <td>{guide.document_number || "—"}</td>
+                  <td>{guide.status_name || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="trjk-chart-hint">
+          No hay guías de esta selección con los filtros actuales.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function TRJKardexSum() {
   const [rows, setRows] = useState<KardexLot[]>([]);
   const [guides, setGuides] = useState<KardexGuide[]>([]);
@@ -194,6 +270,10 @@ export default function TRJKardexSum() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedGuide, setSelectedGuide] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(
+    "Sin factura",
+  );
+  const [selectedCarrier, setSelectedCarrier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
@@ -520,6 +600,28 @@ export default function TRJKardexSum() {
     focusedLots
       .filter(isOperationalLot)
       .reduce((sum, row) => sum + Number(row[key] || 0), 0);
+
+  const selectedStatusGuides = selectedStatus
+    ? filtered.guides.filter((guide) => {
+        if (selectedStatus === "Cerradas")
+          return guide.status_name === "CERRADO";
+
+        if (selectedStatus === "Con factura abierta")
+          return guide.status_name !== "CERRADO" && !!guide.document_number;
+
+        return guide.status_name !== "CERRADO" && !guide.document_number;
+      })
+    : [];
+
+  const selectedCarrierGuides = selectedCarrier
+    ? filtered.guides.filter(
+        (guide) =>
+          (guide.transport_name ||
+            guide.transport_ruc ||
+            "Sin transportista") === selectedCarrier,
+      )
+    : [];
+
   return (
     <div className="trjk-workspace trjk-summary">
       <div className="trjk-toolbar">
@@ -849,13 +951,35 @@ export default function TRJKardexSum() {
           <div className="trjk-chart-grid">
             <DonutChart
               title="Estado de guías"
-              subtitle="Cerradas, abiertas con factura y pendientes de facturar"
+              subtitle="Selecciona un estado para revisar las guías que lo componen"
               centerLabel="guías"
               items={[
-                { label: "Cerradas", value: stats.status.closed, color: "var(--brand-success)" },
-                { label: "Con factura abierta", value: stats.status.invoiced, color: "var(--brand-blue-light)" },
-                { label: "Sin factura", value: stats.status.pending, color: "var(--brand-warning)" },
+                {
+                  label: "Cerradas",
+                  value: stats.status.closed,
+                  color: "var(--brand-success)",
+                },
+                {
+                  label: "Con factura abierta",
+                  value: stats.status.invoiced,
+                  color: "var(--brand-blue-light)",
+                },
+                {
+                  label: "Sin factura",
+                  value: stats.status.pending,
+                  color: "var(--brand-warning)",
+                },
               ]}
+              selected={selectedStatus}
+              onSelect={(status) => setSelectedStatus(status)}
+              panel={
+                <GuideDetailPanel
+                  label={selectedStatus}
+                  rows={selectedStatusGuides}
+                  emptyHint="Selecciona un estado para ver el detalle de sus guías."
+                  onClear={() => setSelectedStatus(null)}
+                />
+              }
             />
             <DonutChart
               title="Participación por transportista"
@@ -863,19 +987,34 @@ export default function TRJKardexSum() {
               centerLabel="TMH"
               digits={1}
               items={carrierShare}
+              showTable={false}
             />
           </div>
 
           <div className="trjk-chart-grid">
             <RankChart
               title="Transportistas por TMH enviadas"
-              subtitle="Los diez con mayor volumen · guías y USD valorizados"
+              subtitle="Los diez con mayor volumen · elige uno para revisar sus guías"
               digits={2}
               rows={stats.carriers.slice(0, 10).map((c) => ({
                 label: c.label,
                 value: c.tmh,
                 note: `${c.guides} guías · USD ${fmt(c.usd, 0)}`,
               }))}
+              selected={selectedCarrier}
+              onSelect={(carrier) =>
+                setSelectedCarrier(
+                  carrier === selectedCarrier ? null : carrier,
+                )
+              }
+              panel={
+                <GuideDetailPanel
+                  label={selectedCarrier}
+                  rows={selectedCarrierGuides}
+                  emptyHint="Selecciona un transportista para ver las guías que componen su volumen."
+                  onClear={() => setSelectedCarrier(null)}
+                />
+              }
             />
             <RankChart
               title="Lotes por guía"
