@@ -25,6 +25,9 @@ type CmEntryDateRow = {
   ruc: string | null;
   concession_name: string | null;
   concession_code: string | null;
+  office_name: string | null;
+  zone_name: string | null;
+  office_code: string | null;
   district: string | null;
   province: string | null;
   department: string | null;
@@ -126,6 +129,9 @@ const ENTRY_COLUMNS: EntryColumn[] = [
   { key: "ruc", label: "RUC", kind: "text", width: 125 },
   { key: "concession_name", label: "Concesión", kind: "text", width: 210 },
   { key: "concession_code", label: "Cód. concesión", kind: "text", width: 145 },
+  { key: "office_name", label: "Oficina", kind: "text", width: 150 },
+  { key: "zone_name", label: "Zona", kind: "text", width: 125 },
+  { key: "office_code", label: "Cód. oficina", kind: "text", width: 125 },
   { key: "district", label: "Distrito", kind: "text", width: 135 },
   { key: "province", label: "Provincia", kind: "text", width: 135 },
   { key: "department", label: "Departamento", kind: "text", width: 145 },
@@ -181,6 +187,12 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
 
 function text(value: unknown) {
   return value === null || value === undefined ? "" : String(value);
+}
+
+function typedDateInputValue(value: string) {
+  return value
+    .replace(/[^0-9-]/g, "")
+    .slice(0, 10);
 }
 
 function displayDate(value: unknown) {
@@ -698,11 +710,19 @@ function rowLot(row: CmEntryDateRow) {
   return text(row.lot).trim();
 }
 
-function mappingKey(row: Pick<RucConMapRow, "ruc" | "concession_code">) {
+function mappingKey(row: { ruc: string | null }) {
+  return text(row.ruc).trim();
+}
+
+function mappingRowKey(
+  row: Pick<RucConMapRow, "ruc" | "concession_code">
+) {
   return `${text(row.ruc).trim()}\u001f${text(row.concession_code).trim()}`;
 }
 
-function toMappingDraft(row: RucConMapRow): MappingDraft {
+function toMappingDraft(
+  row: Pick<RucConMapRow, "office_name" | "zone_name" | "office_code">
+): MappingDraft {
   return {
     office_name: text(row.office_name).trim(),
     zone_name: text(row.zone_name).trim(),
@@ -823,6 +843,7 @@ export default function TraceabilityCmInputsForm() {
     Partial<Record<keyof RucConMapRow, ExcelColumnFilter>>
   >({});
   const [mappingPage, setMappingPage] = useState(1);
+  const mappingImportInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadEntries = useCallback(async () => {
     setLoading(true);
@@ -1093,9 +1114,19 @@ export default function TraceabilityCmInputsForm() {
 
   const editedMappingKeys = useMemo(
     () =>
-      mappingRows
-        .map(mappingKey)
-        .filter((key) => !sameMappingDraft(mappingDrafts[key], mappingOriginals[key])),
+      Array.from(
+        new Set(
+          mappingRows
+            .map(mappingKey)
+            .filter(Boolean)
+        )
+      ).filter(
+        (key) =>
+          !sameMappingDraft(
+            mappingDrafts[key],
+            mappingOriginals[key]
+          )
+      ),
     [mappingRows, mappingDrafts, mappingOriginals]
   );
 
@@ -1307,6 +1338,124 @@ export default function TraceabilityCmInputsForm() {
     setMessage(error ? `ERROR: lote ${lot}: ${error}` : null);
   }
 
+  async function updateEntryMapping(
+    row: CmEntryDateRow,
+    field: keyof MappingDraft,
+    value: string
+  ) {
+    const ruc = mappingKey(row);
+
+    if (!ruc || loading || saving) return;
+
+    const currentDraft = toMappingDraft(row);
+    const officeDefaults =
+      field === "office_name"
+        ? OFFICE_DEFAULTS[value]
+        : undefined;
+
+    const nextDraft: MappingDraft = {
+      ...currentDraft,
+      [field]: value,
+      ...(officeDefaults ?? {}),
+    };
+
+    const validationError = mappingDraftError(nextDraft);
+
+    if (validationError) {
+      setMessage(
+        `ERROR: RUC ${ruc}: ${validationError}`
+      );
+      return;
+    }
+
+    const previousRows = rows;
+
+    setRows((current) =>
+      current.map((candidate) =>
+        mappingKey(candidate) === ruc
+          ? {
+              ...candidate,
+              office_name: optionalText(nextDraft.office_name),
+              zone_name: optionalText(nextDraft.zone_name),
+              office_code: optionalText(nextDraft.office_code),
+            }
+          : candidate
+      )
+    );
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const response = (await apiPost(
+        "/api/traceability/cm/ruccon-map/insert",
+        {
+          ruc,
+          concession_code:
+            optionalText(text(row.concession_code)),
+          office_name:
+            optionalText(nextDraft.office_name),
+          zone_name:
+            optionalText(nextDraft.zone_name),
+          office_code:
+            optionalText(nextDraft.office_code),
+        }
+      )) as SaveResponse;
+
+      if (!response.ok) {
+        throw new Error(
+          response.error ||
+            "No se pudo actualizar el mapping."
+        );
+      }
+
+      setMappingRows((current) =>
+        current.map((candidate) =>
+          mappingKey(candidate) === ruc
+            ? {
+                ...candidate,
+                office_name:
+                  optionalText(nextDraft.office_name),
+                zone_name:
+                  optionalText(nextDraft.zone_name),
+                office_code:
+                  optionalText(nextDraft.office_code),
+              }
+            : candidate
+        )
+      );
+
+      setMappingDrafts((current) =>
+        current[ruc]
+          ? {
+              ...current,
+              [ruc]: { ...nextDraft },
+            }
+          : current
+      );
+
+      setMappingOriginals((current) =>
+        current[ruc]
+          ? {
+              ...current,
+              [ruc]: { ...nextDraft },
+            }
+          : current
+      );
+
+      setMessage(
+        `OK: mapping del RUC ${ruc} actualizado.`
+      );
+    } catch (error: unknown) {
+      setRows(previousRows);
+      setMessage(
+        `ERROR: RUC ${ruc}: ${errorMessage(error)}`
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function saveEntries() {
     if (!editedLots.length || saving) return;
 
@@ -1442,38 +1591,63 @@ export default function TraceabilityCmInputsForm() {
     setMappingSaving(true);
     setMappingMessage(null);
 
-    const rowsByKey = new Map(mappingRows.map((row) => [mappingKey(row), row]));
-    const { fulfilled, rejected } = await settleInChunks(
-      editedMappingKeys,
-      async (key) => {
-        const row = rowsByKey.get(key);
-        const draft = mappingDrafts[key];
-        const ruc = text(row?.ruc).trim();
-        const concessionCode = text(row?.concession_code).trim();
-        if (!row || !draft || !ruc || !concessionCode) {
-          throw new Error("Mapping sin RUC o código de concesión.");
-        }
-
-        const validationError = mappingDraftError(draft);
-        if (validationError) {
-          throw new Error(`${ruc} / ${concessionCode}: ${validationError}`);
-        }
-
-        const response = (await apiPost("/api/traceability/cm/ruccon-map/insert", {
-          ruc,
-          concession_code: concessionCode,
-          office_name: optionalText(draft.office_name),
-          zone_name: optionalText(draft.zone_name),
-          office_code: optionalText(draft.office_code),
-        })) as SaveResponse;
-        if (!response.ok) {
-          throw new Error(
-            `${ruc} / ${concessionCode}: ${response.error || "no se pudo guardar"}`
-          );
-        }
-        return key;
-      }
+    const rowsByKey = new Map(
+      mappingRows.map((row) => [
+        mappingKey(row),
+        row,
+      ])
     );
+
+    const { fulfilled, rejected } =
+      await settleInChunks(
+        editedMappingKeys,
+        async (key) => {
+          const row = rowsByKey.get(key);
+          const draft = mappingDrafts[key];
+          const ruc = text(row?.ruc).trim();
+          const concessionCode =
+            text(row?.concession_code).trim();
+
+          if (!row || !draft || !ruc) {
+            throw new Error("Mapping sin RUC.");
+          }
+
+          const validationError =
+            mappingDraftError(draft);
+
+          if (validationError) {
+            throw new Error(
+              `${ruc}: ${validationError}`
+            );
+          }
+
+          const response = (await apiPost(
+            "/api/traceability/cm/ruccon-map/insert",
+            {
+              ruc,
+              concession_code:
+                optionalText(concessionCode),
+              office_name:
+                optionalText(draft.office_name),
+              zone_name:
+                optionalText(draft.zone_name),
+              office_code:
+                optionalText(draft.office_code),
+            }
+          )) as SaveResponse;
+
+          if (!response.ok) {
+            throw new Error(
+              `${ruc}: ${
+                response.error ||
+                "no se pudo guardar"
+              }`
+            );
+          }
+
+          return key;
+        }
+      );
 
     if (fulfilled.length) {
       const fulfilledSet = new Set(fulfilled);
@@ -1509,6 +1683,213 @@ export default function TraceabilityCmInputsForm() {
       setMappingMessage(`ERROR: no se pudo actualizar ningún mapping. ${rejected.join(" | ")}`);
     }
     setMappingSaving(false);
+  }
+
+  function exportMappingExcel() {
+    if (!mappingRows.length) {
+      setMappingMessage(
+        "ERROR: no hay mappings cargados para exportar."
+      );
+      return;
+    }
+
+    try {
+      const exportRows = mappingRows.map(
+        (row) => ({
+          ruc: text(row.ruc).trim(),
+          concession_code:
+            text(row.concession_code).trim(),
+          office_name:
+            text(row.office_name).trim(),
+          zone_name:
+            text(row.zone_name).trim(),
+          office_code:
+            text(row.office_code).trim(),
+        })
+      );
+
+      const worksheet =
+        XLSX.utils.json_to_sheet(exportRows);
+
+      worksheet["!cols"] = [
+        { wch: 16 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 18 },
+      ];
+
+      worksheet["!autofilter"] = {
+        ref: worksheet["!ref"] ?? "A1:E1",
+      };
+
+      const workbook =
+        XLSX.utils.book_new();
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "Mapping"
+      );
+
+      XLSX.writeFile(
+        workbook,
+        `trazabilidad_cm_mapping_${todayInLima()}.xlsx`
+      );
+
+      setMappingMessage(
+        `OK: se exportaron ${exportRows.length} fila(s).`
+      );
+    } catch (error: unknown) {
+      setMappingMessage(
+        `ERROR: no se pudo exportar el mapping. ${errorMessage(error)}`
+      );
+    }
+  }
+
+  async function importMappingExcel(
+    file: File
+  ) {
+    if (mappingSaving || mappingLoading) return;
+
+    setMappingSaving(true);
+    setMappingMessage(null);
+
+    try {
+      const workbook = XLSX.read(
+        await file.arrayBuffer(),
+        {
+          type: "array",
+        }
+      );
+
+      const sheetName =
+        workbook.SheetNames[0];
+
+      const worksheet =
+        workbook.Sheets[sheetName];
+
+      if (!worksheet) {
+        throw new Error(
+          "El Excel no contiene una hoja válida."
+        );
+      }
+
+      const matrix =
+        XLSX.utils.sheet_to_json<unknown[]>(
+          worksheet,
+          {
+            header: 1,
+            defval: "",
+          }
+        );
+
+      const headers = (
+        matrix[0] ?? []
+      ).map((value) =>
+        text(value).trim()
+      );
+
+      const expectedHeaders = [
+        "ruc",
+        "concession_code",
+        "office_name",
+        "zone_name",
+        "office_code",
+      ];
+
+      if (
+        headers.length !==
+          expectedHeaders.length ||
+        expectedHeaders.some(
+          (header, index) =>
+            headers[index] !== header
+        )
+      ) {
+        throw new Error(
+          "La estructura debe ser exactamente: ruc, concession_code, office_name, zone_name, office_code."
+        );
+      }
+
+      const excelRows =
+        XLSX.utils.sheet_to_json<
+          Record<string, unknown>
+        >(worksheet, {
+          defval: "",
+          raw: false,
+        });
+
+      const importRows = excelRows
+        .map((row) => ({
+          ruc: text(row.ruc).trim(),
+          concession_code:
+            text(row.concession_code).trim() ||
+            null,
+          office_name:
+            text(row.office_name).trim() ||
+            null,
+          zone_name:
+            text(row.zone_name).trim() ||
+            null,
+          office_code:
+            text(row.office_code).trim() ||
+            null,
+        }))
+        .filter(
+          (row) =>
+            row.ruc ||
+            row.concession_code ||
+            row.office_name ||
+            row.zone_name ||
+            row.office_code
+        );
+
+      if (!importRows.length) {
+        throw new Error(
+          "El Excel no contiene filas para importar."
+        );
+      }
+
+      const response = (await apiPost(
+        "/api/traceability/cm/ruccon-map/import",
+        {
+          rows: importRows,
+        }
+      )) as SaveResponse & {
+        imported_rucs?: number;
+        rows_received?: number;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          response.error ||
+            "No se pudo importar el mapping."
+        );
+      }
+
+      await Promise.all([
+        loadMapping(),
+        loadEntries(),
+      ]);
+
+      setMappingMessage(
+        `OK: se importaron ${
+          response.imported_rucs ??
+          importRows.length
+        } RUC(s).`
+      );
+    } catch (error: unknown) {
+      setMappingMessage(
+        `ERROR: ${errorMessage(error)}`
+      );
+    } finally {
+      setMappingSaving(false);
+
+      if (mappingImportInputRef.current) {
+        mappingImportInputRef.current.value =
+          "";
+      }
+    }
   }
 
   function exportEntriesExcel() {
@@ -1869,28 +2250,98 @@ export default function TraceabilityCmInputsForm() {
                       >
                         {column.key === "entry_date_2" ? (
                           <input
-                            type="date"
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={10}
+                            pattern="[0-9]{4}-[0-9]{2}-[0-9]{2}"
+                            placeholder="YYYY-MM-DD"
                             value={draftDates[lot] ?? ""}
-                            min={dateText(row.entry_date) || undefined}
-                            max={maximumEntryDate2}
-                            onChange={(event) => updateEntryDate(lot, event.target.value)}
+                            onChange={(event) =>
+                              updateEntryDate(
+                                lot,
+                                typedDateInputValue(
+                                  event.target.value
+                                )
+                              )
+                            }
                             disabled={loading || saving || !lot}
                             aria-label={`Fecha de ingreso 2 del lote ${lot}`}
                             aria-invalid={Boolean(dateError)}
                             title={
                               dateError ??
-                              `Rango permitido: ${displayDate(row.entry_date)} a ${displayDate(maximumEntryDate2)}`
+                              `Formato YYYY-MM-DD. Rango permitido: ${displayDate(row.entry_date)} a ${displayDate(maximumEntryDate2)}`
                             }
                             style={{
                               ...inputStyle,
                               width: "100%",
                               minWidth: 0,
-                              borderColor: dateError ? "rgba(216,93,39,.90)" : undefined,
-                              background: dateError ? "rgba(216,93,39,.12)" : undefined,
+                              borderColor: dateError
+                                ? "rgba(216,93,39,.90)"
+                                : undefined,
+                              background: dateError
+                                ? "rgba(216,93,39,.12)"
+                                : undefined,
                             }}
                           />
+                        ) : column.key === "office_name" ||
+                          column.key === "zone_name" ||
+                          column.key === "office_code" ? (
+                          <select
+                            value={
+                              toMappingDraft(row)[column.key]
+                            }
+                            onChange={(event) =>
+                              void updateEntryMapping(
+                                row,
+                                column.key as keyof MappingDraft,
+                                event.target.value
+                              )
+                            }
+                            disabled={
+                              loading ||
+                              saving ||
+                              !mappingKey(row)
+                            }
+                            aria-label={`${column.label} para RUC ${text(row.ruc)}`}
+                            style={{
+                              ...inputStyle,
+                              width: "100%",
+                              minWidth: 0,
+                            }}
+                          >
+                            <option value="">
+                              — Seleccionar —
+                            </option>
+
+                            {toMappingDraft(row)[column.key] &&
+                            !MAPPING_OPTIONS[column.key].includes(
+                              toMappingDraft(row)[column.key]
+                            ) ? (
+                              <option
+                                value={
+                                  toMappingDraft(row)[column.key]
+                                }
+                              >
+                                {toMappingDraft(row)[column.key]}
+                              </option>
+                            ) : null}
+
+                            {MAPPING_OPTIONS[column.key].map(
+                              (option) => (
+                                <option
+                                  key={option}
+                                  value={option}
+                                >
+                                  {option}
+                                </option>
+                              )
+                            )}
+                          </select>
                         ) : (
-                          displayValue(row[column.key], column.kind)
+                          displayValue(
+                            row[column.key],
+                            column.kind
+                          )
                         )}
                       </td>
                     ))}
@@ -1948,7 +2399,7 @@ export default function TraceabilityCmInputsForm() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <div>
                 <div id="cm-mapping-title" style={{ fontSize: 18, fontWeight: 700 }}>Actualizar mapeo CM</div>
-                <div style={{ fontSize: 12, opacity: .82 }}>RUC y código de concesión identifican el registro; oficina, zona y código de oficina son editables.</div>
+                <div style={{ fontSize: 12, opacity: .82 }}>El mapping se asigna por RUC. El código de concesión es informativo; oficina, zona y código de oficina se aplican a todas las concesiones del mismo RUC.</div>
               </div>
               <Button type="button" size="sm" onClick={() => setMappingOpen(false)} disabled={mappingSaving}>Cerrar</Button>
             </div>
@@ -1978,7 +2429,61 @@ export default function TraceabilityCmInputsForm() {
               >
                 Limpiar filtros
               </Button>
-              <Button type="button" size="sm" onClick={() => void loadMapping()} disabled={mappingLoading || mappingSaving}>{mappingLoading ? "Cargando…" : "Refrescar"}</Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={exportMappingExcel}
+                disabled={
+                  mappingLoading ||
+                  mappingSaving ||
+                  mappingRows.length === 0
+                }
+              >
+                Exportar Excel
+              </Button>
+
+              <input
+                ref={mappingImportInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                hidden
+                onChange={(event) => {
+                  const file =
+                    event.target.files?.[0];
+
+                  if (file) {
+                    void importMappingExcel(file);
+                  }
+                }}
+              />
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={() =>
+                  mappingImportInputRef.current?.click()
+                }
+                disabled={
+                  mappingLoading ||
+                  mappingSaving
+                }
+              >
+                Importar Excel
+              </Button>
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void loadMapping()}
+                disabled={
+                  mappingLoading ||
+                  mappingSaving
+                }
+              >
+                {mappingLoading
+                  ? "Cargando…"
+                  : "Refrescar"}
+              </Button>
             </div>
 
             {mappingMessage ? (
@@ -2043,7 +2548,7 @@ export default function TraceabilityCmInputsForm() {
                     const edited = editedMappingSet.has(key);
                     const draftError = mappingDraftErrors.get(key);
                     return (
-                      <tr key={key} className="capex-tr">
+                      <tr key={mappingRowKey(row)} className="capex-tr">
                         {MAPPING_COLUMNS.map((column) => {
                           const field = column.key as keyof MappingDraft;
                           const value = column.editable ? draft[field] : "";
