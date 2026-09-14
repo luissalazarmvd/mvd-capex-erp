@@ -2033,7 +2033,6 @@ export default function TRJKardexSum() {
                 statusComment,
             }
           );
-
         if (
           !response?.ok ||
           !response?.row
@@ -2043,7 +2042,6 @@ export default function TRJKardexSum() {
             || "No se pudo guardar el control"
           );
         }
-
         const saved = response.row as HistoryRow;
 
         setSummaryRows(
