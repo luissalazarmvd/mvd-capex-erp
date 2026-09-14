@@ -1913,6 +1913,35 @@ export default function TraceabilityCmInputsForm() {
                             }
                             min={dateText(row.entry_date) || undefined}
                             max={maximumEntryDate2}
+                            onCopy={(event) => {
+                              const value =
+                                event.currentTarget.value;
+
+                              if (!value) return;
+
+                              event.preventDefault();
+                              event.clipboardData.setData(
+                                "text/plain",
+                                value
+                              );
+                            }}
+                            onKeyDown={(event) => {
+                              if (
+                                (event.ctrlKey || event.metaKey) &&
+                                event.key.toLowerCase() === "c"
+                              ) {
+                                const value =
+                                  event.currentTarget.value;
+
+                                if (!value) return;
+
+                                event.preventDefault();
+
+                                void navigator.clipboard?.writeText(
+                                  value
+                                );
+                              }
+                            }}
                             onPaste={(event) => {
                               const clipboardText =
                                 event.clipboardData.getData("text");
