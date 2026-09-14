@@ -732,8 +732,6 @@ export default function FixAssetsAudit({
 
           <style jsx global>{`
             .fixassets-audit-modal select.input {
-              background: #0a1f2c !important;
-              color: #e8f1f7 !important;
               border-color: rgba(147,211,230,.30) !important;
             }
 

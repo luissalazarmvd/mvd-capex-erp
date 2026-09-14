@@ -859,6 +859,7 @@ function RowItem({
                 onBlur={(e) => onCellBlur(key, c.key, e.target.value)}
                 style={{
                   ...inputBase,
+                  background: undefined,
                   width: "100%",
                   minWidth: 0,
                   maxWidth: "100%",
@@ -868,12 +869,14 @@ function RowItem({
                     : invalidUsdMatch
                     ? {
                         border: "1px solid rgba(216, 93, 39, 0.75)",
-                        background: "rgba(216, 93, 39, 0.22)",
+                        backgroundImage:
+                          "linear-gradient(rgba(216, 93, 39, 0.22), rgba(216, 93, 39, 0.22))",
                       }
                     : validUsdMatch
                     ? {
                         border: "1px solid rgba(147, 178, 92, 0.55)",
-                        background: "rgba(94, 128, 25, 0.18)",
+                        backgroundImage:
+                          "linear-gradient(rgba(94, 128, 25, 0.18), rgba(94, 128, 25, 0.18))",
                       }
                     : null),
                 }}

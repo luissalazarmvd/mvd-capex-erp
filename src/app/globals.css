@@ -310,6 +310,25 @@ textarea {
   background: rgba(0, 0, 0, 0.14);
 }
 
+/* ── Selects nativos ──────────────────────────────────────────────
+   Chrome usa el background-color del <select> también para la lista
+   desplegable: un fondo translúcido se compone sobre blanco y sale gris.
+   Control y opciones llevan superficie opaca (el patrón de Guías Kardex).
+   Acotado a los módulos y a las clases de campo; TI queda fuera. ──── */
+[data-module] select,
+select.input,
+select.select {
+  background-color: var(--s-1);
+  color: var(--ink);
+}
+
+[data-module] select option,
+select.input option,
+select.select option {
+  background: var(--s-1);
+  color: var(--ink);
+}
+
 /* ── Barras de desplazamiento (sin cambios respecto al original) ──── */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: rgba(0,0,0,.12); border-radius: 999px; }

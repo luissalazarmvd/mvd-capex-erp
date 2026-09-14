@@ -39,6 +39,36 @@ test("facturas: series alfanuméricas, ceros y rechazo de truncamiento", () => {
     assert.equal(domain.normalizeInvoiceNumber(bad), "");
 });
 
+test("facturas: máscara de escritura rellena ceros como el número de guía", () => {
+  // La vista muestra la serie, el guion y el correlativo a diez dígitos.
+  assert.equal(domain.invoiceDisplayValue(""), "");
+  assert.equal(domain.invoiceDisplayValue("E00"), "E00");
+  assert.equal(domain.invoiceDisplayValue("E001"), "E001-");
+  assert.equal(domain.invoiceDisplayValue("E001-12"), "E001-0000000012");
+  assert.equal(domain.invoiceDisplayValue("FPP1-0000007123"), "FPP1-0000007123");
+
+  // Escribir dígitos al final del correlativo los agrega sin perder los ceros.
+  let draft = "";
+  for (const char of "e0011") draft = domain.invoiceEditValue(domain.invoiceDisplayValue(draft) + char, draft);
+  assert.equal(draft, "E001-1");
+  draft = domain.invoiceEditValue("E001-00000000012", draft);
+  assert.equal(draft, "E001-12");
+  assert.equal(domain.normalizeInvoiceNumber(draft), "E001-0000000012");
+
+  // Borrar recorre correlativo y luego serie.
+  draft = domain.invoiceEditValue("E001-000000001", draft);
+  assert.equal(draft, "E001-1");
+  draft = domain.invoiceEditValue("E001-000000000", draft);
+  assert.equal(draft, "E001");
+  draft = domain.invoiceEditValue("E001", draft);
+  assert.equal(draft, "E00");
+
+  // Pegar un número completo lo normaliza y descarta letras en el correlativo.
+  assert.equal(domain.invoiceEditValue("fpp1-0007123", ""), "FPP1-7123");
+  assert.equal(domain.invoiceEditValue("E001-12AB3", ""), "E001-123");
+  assert.equal(domain.invoiceEditValue("E001-12345678901", ""), "E001-1234567890");
+});
+
 test("estadísticas: no duplicar factura por guías/lotes, ni PERD como envío", () => {
   const guide = {
     guide_number: "GR01-0000000001",

@@ -514,6 +514,7 @@ export default function ExcelHeaderFilter({
                 }}
               >
                 <select
+                  className="select"
                   value={draftFilter.operator}
                   onChange={(event) =>
                     setDraftFilter((current) => ({

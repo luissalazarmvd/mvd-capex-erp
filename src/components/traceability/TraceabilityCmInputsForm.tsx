@@ -1621,6 +1621,9 @@ export default function TraceabilityCmInputsForm() {
     boxSizing: "border-box",
   };
 
+  // Los <select> toman su fondo opaco de globals.css (lista desplegable legible).
+  const selectStyle: React.CSSProperties = { ...inputStyle, background: undefined };
+
   const cellStyle: React.CSSProperties = {
     padding: "6px 8px",
     fontSize: 12,
@@ -2008,7 +2011,7 @@ export default function TraceabilityCmInputsForm() {
                             }
                             aria-label={`${column.label} para RUC ${text(row.ruc)}`}
                             style={{
-                              ...inputStyle,
+                              ...selectStyle,
                               width: "100%",
                               minWidth: 0,
                             }}
@@ -2281,11 +2284,13 @@ export default function TraceabilityCmInputsForm() {
                                   aria-label={`${column.label} para ${text(row.ruc)} / ${text(row.concession_code)}`}
                                   aria-invalid={Boolean(draftError)}
                                   style={{
-                                    ...inputStyle,
+                                    ...selectStyle,
                                     width: "100%",
                                     minWidth: 0,
                                     borderColor: draftError ? "rgba(216,93,39,.90)" : undefined,
-                                    background: draftError ? "rgba(216,93,39,.12)" : undefined,
+                                    backgroundImage: draftError
+                                      ? "linear-gradient(rgba(216,93,39,.12), rgba(216,93,39,.12))"
+                                      : undefined,
                                   }}
                                 >
                                   <option value="" disabled>— Seleccionar —</option>

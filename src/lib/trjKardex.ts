@@ -36,6 +36,62 @@ export function normalizeInvoiceNumber(value: string) {
   return match ? `${match[1]}-${match[2].padStart(10, "0")}` : "";
 }
 
+// Máscara del número de factura mientras se escribe, igual que el número de
+// guía: serie de 4 alfanuméricos, guion y correlativo mostrado con sus diez
+// dígitos. El borrador guarda el correlativo sin ceros a la izquierda.
+const INVOICE_DRAFT = /^([A-Z0-9]{4})(?:-(\d{1,10}))?$/;
+
+export function invoiceDraftValue(value: string) {
+  const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const prefix = compact.slice(0, 4);
+  if (prefix.length < 4) return prefix;
+  const suffix = compact
+    .slice(4)
+    .replace(/\D/g, "")
+    .slice(0, 10)
+    .replace(/^0+(?=\d)/, "");
+  return suffix ? `${prefix}-${suffix}` : prefix;
+}
+
+export function invoiceDisplayValue(value: string) {
+  const draft = invoiceDraftValue(value);
+  const match = draft.match(INVOICE_DRAFT);
+  if (!match) return draft;
+  return match[2] ? `${match[1]}-${match[2].padStart(10, "0")}` : `${match[1]}-`;
+}
+
+export function invoiceEditValue(value: string, previousValue: string) {
+  const previousDraft = invoiceDraftValue(previousValue);
+  const previousDisplay = invoiceDisplayValue(previousDraft);
+  const previousMatch = previousDraft.match(INVOICE_DRAFT);
+  const next = value.toUpperCase();
+
+  if (
+    previousMatch &&
+    next.length === previousDisplay.length + 1 &&
+    next.startsWith(previousDisplay)
+  ) {
+    const char = next.slice(-1);
+    const suffix = previousMatch[2] || "";
+    if (/\d/.test(char) && suffix.length < 10) {
+      return `${previousMatch[1]}-${suffix}${char}`;
+    }
+  }
+
+  if (
+    previousMatch &&
+    next.length === previousDisplay.length - 1 &&
+    previousDisplay.startsWith(next)
+  ) {
+    const suffix = previousMatch[2] || "";
+    if (suffix.length > 1) return `${previousMatch[1]}-${suffix.slice(0, -1)}`;
+    if (suffix.length === 1) return previousMatch[1];
+    return previousMatch[1].slice(0, -1);
+  }
+
+  return invoiceDraftValue(next);
+}
+
 // Cantidades exactas a seis decimales; evita errores binarios al conciliar USD.
 export function kardexUnits(value: unknown): bigint {
   const raw = String(value ?? "").trim();

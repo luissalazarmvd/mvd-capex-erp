@@ -16,6 +16,8 @@ import {
 } from "../ui/ExcelFilters";
 import TRJKardexQuoteEditor, { type QuoteSaved } from "./TRJKardexQuoteEditor";
 import {
+  invoiceDisplayValue,
+  invoiceEditValue,
   invoiceKey,
   isOperationalLot,
   kardexCents,
@@ -29,6 +31,7 @@ import {
 } from "../../lib/trjKardex";
 
 type Carrier = { ruc: string; name: string | null };
+const carrierLabel = (r: Carrier) => `${r.name || r.ruc} · ${r.ruc}`;
 const today = () =>
   new Date(Date.now() - 5 * 3600000).toISOString().slice(0, 10);
 const moneyInput = (value: string) => Number(value).toFixed(2);
@@ -383,6 +386,7 @@ export default function TRJKardexQuotes() {
   const [invoices, setInvoices] = useState<KardexInvoice[]>([]);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [carrier, setCarrier] = useState("");
+  const [carrierText, setCarrierText] = useState("");
   const [searchedCarrier, setSearchedCarrier] = useState("");
   const [document, setDocument] = useState("");
   const [date, setDate] = useState(today);
@@ -480,6 +484,32 @@ export default function TRJKardexQuotes() {
       ].map((r) => [r.ruc, r]),
     ).values(),
   ].sort((a, b) => (a.name || a.ruc).localeCompare(b.name || b.ruc));
+
+  // El texto identifica un transportista si coincide con su etiqueta o RUC, o si
+  // solo uno lo contiene; así basta escribir parte del nombre para buscar.
+  function resolveCarrier(value: string) {
+    const needle = value.trim().toLocaleLowerCase("es");
+    if (!needle) return "";
+    const exact = carrierOptions.find(
+      (r) => carrierLabel(r).toLocaleLowerCase("es") === needle || r.ruc === needle,
+    );
+    if (exact) return exact.ruc;
+    const partial = carrierOptions.filter((r) =>
+      carrierLabel(r).toLocaleLowerCase("es").includes(needle),
+    );
+    return partial.length === 1 ? partial[0].ruc : "";
+  }
+
+  function changeCarrier(value: string) {
+    setCarrierText(value);
+    const ruc = resolveCarrier(value);
+    if (ruc === carrier) return;
+    setCarrier(ruc);
+    setSearchedCarrier("");
+    setSelected(new Set());
+    setDocument("");
+    setAmount("");
+  }
 
   async function mutate(path: string, body: Record<string, unknown>) {
     if (gate.current || busy) return false;
@@ -614,24 +644,23 @@ export default function TRJKardexQuotes() {
           <div className="trjk-builder">
             <label>
               Transportista
-              <select
+              <input
                 className="input"
-                value={carrier}
-                onChange={(e) => {
-                  setCarrier(e.target.value);
-                  setSearchedCarrier("");
-                  setSelected(new Set());
-                  setDocument("");
-                  setAmount("");
+                list="trjk-quotes-carrier-options"
+                autoComplete="off"
+                placeholder="Nombre o RUC del transportista"
+                value={carrierText}
+                onChange={(e) => changeCarrier(e.target.value)}
+                onBlur={() => {
+                  const match = carrierOptions.find((r) => r.ruc === carrier);
+                  if (match) setCarrierText(carrierLabel(match));
                 }}
-              >
-                <option value="">Seleccionar transportista</option>
+              />
+              <datalist id="trjk-quotes-carrier-options">
                 {carrierOptions.map((r) => (
-                  <option key={r.ruc} value={r.ruc}>
-                    {r.name || r.ruc} · {r.ruc}
-                  </option>
+                  <option key={r.ruc} value={carrierLabel(r)} />
                 ))}
-              </select>
+              </datalist>
             </label>
             <Button
               disabled={!carrier || busy || loading || dirty}
@@ -649,8 +678,8 @@ export default function TRJKardexQuotes() {
                 className="input"
                 placeholder="E001-0000000123"
                 maxLength={15}
-                value={document}
-                onChange={(e) => setDocument(e.target.value.toUpperCase())}
+                value={invoiceDisplayValue(document)}
+                onChange={(e) => setDocument(invoiceEditValue(e.target.value, document))}
                 onBlur={() => {
                   if (normalized) {
                     setDocument(normalized);
@@ -962,6 +991,14 @@ export default function TRJKardexQuotes() {
             )
               return;
             setCarrier(activeInvoice.ruc);
+            setCarrierText(
+              carrierLabel(
+                carrierOptions.find((r) => r.ruc === activeInvoice.ruc) ?? {
+                  ruc: activeInvoice.ruc,
+                  name: activeInvoice.transport_name,
+                },
+              ),
+            );
             setSearchedCarrier(activeInvoice.ruc);
             setDocument(activeInvoice.document_number);
             setDate(activeInvoice.document_date);
