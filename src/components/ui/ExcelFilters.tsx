@@ -24,7 +24,7 @@ import ExcelHeaderFilter, {
   type ExcelColumnFilter,
   type ExcelFilterKind,
   type ExcelSortDirection,
-} from "../trj-kardex/ExcelHeaderFilter";
+} from "./ExcelHeaderFilter";
 
 export { ExcelHeaderFilter };
 export type { ExcelColumnFilter, ExcelFilterKind, ExcelSortDirection };

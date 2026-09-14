@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { Pager } from "../ui/Pager";
 import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
@@ -1015,42 +1016,13 @@ export default function TraceabilityContaForm() {
           Mostrando {excelRows.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, excelRows.length)} de {excelRows.length} filas
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-            disabled={loading || safePage <= 1}
-            aria-label="Página anterior"
-          >
-            ←
-          </Button>
-
-          <div
-            style={{
-              minWidth: 90,
-              textAlign: "center",
-              fontSize: 12,
-              fontWeight: 700,
-              padding: "6px 10px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,.06)",
-              border: "1px solid rgba(216,238,255,.18)",
-            }}
-          >
-            Página {safePage} / {totalPages}
-          </div>
-
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-            disabled={loading || safePage >= totalPages}
-            aria-label="Página siguiente"
-          >
-            →
-          </Button>
-        </div>
+        <Pager
+          page={safePage}
+          totalPages={totalPages}
+          onPrev={() => setPage((current) => Math.max(1, current - 1))}
+          onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
+          disabled={loading}
+        />
       </div>
 
       {targetPreviewOpen ? (

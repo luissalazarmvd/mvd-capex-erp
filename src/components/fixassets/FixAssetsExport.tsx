@@ -6,7 +6,7 @@ import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
-import { FastCellInput } from "./FastCellInput";
+import { FastCellInput } from "../ui/FastCellInput";
 import FixAssetsAudit from "./FixAssetsAudit";
 
 type ExportRow = {

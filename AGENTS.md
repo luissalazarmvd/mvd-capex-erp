@@ -19,14 +19,14 @@ Si una modificación cambia rutas, ownership de módulos, entrypoints, endpoints
 - Next.js 16.1 App Router + React 19 + TypeScript estricto.
 - `src/app`: rutas; `src/components`: componentes; `src/lib`: lógica/tipos/validación.
 - Frontend consume backend externo mediante `src/lib/apiClient.ts` usando `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_API_KEY` y `x-api-key`.
-- UI compartida: `Button`, `Input`, `Select`, `Table`; estilos globales en `src/app/globals.css`.
+- UI compartida en `src/components/ui`: `Button`, `Input`, `Select` (nativo), `Dropdown` (botón + menú propio), `Table`, `Pager`, `TopNav`, `FastCellInput`, `ExcelHeaderFilter`/`ExcelFilters`; estilos globales en `src/app/globals.css`. Un control que se repite en dos módulos va ahí, no como copia local.
 - Antes de modificar un flujo revisar siempre componente + endpoint actual. No inventar rutas, payloads, claves, fechas ni semántica de borrado.
 - Endpoints que aceptan `rows` suelen enviarse en lotes de hasta 100 filas.
 - Mantener original y draft separados en tablas editables. Verde = válida/modificada; rojo = inválida.
-- En tablas grandes usar `FastCellInput` para evitar pérdida de escritura por rerenders.
+- En tablas grandes usar `FastCellInput` (`src/components/ui/FastCellInput.tsx`) para evitar pérdida de escritura por rerenders.
 - Los filtros estilo Excel usan popup con `createPortal` + `position: fixed`, deben mantenerse dentro del viewport y cerrarse al click fuera.
 - En filtros Excel numéricos, los valores disponibles se normalizan a 2 decimales antes de agruparlos: valores distintos que redondean igual pertenecen a una sola opción.
-- Para montar filtros Excel en una tabla nueva usar `useExcelColumnFilters` de `src/components/ui/ExcelFilters.tsx`, que envuelve `ExcelHeaderFilter`. Es una capa de vista: se aplica **después** del pipeline que alimenta las exportaciones, de modo que Excel y PDF siguen recibiendo las mismas filas que antes.
+- Para montar filtros Excel en una tabla nueva usar `useExcelColumnFilters` de `src/components/ui/ExcelFilters.tsx`, que envuelve `ExcelHeaderFilter` (`src/components/ui/ExcelHeaderFilter.tsx`, única implementación; no duplicarla en el módulo). Es una capa de vista: se aplica **después** del pipeline que alimenta las exportaciones, de modo que Excel y PDF siguen recibiendo las mismas filas que antes.
 
 ## Sistema visual
 
@@ -36,6 +36,7 @@ Toda la presentación se resuelve por tokens en `src/app/globals.css`; los compo
 - Superficies: `--s-canvas` → `--s-1` → `--s-2` → `--s-3`, más `--s-sunken` para campos. Se sube por luminancia, no por saturación. Los alias históricos (`--bg`, `--panel`, `--panel2`, `--text`, `--muted`, `--border`) siguen existiendo y apuntan a esa escala.
 - Cada layout de módulo declara `data-module="<módulo>"` en su div raíz; eso fija `--mod` y `--mod-soft`. El acento pinta la franja superior de la cabecera, el hover de fila y el embudo de filtro activo. Las familias cromáticas agrupan por dominio: cian = transporte, verde = operaciones y ambiente, azul/dorado = patrimonio, gris = administrativo.
 - Tipografía Exo, pesos 300/400/500/600 y tope en 700. No reintroducir 800/900.
+- Los `<select>` nativos no declaran `color-scheme: dark` ni pintan sus `<option>`: la lista desplegable queda nativa, como en Kardex TRJ. `colorScheme: "dark"` se reserva para `input[type=date]`, donde aclara el icono del calendario.
 - Radios: `--r-1` 6, `--r-2` 10, `--r-3` 14, `--r-pill`. No agregar pasos intermedios.
 - Formato condicional de grillas: verde `#33521f` válida/modificada, `#3b5f24` seleccionada, rojo `#6b2e14` inválida, ámbar `#5a4210` editada, `#143444` foco, `#071a24` ya enviada. Los tres estados comparten banda de luminancia para que ninguno domine sobre los otros.
 - Los colores que alimentan exportaciones no son de presentación y no deben tocarse: `upGreen`/`downRed` y los literales de `setFill(...)` en `CarbonTable.tsx` y `CarbonTableSum.tsx` mantienen los valores que se ven en el Excel generado.
@@ -151,7 +152,6 @@ Componentes:
 - `FixAssetsDepr.tsx`
 - `FixAssetsExport.tsx`
 - `FixAssetsAudit.tsx`
-- `FastCellInput.tsx`
 
 Mantener UI compacta, headers/identificadores sticky y scroll interno de las grillas, sobre los tokens de superficie descritos en «Sistema visual».
 

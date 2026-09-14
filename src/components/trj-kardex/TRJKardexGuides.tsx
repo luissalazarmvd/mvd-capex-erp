@@ -15,7 +15,7 @@ import ExcelHeaderFilter, {
   type ExcelColumnFilter,
   type ExcelFilterKind,
   type ExcelSortDirection,
-} from "./ExcelHeaderFilter";
+} from "../ui/ExcelHeaderFilter";
 
 type Guide = {
   guide_number: string;

@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as XLSX from "xlsx";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { Pager } from "../ui/Pager";
 import { Table } from "../ui/Table";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef, type ExcelFilterKind } from "../ui/ExcelFilters";
 
@@ -894,42 +895,14 @@ export default function LogisticsStockTable() {
           Mostrando {totalRows === 0 ? 0 : pageStart + 1} - {Math.min(pageEnd, totalRows)} de {totalRows} filas
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={loading || safePage <= 1}
-          >
-            ←
-          </Button>
-
-          <div
-            style={{
-              minWidth: 110,
-              textAlign: "center",
-              fontSize: 12,
-              fontWeight: 700,
-              padding: "6px 10px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(216,238,255,.18)",
-            }}
-          >
-            Página {safePage} / {totalPages}
-          </div>
-
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={loading || safePage >= totalPages}
-          >
-            →
-          </Button>
-        </div>
+        <Pager
+          page={safePage}
+          totalPages={totalPages}
+          onPrev={() => setPage((current) => Math.max(1, current - 1))}
+          onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
+          disabled={loading}
+          minWidth={110}
+        />
       </div>
     </div>
   );

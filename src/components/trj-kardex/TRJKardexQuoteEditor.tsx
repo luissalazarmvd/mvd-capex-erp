@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
-import { FastCellInput } from "../fixassets/FastCellInput";
+import { FastCellInput } from "../ui/FastCellInput";
 import type {
   KardexGuide as Guide,
   KardexLot as Lot,

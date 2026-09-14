@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
 import { Table } from "../ui/Table";
-import { FastCellInput } from "./FastCellInput";
+import { FastCellInput } from "../ui/FastCellInput";
 
 type AuditOperation = "I" | "U" | "D" | "";
 
@@ -735,12 +735,6 @@ export default function FixAssetsAudit({
               background: #0a1f2c !important;
               color: #e8f1f7 !important;
               border-color: rgba(147,211,230,.30) !important;
-              color-scheme: dark;
-            }
-
-            .fixassets-audit-modal select.input option {
-              background: #0a1f2c !important;
-              color: #e8f1f7 !important;
             }
 
             .fixassets-audit-row-selected .capex-td {

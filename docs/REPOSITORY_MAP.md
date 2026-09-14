@@ -18,8 +18,8 @@ Este archivo es el índice operativo que debe leerse inmediatamente después de 
 | Login/logout general | `src/app/api/auth/*`, `src/lib/logout.ts` | Sesión del portal y cierre de sesión |
 | Portal corporativo | `src/app/(portal)/page.tsx`, `src/app/(portal)/PortalClient.tsx` | Acceso inicial y `/api/access-check` |
 | Cliente backend externo | `src/lib/apiClient.ts` | Base URL, `x-api-key`, GET/POST/download |
-| UI compartida | `src/components/ui/*` | `Button`, `Input`, `Select`, `Table`, `ExcelFilters` |
-| Filtros tipo Excel | `src/components/ui/ExcelFilters.tsx`, `src/components/trj-kardex/ExcelHeaderFilter.tsx` | Hook `useExcelColumnFilters` + popup de columna |
+| UI compartida | `src/components/ui/*` | `Button`, `Input`, `Select`, `Dropdown`, `Table`, `Pager`, `TopNav`, `FastCellInput`, `ExcelHeaderFilter`, `ExcelFilters` |
+| Filtros tipo Excel | `src/components/ui/ExcelFilters.tsx`, `src/components/ui/ExcelHeaderFilter.tsx` | Hook `useExcelColumnFilters` + popup de columna |
 | Estilos globales | `src/app/globals.css` | Tokens del sistema visual y clases compartidas |
 | Shell global | `src/app/layout.tsx` | Fuentes, metadata y layout raíz |
 
@@ -36,7 +36,7 @@ Este archivo es el índice operativo que debe leerse inmediatamente después de 
 | Flota | `src/app/fleet/mgmt`, `units` | `src/components/fleet/FleetMgmForm.tsx`, `FleetUnitsPermits.tsx` | Buscar bajo `/api/logistics/flota/*` desde cada componente |
 | Sostenibilidad | `src/app/sustainability/igafom`, `providers` | `src/components/sustainability/*` | `/api/sustainability/*` |
 | Kardex TRJ | `src/app/kardex/sum`, `guides`, `quotes` | `src/components/trj-kardex/TRJKardexSum.tsx`, `TRJKardexGuides.tsx`, `TRJKardexQuotes.tsx`, `TRJKardexQuoteEditor.tsx`, `TRJKardexTopNav.tsx`; normalización y estadísticas en `src/lib/trjKardex.ts` | `/api/trjkar`, `/guides`, `/invo`, `/ruc-history`, `/sgm-hist`; escrituras `/guides/insert`, `/guides/delete`, `/lots/*`, `/invo/insert`, `/invo/update`, `/invo/unlink`, `/invo/close`, `/invo/delete` |
-| Activos Fijos | `src/app/fixassets/new`, `catalogue`, `depreciation`, `export` | `src/components/fixassets/FixAssetsNew.tsx`, `FixAssetsCat.tsx`, `FixAssetsDepr.tsx`, `FixAssetsExport.tsx`, `FixAssetsAudit.tsx`, `FastCellInput.tsx` | `/api/actfij/*`; consultar la sección detallada de Activos Fijos en `AGENTS.md` antes de cambiar contratos o lifecycle |
+| Activos Fijos | `src/app/fixassets/new`, `catalogue`, `depreciation`, `export` | `src/components/fixassets/FixAssetsNew.tsx`, `FixAssetsCat.tsx`, `FixAssetsDepr.tsx`, `FixAssetsExport.tsx`, `FixAssetsAudit.tsx`; celdas con `src/components/ui/FastCellInput.tsx` | `/api/actfij/*`; consultar la sección detallada de Activos Fijos en `AGENTS.md` antes de cambiar contratos o lifecycle |
 | TI / eficiencia | `src/app/ti/page.tsx` | Página autocontenida con portfolio, cálculos, EN/FR y exportación Excel | Proxies locales en `src/app/api/ti-*`, `src/app/api/ai`, `src/app/api/web`; datos operativos externos `/api/dti/*` se localizan dentro de la página |
 
 ## Recetas de búsqueda acotada
@@ -46,7 +46,8 @@ Este archivo es el índice operativo que debe leerse inmediatamente después de 
 - Montar filtros tipo Excel: `src/components/ui/ExcelFilters.tsx`; aplicarlos después del pipeline que alimenta la exportación.
 - Cambio de datos o guardado: buscar `apiGet|apiPost|apiDownload|fetch` únicamente en la página y componente afectados; revisar el payload existente antes de modificarlo.
 - Cambio de autenticación o acceso: revisar `middleware.ts`, `src/lib/auth/session.ts`, el layout del módulo y `src/app/api/auth/*`.
-- Tabla editable: revisar el componente completo del flujo, su separación original/draft y `FastCellInput` cuando exista; no inferir reglas desde otra tabla.
+- Tabla editable: revisar el componente completo del flujo, su separación original/draft y `FastCellInput` (`src/components/ui`) cuando exista; no inferir reglas desde otra tabla.
+- Control repetido entre módulos (paginador, navegación de módulo, dropdown, filtro Excel): vive en `src/components/ui`; el módulo solo lo importa.
 - TI: comenzar y, salvo importaciones explícitas, permanecer en `src/app/ti/page.tsx`.
 - Activos Fijos: abrir solo el componente de la subruta solicitada y luego los endpoints `/api/actfij/*` que ese componente invoque.
 - Activos Fijos, identidad contable u OS: revisar juntos `FixAssetsNew.tsx` y `FixAssetsCat.tsx`; ambos relacionan Veta, catálogo y `soft-po` mediante subdiario, comprobante, secuencia, anexo y documento.
