@@ -390,6 +390,9 @@ const UBIGEO_PERU_URLS = {
 const SCALE = BigInt(1000000);
 const text = (value: unknown) => value == null ? "" : String(value);
 const code = (value: string) => value.trim().toUpperCase();
+const isControlCorr = (value: string) =>
+  ["PERD", "EXCE"].includes(value.trim().toUpperCase());
+const EXCESS_LIMIT = BigInt(20) * SCALE;
 
 const DEFAULT_MVD_RUC = "20536126440";
 const DEFAULT_MVD_NAME = "MINERA VETA DORADA S.A.C.";
@@ -853,7 +856,7 @@ function LotHistory({
   const matches = rows.filter(
     (row) =>
       code(row.lot) === code(lot) &&
-      row.lot_corr.trim().toUpperCase() !== "PERD"
+      !isControlCorr(row.lot_corr)
   );
 
   if (!matches.length) {
@@ -1132,6 +1135,22 @@ export default function TRJKardexGuides() {
     [lots]
   );
 
+  const exceByLot = useMemo(
+    () =>
+      new Map(
+        lots
+          .filter(
+            (row) =>
+              row.lot_corr.trim().toUpperCase() === "EXCE"
+          )
+          .map((row) => [
+            code(row.lot),
+            row,
+          ])
+      ),
+    [lots]
+  );
+
   const perdEditPreview = useMemo(() => {
     if (!editing) return null;
 
@@ -1161,7 +1180,7 @@ export default function TRJKardexGuides() {
     for (const row of lots) {
       if (
         code(row.lot) !== lot ||
-        row.lot_corr.trim().toUpperCase() === "PERD"
+        isControlCorr(row.lot_corr)
       ) {
         continue;
       }
@@ -1181,10 +1200,6 @@ export default function TRJKardexGuides() {
     const remaining =
       stock - normalUsed;
 
-    if (remaining < BigInt(0)) {
-      return null;
-    }
-
     const projectedPerd =
       remaining > BigInt(0)
         ? remaining
@@ -1194,9 +1209,9 @@ export default function TRJKardexGuides() {
       lot,
       perd: projectedPerd,
       balance:
-        stock -
-        normalUsed -
-        projectedPerd,
+        remaining > BigInt(0)
+          ? remaining - projectedPerd
+          : BigInt(0),
       deletePerd:
         projectedPerd === BigInt(0),
     };
@@ -1211,7 +1226,7 @@ export default function TRJKardexGuides() {
     () =>
       guideLots.filter(
         (row) =>
-          row.lot_corr.trim().toUpperCase() !== "PERD"
+          !isControlCorr(row.lot_corr)
       ),
     [guideLots]
   );
@@ -1692,6 +1707,9 @@ export default function TRJKardexGuides() {
   const availableLots = sgm.filter(
     (row) =>
       (units(row.tmh_balance) ?? BigInt(0)) > BigInt(0) &&
+      !guideOperationalLots.some(
+        (existing) => code(existing.lot) === code(row.lot)
+      ) &&
       lotMatchesInput(row.lot, newLot)
   );
 
@@ -1885,6 +1903,18 @@ export default function TRJKardexGuides() {
   }
 
   if (
+    draft.guide_date &&
+    draft.transport_guide_date &&
+    dateOnlyKey(draft.guide_date) &&
+    dateOnlyKey(draft.transport_guide_date) &&
+    dateOnlyKey(draft.transport_guide_date) <
+      dateOnlyKey(draft.guide_date)
+  ) {
+    guideError =
+      "La fecha de guía transportista no puede ser anterior a la fecha de guía remitente";
+  }
+
+  if (
     draft.load_ini &&
     draft.load_fin &&
     dateKey(draft.load_fin) < dateKey(draft.load_ini)
@@ -1898,6 +1928,57 @@ export default function TRJKardexGuides() {
     dateKey(draft.departure_date) < dateKey(draft.load_fin)
   ) {
     guideError = "La salida no puede ser anterior al fin de carga";
+  }
+
+  function projectedExcessUnits(
+    lot: string,
+    value: string,
+    old?: Lot
+  ) {
+    const normalizedLot = code(lot);
+
+    if (
+      !normalizedLot ||
+      isCleanupLot(normalizedLot) ||
+      !decimalValid(value)
+    ) {
+      return null;
+    }
+
+    const stock = roundTmhUnits(
+      sgmByLot.get(normalizedLot)?.tmh
+    );
+
+    const amount = roundTmhUnits(value);
+
+    if (stock == null || amount == null) {
+      return null;
+    }
+
+    let used = BigInt(0);
+
+    for (const row of lots) {
+      if (
+        code(row.lot) !== normalizedLot ||
+        isControlCorr(row.lot_corr) ||
+        (
+          old &&
+          identity(row) === identity(old)
+        )
+      ) {
+        continue;
+      }
+
+      used +=
+        roundTmhUnits(row.tmh_departure) ??
+        BigInt(0);
+    }
+
+    const total = used + amount;
+
+    return total > stock
+      ? total - stock
+      : BigInt(0);
   }
 
   function departureError(
@@ -1933,39 +2014,57 @@ export default function TRJKardexGuides() {
       return "";
     }
 
-    if (!sgmByLot.has(code(lot))) {
+    const normalizedLot = code(lot);
+
+    if (!sgmByLot.has(normalizedLot)) {
       return "Selecciona un lote existente del histórico SGM";
     }
 
-    const balance = units(
-      sgmByLot.get(code(lot))?.tmh_balance
-    );
-
-    if (balance == null) {
-      return "El lote no tiene saldo disponible en SGM";
+    if (
+      !old &&
+      guideOperationalLots.some(
+        (row) => code(row.lot) === normalizedLot
+      )
+    ) {
+      return "Este lote ya existe en la guía; no puede crearse otro correlativo del mismo lote aquí";
     }
 
-    if (!old && !sgmByLot.get(code(lot))?.next_corr) {
+    if (
+      !old &&
+      closedLots.has(normalizedLot)
+    ) {
+      return "El lote está cerrado con PERD y no admite una nueva salida";
+    }
+
+    if (
+      !old &&
+      exceByLot.has(normalizedLot)
+    ) {
+      return "El lote ya tiene un control EXCE y no admite una nueva salida";
+    }
+
+    if (
+      !old &&
+      !sgmByLot.get(normalizedLot)?.next_corr
+    ) {
       return "Se agotaron los correlativos";
     }
 
-    const editableBalance =
-      balance +
-      (units(old?.tmh_departure) ?? BigInt(0)) +
-      (
-        old
-          ? (
-              units(
-                perdByLot.get(code(lot))
-                  ?.tmh_departure
-              ) ?? BigInt(0)
-            )
-          : BigInt(0)
-      );
+    const excess = projectedExcessUnits(
+      lot,
+      value,
+      old
+    );
 
-    return amount > editableBalance
-      ? "Las TMH superan el saldo del lote"
-      : "";
+    if (excess == null) {
+      return "El lote no tiene TMH válido en SGM";
+    }
+
+    if (excess > EXCESS_LIMIT) {
+      return "El excedente máximo permitido sobre el stock SGM es 20.000 TMH";
+    }
+
+    return "";
   }
 
   function bagsError(
@@ -2544,6 +2643,15 @@ export default function TRJKardexGuides() {
     const lot = old?.lot || newLot;
     const value = old ? editing?.value || "" : newDeparture;
 
+    const excessUnits = projectedExcessUnits(
+      lot,
+      value,
+      old
+    );
+
+    const hasExcess =
+      (excessUnits ?? BigInt(0)) > BigInt(0);
+
     const error =
       departureError(lot, value, old) ||
       (
@@ -2560,8 +2668,18 @@ export default function TRJKardexGuides() {
           : ""
       ) ||
       (
-        !old && balanceObs.length > 255
-          ? "El comentario de cierre admite máximo 255 caracteres"
+        hasExcess && !balanceObs.trim()
+          ? "El comentario del excedente EXCE es obligatorio"
+          : ""
+      ) ||
+      (
+        !old && closeLot && hasExcess
+          ? "No se puede cerrar con PERD una salida que genera EXCE"
+          : ""
+      ) ||
+      (
+        balanceObs.length > 255
+          ? "El comentario admite máximo 255 caracteres"
           : ""
       );
 
@@ -2605,14 +2723,18 @@ export default function TRJKardexGuides() {
             !old && closeLot
               ? {
                   close_lot: true,
-                  ...(
-                    balanceObs.trim()
-                      ? {
-                          balance_obs:
-                            balanceObs.trim(),
-                        }
-                      : {}
-                  ),
+                }
+              : {}
+          ),
+          ...(
+            (
+              hasExcess ||
+              (!old && closeLot)
+            ) &&
+            balanceObs.trim()
+              ? {
+                  balance_obs:
+                    balanceObs.trim(),
                 }
               : {}
           ),
@@ -2625,7 +2747,13 @@ export default function TRJKardexGuides() {
         );
       }
 
+      const guideDraftBeforeLotSave = {
+        ...draftRef.current,
+      };
+
       acceptSave(response);
+      writeDraft(guideDraftBeforeLotSave);
+      setOriginal(guideDraftBeforeLotSave);
       setNewLot("");
       setNewDeparture("");
       setNewBagsTot("");
@@ -2637,6 +2765,13 @@ export default function TRJKardexGuides() {
       const loss =
         response.saved?.[0]?.balance_loss;
 
+      const excess =
+        response.saved?.[0]?.excess_amount;
+
+      const exceDeleted =
+        response.saved?.[0]?.exce_deleted === true ||
+        response.saved?.[0]?.exce_deleted === 1;
+
       const perdDeleted =
         response.saved?.[0]?.perd_deleted === true ||
         response.saved?.[0]?.perd_deleted === 1;
@@ -2646,13 +2781,17 @@ export default function TRJKardexGuides() {
         response.saved?.[0]?.perd_adjusted === 1;
 
       notify(
-        perdDeleted
-          ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD eliminado automáticamente`
-          : perdAdjusted
-            ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ajustado a ${fmt(loss)} TMH`
-            : loss != null && Number(loss) > 0
-              ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ${fmt(loss)} TMH`
-              : `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""}`
+        excess != null && Number(excess) > 0
+          ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · EXCE ${fmt(excess)} TMH`
+          : exceDeleted
+            ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · EXCE eliminado automáticamente`
+            : perdDeleted
+              ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD eliminado automáticamente`
+              : perdAdjusted
+                ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ajustado a ${fmt(loss)} TMH`
+                : loss != null && Number(loss) > 0
+                  ? `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""} · PERD ${fmt(loss)} TMH`
+                  : `Lote guardado · correlativo ${response.saved?.[0]?.lot_corr || ""}`
       );
 
       try {
@@ -2956,6 +3095,25 @@ export default function TRJKardexGuides() {
     }
   }
 
+  const newExcessUnits = projectedExcessUnits(
+    newLot,
+    newDeparture
+  );
+
+  const editExcessUnits = editing
+    ? projectedExcessUnits(
+        editing.row.lot,
+        editing.value,
+        editing.row
+      )
+    : null;
+
+  const newHasExcess =
+    (newExcessUnits ?? BigInt(0)) > BigInt(0);
+
+  const editHasExcess =
+    (editExcessUnits ?? BigInt(0)) > BigInt(0);
+
   const newLotError =
     departureError(newLot, newDeparture) ||
     bagsError(
@@ -2968,8 +3126,18 @@ export default function TRJKardexGuides() {
         : ""
     ) ||
     (
+      newHasExcess && !balanceObs.trim()
+        ? "El comentario del excedente EXCE es obligatorio"
+        : ""
+    ) ||
+    (
+      closeLot && newHasExcess
+        ? "No se puede cerrar con PERD una salida que genera EXCE"
+        : ""
+    ) ||
+    (
       balanceObs.length > 255
-        ? "El comentario de cierre admite máximo 255 caracteres"
+        ? "El comentario admite máximo 255 caracteres"
         : ""
     );
 
@@ -2978,6 +3146,16 @@ export default function TRJKardexGuides() {
         editing.row.lot,
         editing.value,
         editing.row
+      ) ||
+      (
+        editHasExcess && !balanceObs.trim()
+          ? "El comentario del excedente EXCE es obligatorio"
+          : ""
+      ) ||
+      (
+        balanceObs.length > 255
+          ? "El comentario admite máximo 255 caracteres"
+          : ""
       )
     : "";
 
@@ -3484,11 +3662,13 @@ export default function TRJKardexGuides() {
                               : undefined
                           }
                           min={
-                            field.key === "load_fin" && draft.load_ini
-                              ? draft.load_ini
-                              : field.key === "departure_date" && draft.load_fin
-                                ? draft.load_fin
-                                : undefined
+                            field.key === "transport_guide_date" && draft.guide_date
+                              ? draft.guide_date
+                              : field.key === "load_fin" && draft.load_ini
+                                ? draft.load_ini
+                                : field.key === "departure_date" && draft.load_fin
+                                  ? draft.load_fin
+                                  : undefined
                           }
                           max={
                             field.kind === "datetime"
@@ -3828,7 +4008,8 @@ export default function TRJKardexGuides() {
                         !!editing ||
                         !newLot ||
                         !selectedSgm ||
-                        isCleanupLot(newLot)
+                        isCleanupLot(newLot) ||
+                        (newHasExcess && !closeLot)
                       }
                       onClick={() => {
                         setCloseLot((current) => {
@@ -3847,12 +4028,14 @@ export default function TRJKardexGuides() {
                         : "Cerrar lote"}
                     </Button>
 
-                    {closeLot && !isCleanupLot(newLot) && (
+                    {(closeLot || newHasExcess) && !isCleanupLot(newLot) && (
                       <label
                         className="trjg-field"
                         style={{ minWidth: 280 }}
                       >
-                        Comentario cierre (opcional)
+                        {newHasExcess
+                          ? "Comentario excedente EXCE (obligatorio)"
+                          : "Comentario cierre (opcional)"}
                         <input
                           className="input"
                           maxLength={255}
@@ -3900,7 +4083,7 @@ export default function TRJKardexGuides() {
                         <th>Sacos Enviados</th>
                         <th>TMH llegada</th>
                         <th>Saldo total lote</th>
-                        <th>Obs. cierre</th>
+                        <th>Obs. control</th>
                         <th>Otras guías</th>
                         <th>Acciones</th>
                       </tr>
@@ -3920,6 +4103,11 @@ export default function TRJKardexGuides() {
                             .trim()
                             .toUpperCase() === "PERD";
 
+                        const isExce =
+                          row.lot_corr
+                            .trim()
+                            .toUpperCase() === "EXCE";
+
                         const lotClosed =
                           closedLots.has(rowCode);
 
@@ -3936,7 +4124,7 @@ export default function TRJKardexGuides() {
                           perdEditPreview?.deletePerd === true;
 
                         const rowClasses = [
-                          isPerd
+                          isPerd || isExce
                             ? "trjg-perd-row"
                             : "",
                           perdWillBeDeleted
@@ -4049,6 +4237,10 @@ export default function TRJKardexGuides() {
                                     Eliminar PERD
                                   </Button>
                                 )
+                              ) : isExce ? (
+                                <span className="trjg-note">
+                                  Control EXCE
+                                </span>
                               ) : isEditing ? (
                                 <div className="trjg-actions">
                                   <Button
@@ -4067,7 +4259,10 @@ export default function TRJKardexGuides() {
                                   <Button
                                     size="sm"
                                     disabled={saving}
-                                    onClick={() => setEditing(null)}
+                                    onClick={() => {
+                                      setEditing(null);
+                                      setBalanceObs("");
+                                    }}
                                   >
                                     Cancelar
                                   </Button>
@@ -4081,14 +4276,17 @@ export default function TRJKardexGuides() {
                                       !!editing ||
                                       !!newLot
                                     }
-                                    onClick={() =>
+                                    onClick={() => {
+                                      setBalanceObs(
+                                        exceByLot.get(rowCode)?.balance_obs || ""
+                                      );
                                       setEditing({
                                         row,
                                         value: tmhInputValue(
                                           row.tmh_departure
                                         ),
-                                      })
-                                    }
+                                      });
+                                    }}
                                   >
                                     Editar salida
                                   </Button>
@@ -4135,6 +4333,23 @@ export default function TRJKardexGuides() {
                     </tfoot>
                   </table>
                 </div>
+
+                {editing && editHasExcess && (
+                  <label
+                    className="trjg-field"
+                    style={{ marginTop: 7, maxWidth: 420 }}
+                  >
+                    Comentario excedente EXCE (obligatorio)
+                    <input
+                      className="input"
+                      maxLength={255}
+                      value={balanceObs}
+                      onChange={(e) =>
+                        setBalanceObs(e.target.value)
+                      }
+                    />
+                  </label>
+                )}
 
                 {editing && editError && (
                   <div

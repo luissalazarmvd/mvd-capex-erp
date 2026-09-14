@@ -444,7 +444,8 @@ function InvoiceDetail({
                 lots={lots.filter(
                   (row) =>
                     row.guide_number === guide.guide_number &&
-                    isOperationalLot(row),
+                    isOperationalLot(row) &&
+                    row.lot_corr.trim().toUpperCase() !== "EXCE",
                 )}
                 disabled={busy || metadataDirty}
                 onBusy={onBusy}

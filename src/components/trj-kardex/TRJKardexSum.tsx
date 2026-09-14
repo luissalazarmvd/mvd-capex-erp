@@ -32,6 +32,12 @@ import {
   type DonutItem,
 } from "./KardexCharts";
 
+const isExceLot = (row: KardexLot) =>
+  row.lot_corr.trim().toUpperCase() === "EXCE";
+
+const isCountableLot = (row: KardexLot) =>
+  isOperationalLot(row) && !isExceLot(row);
+
 const columnSpecs: [string, string, ExcelFilterKind?][] = [
   ["guide_number", "Guía"],
   ["status_name", "Estado"],
@@ -351,7 +357,7 @@ export default function TRJKardexSum() {
   const stats = useMemo(
     () =>
       kardexStatistics(
-        filtered.rows,
+        filtered.rows.filter((row) => !isExceLot(row)),
         filtered.guides,
         filtered.invoices,
         period,
@@ -387,7 +393,7 @@ export default function TRJKardexSum() {
     {
       label: "TMH enviadas",
       value: fmt(stats.tmh, 3),
-      note: "Salidas operativas · excluye PERD",
+      note: "Salidas operativas · excluye PERD/EXCE",
       tip: [
         [`TMH LIMPIEZA · ${stats.cleanupLots} lotes`, fmt(stats.tmhCleanup, 3)],
         [`TMH PERD · ${stats.perdLots} lotes`, fmt(stats.tmhPerd, 3)],
@@ -591,14 +597,14 @@ export default function TRJKardexSum() {
         .filter((row) => row.guide_number === selectedGuide)
         .sort(
           (a, b) =>
-            Number(isOperationalLot(b)) - Number(isOperationalLot(a)) ||
+            Number(isCountableLot(b)) - Number(isCountableLot(a)) ||
             a.lot.localeCompare(b.lot) ||
             a.lot_corr.localeCompare(b.lot_corr),
         )
     : [];
   const focusedTmh = (key: string) =>
     focusedLots
-      .filter(isOperationalLot)
+      .filter(isCountableLot)
       .reduce((sum, row) => sum + Number(row[key] || 0), 0);
 
   const selectedStatusGuides = selectedStatus
@@ -1136,7 +1142,7 @@ export default function TRJKardexSum() {
             />
             <LineChart
               title="TMH enviadas"
-              subtitle="Volumen de salida operativo por período, sin PERD"
+              subtitle="Volumen de salida operativo por período, sin PERD/EXCE"
               digits={2}
               area
               rows={periodRows((r) => [r.tmh])}
@@ -1314,7 +1320,7 @@ export default function TRJKardexSum() {
                         </thead>
                         <tbody>
                           {focusedLots.map((row) => (
-                            <tr key={lotKey(row)} data-perd={!isOperationalLot(row)}>
+                            <tr key={lotKey(row)} data-perd={!isCountableLot(row)}>
                               <td>{row.lot}</td>
                               <td>{row.lot_corr}</td>
                               <td>{fmt(row.tmh_departure, 3)}</td>
@@ -1329,12 +1335,16 @@ export default function TRJKardexSum() {
                         </tbody>
                         <tfoot>
                           <tr>
-                            <th colSpan={2}>Total operativo · sin PERD</th>
+                            <th colSpan={2}>Total operativo · sin PERD/EXCE</th>
                             <th>{fmt(focusedTmh("tmh_departure"), 3)}</th>
                             <th>{fmt(focusedTmh("tmh_arrival"), 3)}</th>
                             <th colSpan={3}>
-                              {focusedLots.filter(isOperationalLot).length} lotes ·{" "}
-                              {focusedLots.filter((row) => !isOperationalLot(row)).length} PERD
+                              {focusedLots.filter(isCountableLot).length} lotes ·{" "}
+                              {focusedLots.filter(
+                                (row) =>
+                                  row.lot_corr.trim().toUpperCase() === "PERD"
+                              ).length} PERD ·{" "}
+                              {focusedLots.filter(isExceLot).length} EXCE
                             </th>
                           </tr>
                         </tfoot>
