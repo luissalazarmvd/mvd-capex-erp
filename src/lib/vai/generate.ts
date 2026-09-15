@@ -95,6 +95,7 @@ function sourceContext(source: VaiSource) {
     description: source.description,
     grain: source.grain,
     rules: [...source.rules, ...(source.exclusions ?? []).map((c) => `Exclusión fija: ${c.field} ${c.op} ${JSON.stringify(c.value ?? "")}.`)],
+    businessTerms: source.keywords,
     dateFields: source.fields.filter((field) => field.role === "date").map((field) => ({ id: field.id, label: field.label, description: field.description })),
     dimensions: source.fields.filter((field) => field.role === "dimension").map((field) => ({ id: field.id, label: field.label, description: field.description })),
     attributes: source.fields.filter((field) => field.role === "attribute" || field.role === "measure").map((field) => ({ id: field.id, label: field.label, format: field.format ?? "text", description: field.description, tableOnly: true })),
@@ -125,8 +126,11 @@ Reglas obligatorias:
 - En una tabla de detalle, dateField NO significa ordenar por fecha. Si el usuario pide "detalle", "lista", "recientes", "últimos" o filas individuales, usa una tabla de detalle con columns. No conviertas una petición de ordenamiento en una tabla agrupada.
 - Nunca generes una tabla con dimension/dateField y metrics vacío. Si no existe una métrica necesaria para agrupar, construye una tabla de detalle con los campos disponibles en vez de declarar esa parte como no disponible.
 - Filtros: "date_range" sobre un campo de fecha de una fuente usada; "select" sobre una dimension de una fuente usada. Solo incluye filtros útiles (normalmente un rango de fechas por fuente y 1-2 selects).
-- Respeta estrictamente grain, rules, exclusiones y definición de cada métrica. No sumes campos que el catálogo marca como no sumables y no reconstruyas una métrica manualmente si ya existe una métrica declarada para ese concepto.
+- Respeta estrictamente grain, rules, businessTerms, exclusiones y definición de cada métrica. No sumes campos que el catálogo marca como no sumables y no reconstruyas una métrica manualmente si ya existe una métrica declarada para ese concepto.
+- Un concepto de negocio puede estar representado por una métrica filtrada y no por una columna física. Revisa siempre field, where, numerator, denominator y las reglas de la fuente antes de concluir que falta un dato. No inventes nombres de campos a partir del lenguaje del usuario.
+- Si el catálogo declara una métrica que representa el concepto pedido, ese concepto está disponible aunque el campo físico tenga otro nombre o el cálculo dependa de valores de una dimensión.
 - Para cada widget, usa únicamente métricas y campos pertenecientes a la misma fuente del widget. Antes de devolver el JSON, verifica que todos los ids existan exactamente en esa fuente y que la combinación type/metrics/dimension/dateField/columns cumpla las reglas anteriores.
+- Antes de agregar algo a "unavailable", comprueba todas las métricas, campos, reglas y businessTerms de las fuentes candidatas. Si puede resolverse mediante una métrica declarada o una tabla de detalle, constrúyelo.
 - Si algo pedido puede construirse razonablemente con los campos o métricas existentes, constrúyelo y no lo pongas en "unavailable". Solo marca "partial" cuando realmente falta información en el catálogo. Si nada es posible, status "unavailable", dashboard null y explica en "message".
 - "message" se muestra al usuario: breve, en español, sin jerga técnica. Títulos en español, claros y cortos. Sin datos inventados.
 - Devuelve solo JSON válido según el esquema.`;

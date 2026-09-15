@@ -161,7 +161,7 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
       if (!metrics.includes(id)) metrics.push(id);
     } else notes.push(`${label}: la métrica «${id}» no existe en ${source.name}.`);
   }
-  const maxMetrics = type === "kpi" ? 1 : 3;
+  const maxMetrics = type === "kpi" ? 1 : type === "table" ? 6 : 3;
   if (metrics.length > maxMetrics) metrics.splice(maxMetrics);
 
   let dimension: string | null = null;
