@@ -7,14 +7,15 @@ export default function VaiLogo({ size = 40, title = "VAi" }: Props) {
 
   return (
     <svg
-      width={size * 1.72}
+      width={size * 1.38}
       height={size}
-      viewBox="0 0 110 64"
+      viewBox="0 0 88 64"
       role="img"
       aria-label={title}
       style={{ display: "block", flex: "none" }}
     >
       <title>{title}</title>
+
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="var(--brand-gold)" />
@@ -22,34 +23,34 @@ export default function VaiLogo({ size = 40, title = "VAi" }: Props) {
         </linearGradient>
       </defs>
 
-      <path d="M17 18 A9 9 0 0 1 35 18 Z" fill={`url(#${gradientId})`} />
+      <path d="M11 18 A9 9 0 0 1 29 18 Z" fill={`url(#${gradientId})`} />
 
       <path
-        d="M10 25 L26 47 L42 25 L58 47"
+        d="M8 25 L24 46 L40 25 L56 46"
         fill="none"
         stroke="var(--ink)"
         strokeWidth="5.5"
-        strokeLinejoin="round"
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
 
       <path
-        d="M34 38 H50"
+        d="M34.5 35.5 H45.5"
         fill="none"
         stroke="var(--ink)"
-        strokeWidth="5"
+        strokeWidth="3.2"
         strokeLinecap="round"
       />
 
       <path
-        d="M74 31 V47"
+        d="M72 28.5 V46"
         fill="none"
         stroke={`url(#${gradientId})`}
         strokeWidth="5.5"
         strokeLinecap="round"
       />
 
-      <circle cx="74" cy="23.5" r="3.6" fill={`url(#${gradientId})`} />
+      <circle cx="72" cy="21" r="3.8" fill={`url(#${gradientId})`} />
     </svg>
   );
 }
