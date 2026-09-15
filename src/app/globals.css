@@ -264,8 +264,8 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 [data-module="compliance"]     { --mod: #969795; --mod-soft: rgba(150, 151, 149, 0.16); }
 [data-module="vai"]            { --mod: #ffd882; --mod-soft: rgba(255, 216, 130, 0.14); }
 
-/* ── V-Ai: prompt, inventario y tablero generado. Reutiliza los gráficos y
-      clases de tarjeta de Kardex (.trjk-card, .trjk-chart…); aquí solo viven
+/* ── V-Ai: prompt, inventario y tablero generado. Reutiliza los gráficos
+      compartidos y sus clases (.trjk-card, .trjk-chart…); aquí solo viven
       el flujo de generación y la grilla del tablero. ───────────────────── */
 .vai-shell { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; font-size: 12px; }
 .vai-shell h2 { margin: 0; font-size: 20px; font-weight: 600; }

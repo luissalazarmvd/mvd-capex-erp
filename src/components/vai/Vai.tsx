@@ -64,7 +64,7 @@ import {
   RankChart,
   type ChartRow,
   type ChartSeries,
-} from "../trj-kardex/KardexCharts";
+} from "../ui/Charts";
 import { Button } from "../ui/Button";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 import { Select } from "../ui/Select";
@@ -603,7 +603,7 @@ function VaiPromptForm({ busy, initial, onGenerate }: { busy: boolean; /** Últi
 //
 // Renderer fijo de V-Ai: dado un spec validado, consulta cada fuente por su
 // endpoint del catálogo (nunca una URL del modelo), aplica filtros en el
-// navegador y dibuja KPIs, gráficos (KardexCharts) y tablas. Cambiar filtros o
+// navegador y dibuja KPIs, gráficos compartidos y tablas. Cambiar filtros o
 // actualizar datos no vuelve a llamar a la IA.
 
 type SourceState = { rows: VaiRow[]; loading: boolean; error: string | null; loadedAt: number | null };
@@ -1397,5 +1397,4 @@ export default function VaiWorkspace() {
     </div>
   );
 }
-
 

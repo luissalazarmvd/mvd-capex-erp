@@ -1,12 +1,11 @@
-// src/components/trj-kardex/KardexCharts.tsx
+// src/components/ui/Charts.tsx
 //
-// Gráficos SVG de las estadísticas de Kardex: columnas, líneas, anillo y ranking.
+// Gráficos SVG compartidos: columnas, líneas, anillo y ranking.
 // Colores por tokens (--chart-*), marcas finas, tooltip en todas las series y
 // tabla «Ver datos» como equivalente accesible de cada gráfico.
 "use client";
 
 import { useCallback, useRef, useState, type ReactNode } from "react";
-import { kardexFormat as fmt } from "../../lib/trjKardex";
 import { canUseLogScale, logarithmicScale, type ChartScaleMode } from "../../lib/chartScale";
 
 export type ChartSeries = {
@@ -31,6 +30,17 @@ const compact = new Intl.NumberFormat("es-PE", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
+
+function formatNumber(value: unknown, digits = 2) {
+  if (value == null || value === "" || !Number.isFinite(Number(value))) {
+    return "—";
+  }
+
+  return Number(value).toLocaleString("es-PE", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
 
 // Ref de callback: el plot puede montarse después del primer render (datos que
 // llegan tarde o un filtro que vacía y vuelve a llenar) y debe observarse igual.
@@ -66,7 +76,7 @@ function niceScale(low: number, high: number, count = 4) {
 }
 
 function value(v: number | null, digits: number, unit: string) {
-  return v == null ? "—" : `${fmt(v, digits)}${unit}`;
+  return v == null ? "—" : `${formatNumber(v, digits)}${unit}`;
 }
 
 function ChartCard({
@@ -438,7 +448,7 @@ export function ColumnChart({
                           y={v >= 0 ? yFor(j, v) - 4 : yFor(j, v) + 11}
                           textAnchor="middle"
                         >
-                          {fmt(v, series[j]?.digits ?? digits)}
+                          {formatNumber(v, series[j]?.digits ?? digits)}
                         </text>
                       ),
                     )}
@@ -640,7 +650,7 @@ export function LineChart({
                   y={e.y + 3.5}
                   textAnchor={placeLeft ? "end" : "start"}
                 >
-                  {fmt(e.v, series[e.j]?.digits ?? digits)}
+                  {formatNumber(e.v, series[e.j]?.digits ?? digits)}
                   {series[e.j]?.unit ?? unit}
                 </text>
               );
@@ -750,7 +760,7 @@ export function DonutChart({
                 <tr key={s.item.label}>
                   <td>{s.item.label}</td>
                   <td>{value(s.item.value, digits, unit)}</td>
-                  <td>{fmt(s.pct, 1)} %</td>
+                  <td>{formatNumber(s.pct, 1)} %</td>
                 </tr>
               ))}
             </tbody>
@@ -782,11 +792,11 @@ export function DonutChart({
               }
               style={onSelect ? { cursor: "pointer" } : undefined}
             >
-              <title>{`${s.item.label}: ${value(s.item.value, digits, unit)} (${fmt(s.pct, 1)} %)`}</title>
+              <title>{`${s.item.label}: ${value(s.item.value, digits, unit)} (${formatNumber(s.pct, 1)} %)`}</title>
             </path>
           ))}
           <text className="trjk-donut-value" x={cx} y={cx - 2} textAnchor="middle">
-            {focus ? `${fmt(focus.value / total * 100, 0)} %` : compact.format(total)}
+            {focus ? `${formatNumber(focus.value / total * 100, 0)} %` : compact.format(total)}
           </text>
           <text className="trjk-donut-label" x={cx} y={cx + 14} textAnchor="middle">
             {focus ? focus.label.slice(0, 18) : centerLabel}
@@ -814,7 +824,7 @@ export function DonutChart({
               <i style={{ background: s.item.color }} />
               <span title={s.item.note ? `${s.item.label} · ${s.item.note}` : s.item.label}>{s.item.label}</span>
               <strong>{value(s.item.value, digits, unit)}</strong>
-              <em>{fmt(s.pct, 1)} %</em>
+              <em>{formatNumber(s.pct, 1)} %</em>
             </button>
           ))}
         </div>

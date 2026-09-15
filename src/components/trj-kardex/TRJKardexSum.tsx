@@ -31,7 +31,7 @@ import {
   RankChart,
   type ChartRow,
   type DonutItem,
-} from "./KardexCharts";
+} from "../ui/Charts";
 
 type LotStatus =
   | "Sin valorización"
