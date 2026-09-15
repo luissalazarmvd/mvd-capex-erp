@@ -1,6 +1,5 @@
 import Image from "next/image";
 import LogoutLink from "../../components/auth/LogoutLink";
-import VaiLogo from "../../components/vai/VaiLogo";
 
 export default function VaiLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -42,15 +41,12 @@ export default function VaiLayout({ children }: { children: React.ReactNode }) {
                 />
               </LogoutLink>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 12, lineHeight: 1.1 }}>
-                <VaiLogo size={36} />
-                <div>
-                  <div style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>
-                    MVD – V-<span style={{ color: "var(--brand-gold-light)" }}>Ai</span>
-                  </div>
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    Dashboards inteligentes con los datos de Veta · prototipo
-                  </div>
+              <div style={{ lineHeight: 1.1 }}>
+                <div style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>
+                  V-<span style={{ color: "var(--brand-gold-light)" }}>Ai</span>
+                </div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  Dashboards inteligentes con los datos de Veta · prototipo
                 </div>
               </div>
             </div>
