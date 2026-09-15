@@ -118,6 +118,36 @@ Logística usa `/api/logistics/*`.
 Flota separa Gestión y Unidades por scopes. No agregar campos obligatorios que el flujo actual permita completar independientemente.
 `FleetMgmForm` ofrece filtros tipo Excel en cada columna visible; evalúan los valores actuales de los drafts, normalizan los valores numéricos a 2 decimales y mantienen los filtros generales de fechas, estado y búsqueda.
 
+Combustible y recorridos de Flota exponen únicamente lectura mediante estos GET existentes:
+
+- `/api/logistics/flota/units`: catálogo GPS, una fila por `vehicle_id`.
+- `/api/logistics/flota/fuel-units`: ficha técnica actual, una fila por placa.
+- `/api/logistics/flota/fuel`: todos los vales de abastecimiento, una fila por vale.
+- `/api/logistics/flota/fuel-alerts`: únicamente vales cuyo abastecimiento supera la capacidad aplicable.
+- `/api/logistics/flota/dist`: recorrido GPS, una fila por `gps_identifier + cal_date`.
+- `/api/logistics/flota/dist-cons-rat`: cruce diario heredado, una fila por `plate + cal_date`.
+- `/api/logistics/flota/fuel-summary`: resumen por `plate + group_name + día|mes`; `grain=month`, `apply_factor=0` y `vehicle_only=0` son los defaults del endpoint.
+
+Los filtros `from`/`to` son inclusivos y se aplican antes de agrupar. Según el endpoint también existen `plate`, `group_name`, `brand`, `model`, `cost_center`, `type_fuel`, `gas_station`, `driver_name` y `status_name`. Sin fechas se devuelve todo el histórico y no existe paginación oculta.
+
+Semántica durable para V-Ai:
+
+- `qty` y `tank_capacity` están en galones. `odometer_km` es recorrido diario GPS, no odómetro acumulado.
+- El exceso de tanque se calcula por vale; nunca como `SUM(qty_día) - capacidad`. Excluye placas `GAL*`, `MULTICAR` y marcas `GALONERA`/`OTROS`.
+- El factor multiplica la autonomía y divide la referencia de l/100 km; no modifica la capacidad del tanque.
+- Aunque el endpoint conserva `apply_factor=0` como default técnico, las fuentes resumen de V-Ai llaman `apply_factor=1`; mantienen `vehicle_only=0` para incluir todo el consumo y costo.
+- Los ratios y porcentajes se recalculan desde sus sumas base. No sumar ni promediar ratios. Los campos `*_pct` son fracciones (`0.15 = 15 %`).
+- Galoneras y otros conservan consumo y costo, pero no generan métricas de eficiencia.
+- `price_usd` es un alias heredado de `total` y no acredita moneda USD. `cost_pen` y `cost_usd` dependen de `currency_code` y no convierten monedas.
+- No imputar S/ 23.70 cuando falte precio. Los costos teóricos y desviaciones económicas quedan `null` sin precio PEN verificable.
+- Para consolidar un KPI PEN, `SUM(non_pen_or_unpriced_count)` debe ser cero. `cost_pen_known` es solo el subtotal de importes identificados.
+- `fuel-summary` combina el alcance de `dist-cons-rat` con todos los vales fechados con placa, sin inventar kilómetros para vales fuera del cruce. Para detalle diario usa `grain=day`.
+- `group_name` se presenta al usuario como `Sede`. `potential_savings_pen` se presenta como `Ahorro potencial`.
+- `status_name` clasifica `Galonera / Otro`, `Tanqueo anómalo`, `Sin ratio`, `Sobreconsumo`, `Revisar datos` y `OK`, pero sus umbrales actuales no son oficiales: V-Ai no lo usa en dashboards normales ni en conclusiones salvo petición explícita. La estimación frente a ficha técnica no demuestra ahorro realizado ni uso indebido.
+- El catálogo V-Ai separa catálogo GPS, ficha técnica, vales, alertas por vale, recorridos GPS, cruce heredado y resúmenes analíticos diario/mensual. Usar vales para auditoría individual, resumen diario para fechas exactas o rangos menores a un mes y resumen mensual para tendencias de meses completos.
+- Las métricas de eficiencia del resumen (`l_100km`, costo/km y autonomía real) se consolidan desde sumas base o ponderaciones declaradas; sus campos de fila permanecen como atributos no agregables.
+- Un dashboard genérico de combustible prioriza galones, costos PEN/USD separados, costo promedio por galón por moneda, consumo y costo promedio por vehículo y cantidad de vehículos. El detalle de eficiencia prioriza placa, sede, km/gal, galones, costo por moneda, costo/gal y km totales. `dist-cons-rat` queda disponible solo para consultas explícitas del cruce heredado.
+
 ### Sostenibilidad
 IGAFOM y padrón de proveedores. Preservar claves y validaciones existentes.
 
@@ -147,18 +177,26 @@ El portafolio de eficiencia se presenta íntegramente en inglés y francés. Par
 - La tabla mensual conserva su fila de totales para volumen, MH y ahorro laboral; el costo evitado del sistema se presenta por separado y se incluye en el ahorro anual total.
 
 ### V-Ai (prototipo)
-Ruta `/vai`, layout `data-module="vai"`, componentes en `src/components/vai`, lógica en `src/lib/vai`. Genera dashboards a partir de lenguaje natural sobre un catálogo controlado.
+Ruta `/vai`, layout `data-module="vai"`. Toda la interfaz está consolidada en `src/components/vai/Vai.tsx` y toda la lógica compartida en `src/lib/vai.ts`; la integración privada con OpenAI vive en `src/app/api/vai/generate/route.ts`. Genera dashboards a partir de lenguaje natural sobre un catálogo controlado.
 
-- Catálogo (`src/lib/vai/catalog.ts`): solo metadatos —id, área, endpoint GET existente, vista SQL, granularidad, campos con rol (`dimension`/`date`/`measure`/`attribute`), métricas con agregación declarada, exclusiones fijas, reglas y `access.scopes` reservado para permisos futuros—. Un importe de cabecera repetido por fila de detalle se expone como `attribute`, nunca como métrica sumable. Ninguna fuente de escritura entra al catálogo.
-- Privacidad: OpenAI recibe únicamente el índice del catálogo, los metadatos de las fuentes candidatas (preselección local por área y términos en `selectCandidateSources`), las preferencias y el prompt. Nunca filas, importes, nombres de registros ni credenciales. Modelo centralizado en `VAI_OPENAI_MODEL` (`src/lib/vai/generate.ts`), API key `API_OPEN_AI` solo en el route handler `POST /api/vai/generate` (protegido por cookie `mvd_auth` con scope `vai` mediante `src/lib/auth/session.ts`).
-- El modelo devuelve una especificación JSON (`src/lib/vai/spec.ts`, schema v1: título, fuentes ≤ 3, filtros ≤ 6, widgets ≤ 10 de tipo `kpi|line|bar|rank|donut|table`); `validateModelOutput` descarta server-side todo lo que no exista en el catálogo y reporta lo omitido al usuario. Sin SQL ni React generados por el modelo; sin URLs ni endpoints fuera del catálogo; sin cruces entre fuentes en v1.
-- Datos reales: el navegador consulta cada fuente por su `endpoint` del catálogo vía `apiClient` y `src/lib/vai/engine.ts` filtra y agrega en cliente reutilizando `KardexCharts`. Filtros, «Actualizar datos», abrir, renombrar y eliminar no llaman a OpenAI.
-- Fechas: `date_range` conserva límites inclusivos `from`/`to` en ISO para períodos absolutos; los presets relativos se resuelven con la fecha actual de Lima. Al abrir una definición anterior sin límites, un único mes/año explícito en el filtro o prompt permite recuperar el período solicitado.
+- Catálogo (sección `CATALOG` de `src/lib/vai.ts`): solo metadatos —id, área, endpoint GET existente, vista SQL, granularidad, fecha predeterminada, campos con rol (`dimension`/`date`/`measure`/`attribute`), métricas con agregación declarada, exclusiones fijas, reglas y `access.scopes` reservado para permisos futuros—. Un importe de cabecera repetido por fila de detalle se expone como `attribute`, nunca como métrica sumable. Ninguna fuente de escritura entra al catálogo. El alcance habilitado es Kardex TRJ, Trazabilidad, Activos Fijos, Planta, Refinería, Logística y Flota; Sostenibilidad, CAPEX, Compliance y TI quedan fuera de V-Ai.
+- Privacidad: OpenAI recibe únicamente el índice del catálogo, los metadatos de las fuentes candidatas (preselección local por área y términos en `selectCandidateSources`), las preferencias y el prompt. Nunca filas, importes, nombres de registros ni credenciales. El modelo `VAI_OPENAI_MODEL` y la API key `API_OPEN_AI` existen solo en `POST /api/vai/generate`, protegido por cookie `mvd_auth` con scope `vai` mediante `src/lib/auth/session.ts`.
+- El modelo devuelve una especificación JSON (sección `SPEC` de `src/lib/vai.ts`, schema v1: título, fuentes ≤ 3, filtros ≤ 6, widgets ≤ 10 de tipo `kpi|line|bar|rank|donut|table`); `validateModelOutput` descarta server-side todo lo que no exista en el catálogo y reporta lo omitido al usuario. Sin SQL ni React generados por el modelo; sin URLs ni endpoints fuera del catálogo; sin cruces entre fuentes en v1.
+- Datos reales: el navegador consulta cada fuente por su `endpoint` del catálogo vía `apiClient`; la sección `ENGINE` de `src/lib/vai.ts` filtra y agrega en cliente reutilizando `KardexCharts`. Filtros, «Actualizar datos», abrir, renombrar y eliminar no llaman a OpenAI.
+- Fechas: `date_range` conserva límites inclusivos `from`/`to` en ISO para períodos absolutos; los presets relativos se resuelven con la fecha actual de Lima. Al abrir una definición anterior sin límites, un único mes/año explícito en el filtro o prompt permite recuperar el período solicitado. Para fuentes de eventos sin período explícito, `validateModelOutput` agrega el rango 2026-01-01 hasta la fecha actual de Lima sobre `defaultDateField`; las fuentes snapshot no reciben ese filtro.
 - Resúmenes de tablas: se calculan sobre todas las filas filtradas, antes de paginar. `summaries` admite `auto|sum|avg|min|max|none` por columna; `auto` respeta la agregación del catálogo y recalcula promedios ponderados/razones sobre los registros originales. Solo las medidas numéricas llevan resumen; nunca sumar identificadores, fechas ni atributos de cabecera repetidos.
 - Barras y rankings de V-Ai ofrecen escala automática, lineal o logarítmica base 10. Automática usa log cuando los valores positivos abarcan al menos tres órdenes de magnitud; con ceros o negativos conserva lineal y siempre identifica la escala logarítmica.
 - Exportaciones de V-Ai: PDF del dashboard o de cada bloque y Excel de tablas/cifras de gráficos, generados en cliente sin llamar a OpenAI. Incluyen todas las páginas de las filas filtradas y sus resúmenes; las tablas respetan también sus filtros de columna. PDF usa fondo hasta el borde y páginas de ancho adaptable, sin encabezados/pies del navegador. Excel conserva tipos y formatos numéricos.
 - Persistencia: `stg.vai_dashboards_web` (solo definición: nombre, prompt, `spec_json`, `schema_version`, `source_ids`; `owner_key`/`visibility` reservados). Endpoints `GET /api/vai/dashboards`, `GET /api/vai/dashboards/:dashboard_id`, `POST /api/vai/dashboards/insert` (crea o actualiza) y `POST /api/vai/dashboards/delete`. Al abrir, `parseStoredSpec` revalida contra el catálogo vigente.
 - Prompt limitado a `VAI_PROMPT_MAX` (1200) en frontend y backend.
+- Reglas de presentación globales: PEN y USD van en gráficos separados; los nulos categóricos aparecen como `Sin dato` y los numéricos se excluyen de agregaciones; las comparaciones por sede, área, proveedor o responsable no tienen restricciones adicionales.
+- Fechas de negocio predeterminadas: Kardex de guías → `guide_date`; Trazabilidad ingresados/procesados/valorizados/facturados/pagados → `entry_date`/`process_date`/`valuation_date`/`doc_date`/`payment_date`; Activos de un período → `acquisition_date`; Planta → `shift_date`; Refinería de campañas → `campaign_date`, consumos → `consumption_date`; Logística de requerimientos/compras/entregas → `req_date`/`po_date`/`delivery_date`; mantenimiento de Flota → `req_date`.
+- Trazabilidad: `lot_usd` de `/api/traceability` es monto valorizado. Au y Ag se ponderan por TMS; humedad y USD/TMS usan promedio simple. Sin `valuation_date` es sin valorización y sin `payment_date` es sin pago.
+- Activos Fijos: la foto actual no se filtra por fecha salvo petición explícita de adquisición, operación o baja. Activo = saldo positivo; totalmente depreciado = saldo cero; baja = saldo y valor cero. La fuente mensual principal es depreciación; la relación al catálogo es `asset_code`, pero V-Ai v1 no ejecuta el cruce.
+- Planta: `shift_date` pertenece al inicio de la guardia, incluido el turno nocturno. Usar los KPIs del balance; recuperaciones y NaCN/TMS se recalculan desde sumas base. Turno y supervisor son clasificadores.
+- Refinería: `campaign_date` es inicio referencial; leyes Au/Ag se ponderan por carbón seco; stock es total a la fecha; cada reactivo conserva su unidad y solo se suma consigo mismo. Los GET catalogados no exponen costos de campaña, por lo que V-Ai debe reportarlos como no disponibles.
+- Logística: la fuente devuelve requerimientos activos. Sin `po_date` es sin OC y sin `delivery_date` es sin envío. Cantidades se consolidan por material, precio unitario USD se pondera por cantidad ordenada y los tiempos requerimiento→OC, OC→entrega estimada y OC→entrega real se expresan en días calendario.
+- Flota: placa es la identidad principal. El monto de OC repetido entre ítems se suma una sola vez por `po_num`; permanencia en taller usa días calendario. SOAT/RTV conserva los estados `Vencido`, `Por Renovar <15d`, `Por Renovar <30d`, `Activo` y `Sin Fecha`.
 
 ---
 

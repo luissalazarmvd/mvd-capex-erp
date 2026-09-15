@@ -1,4 +1,4 @@
-import VaiWorkspace from "../../components/vai/VaiWorkspace";
+import VaiWorkspace from "../../components/vai/Vai";
 
 export const metadata = { title: "V-Ai" };
 
