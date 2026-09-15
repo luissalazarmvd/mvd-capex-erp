@@ -19,7 +19,7 @@ import {
 /** Modelo centralizado; cambiarlo aquí basta. */
 export const VAI_OPENAI_MODEL = "gpt-5-mini";
 const OPENAI_URL = "https://api.openai.com/v1/responses";
-const OPENAI_TIMEOUT_MS = 50_000;
+const OPENAI_TIMEOUT_MS = 150_000;
 const MAX_CANDIDATES = 5;
 
 export type VaiFocus = "auto" | "kpis" | "trends" | "comparisons" | "detail";

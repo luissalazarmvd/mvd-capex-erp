@@ -13,7 +13,7 @@ import { VAI_PROMPT_MAX, validateModelOutput } from "@/src/lib/vai/spec";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 const FOCUS: VaiFocus[] = ["auto", "kpis", "trends", "comparisons", "detail"];
 const CHARTS: VaiChartPreference[] = ["line", "bar", "kpi", "table"];
