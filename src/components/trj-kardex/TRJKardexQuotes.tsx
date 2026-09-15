@@ -32,8 +32,23 @@ type Carrier = { ruc: string; name: string | null };
 const carrierLabel = (r: Carrier) => `${r.name || r.ruc} · ${r.ruc}`;
 const today = () =>
   new Date(Date.now() - 5 * 3600000).toISOString().slice(0, 10);
-const moneyInput = (value: string) => Number(value).toFixed(2);
+const moneyInput = (value: unknown) => {
+  const raw = value == null ? "" : String(value).trim();
+  if (!raw) return "";
+  const number = Number(raw);
+  return Number.isFinite(number) ? number.toFixed(2) : raw;
+};
 const moneyValid = (value: string) => /^\d{1,12}(?:\.\d{1,2})?$/.test(value);
+const sharedRateInput = (rows: KardexGuide[]) => {
+  const rates = [
+    ...new Set(
+      rows
+        .map((row) => moneyInput(row.pu_transport_usd))
+        .filter(Boolean),
+    ),
+  ];
+  return rates[0] || "";
+};
 
 function invoiceDraftValue(value: string) {
   const compact = value
@@ -240,29 +255,41 @@ function InvoiceDetail({
   const [preview, setPreview] = useState<string | null>(null);
   const [date, setDate] = useState(invoice.document_date);
   const [amount, setAmount] = useState(moneyInput(invoice.amount_usd));
+  const savedRate = sharedRateInput(guides);
+  const [rate, setRate] = useState(savedRate);
   const [revision, setRevision] = useState(0);
   const closed = invoice.status_name === "CERRADO";
+  const rateDirty =
+    rate !== savedRate ||
+    guides.some((guide) => moneyInput(guide.pu_transport_usd) !== rate);
   const metadataDirty =
-    date !== invoice.document_date || amount !== moneyInput(invoice.amount_usd);
+    date !== invoice.document_date ||
+    amount !== moneyInput(invoice.amount_usd) ||
+    rateDirty;
   const dirty = metadataDirty || guideDirty;
   useEffect(() => onDirty(dirty), [dirty, onDirty]);
-  const calculated = guides.reduce(
-    (sum, guide) =>
-      sum +
-      kardexUnits(
-        guide.guide_number === activeGuide && guideDirty
-          ? preview
-          : guide.amount_usd,
-      ),
-    BigInt(0),
-  );
+  const rateUnits = moneyValid(rate) ? kardexUnits(rate) : BigInt(0);
+  const calculated = guides.reduce((sum, guide) => {
+    if (guide.guide_number === activeGuide && guideDirty) {
+      return sum + kardexUnits(preview);
+    }
+
+    const guideAmount =
+      (kardexUnits(guide.tmh_arrival) * rateUnits + BigInt(500000)) /
+      BigInt(1000000);
+
+    return sum + guideAmount;
+  }, BigInt(0));
   const difference = kardexUnits(amount) - calculated;
   const identity = {
     ruc: invoice.ruc,
     document_number: invoice.document_number,
   };
   const valid =
-    moneyValid(amount) && /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= today();
+    moneyValid(amount) &&
+    moneyValid(rate) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+    date <= today();
 
   function toggleGuide(guide: KardexGuide) {
     if (busy) return;
@@ -340,6 +367,23 @@ function InvoiceDetail({
           />
         </label>
         <label>
+          PU factura · USD/TMH
+          <input
+            className="input"
+            aria-label="Precio unitario de transporte de toda la factura"
+            inputMode="decimal"
+            maxLength={15}
+            value={rate}
+            disabled={busy || closed}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (/^\d{0,12}(?:\.\d{0,2})?$/.test(value)) {
+                setRate(value);
+              }
+            }}
+          />
+        </label>
+        <label>
           USD ingresado
           <input
             className="input"
@@ -352,7 +396,7 @@ function InvoiceDetail({
         </label>
         <div>
           <span>
-            USD calculado de guías{guideDirty ? " · vista previa" : ""}
+            USD calculado con PU factura{guideDirty ? " · vista previa" : ""}
           </span>
           <strong>
             {guideDirty && preview == null
@@ -387,11 +431,28 @@ function InvoiceDetail({
           size="sm"
           disabled={busy || closed || !metadataDirty || guideDirty || !valid}
           onClick={async () => {
-            await mutate("/api/trjkar/invo/update", {
-              ...identity,
-              document_date: date,
-              amount_usd: amount,
-            });
+            try {
+              await Promise.all(
+                guides.map((guide) =>
+                  apiPost("/api/trjkar/guides/insert", {
+                    guide_number: guide.guide_number,
+                    pu_transport_usd: rate,
+                  }),
+                ),
+              );
+
+              await mutate("/api/trjkar/invo/update", {
+                ...identity,
+                document_date: date,
+                amount_usd: amount,
+              });
+            } catch (error) {
+              window.alert(
+                error instanceof Error
+                  ? error.message
+                  : "No se pudo aplicar el PU de la factura",
+              );
+            }
           }}
         >
           Guardar factura
@@ -405,8 +466,8 @@ function InvoiceDetail({
       )}
       {metadataDirty && !valid && (
         <p className="trjk-error" role="alert">
-          Revisa la fecha y el monto: usa una fecha no futura y USD no negativo
-          con hasta 2 decimales.
+          Revisa la fecha, el PU y el monto: usa una fecha no futura y valores
+          USD no negativos con hasta 2 decimales.
         </p>
       )}
       <div className="trjk-guide-stack">
@@ -450,6 +511,7 @@ function InvoiceDetail({
               <TRJKardexQuoteEditor
                 key={`${guide.guide_number}:${revision}`}
                 guide={guide}
+                rate={rate}
                 lots={lots.filter(
                   (row) =>
                     row.guide_number === guide.guide_number &&
@@ -489,6 +551,7 @@ export default function TRJKardexQuotes() {
   const [searchedCarrier, setSearchedCarrier] = useState("");
   const [document, setDocument] = useState("");
   const [date, setDate] = useState(today);
+  const [rate, setRate] = useState("");
   const [amount, setAmount] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -505,7 +568,8 @@ export default function TRJKardexQuotes() {
   const gate = useRef(false);
   const builder = useRef<HTMLElement>(null);
   const normalized = invoiceStorageValue(document);
-  const builderDirty = selected.size > 0 || !!document || !!amount;
+  const builderDirty =
+    selected.size > 0 || !!document || !!rate || !!amount;
 
   const load = useCallback(async () => {
     const responses = await Promise.all([
@@ -608,6 +672,7 @@ export default function TRJKardexQuotes() {
     setSearchedCarrier("");
     setSelected(new Set());
     setDocument("");
+    setRate("");
     setAmount("");
   }
 
@@ -624,6 +689,7 @@ export default function TRJKardexQuotes() {
       if (path.endsWith("/insert")) {
         setSelected(new Set());
         setDocument("");
+        setRate("");
         setAmount("");
       }
       if (path.endsWith("/delete")) setActive(null);
@@ -831,6 +897,15 @@ export default function TRJKardexQuotes() {
                     );
                     if (existing) {
                       setDate(existing.document_date);
+                      setRate(
+                        sharedRateInput(
+                          guides.filter(
+                            (guide) =>
+                              guide.transport_ruc === existing.ruc &&
+                              guide.document_number === existing.document_number,
+                          ),
+                        ),
+                      );
                       setAmount(moneyInput(existing.amount_usd));
                     }
                   }
@@ -845,6 +920,21 @@ export default function TRJKardexQuotes() {
                 max={today()}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
+              />
+            </label>
+            <label>
+              PU factura · USD/TMH
+              <input
+                className="input"
+                inputMode="decimal"
+                maxLength={15}
+                value={rate}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (/^\d{0,12}(?:\.\d{0,2})?$/.test(value)) {
+                    setRate(value);
+                  }
+                }}
               />
             </label>
             <label>
@@ -863,6 +953,7 @@ export default function TRJKardexQuotes() {
                 loading ||
                 dirty ||
                 !normalized ||
+                !moneyValid(rate) ||
                 !moneyValid(amount) ||
                 !date ||
                 date > today() ||
@@ -875,16 +966,44 @@ export default function TRJKardexQuotes() {
                   ruc: carrier,
                   document_number: normalized,
                 });
+                const guideNumbers = [...selected];
+                const sharedRate = rate;
+
                 if (
                   await mutate("/api/trjkar/invo/insert", {
                     ruc: carrier,
                     document_number: normalized,
                     document_date: date,
                     amount_usd: amount,
-                    guide_numbers: [...selected],
+                    guide_numbers: guideNumbers,
                   })
-                )
+                ) {
                   setActive(key);
+                  setBusy(true);
+
+                  try {
+                    await Promise.all(
+                      guideNumbers.map((guideNumber) =>
+                        apiPost("/api/trjkar/guides/insert", {
+                          guide_number: guideNumber,
+                          pu_transport_usd: sharedRate,
+                        }),
+                      ),
+                    );
+                    await load();
+                    setRevision((n) => n + 1);
+                    setMessage("Factura vinculada y PU aplicado a todas las guías");
+                  } catch (error) {
+                    setError(true);
+                    setMessage(
+                      `La factura quedó vinculada, pero no se pudo aplicar el PU a todas las guías. ${
+                        error instanceof Error ? error.message : ""
+                      }`.trim(),
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                }
               }}
             >
               Vincular ({selected.size})
@@ -1144,6 +1263,7 @@ export default function TRJKardexQuotes() {
             setSearchedCarrier(activeInvoice.ruc);
             setDocument(activeInvoice.document_number);
             setDate(activeInvoice.document_date);
+            setRate(sharedRateInput(invoiceGuides));
             setAmount(moneyInput(activeInvoice.amount_usd));
             setSelected(new Set());
             guideExcel.clear();

@@ -39,8 +39,6 @@ function fixedInputValue(value: unknown, decimals: number) {
 
 const tmhInputValue = (value: unknown) => fixedInputValue(value, 3);
 
-const moneyInputValue = (value: unknown) => fixedInputValue(value, 2);
-
 function units(value: unknown): bigint | null {
   const raw = text(value).trim();
 
@@ -108,6 +106,7 @@ function peruNowInputValue() {
 
 export default function TRJKardexQuoteEditor({
   guide,
+  rate,
   lots,
   onSaved,
   onBusy,
@@ -116,6 +115,7 @@ export default function TRJKardexQuoteEditor({
   disabled,
 }: {
   guide: Guide;
+  rate: string;
   lots: Lot[];
   onSaved: (result: QuoteSaved) => void;
   onBusy: (busy: boolean) => void;
@@ -124,8 +124,6 @@ export default function TRJKardexQuoteEditor({
   disabled: boolean;
 }) {
   const [arrival, setArrival] = useState(text(guide.arrival_date).slice(0, 16));
-
-  const [rate, setRate] = useState(moneyInputValue(guide.pu_transport_usd));
 
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -141,7 +139,6 @@ export default function TRJKardexQuoteEditor({
 
   const dirty =
     arrival !== text(guide.arrival_date).slice(0, 16) ||
-    rate.trim() !== moneyInputValue(guide.pu_transport_usd) ||
     lots.some(
       (row) => values[identity(row)].trim() !== tmhInputValue(row.tmh_arrival),
     );
@@ -220,9 +217,6 @@ export default function TRJKardexQuoteEditor({
         body.arrival_date = arrival ? `${arrival.slice(0, 16)}:00.000` : null;
       }
 
-      if (rate.trim() !== moneyInputValue(guide.pu_transport_usd)) {
-        body.pu_transport_usd = rate.trim() ? decimalPayload(rate) : null;
-      }
 
       const changed = lots.filter(
         (row) =>
@@ -326,22 +320,6 @@ export default function TRJKardexQuoteEditor({
               />
             </label>
 
-            <label>
-              PU transporte · USD/TMH
-              <input
-                className="input"
-                inputMode="decimal"
-                maxLength={15}
-                value={rate}
-                onChange={(e) => {
-                  const value = e.target.value;
-
-                  if (/^(?:\d{0,12}(?:\.\d{0,2})?|\.\d{0,2})$/.test(value)) {
-                    setRate(value);
-                  }
-                }}
-              />
-            </label>
           </div>
         </div>
 
