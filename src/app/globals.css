@@ -273,36 +273,67 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-shell p { margin: 6px 0; }
 .vai-main { display: grid; gap: 12px; min-width: 0; }
 .vai-side { display: grid; gap: 12px; min-width: 0; position: sticky; top: 12px; }
-/* Shared VA monogram. The star and its trail follow the same curve once on mount. */
-.vai-logo { --vai-logo-duration: 2.2s; --vai-logo-delay: .25s; display: block; flex: none; overflow: visible; }
-.vai-logo-star { offset-distance: 100%; offset-position: 0 0; offset-anchor: 0 0; offset-rotate: 0deg; animation: vai-logo-flight var(--vai-logo-duration) cubic-bezier(.22, .61, .36, 1) var(--vai-logo-delay) both; }
+/* Una sola secuencia: V y domo → vuelo y dibujo de A → escarcha que forma la i. */
+.vai-logo { --vai-logo-duration: 3.6s; --vai-logo-delay: .15s; --vai-logo-fall-ease: cubic-bezier(.4, 0, .7, 1); display: block; flex: none; overflow: visible; }
+.vai-logo-foundation { animation: vai-logo-foundation var(--vai-logo-duration) ease-out var(--vai-logo-delay) both; }
+.vai-logo-a-leg, .vai-logo-a-bar { stroke-dasharray: 100 100; stroke-dashoffset: 0; animation: vai-logo-a-leg var(--vai-logo-duration) cubic-bezier(.4, 0, .2, 1) var(--vai-logo-delay) both; }
+.vai-logo-a-bar { animation-name: vai-logo-a-bar; }
+.vai-logo-star { offset-distance: 100%; offset-position: 0 0; offset-anchor: 0 0; offset-rotate: 0deg; animation: vai-logo-flight var(--vai-logo-duration) cubic-bezier(.4, 0, .2, 1) var(--vai-logo-delay) both; }
 .vai-logo-spark { transform-box: fill-box; transform-origin: center; animation: vai-logo-arrive var(--vai-logo-duration) ease-out var(--vai-logo-delay) both; }
-.vai-logo-trail { fill: none; stroke: var(--brand-gold-light); stroke-width: 1.2; stroke-linecap: round; stroke-dasharray: 100 100; stroke-dashoffset: 0; opacity: 0; animation: vai-logo-trail var(--vai-logo-duration) cubic-bezier(.22, .61, .36, 1) var(--vai-logo-delay) both; }
+.vai-logo-trail { fill: none; stroke: var(--brand-gold-light); stroke-width: 1.2; stroke-linecap: round; stroke-dasharray: 100 100; stroke-dashoffset: 0; opacity: 0; animation: vai-logo-trail var(--vai-logo-duration) cubic-bezier(.4, 0, .2, 1) var(--vai-logo-delay) both; }
 .vai-logo-trail-glow { stroke: var(--brand-gold); stroke-width: 3.5; filter: blur(2px); }
 .vai-logo-launch { fill: var(--brand-gold-light); opacity: 0; filter: blur(3px); animation: vai-logo-launch var(--vai-logo-duration) ease-out var(--vai-logo-delay) both; }
+.vai-logo-stem-reveal { transform: translateY(35px); animation: vai-logo-stem var(--vai-logo-duration) var(--vai-logo-fall-ease) var(--vai-logo-delay) both; }
+.vai-logo-dust { fill: var(--brand-gold-light); opacity: 0; filter: drop-shadow(0 0 1px var(--brand-gold-light)); animation: vai-logo-dust var(--vai-logo-duration) var(--vai-logo-fall-ease) calc(var(--vai-logo-delay) + var(--vai-dust-delay)) both; }
+.vai-logo-dust:nth-child(even) { fill: var(--brand-gold); }
+@keyframes vai-logo-foundation {
+  0% { opacity: 0; transform: translateY(3px); }
+  12%, 100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes vai-logo-a-leg {
+  0%, 18% { stroke-dashoffset: 100; opacity: 0; }
+  20% { opacity: 1; }
+  58%, 100% { stroke-dashoffset: 0; opacity: 1; }
+}
+@keyframes vai-logo-a-bar {
+  0%, 34% { stroke-dashoffset: 100; opacity: 0; }
+  36% { opacity: 1; }
+  58%, 100% { stroke-dashoffset: 0; opacity: 1; }
+}
 @keyframes vai-logo-flight {
-  0% { offset-distance: 0%; opacity: 0; }
-  6% { opacity: 1; }
-  75%, 100% { offset-distance: 100%; opacity: 1; }
+  0%, 18% { offset-distance: 0%; opacity: 0; }
+  20% { opacity: 1; }
+  58%, 100% { offset-distance: 100%; opacity: 1; }
 }
 @keyframes vai-logo-trail {
-  0% { stroke-dashoffset: 100; opacity: 0; }
-  6% { opacity: .85; }
-  75% { stroke-dashoffset: 0; opacity: .65; }
-  100% { stroke-dashoffset: 0; opacity: 0; }
+  0%, 18% { stroke-dashoffset: 100; opacity: 0; }
+  20% { opacity: .85; }
+  58% { stroke-dashoffset: 0; opacity: .65; }
+  72%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
 @keyframes vai-logo-arrive {
-  0% { transform: scale(.35) rotate(-35deg); }
-  75% { transform: scale(1) rotate(0deg); }
-  84% { transform: scale(1.16); }
-  100% { transform: scale(1); }
+  0%, 18% { transform: scale(.35) rotate(-35deg); }
+  58% { transform: scale(1) rotate(0deg); }
+  62% { transform: scale(1.16); }
+  68%, 100% { transform: scale(1); }
 }
 @keyframes vai-logo-launch {
-  0%, 42%, 100% { opacity: 0; }
-  8% { opacity: .6; }
+  0%, 16%, 30%, 100% { opacity: 0; }
+  20% { opacity: .6; }
+}
+@keyframes vai-logo-stem {
+  0%, 62% { transform: translateY(0); }
+  88%, 100% { transform: translateY(35px); }
+}
+@keyframes vai-logo-dust {
+  0%, 62% { transform: translate(var(--vai-dust-x), 0); opacity: 0; }
+  65% { opacity: 1; }
+  84% { opacity: .9; }
+  88% { transform: translate(var(--vai-dust-to-x), 35px); }
+  92%, 100% { transform: translate(var(--vai-dust-to-x), 35px); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .vai-logo-star, .vai-logo-spark, .vai-logo-trail, .vai-logo-launch { animation: none; }
+  .vai-logo-foundation, .vai-logo-a-leg, .vai-logo-a-bar, .vai-logo-star, .vai-logo-spark, .vai-logo-trail, .vai-logo-launch, .vai-logo-stem-reveal, .vai-logo-dust { animation: none; }
 }
 /* Portada tipo chat. El anillo neón es un conic-gradient con los dos gradientes
    oficiales del manual (azul→celeste, dorado→dorado claro) girando sobre un
