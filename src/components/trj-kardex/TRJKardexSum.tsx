@@ -40,10 +40,26 @@ type LotStatus =
   | "En ruta"
   | "Finalizado";
 
+type SummaryStatus =
+  | "Sin pago"
+  | "No enviado"
+  | "En ruta"
+  | "Finalizado";
+
+type PaymentStatus =
+  | "Sin valorización"
+  | "Con valorización";
+
 type SummaryRow = {
   lot: string;
   lot_corr: string | null;
+  entry_year: string | number | null;
+  entry_month: string | number | null;
+  summary_tmh: string | number | null;
   lot_status: LotStatus;
+  summary_status: SummaryStatus;
+  payment_status: PaymentStatus | null;
+  aging_days: string | number | null;
   entry_date: string | null;
   process_date: string | null;
   valuation_date: string | null;
@@ -184,12 +200,16 @@ type KpiTrend = {
   values: (number | null)[];
 };
 
-const LOT_STATUS_ORDER: LotStatus[] = [
-  "Sin valorización",
+const LOT_STATUS_ORDER: SummaryStatus[] = [
   "Sin pago",
   "No enviado",
   "En ruta",
   "Finalizado",
+];
+
+const PAYMENT_STATUS_ORDER: PaymentStatus[] = [
+  "Sin valorización",
+  "Con valorización",
 ];
 
 const CONTROL_STATUS_OPTIONS = [
@@ -225,36 +245,42 @@ const MONTHS = [
 ];
 
 const summaryColumnSpecs: [string, string, ExcelFilterKind?][] = [
+  ["entry_year", "Año", "number"],
+  ["entry_month", "Mes", "number"],
+  ["summary_tmh", "TMH", "number"],
+  ["miner_name", "Minero / proveedor"],
+  ["entry_date", "Fecha ingreso", "date"],
+  ["lot_status", "Status"],
+  ["payment_date", "Fecha pago", "date"],
+  ["departure_date", "Fecha salida", "date"],
+  ["guide_number", "Guía remitente"],
+  ["trjkar_transport_guide_number", "Guía transportista"],
+  ["tmh", "TMH ingreso", "number"],
+  ["tmh_departure", "TMH salida", "number"],
+  ["control_status_desc", "Status desc"],
+  ["control_status_comment", "Status comment"],
+  ["aging_days", "Aging (días)", "number"],
   ["lot", "Lote"],
   ["lot_corr", "Corr."],
-  ["lot_status", "Estado calculado"],
-  ["guide_number", "Guía"],
+  ["summary_status", "Grupo status"],
+  ["payment_status", "Clasificación pago"],
   ["guide_date", "Fecha guía remitente", "date"],
-  ["entry_date", "Ingreso lote", "date"],
   ["process_date", "Proceso", "date"],
   ["valuation_date", "Valorización", "date"],
-  ["miner_name", "Minero"],
   ["ruc", "RUC minero"],
   ["concession_name", "Concesión"],
   ["concession_code", "Código concesión"],
-  ["tmh", "TMH SGM", "number"],
   ["tms", "TMS", "number"],
   ["au_grade_oztc", "Ley Au", "number"],
   ["doc_number", "Documento pago"],
-  ["payment_date", "Fecha pago", "date"],
-  ["tmh_departure", "TMH salida", "number"],
   ["tmh_arrival", "TMH llegada", "number"],
   ["tmh_balance", "Saldo SGM", "number"],
   ["trjkar_transport_name", "Transportista TRJ"],
   ["transport_ruc", "RUC transportista"],
-  ["trjkar_transport_guide_number", "Guía transportista"],
-  ["departure_date", "Salida", "date"],
   ["arrival_date", "Llegada", "date"],
   ["trjkar_document_number", "Factura transporte"],
   ["invoice_amount_usd_web", "USD factura web", "number"],
   ["invoice_amount_usd_con", "USD factura Concar", "number"],
-  ["control_status_desc", "Status desc"],
-  ["control_status_comment", "Status comment"],
 ];
 
 const summaryColumns: ExcelColumnDef<SummaryRow>[] =
@@ -270,76 +296,79 @@ const summaryColumns: ExcelColumnDef<SummaryRow>[] =
     }),
   );
 
-const SUMMARY_COLUMN_KEYS_BY_STATUS: Record<LotStatus, string[]> = {
-  "Sin valorización": [
-    "lot",
-    "entry_date",
-    "process_date",
-    "miner_name",
-    "ruc",
-    "concession_name",
-    "tmh",
-    "tms",
-    "control_status_desc",
-    "control_status_comment",
-  ],
+const SUMMARY_COLUMN_KEYS_BY_STATUS: Record<SummaryStatus, string[]> = {
   "Sin pago": [
     "lot",
-    "entry_date",
-    "valuation_date",
+    "entry_year",
+    "entry_month",
+    "summary_tmh",
     "miner_name",
-    "ruc",
-    "concession_name",
+    "entry_date",
+    "lot_status",
+    "payment_status",
+    "valuation_date",
     "tmh",
     "tms",
     "au_grade_oztc",
+    "aging_days",
     "control_status_desc",
     "control_status_comment",
   ],
   "No enviado": [
     "lot",
-    "entry_date",
-    "valuation_date",
+    "entry_year",
+    "entry_month",
+    "summary_tmh",
     "miner_name",
-    "ruc",
-    "tmh",
-    "tms",
-    "au_grade_oztc",
-    "doc_number",
+    "entry_date",
+    "lot_status",
     "payment_date",
+    "tmh",
+    "doc_number",
+    "aging_days",
     "control_status_desc",
     "control_status_comment",
   ],
   "En ruta": [
     "lot",
-    "lot_corr",
+    "entry_year",
+    "entry_month",
+    "summary_tmh",
+    "miner_name",
+    "entry_date",
+    "lot_status",
+    "payment_date",
+    "departure_date",
     "guide_number",
-    "guide_date",
+    "trjkar_transport_guide_number",
+    "tmh",
     "tmh_departure",
     "tmh_balance",
-    "trjkar_transport_name",
-    "transport_ruc",
-    "trjkar_transport_guide_number",
-    "departure_date",
+    "aging_days",
     "control_status_desc",
     "control_status_comment",
   ],
   "Finalizado": [
     "lot",
-    "lot_corr",
+    "entry_year",
+    "entry_month",
+    "summary_tmh",
+    "miner_name",
+    "entry_date",
+    "lot_status",
+    "payment_date",
+    "departure_date",
     "guide_number",
-    "guide_date",
+    "trjkar_transport_guide_number",
+    "tmh",
     "tmh_departure",
     "tmh_arrival",
     "tmh_balance",
-    "trjkar_transport_name",
-    "transport_ruc",
-    "trjkar_transport_guide_number",
-    "departure_date",
     "arrival_date",
     "trjkar_document_number",
     "invoice_amount_usd_web",
     "invoice_amount_usd_con",
+    "aging_days",
     "control_status_desc",
     "control_status_comment",
   ],
@@ -348,7 +377,13 @@ const SUMMARY_COLUMN_KEYS_BY_STATUS: Record<LotStatus, string[]> = {
 const EXPORT_LABELS: Record<string, string> = {
   lot: "Lote",
   lot_corr: "Correlativo",
-  lot_status: "Estado calculado",
+  entry_year: "Año",
+  entry_month: "Mes",
+  summary_tmh: "TMH",
+  lot_status: "Status",
+  summary_status: "Grupo status",
+  payment_status: "Clasificación pago",
+  aging_days: "Aging (días)",
   entry_date: "Fecha ingreso",
   process_date: "Fecha proceso",
   valuation_date: "Fecha valorización",
@@ -442,6 +477,10 @@ const EXPORT_LABELS: Record<string, string> = {
 };
 
 const EXPORT_NUMERIC = new Set([
+  "entry_year",
+  "entry_month",
+  "summary_tmh",
+  "aging_days",
   "sack_qty",
   "tmh",
   "h2o",
@@ -615,6 +654,23 @@ function elapsedDays(
 function stageAgingDays(
   row: SummaryRow
 ) {
+  const apiAging =
+    row.aging_days == null ||
+    row.aging_days === ""
+      ? null
+      : Number(
+          row.aging_days
+        );
+
+  if (
+    apiAging != null &&
+    Number.isFinite(
+      apiAging
+    )
+  ) {
+    return apiAging;
+  }
+
   switch (
     row.lot_status
   ) {
@@ -1271,10 +1327,21 @@ export default function TRJKardexSum() {
     setSelectedLotStatus,
   ] =
     useState<
-      | LotStatus
+      | SummaryStatus
       | "TODOS"
     >(
-      "Sin valorización"
+      "TODOS"
+    );
+
+  const [
+    selectedPaymentStatus,
+    setSelectedPaymentStatus,
+  ] =
+    useState<
+      | PaymentStatus
+      | "TODOS"
+    >(
+      "TODOS"
     );
 
   const [
@@ -1762,13 +1829,38 @@ export default function TRJKardexSum() {
               status,
               filtered.summary.filter(
                 (row) =>
-                  row.lot_status ===
+                  row.summary_status ===
                   status
               ).length,
             ]
           )
         ) as Record<
-          LotStatus,
+          SummaryStatus,
+          number
+        >,
+      [
+        filtered.summary,
+      ]
+    );
+
+  const paymentStatusCounts =
+    useMemo(
+      () =>
+        Object.fromEntries(
+          PAYMENT_STATUS_ORDER.map(
+            (status) => [
+              status,
+              filtered.summary.filter(
+                (row) =>
+                  row.summary_status ===
+                    "Sin pago" &&
+                  row.payment_status ===
+                    status
+              ).length,
+            ]
+          )
+        ) as Record<
+          PaymentStatus,
           number
         >,
       [
@@ -1778,18 +1870,56 @@ export default function TRJKardexSum() {
 
   const statusRows =
     useMemo(
-      () =>
-        selectedLotStatus ===
-        "TODOS"
-          ? filtered.summary
-          : filtered.summary.filter(
-              (row) =>
-                row.lot_status ===
-                selectedLotStatus
-            ),
+      () => {
+        const rowsByStatus =
+          selectedLotStatus ===
+          "TODOS"
+            ? filtered.summary
+            : filtered.summary.filter(
+                (row) =>
+                  row.summary_status ===
+                  selectedLotStatus
+              );
+
+        const rowsByPayment =
+          selectedLotStatus ===
+            "Sin pago" &&
+          selectedPaymentStatus !==
+            "TODOS"
+            ? rowsByStatus.filter(
+                (row) =>
+                  row.payment_status ===
+                  selectedPaymentStatus
+              )
+            : rowsByStatus;
+
+        return [
+          ...rowsByPayment,
+        ].sort(
+          (a, b) =>
+            Number(
+              b.aging_days
+              ?? -1
+            ) -
+              Number(
+                a.aging_days
+                ?? -1
+              ) ||
+            String(
+              a.entry_date
+              || ""
+            ).localeCompare(
+              String(
+                b.entry_date
+                || ""
+              )
+            )
+        );
+      },
       [
         filtered.summary,
         selectedLotStatus,
+        selectedPaymentStatus,
       ]
     );
 
@@ -2206,17 +2336,82 @@ export default function TRJKardexSum() {
       }
     };
 
+  const summaryTmhByRow =
+    useMemo(
+      () =>
+        new Map(
+          filtered.summary
+            .filter(
+              (row) =>
+                row.guide_number &&
+                row.lot_corr &&
+                Number.isFinite(
+                  Number(
+                    row.summary_tmh
+                  )
+                )
+            )
+            .map(
+              (row) => [
+                controlKey(
+                  row
+                ),
+                Number(
+                  row.summary_tmh
+                ),
+              ] as const
+            )
+        ),
+      [
+        filtered.summary,
+      ]
+    );
+
+  const statsRows =
+    useMemo(
+      () =>
+        filtered.rows.map(
+          (row) => {
+            const normalized =
+              summaryTmhByRow.get(
+                controlKey({
+                  lot:
+                    row.lot,
+                  lot_corr:
+                    row.lot_corr,
+                  guide_number:
+                    row.guide_number,
+                })
+              );
+
+            return normalized == null
+              ? row
+              : {
+                  ...row,
+                  tmh_departure:
+                    normalized.toFixed(
+                      3
+                    ),
+                };
+          }
+        ),
+      [
+        filtered.rows,
+        summaryTmhByRow,
+      ]
+    );
+
   const stats =
     useMemo(
       () =>
         kardexStatistics(
-          filtered.rows,
+          statsRows,
           filtered.guides,
           filtered.invoices,
           period
         ),
       [
-        filtered.rows,
+        statsRows,
         filtered.guides,
         filtered.invoices,
         period,
@@ -2231,7 +2426,7 @@ export default function TRJKardexSum() {
             const matching =
               filtered.summary.filter(
                 (row) =>
-                  row.lot_status ===
+                  row.summary_status ===
                   status
               );
 
@@ -2318,6 +2513,43 @@ export default function TRJKardexSum() {
           row.average,
         ],
       })
+    );
+
+  const agingAlerts =
+    useMemo(
+      () =>
+        statusRows
+          .map(
+            (row) => ({
+              row,
+              aging:
+                stageAgingDays(
+                  row
+                ),
+            })
+          )
+          .filter(
+            (item): item is {
+              row: SummaryRow;
+              aging: number;
+            } =>
+              item.aging != null &&
+              Number.isFinite(
+                item.aging
+              )
+          )
+          .sort(
+            (a, b) =>
+              b.aging -
+              a.aging
+          )
+          .slice(
+            0,
+            5
+          ),
+      [
+        statusRows,
+      ]
     );
 
   const carrierOptions =
@@ -3874,7 +4106,7 @@ export default function TRJKardexSum() {
           </div>
 
           <p className="trjk-method">
-            PERD y EXCE están excluidos de la tabla principal, KPIs, estadísticas y exportación principal. El rango global se determina por la fecha de la guía de remitente.
+            PERD y EXCE siguen separados como control. En Resumen, la TMH se normaliza por lote y guía: PERD suma al último envío y EXCE resta, de modo que tablas, KPIs y gráficos trabajen con la TMH original. El rango global se determina por la fecha de la guía de remitente.
           </p>
         </>
       )}
@@ -3885,7 +4117,7 @@ export default function TRJKardexSum() {
           <div className="trjk-toolbar">
             <div>
               <h3>
-                Detalle por lote y correlativo
+                Detalle por lote y guía
               </h3>
               <p
                 className="muted"
@@ -3894,7 +4126,7 @@ export default function TRJKardexSum() {
                     "3px 0 0",
                 }}
               >
-                Fuente: control sum · PERD y EXCE excluidos
+                Fuente: control sum · TMH original normalizada por lote y guía; PERD/EXCE permanecen en control separado
               </p>
             </div>
 
@@ -3910,6 +4142,39 @@ export default function TRJKardexSum() {
                 12,
             }}
           >
+            <Button
+              size="sm"
+              variant={
+                selectedLotStatus ===
+                "TODOS"
+                  ? "primary"
+                  : "ghost"
+              }
+              aria-pressed={
+                selectedLotStatus ===
+                "TODOS"
+              }
+              onClick={
+                () => {
+                  setSelectedLotStatus(
+                    "TODOS"
+                  );
+                  setSelectedPaymentStatus(
+                    "TODOS"
+                  );
+                  setPage(1);
+                  summaryExcel.clear();
+                }
+              }
+            >
+              TODOS ·{" "}
+              {
+                filtered
+                  .summary
+                  .length
+              }
+            </Button>
+
             {LOT_STATUS_ORDER.map(
               (status) => (
                 <Button
@@ -3932,6 +4197,9 @@ export default function TRJKardexSum() {
                       setSelectedLotStatus(
                         status
                       );
+                      setSelectedPaymentStatus(
+                        "TODOS"
+                      );
                       setPage(1);
                       summaryExcel.clear();
                     }
@@ -3945,36 +4213,117 @@ export default function TRJKardexSum() {
               )
             )}
 
-            <Button
-              size="sm"
-              variant={
-                selectedLotStatus ===
-                "TODOS"
-                  ? "primary"
-                  : "ghost"
-              }
-              aria-pressed={
-                selectedLotStatus ===
-                "TODOS"
-              }
-              onClick={
-                () => {
-                  setSelectedLotStatus(
-                    "TODOS"
-                  );
-                  setPage(1);
-                  summaryExcel.clear();
-                }
-              }
-            >
-              TODOS ·{" "}
-              {
-                filtered
-                  .summary
-                  .length
-              }
-            </Button>
           </div>
+
+          {selectedLotStatus ===
+            "Sin pago" && (
+            <div
+              className="trjk-toggle"
+              style={{
+                marginTop:
+                  8,
+              }}
+            >
+              <Button
+                size="sm"
+                variant={
+                  selectedPaymentStatus ===
+                  "TODOS"
+                    ? "primary"
+                    : "ghost"
+                }
+                onClick={
+                  () => {
+                    setSelectedPaymentStatus(
+                      "TODOS"
+                    );
+                    setPage(1);
+                    summaryExcel.clear();
+                  }
+                }
+              >
+                Todos sin pago ·{" "}
+                {statusCounts[
+                  "Sin pago"
+                ]}
+              </Button>
+
+              {PAYMENT_STATUS_ORDER.map(
+                (status) => (
+                  <Button
+                    key={
+                      status
+                    }
+                    size="sm"
+                    variant={
+                      selectedPaymentStatus ===
+                      status
+                        ? "primary"
+                        : "ghost"
+                    }
+                    onClick={
+                      () => {
+                        setSelectedPaymentStatus(
+                          status
+                        );
+                        setPage(1);
+                        summaryExcel.clear();
+                      }
+                    }
+                  >
+                    {status} ·{" "}
+                    {paymentStatusCounts[
+                      status
+                    ]}
+                  </Button>
+                )
+              )}
+            </div>
+          )}
+
+          {agingAlerts.length >
+            0 && (
+            <div
+              className="trjk-actions"
+              style={{
+                marginTop:
+                  10,
+                flexWrap:
+                  "wrap",
+              }}
+            >
+              <strong>
+                Mayor aging
+              </strong>
+
+              {agingAlerts.map(
+                ({
+                  row,
+                  aging,
+                }) => (
+                  <span
+                    key={
+                      `${controlKey(
+                        row
+                      )}-aging`
+                    }
+                    className="trjk-badge"
+                    title={`${row.lot_status}${
+                      row.payment_status
+                        ? ` · ${row.payment_status}`
+                        : ""
+                    }`}
+                  >
+                    ⚠ {row.lot} ·{" "}
+                    {fmt(
+                      aging,
+                      0
+                    )} días
+                  </span>
+                )
+              )}
+            </div>
+          )}
 
           <div
             className="trjk-table-scroll trjk-summary-table"
@@ -4237,14 +4586,28 @@ export default function TRJKardexSum() {
                                           column
                                             .key
                                         ],
-                                        column.key.startsWith(
-                                          "tmh"
+                                        [
+                                          "summary_tmh",
+                                          "tmh",
+                                          "tmh_departure",
+                                          "tmh_arrival",
+                                          "tmh_balance",
+                                        ].includes(
+                                          column.key
                                         )
                                           ? 3
-                                          : column.key ===
-                                              "au_grade_oztc"
-                                            ? 4
-                                            : 2
+                                          : [
+                                                "entry_year",
+                                                "entry_month",
+                                                "aging_days",
+                                              ].includes(
+                                                column.key
+                                              )
+                                            ? 0
+                                            : column.key ===
+                                                "au_grade_oztc"
+                                              ? 4
+                                              : 2
                                       )
                                     : column.kind ===
                                         "date"
