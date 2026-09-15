@@ -19,8 +19,19 @@ export type VaiWidgetType = (typeof VAI_WIDGET_TYPES)[number];
 export const VAI_BUCKETS = ["day", "week", "month"] as const;
 export type VaiBucket = (typeof VAI_BUCKETS)[number];
 
+export const VAI_DATE_PRESETS = [
+  "last_7_days",
+  "last_30_days",
+  "current_week",
+  "previous_week",
+  "current_month",
+  "previous_month",
+  "year_to_date",
+] as const;
+export type VaiDatePreset = (typeof VAI_DATE_PRESETS)[number];
+
 export type VaiFilterSpec =
-  | { kind: "date_range"; source: string; field: string; label: string }
+  | { kind: "date_range"; source: string; field: string; label: string; preset: VaiDatePreset | null }
   | { kind: "select"; source: string; field: string; label: string };
 
 export type VaiWidgetSpec = {
@@ -49,7 +60,7 @@ export type VaiDashboardSpec = {
   widgets: VaiWidgetSpec[];
 };
 
-export type VaiRawFilter = { kind: string; source: string; field: string; label: string };
+export type VaiRawFilter = { kind: string; source: string; field: string; label: string; preset: string | null };
 export type VaiRawWidget = {
   type: string;
   title: string;
@@ -111,6 +122,7 @@ export function coerceModelOutput(raw: unknown): VaiModelOutput | null {
               source: clean(item.source, 60),
               field: clean(item.field, 60),
               label: clean(item.label, 60),
+              preset: item.preset == null ? null : clean(item.preset, 30),
             }))
           : [],
         widgets: Array.isArray(dashboardRaw.widgets)
@@ -292,7 +304,28 @@ function validateFilter(raw: VaiRawFilter, sources: Set<string>, notes: string[]
     notes.push(`${label}: «${field.label}» no es una dimensión filtrable.`);
     return null;
   }
-  return { kind: raw.kind, source: source.id, field: field.id, label: raw.label || field.label };
+
+  if (raw.kind === "date_range") {
+    const preset =
+      raw.preset && VAI_DATE_PRESETS.includes(raw.preset as VaiDatePreset)
+        ? (raw.preset as VaiDatePreset)
+        : null;
+
+    return {
+      kind: "date_range",
+      source: source.id,
+      field: field.id,
+      label: raw.label || field.label,
+      preset,
+    };
+  }
+
+  return {
+    kind: "select",
+    source: source.id,
+    field: field.id,
+    label: raw.label || field.label,
+  };
 }
 
 /**

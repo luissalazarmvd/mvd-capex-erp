@@ -7,6 +7,7 @@
 import { VAI_AREAS, VAI_SOURCES, type VaiArea, type VaiSource } from "./catalog";
 import {
   VAI_BUCKETS,
+  VAI_DATE_PRESETS,
   VAI_MAX_FILTERS,
   VAI_MAX_SOURCES,
   VAI_MAX_WIDGETS,
@@ -126,6 +127,8 @@ Reglas obligatorias:
 - En una tabla de detalle, dateField NO significa ordenar por fecha. Si el usuario pide "detalle", "lista", "recientes", "últimos" o filas individuales, usa una tabla de detalle con columns. No conviertas una petición de ordenamiento en una tabla agrupada.
 - Nunca generes una tabla con dimension/dateField y metrics vacío. Si no existe una métrica necesaria para agrupar, construye una tabla de detalle con los campos disponibles en vez de declarar esa parte como no disponible.
 - Filtros: "date_range" sobre un campo de fecha de una fuente usada; "select" sobre una dimension de una fuente usada. Solo incluye filtros útiles (normalmente un rango de fechas por fuente y 1-2 selects).
+- Todo filtro date_range debe incluir preset. Usa null si el usuario no pidió un período relativo. Valores permitidos: ${VAI_DATE_PRESETS.join(", ")}.
+- Interpreta "última semana", "últimos 7 días" o equivalentes como last_7_days; "últimos 30 días" como last_30_days; "esta semana" como current_week; "semana pasada/anterior" como previous_week; "este mes/mes actual" como current_month; "mes pasado/anterior" como previous_month; "este año/año actual/YTD" como year_to_date. No escribas un período relativo solamente en el título: debe quedar reflejado en el preset del filtro.
 - Respeta estrictamente grain, rules, businessTerms, exclusiones y definición de cada métrica. No sumes campos que el catálogo marca como no sumables y no reconstruyas una métrica manualmente si ya existe una métrica declarada para ese concepto.
 - Un concepto de negocio puede estar representado por una métrica filtrada y no por una columna física. Revisa siempre field, where, numerator, denominator y las reglas de la fuente antes de concluir que falta un dato. No inventes nombres de campos a partir del lenguaje del usuario.
 - Si el catálogo declara una métrica que representa el concepto pedido, ese concepto está disponible aunque el campo físico tenga otro nombre o el cálculo dependa de valores de una dimensión.
@@ -160,8 +163,9 @@ const OUTPUT_SCHEMA = {
                   source: { type: "string" },
                   field: { type: "string" },
                   label: { type: "string" },
+                  preset: { type: ["string", "null"], enum: [null, ...VAI_DATE_PRESETS] },
                 },
-                required: ["kind", "source", "field", "label"],
+                required: ["kind", "source", "field", "label", "preset"],
               },
             },
             widgets: {

@@ -36,9 +36,10 @@ export async function POST(req: Request) {
   try {
     const { output, candidates } = await generateDashboardSpec(prompt, { area, focus, charts });
     const { spec, notes } = validateModelOutput(output);
-    const unavailable = [...output.unavailable, ...notes];
 
     if (!spec) {
+      const unavailable = [...new Set([...output.unavailable, ...notes])];
+
       return NextResponse.json({
         ok: true,
         status: "unavailable",
@@ -49,8 +50,17 @@ export async function POST(req: Request) {
       });
     }
 
-    const status = output.status === "unavailable" ? "partial" : unavailable.length ? "partial" : "ok";
-    return NextResponse.json({ ok: true, status, message: output.message, unavailable, spec, candidates });
+    const unavailable = [...new Set(notes)];
+    const status = unavailable.length ? "partial" : "ok";
+
+    return NextResponse.json({
+      ok: true,
+      status,
+      message: unavailable.length ? output.message : "",
+      unavailable,
+      spec,
+      candidates,
+    });
   } catch (error) {
     // Detalle técnico solo en el servidor; el usuario recibe un mensaje entendible.
     if (error instanceof VaiGenerationError) {

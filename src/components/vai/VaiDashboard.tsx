@@ -74,6 +74,12 @@ export default function VaiDashboard({ spec, refreshToken = 0 }: Props) {
   const defaultFilters = useMemo<VaiFilterState>(() => {
     const next: VaiFilterState = {};
 
+    const addDays = (isoDate: string, days: number) => {
+      const date = new Date(`${isoDate}T00:00:00.000Z`);
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    };
+
     for (const filter of spec.filters) {
       if (filter.kind !== "date_range") continue;
 
@@ -92,12 +98,44 @@ export default function VaiDashboard({ spec, refreshToken = 0 }: Props) {
         .filter(Boolean)
         .sort();
 
-      if (dates.length) {
-        next[filterKey(filter)] = {
-          from: dates[0],
-          to: dates[dates.length - 1],
-        };
+      if (!dates.length) continue;
+
+      const minDate = dates[0];
+      const maxDate = dates[dates.length - 1];
+
+      let from = minDate;
+      let to = maxDate;
+
+      if (filter.preset === "last_7_days") {
+        from = addDays(maxDate, -6);
+      } else if (filter.preset === "last_30_days") {
+        from = addDays(maxDate, -29);
+      } else if (filter.preset === "current_week") {
+        const anchor = new Date(`${maxDate}T00:00:00.000Z`);
+        const offset = (anchor.getUTCDay() + 6) % 7;
+        anchor.setUTCDate(anchor.getUTCDate() - offset);
+        from = anchor.toISOString().slice(0, 10);
+      } else if (filter.preset === "previous_week") {
+        const anchor = new Date(`${maxDate}T00:00:00.000Z`);
+        const offset = (anchor.getUTCDay() + 6) % 7;
+        anchor.setUTCDate(anchor.getUTCDate() - offset - 7);
+        from = anchor.toISOString().slice(0, 10);
+        to = addDays(from, 6);
+      } else if (filter.preset === "current_month") {
+        from = `${maxDate.slice(0, 7)}-01`;
+      } else if (filter.preset === "previous_month") {
+        const anchor = new Date(`${maxDate.slice(0, 7)}-01T00:00:00.000Z`);
+        anchor.setUTCDate(anchor.getUTCDate() - 1);
+        to = anchor.toISOString().slice(0, 10);
+        from = `${to.slice(0, 7)}-01`;
+      } else if (filter.preset === "year_to_date") {
+        from = `${maxDate.slice(0, 4)}-01-01`;
       }
+
+      next[filterKey(filter)] = {
+        from,
+        to,
+      };
     }
 
     return next;
