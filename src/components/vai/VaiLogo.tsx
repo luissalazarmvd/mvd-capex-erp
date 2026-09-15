@@ -2,17 +2,21 @@ import { useId } from "react";
 
 type Props = { size?: number; title?: string };
 
-export default function VaiLogo({ size = 40, title = "VAi" }: Props) {
+// Relative to the dot of the i: the flight starts inside the golden dome.
+const STAR_FLIGHT = "M-74 -20 C-54 -42 -17 -38 0 0";
+
+export default function VaiLogo({ size = 40, title = "V-Ai" }: Props) {
   const goldId = useId();
 
   return (
     <svg
-      width={size * 1.7}
+      className="vai-logo"
+      width={size * (132 / 92)}
       height={size}
-      viewBox="0 0 118 64"
+      viewBox="0 0 132 92"
       role="img"
       aria-label={title}
-      style={{ display: "block", flex: "none", overflow: "visible" }}
+      focusable="false"
     >
       <title>{title}</title>
 
@@ -23,10 +27,11 @@ export default function VaiLogo({ size = 40, title = "VAi" }: Props) {
         </linearGradient>
       </defs>
 
-      <path d="M11 17 A9 9 0 0 1 29 17 Z" fill={`url(#${goldId})`} />
+      <path d="M29 29 A14 14 0 0 1 57 29 Z" fill={`url(#${goldId})`} />
 
+      {/* One continuous stroke: the V's right arm is also the A's left arm. */}
       <path
-        d="M8 25.5 L24 46 L40 25.5 L56 46"
+        d="M14 39 L43 80 L72 39 L101 80"
         fill="none"
         stroke="var(--ink)"
         strokeWidth="5.5"
@@ -35,34 +40,28 @@ export default function VaiLogo({ size = 40, title = "VAi" }: Props) {
       />
 
       <path
-        d="M34.5 36 H46.5"
+        d="M53.6 65 H90.4"
         fill="none"
         stroke="var(--ink)"
-        strokeWidth="2.8"
+        strokeWidth="4.5"
         strokeLinecap="round"
       />
 
-      <path
-        d="M28 15.5 C38 14.5 47 15 57 17 C67 19 76 20 87 17.5"
-        fill="none"
-        stroke={`url(#${goldId})`}
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        opacity="0.95"
-      />
+      <rect x="114.25" y="55.25" width="5.5" height="27.5" rx="2.75" fill={`url(#${goldId})`} />
 
-      <path
-        d="M79 28 V46"
-        fill="none"
-        stroke={`url(#${goldId})`}
-        strokeWidth="5.2"
-        strokeLinecap="round"
-      />
+      <circle className="vai-logo-launch" cx="43" cy="21" r="8" />
 
-      <path
-        d="M90 14.5 L90.9 17.1 L93.5 18 L90.9 18.9 L90 21.5 L89.1 18.9 L86.5 18 L89.1 17.1 Z"
-        fill={`url(#${goldId})`}
-      />
+      <g transform="translate(117 41)">
+        <path className="vai-logo-trail vai-logo-trail-glow" d={STAR_FLIGHT} pathLength="100" />
+        <path className="vai-logo-trail" d={STAR_FLIGHT} pathLength="100" />
+        <g className="vai-logo-star" style={{ offsetPath: `path('${STAR_FLIGHT}')` }}>
+          <path
+            className="vai-logo-spark"
+            d="M0 -7 C1.2 -2.4 2.4 -1.2 7 0 C2.4 1.2 1.2 2.4 0 7 C-1.2 2.4 -2.4 1.2 -7 0 C-2.4 -1.2 -1.2 -2.4 0 -7 Z"
+            fill={`url(#${goldId})`}
+          />
+        </g>
+      </g>
     </svg>
   );
 }

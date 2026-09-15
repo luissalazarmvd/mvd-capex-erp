@@ -273,6 +273,37 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-shell p { margin: 6px 0; }
 .vai-main { display: grid; gap: 12px; min-width: 0; }
 .vai-side { display: grid; gap: 12px; min-width: 0; position: sticky; top: 12px; }
+/* Shared VA monogram. The star and its trail follow the same curve once on mount. */
+.vai-logo { --vai-logo-duration: 2.2s; --vai-logo-delay: .25s; display: block; flex: none; overflow: visible; }
+.vai-logo-star { offset-distance: 100%; offset-position: 0 0; offset-anchor: 0 0; offset-rotate: 0deg; animation: vai-logo-flight var(--vai-logo-duration) cubic-bezier(.22, .61, .36, 1) var(--vai-logo-delay) both; }
+.vai-logo-spark { transform-box: fill-box; transform-origin: center; animation: vai-logo-arrive var(--vai-logo-duration) ease-out var(--vai-logo-delay) both; }
+.vai-logo-trail { fill: none; stroke: var(--brand-gold-light); stroke-width: 1.2; stroke-linecap: round; stroke-dasharray: 100 100; stroke-dashoffset: 0; opacity: 0; animation: vai-logo-trail var(--vai-logo-duration) cubic-bezier(.22, .61, .36, 1) var(--vai-logo-delay) both; }
+.vai-logo-trail-glow { stroke: var(--brand-gold); stroke-width: 3.5; filter: blur(2px); }
+.vai-logo-launch { fill: var(--brand-gold-light); opacity: 0; filter: blur(3px); animation: vai-logo-launch var(--vai-logo-duration) ease-out var(--vai-logo-delay) both; }
+@keyframes vai-logo-flight {
+  0% { offset-distance: 0%; opacity: 0; }
+  6% { opacity: 1; }
+  75%, 100% { offset-distance: 100%; opacity: 1; }
+}
+@keyframes vai-logo-trail {
+  0% { stroke-dashoffset: 100; opacity: 0; }
+  6% { opacity: .85; }
+  75% { stroke-dashoffset: 0; opacity: .65; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes vai-logo-arrive {
+  0% { transform: scale(.35) rotate(-35deg); }
+  75% { transform: scale(1) rotate(0deg); }
+  84% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+@keyframes vai-logo-launch {
+  0%, 42%, 100% { opacity: 0; }
+  8% { opacity: .6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vai-logo-star, .vai-logo-spark, .vai-logo-trail, .vai-logo-launch { animation: none; }
+}
 /* Portada tipo chat. El anillo neón es un conic-gradient con los dos gradientes
    oficiales del manual (azul→celeste, dorado→dorado claro) girando sobre un
    ángulo registrado; la máscara deja solo el borde y una copia difuminada
@@ -286,8 +317,7 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-brand::before, .vai-brand::after { content: ""; position: absolute; border-radius: inherit; pointer-events: none; background: conic-gradient(from var(--vai-angle), var(--brand-blue-light), var(--brand-gold-light) 26%, var(--brand-info) 50%, var(--brand-gold) 74%, var(--brand-blue-light)); animation: vai-spin 7s linear infinite; }
 .vai-brand::before { inset: -2px; padding: 2px; z-index: 2; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; }
 .vai-brand::after { inset: -6px; z-index: 0; filter: blur(22px); opacity: .55; }
-.vai-brand-body { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 14px; padding: 14px 30px 14px 22px; border-radius: inherit; background: var(--s-2); box-shadow: inset 0 1px 0 rgba(232, 241, 247, .05); }
-.vai-brand-body svg { filter: drop-shadow(0 0 10px rgba(255, 216, 130, .28)); }
+.vai-brand-body { position: relative; z-index: 1; display: inline-flex; align-items: center; padding: 16px 32px; border-radius: inherit; background: var(--s-2); box-shadow: inset 0 1px 0 rgba(232, 241, 247, .05); }
 .vai-hero-tag { margin: 0; max-width: 560px; text-align: center; font-size: 15px; font-weight: 300; line-height: 1.5; color: var(--ink-2); }
 .vai-composer { position: relative; width: 100%; max-width: 760px; display: grid; gap: 2px; padding: 12px 12px 10px 16px; background: var(--s-2); border: 1px solid var(--line-2); border-radius: var(--r-3); box-shadow: 0 24px 60px rgba(0, 0, 0, .40), inset 0 1px 0 rgba(232, 241, 247, .04); transition: border-color .2s ease, box-shadow .2s ease; }
 .vai-composer::before { content: ""; position: absolute; inset: -1.5px; padding: 1.5px; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .25s ease; background: conic-gradient(from var(--vai-angle), var(--brand-blue-light), var(--brand-gold-light) 26%, var(--brand-info) 50%, var(--brand-gold) 74%, var(--brand-blue-light)); animation: vai-spin 5s linear infinite; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; }
@@ -383,8 +413,8 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 @media (max-width: 720px) {
   .vai-widget-grid { grid-template-columns: 1fr; }
   .vai-hero { padding: 24px 12px 20px; min-height: 0; }
-  .vai-brand-body { padding: 10px 20px 10px 18px; }
-  .vai-brand-body svg { width: auto; height: 44px; }
+  .vai-brand-body { padding: 12px 26px; }
+  .vai-brand-body svg { width: auto; height: 72px; }
   .vai-examples { grid-template-columns: 1fr; }
 }
 
