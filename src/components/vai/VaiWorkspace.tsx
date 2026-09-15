@@ -238,26 +238,6 @@ export default function VaiWorkspace() {
   return (
     <div className="vai-shell">
       <div className="vai-main">
-        {!board && !generating ? <VaiPromptForm busy={opening != null} initial={lastRequest} onGenerate={generate} /> : null}
-
-        {generating ? (
-          <section className="trjk-card vai-progress" aria-live="polite">
-            <h3>Generando dashboard</h3>
-            <p className="muted" style={{ margin: 0 }}>«{generating.prompt.length > 160 ? `${generating.prompt.slice(0, 160)}…` : generating.prompt}»</p>
-            <div className="vai-bar">
-              <span />
-            </div>
-            <ol>
-              {STEPS.map((label, i) => (
-                <li key={label} data-state={i < generating.step ? "done" : i === generating.step ? "active" : "pending"}>
-                  {label}
-                </li>
-              ))}
-            </ol>
-            <p className="muted" style={{ margin: 0, fontSize: 11 }}>OpenAI recibe solo el catálogo de metadatos; los datos reales se consultan después desde nuestros endpoints.</p>
-          </section>
-        ) : null}
-
         {failure ? (
           <section className="trjk-card" style={{ display: "grid", gap: 10 }}>
             <div className="vai-message" data-error="true">{failure.message}</div>
@@ -276,6 +256,26 @@ export default function VaiWorkspace() {
                 Cerrar
               </Button>
             </div>
+          </section>
+        ) : null}
+
+        {!board && !generating ? <VaiPromptForm busy={opening != null} initial={lastRequest} onGenerate={generate} /> : null}
+
+        {generating ? (
+          <section className="trjk-card vai-progress" aria-live="polite">
+            <h3>Generando dashboard</h3>
+            <p className="muted" style={{ margin: 0 }}>«{generating.prompt.length > 160 ? `${generating.prompt.slice(0, 160)}…` : generating.prompt}»</p>
+            <div className="vai-bar">
+              <span />
+            </div>
+            <ol>
+              {STEPS.map((label, i) => (
+                <li key={label} data-state={i < generating.step ? "done" : i === generating.step ? "active" : "pending"}>
+                  {label}
+                </li>
+              ))}
+            </ol>
+            <p className="muted" style={{ margin: 0, fontSize: 11 }}>OpenAI recibe solo el catálogo de metadatos; los datos reales se consultan después desde nuestros endpoints.</p>
           </section>
         ) : null}
 

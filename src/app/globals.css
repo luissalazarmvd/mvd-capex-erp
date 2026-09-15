@@ -273,29 +273,62 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-shell p { margin: 6px 0; }
 .vai-main { display: grid; gap: 12px; min-width: 0; }
 .vai-side { display: grid; gap: 12px; min-width: 0; position: sticky; top: 12px; }
-.vai-hero { display: grid; gap: 14px; padding: 22px 22px 18px; }
-.vai-hero-head { display: flex; align-items: center; gap: 14px; }
-.vai-hero-head h2 { font-size: 22px; font-weight: 500; letter-spacing: -.01em; }
-.vai-hero-head p { margin: 2px 0 0; color: var(--ink-2); }
-.vai-prompt { position: relative; display: grid; gap: 6px; }
-.vai-prompt textarea { min-height: 120px; resize: vertical; line-height: 1.45; font-size: 14px; padding: 12px 14px; }
-.vai-prompt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* Portada tipo chat. El anillo neón es un conic-gradient con los dos gradientes
+   oficiales del manual (azul→celeste, dorado→dorado claro) girando sobre un
+   ángulo registrado; la máscara deja solo el borde y una copia difuminada
+   detrás de la superficie opaca hace de resplandor. Se repite el gradiente en
+   cada pseudo-elemento porque un var() intermedio fijaría el ángulo en 0deg. */
+@property --vai-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.vai-hero { position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: clamp(28px, 8vh, 84px) 22px 30px; min-height: calc(100vh - 190px); }
+.vai-main:has(> * + .vai-hero) .vai-hero { min-height: 0; padding-top: 20px; }
+.vai-hero-glow { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(60% 40% at 50% 12%, rgba(27, 147, 227, .20), transparent 70%), radial-gradient(36% 28% at 64% 24%, rgba(255, 216, 130, .11), transparent 70%), radial-gradient(32% 26% at 36% 28%, rgba(0, 165, 206, .11), transparent 70%); animation: vai-breathe 9s ease-in-out infinite alternate; }
+.vai-brand { position: relative; border-radius: var(--r-3); }
+.vai-brand::before, .vai-brand::after { content: ""; position: absolute; border-radius: inherit; pointer-events: none; background: conic-gradient(from var(--vai-angle), var(--brand-blue-light), var(--brand-gold-light) 26%, var(--brand-info) 50%, var(--brand-gold) 74%, var(--brand-blue-light)); animation: vai-spin 7s linear infinite; }
+.vai-brand::before { inset: -2px; padding: 2px; z-index: 2; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; }
+.vai-brand::after { inset: -6px; z-index: 0; filter: blur(22px); opacity: .55; }
+.vai-brand-body { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 14px; padding: 14px 30px 14px 22px; border-radius: inherit; background: var(--s-2); box-shadow: inset 0 1px 0 rgba(232, 241, 247, .05); }
+.vai-brand-body svg { filter: drop-shadow(0 0 10px rgba(27, 147, 227, .38)); }
+.vai-brand-word { font-size: 48px; font-weight: 600; letter-spacing: -.035em; line-height: 1; color: var(--ink); }
+.vai-brand-word em { font-style: normal; color: transparent; background: linear-gradient(100deg, var(--brand-gold) 0%, var(--brand-gold-light) 40%, var(--brand-gold-light) 60%, var(--brand-gold) 100%); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 0 14px rgba(255, 216, 130, .32)); animation: vai-shine 5s ease-in-out infinite; }
+.vai-hero-tag { margin: 0; max-width: 560px; text-align: center; font-size: 15px; font-weight: 300; line-height: 1.5; color: var(--ink-2); }
+.vai-composer { position: relative; width: 100%; max-width: 760px; display: grid; gap: 2px; padding: 12px 12px 10px 16px; background: var(--s-2); border: 1px solid var(--line-2); border-radius: var(--r-3); box-shadow: 0 24px 60px rgba(0, 0, 0, .40), inset 0 1px 0 rgba(232, 241, 247, .04); transition: border-color .2s ease, box-shadow .2s ease; }
+.vai-composer::before { content: ""; position: absolute; inset: -1.5px; padding: 1.5px; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .25s ease; background: conic-gradient(from var(--vai-angle), var(--brand-blue-light), var(--brand-gold-light) 26%, var(--brand-info) 50%, var(--brand-gold) 74%, var(--brand-blue-light)); animation: vai-spin 5s linear infinite; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; }
+.vai-composer:focus-within { border-color: transparent; box-shadow: 0 24px 60px rgba(0, 0, 0, .40), 0 0 34px rgba(27, 147, 227, .16); }
+.vai-composer:focus-within::before { opacity: 1; }
+.vai-composer[data-busy="true"] { opacity: .7; }
+.vai-composer textarea { width: 100%; min-height: 88px; max-height: 280px; field-sizing: content; resize: none; border: 0; outline: none; background: transparent; color: var(--ink); font-size: 15px; line-height: 1.5; padding: 4px 4px 6px 0; }
+.vai-composer textarea::placeholder { color: var(--ink-3); }
+.vai-composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .vai-counter { font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .vai-counter[data-limit="true"] { color: var(--warn); }
-.vai-options { border-top: 1px solid var(--line); padding-top: 10px; }
-.vai-options > summary { cursor: pointer; color: var(--ink-2); font-size: 12px; font-weight: 500; list-style: none; display: inline-flex; align-items: center; gap: 6px; }
+.vai-send { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: none; padding: 0; border-radius: 50%; border: 1px solid var(--brand-blue); background: var(--brand-blue); color: #ffffff; cursor: pointer; box-shadow: 0 0 18px rgba(27, 147, 227, .35); transition: background .15s ease, border-color .15s ease, box-shadow .2s ease, transform .15s ease; }
+.vai-send svg { width: 18px; height: 18px; }
+.vai-send:hover:not(:disabled) { background: var(--brand-blue-light); border-color: var(--brand-blue-light); box-shadow: 0 0 26px rgba(27, 147, 227, .55); transform: translateY(-1px); }
+.vai-send:disabled { background: transparent; border-color: var(--line-2); color: var(--ink-3); cursor: not-allowed; box-shadow: none; }
+.vai-options { width: 100%; max-width: 760px; }
+.vai-options > summary { display: inline-flex; align-items: center; gap: 8px; padding: 7px 13px 7px 11px; border: 1px solid var(--line); border-radius: var(--r-pill); background: rgba(158, 197, 220, .04); color: var(--ink-2); font-size: 12px; font-weight: 500; list-style: none; cursor: pointer; user-select: none; transition: color .15s ease, border-color .15s ease, background .15s ease; }
 .vai-options > summary::-webkit-details-marker { display: none; }
-.vai-options > summary::before { content: "▸"; font-size: 10px; transition: transform .15s ease; }
-.vai-options[open] > summary::before { transform: rotate(90deg); }
-.vai-options-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.vai-options > summary svg { width: 15px; height: 15px; }
+.vai-options > summary::after { content: "▾"; font-size: 11px; color: var(--ink-3); transition: transform .15s ease; }
+.vai-options > summary:hover { color: var(--ink); border-color: var(--line-2); background: rgba(158, 197, 220, .08); }
+.vai-options[open] > summary { color: var(--ink); border-color: var(--mod); background: var(--mod-soft); }
+.vai-options[open] > summary::after { transform: rotate(180deg); }
+.vai-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mod); box-shadow: 0 0 8px var(--mod); }
+.vai-options-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 10px; padding: 14px; background: var(--s-2); border: 1px solid var(--line); border-radius: var(--r-2); }
 .vai-check-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .vai-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--line-2); border-radius: var(--r-pill); font-size: 11.5px; cursor: pointer; user-select: none; color: var(--ink-2); }
 .vai-chip input { margin: 0; accent-color: var(--brand-blue-light); }
 .vai-chip[data-on="true"] { border-color: var(--mod); color: var(--ink); background: var(--mod-soft); }
-.vai-examples { display: flex; flex-wrap: wrap; gap: 6px; }
-.vai-examples button { font: inherit; font-size: 11.5px; color: var(--ink-2); background: rgba(158, 197, 220, .06); border: 1px solid var(--line); border-radius: var(--r-pill); padding: 5px 11px; cursor: pointer; text-align: left; }
-.vai-examples button:hover { color: var(--ink); border-color: var(--line-2); }
-.vai-progress { display: grid; gap: 10px; padding: 18px 22px; }
+.vai-examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 760px; margin-top: 6px; }
+.vai-examples > .vd-label { grid-column: 1 / -1; padding-left: 2px; }
+.vai-examples button { display: flex; align-items: flex-start; gap: 10px; font: inherit; font-size: 12px; line-height: 1.45; text-align: left; color: var(--ink-2); background: rgba(158, 197, 220, .04); border: 1px solid var(--line); border-radius: var(--r-2); padding: 11px 13px; cursor: pointer; transition: color .15s ease, border-color .15s ease, background .15s ease, transform .15s ease; }
+.vai-examples button::before { content: "✦"; flex: none; color: var(--mod); font-size: 11px; line-height: 1.6; }
+.vai-examples button:hover:not(:disabled) { color: var(--ink); border-color: var(--line-2); background: rgba(158, 197, 220, .08); transform: translateY(-1px); }
+.vai-examples button:disabled { cursor: not-allowed; opacity: .6; }
+@keyframes vai-spin { to { --vai-angle: 360deg; } }
+@keyframes vai-shine { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes vai-breathe { from { opacity: .75; transform: translateY(-6px); } to { opacity: 1; transform: translateY(6px); } }
+.vai-progress { display: grid; gap: 10px; padding: 18px 22px; width: 100%; max-width: 760px; margin: clamp(28px, 8vh, 84px) auto 0; }
 .vai-progress ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .vai-progress li { display: flex; align-items: center; gap: 10px; color: var(--ink-3); }
 .vai-progress li[data-state="done"] { color: var(--ink-2); }
@@ -351,7 +384,11 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 }
 @media (max-width: 720px) {
   .vai-widget-grid { grid-template-columns: 1fr; }
-  .vai-hero { padding: 16px; }
+  .vai-hero { padding: 24px 12px 20px; min-height: 0; }
+  .vai-brand-body { gap: 10px; padding: 10px 20px 10px 14px; }
+  .vai-brand-body svg { width: 38px; height: 38px; }
+  .vai-brand-word { font-size: 34px; }
+  .vai-examples { grid-template-columns: 1fr; }
 }
 
 html,

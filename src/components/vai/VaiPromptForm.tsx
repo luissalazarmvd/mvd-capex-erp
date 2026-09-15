@@ -1,11 +1,11 @@
 // src/components/vai/VaiPromptForm.tsx
 //
-// Pantalla inicial de V-Ai: un solo campo en lenguaje natural con contador,
-// unas pocas preferencias colapsadas y el botón «Generar dashboard».
+// Portada de V-Ai: la marca con anillo neón, un composer tipo chat con el
+// prompt en lenguaje natural, las preferencias colapsadas justo debajo y
+// ejemplos para empezar. Ctrl+Enter o el botón circular generan.
 "use client";
 
 import { useState } from "react";
-import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { VAI_AREAS, type VaiArea } from "../../lib/vai/catalog";
 import { VAI_PROMPT_MAX } from "../../lib/vai/spec";
@@ -44,6 +44,7 @@ export default function VaiPromptForm({ busy, initial, onGenerate }: { busy: boo
 
   const length = prompt.length;
   const ready = prompt.trim().length >= 8 && length <= VAI_PROMPT_MAX && !busy;
+  const customized = area !== "auto" || focus !== "auto" || charts.length > 0;
 
   function submit() {
     if (!ready) return;
@@ -51,18 +52,22 @@ export default function VaiPromptForm({ busy, initial, onGenerate }: { busy: boo
   }
 
   return (
-    <section className="trjk-card vai-hero">
-      <div className="vai-hero-head">
-        <VaiLogo size={46} />
-        <div>
-          <h2>¿Qué dashboard quieres crear?</h2>
-          <p>Descríbelo en lenguaje natural. V-Ai decide, con el catálogo de fuentes de Veta, si puede construirlo.</p>
+    <section className="vai-hero">
+      <div className="vai-hero-glow" aria-hidden="true" />
+
+      <div className="vai-brand" role="img" aria-label="V-Ai">
+        <div className="vai-brand-body">
+          <VaiLogo size={52} />
+          <span className="vai-brand-word" aria-hidden="true">
+            V-<em>Ai</em>
+          </span>
         </div>
       </div>
 
-      <div className="vai-prompt">
+      <p className="vai-hero-tag">Describe el dashboard que necesitas. V-Ai lo construye con el catálogo de fuentes de Veta.</p>
+
+      <div className="vai-composer" data-busy={busy}>
         <textarea
-          className="input"
           value={prompt}
           maxLength={VAI_PROMPT_MAX}
           placeholder="Quiero ver las TMH enviadas por transportista, su evolución mensual, total enviado y guías pendientes de facturación."
@@ -73,26 +78,29 @@ export default function VaiPromptForm({ busy, initial, onGenerate }: { busy: boo
           disabled={busy}
           aria-label="Descripción del dashboard"
         />
-        <div className="vai-prompt-foot">
+        <div className="vai-composer-foot">
           <span className="vai-counter" data-limit={length >= VAI_PROMPT_MAX}>
-            {length.toLocaleString("es-PE")} / {VAI_PROMPT_MAX.toLocaleString("es-PE")} caracteres · Ctrl+Enter para generar
+            {length.toLocaleString("es-PE")} / {VAI_PROMPT_MAX.toLocaleString("es-PE")} · Ctrl+Enter
           </span>
-          <Button variant="primary" size="lg" onClick={submit} disabled={!ready}>
-            {busy ? "Generando…" : "Generar dashboard"}
-          </Button>
+          <button type="button" className="vai-send" onClick={submit} disabled={!ready} aria-label="Generar dashboard" title="Generar dashboard (Ctrl+Enter)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 19V5" />
+              <path d="M5 12l7-7 7 7" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div className="vai-examples" aria-label="Ejemplos">
-        {EXAMPLES.map((example) => (
-          <button key={example} type="button" onClick={() => setPrompt(example)} disabled={busy}>
-            {example}
-          </button>
-        ))}
-      </div>
-
-      <details className="vai-options">
-        <summary>Personalizar</summary>
+      <details className="vai-options" data-custom={customized}>
+        <summary>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <path d="M4 7h9M18 7h2M4 17h4M13 17h7" />
+            <circle cx="15.5" cy="7" r="2.4" />
+            <circle cx="10.5" cy="17" r="2.4" />
+          </svg>
+          Personalizar
+          {customized ? <i className="vai-dot" aria-label="Con preferencias" /> : null}
+        </summary>
         <div className="vai-options-grid">
           <Select
             label="Área / fuente"
@@ -123,6 +131,15 @@ export default function VaiPromptForm({ busy, initial, onGenerate }: { busy: boo
           </div>
         </div>
       </details>
+
+      <div className="vai-examples" aria-label="Ejemplos">
+        <div className="vd-label">Ideas para empezar</div>
+        {EXAMPLES.map((example) => (
+          <button key={example} type="button" onClick={() => setPrompt(example)} disabled={busy}>
+            {example}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
