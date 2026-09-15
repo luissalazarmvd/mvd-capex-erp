@@ -143,7 +143,7 @@ export default function VaiWorkspace() {
       } catch {
         raw = null;
       }
-      const { spec, notes } = parseStoredSpec(raw);
+      const { spec, notes } = parseStoredSpec(raw, detail.prompt_text);
       if (!spec) {
         setFailure({ message: `«${detail.dashboard_name}» ya no puede reconstruirse con el catálogo actual.`, unavailable: notes });
         setBoard(null);

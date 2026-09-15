@@ -7,6 +7,7 @@
 
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { kardexFormat as fmt } from "../../lib/trjKardex";
+import { canUseLogScale, logarithmicScale, type ChartScaleMode } from "../../lib/chartScale";
 
 export type ChartSeries = {
   label: string;
@@ -325,6 +326,8 @@ export function ColumnChart({
   digits = 0,
   unit = "",
   height = 220,
+  scale: scaleMode = "linear",
+  dataTable,
 }: {
   title: string;
   subtitle: string;
@@ -333,6 +336,8 @@ export function ColumnChart({
   digits?: number;
   unit?: string;
   height?: number;
+  scale?: ChartScaleMode;
+  dataTable?: ReactNode;
 }) {
   const [ref, width] = useWidth();
   const axes = assignSeriesAxes(rows, series);
@@ -342,11 +347,15 @@ export function ColumnChart({
   const plotH = height - pad.t - pad.b;
   const leftFinite = axisValues(rows, axes, "left");
   const rightFinite = axisValues(rows, axes, "right");
-  const leftScale = niceScale(Math.min(...leftFinite, 0), Math.max(...leftFinite, 0));
-  const rightScale = niceScale(Math.min(...rightFinite, 0), Math.max(...rightFinite, 0));
+  const log = scaleMode === "log" && canUseLogScale([...leftFinite, ...rightFinite]);
+  const leftLog = logarithmicScale(leftFinite);
+  const rightLog = logarithmicScale(rightFinite);
+  const leftScale = log ? leftLog : niceScale(Math.min(...leftFinite, 0), Math.max(...leftFinite, 0));
+  const rightScale = log ? rightLog : niceScale(Math.min(...rightFinite, 0), Math.max(...rightFinite, 0));
   const yFor = (index: number, v: number) => {
     const scale = axes[index] === "right" ? rightScale : leftScale;
-    return pad.t + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH;
+    const fraction = log ? (axes[index] === "right" ? rightLog : leftLog).fraction(v) : (v - scale.min) / (scale.max - scale.min);
+    return pad.t + plotH - fraction * plotH;
   };
   const leftAxisUnit = axisUnitLabel(series, axes, "left", unit);
   const rightAxisUnit = axisUnitLabel(series, axes, "right", unit);
@@ -372,11 +381,11 @@ export function ColumnChart({
   return (
     <ChartCard
       title={title}
-      subtitle={subtitle}
+      subtitle={`${subtitle}${log ? " · Escala logarítmica (base 10)" : ""}`}
       series={series}
       kind="bar"
       empty={!rows.length}
-      table={<SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
+      table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
     >
       <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
         {width > 0 && (
@@ -463,6 +472,7 @@ export function LineChart({
   unit = "",
   height = 220,
   area = false,
+  dataTable,
 }: {
   title: string;
   subtitle: string;
@@ -473,6 +483,7 @@ export function LineChart({
   height?: number;
   /** Lavado del 12 % bajo la primera serie. */
   area?: boolean;
+  dataTable?: ReactNode;
 }) {
   const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
@@ -543,7 +554,7 @@ export function LineChart({
       series={series}
       kind="line"
       empty={!rows.length}
-      table={<SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
+      table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
     >
       <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
         {width > 0 && (
@@ -679,6 +690,7 @@ export function DonutChart({
   onSelect,
   panel,
   showTable = true,
+  dataTable,
 }: {
   title: string;
   subtitle: string;
@@ -690,6 +702,7 @@ export function DonutChart({
   onSelect?: (label: string | null) => void;
   panel?: ReactNode;
   showTable?: boolean;
+  dataTable?: ReactNode;
 }) {
   
   const [active, setActive] = useState<number | null>(null);
@@ -723,7 +736,7 @@ export function DonutChart({
       empty={!shown.length}
       panel={panel}
       table={
-        showTable ? (
+        dataTable ?? (showTable ? (
           <table>
             <thead>
               <tr>
@@ -742,7 +755,7 @@ export function DonutChart({
               ))}
             </tbody>
           </table>
-        ) : undefined
+        ) : undefined)
       }
     >
       <div className="trjk-donut" onPointerLeave={() => setActive(null)}>
@@ -822,6 +835,8 @@ export function RankChart({
   selected,
   onSelect,
   panel,
+  scale: scaleMode = "linear",
+  dataTable,
 }: {
   title: string;
   subtitle: string;
@@ -834,15 +849,19 @@ export function RankChart({
   onSelect?: (label: string) => void;
   /** Detalle de la selección; sustituye a «Ver datos». */
   panel?: ReactNode;
+  scale?: ChartScaleMode;
+  dataTable?: ReactNode;
 }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
+  const log = scaleMode === "log" && canUseLogScale(rows.map((row) => row.value));
+  const logScale = logarithmicScale(rows.map((row) => row.value));
   return (
     <ChartCard
       title={title}
-      subtitle={subtitle}
+      subtitle={`${subtitle}${log ? " · Escala logarítmica (base 10)" : ""}`}
       empty={!rows.length}
       panel={panel}
-      table={
+      table={dataTable ?? (
         <table>
           <thead>
             <tr>
@@ -863,7 +882,7 @@ export function RankChart({
             ))}
           </tbody>
         </table>
-      }
+      )}
     >
       <div className="trjk-rank">
         {rows.map((r, i) => {
@@ -885,7 +904,7 @@ export function RankChart({
                 {i + 1}. {r.label}
               </span>
               <div>
-                <div className="trjk-rank-bar" style={{ width: `${(r.value / max) * 100}%`, background: color }} />
+                <div className="trjk-rank-bar" style={{ width: `${(log ? logScale.fraction(r.value) : r.value / max) * 100}%`, background: color }} />
               </div>
               <strong>
                 {value(r.value, digits, unit)}

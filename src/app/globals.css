@@ -400,6 +400,21 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 @keyframes vai-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @keyframes vai-slide { 0% { transform: translateX(-120%); } 100% { transform: translateX(300%); } }
 .vai-board { display: grid; gap: 12px; }
+.vai-export-toolbar, .vai-export-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.vai-export-toolbar { justify-content: space-between; }
+.vai-export-toolbar > span { font-size: 11px; }
+.vai-export-section { min-width: 0; display: grid; align-content: start; gap: 6px; }
+.vai-export-content { min-width: 0; }
+.vai-scale-control { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--ink-2); font-size: 11px; margin-right: auto; }
+.vai-scale-control .select { width: auto; min-width: 120px; height: 28px; }
+.vai-scale-control > span { color: var(--ink-3); font-size: 10px; }
+.vai-table-detail { display: grid; gap: 10px; min-width: 0; }
+.vai-board tfoot td { position: sticky; bottom: 0; z-index: 2; background: var(--s-3); border-top: 2px solid var(--brand-gold); }
+.vai-board tfoot small, .vai-board tfoot strong { display: block; }
+.vai-board tfoot small { color: var(--ink-2); font-size: 10px; font-weight: 400; margin-bottom: 3px; }
+.vai-board tfoot strong { color: var(--ink); font-weight: 600; }
+.vai-board .trjk-chart-data > .trjk-table-scroll { max-height: none; overflow: visible; }
+.vai-board .trjk-chart-data .vai-table-scroll { max-height: 360px; }
 .vai-board-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .vai-board-head input.vai-title { font-size: 20px; font-weight: 600; height: 38px; padding: 4px 8px; max-width: 520px; }
 .vai-board-meta { font-size: 11px; color: var(--ink-3); }

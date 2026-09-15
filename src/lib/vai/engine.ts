@@ -7,7 +7,8 @@
 
 import { kardexPeriodKey } from "../trjKardex";
 import { vaiField, vaiMetric, type VaiCondition, type VaiFormat, type VaiMetric, type VaiSource } from "./catalog";
-import type { VaiBucket, VaiDashboardSpec, VaiFilterSpec, VaiWidgetSpec } from "./spec";
+import type { VaiBucket, VaiDashboardSpec, VaiFilterSpec, VaiSummaryOperation, VaiWidgetSpec } from "./spec";
+import { presetRange } from "./dates";
 
 export type VaiRow = Record<string, unknown>;
 
@@ -16,6 +17,23 @@ export type VaiFilterValue = { from?: string; to?: string; value?: string };
 export type VaiFilterState = Record<string, VaiFilterValue>;
 
 export const filterKey = (filter: Pick<VaiFilterSpec, "source" | "field">) => `${filter.source}:${filter.field}`;
+
+export function defaultFilterValues(filters: VaiFilterSpec[], sources: ReadonlyMap<string, VaiSource>, data: Record<string, VaiRow[]>): VaiFilterState {
+  const defaults: VaiFilterState = {};
+  for (const filter of filters) {
+    if (filter.kind !== "date_range") continue;
+    if (filter.from || filter.to) {
+      defaults[filterKey(filter)] = { from: filter.from ?? "", to: filter.to ?? "" };
+    } else if (filter.preset) {
+      defaults[filterKey(filter)] = presetRange(filter.preset);
+    } else {
+      const source = sources.get(filter.source);
+      const dates = (source ? applyFilters(source, data[filter.source] ?? [], [], {}) : []).map((row) => toIsoDate(row[filter.field])).filter(Boolean).sort();
+      defaults[filterKey(filter)] = { from: dates[0] ?? "", to: dates.at(-1) ?? "" };
+    }
+  }
+  return defaults;
+}
 
 export function toNumber(value: unknown): number | null {
   if (value == null || value === "") return null;
@@ -301,11 +319,40 @@ export function aggregate(metric: VaiMetric, rows: VaiRow[]): number | null {
 
 export type VaiSeriesDef = { id: string; label: string; format: VaiFormat };
 export type VaiGroupRow = { key: string; label: string; values: (number | null)[]; count: number };
+export type VaiTableRow = (string | number | null)[];
+export type VaiTableSummaryRule = { operation: VaiSummaryOperation; label: string; metric?: VaiMetric } | null;
+export type VaiTableData = { kind: "table"; columns: VaiSeriesDef[]; rows: VaiTableRow[]; total: number; summaryRules: VaiTableSummaryRule[]; rowMembers: VaiRow[][] };
+export type VaiTableSummary = { value: number | null; label: string } | null;
 
 export type VaiWidgetData =
   | { kind: "kpi"; metric: VaiSeriesDef; value: number | null; rows: number }
-  | { kind: "series"; series: VaiSeriesDef[]; rows: VaiGroupRow[]; temporal: boolean }
-  | { kind: "table"; columns: VaiSeriesDef[]; rows: (string | number | null)[][]; total: number };
+  | { kind: "series"; series: VaiSeriesDef[]; rows: VaiGroupRow[]; temporal: boolean; table: VaiTableData }
+  | VaiTableData;
+
+function summaryRule(widget: VaiWidgetSpec, column: string, metric?: VaiMetric, fallback?: VaiSummaryOperation): VaiTableSummaryRule {
+  const requested = widget.summaries?.find((item) => item.column === column)?.operation ?? "auto";
+  const operation = requested === "auto" && !metric ? fallback : requested;
+  if (!operation || (operation === "auto" && !metric)) return null;
+  if (operation === "none") return null;
+  const labels: Record<string, string> = { sum: "Suma", count: "Total", count_distinct: "Únicos", avg: "Promedio", min: "Mínimo", max: "Máximo", ratio: "Razón global", diff_pct: "Variación global", weighted_avg: "Promedio ponderado", avg_hours_diff: "Promedio" };
+  return { operation, label: labels[operation === "auto" ? metric!.agg : operation] ?? "Resumen", metric };
+}
+
+/** Recalcula sobre todas las filas filtradas, antes de la paginación. */
+export function summarizeTable(data: VaiTableData, visibleRows = data.rows): VaiTableSummary[] {
+  const selected = new Set(visibleRows);
+  const originals = data.rowMembers.flatMap((members, index) => selected.has(data.rows[index]) ? members : []);
+  return data.summaryRules.map((rule, index) => {
+    if (!rule) return null;
+    if (rule.operation === "auto" && rule.metric) return { label: rule.label, value: aggregate(rule.metric, originals) };
+    const values = visibleRows.map((row) => toNumber(row[index])).filter((v): v is number => v != null);
+    const sum = values.reduce((total, v) => total + v, 0);
+    const value = rule.operation === "avg" ? (values.length ? sum / values.length : null)
+      : rule.operation === "min" ? (values.length ? values.reduce((a, b) => Math.min(a, b)) : null)
+      : rule.operation === "max" ? (values.length ? values.reduce((a, b) => Math.max(a, b)) : null) : sum;
+    return { label: rule.label, value };
+  });
+}
 
 function groupRows(rows: VaiRow[], keyOf: (row: VaiRow) => string) {
   const groups = new Map<string, VaiRow[]>();
@@ -337,6 +384,14 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
       columns,
       rows: visibleRows.map((row) => columns.map((column) => (column.format === "text" || column.format === "date" ? toText(row[column.id]) : toNumber(row[column.id])))),
       total: rows.length,
+      summaryRules: columns.map((column) => {
+        const field = vaiField(source, column.id);
+        if (field?.role !== "measure") return null;
+        const candidates = source.metrics.filter((metric) => metric.field === field.id && !metric.where?.length && ["sum", "avg", "min", "max", "weighted_avg"].includes(metric.agg));
+        const metric = candidates.find((item) => item.agg === "avg" && ["percent", "fraction", "grade_oztc", "grade_gt"].includes(column.format)) ?? candidates.find((item) => item.agg === "sum") ?? candidates[0];
+        return summaryRule(widget, column.id, metric, ["percent", "fraction", "grade_oztc", "grade_gt"].includes(column.format) ? "avg" : undefined);
+      }),
+      rowMembers: visibleRows.map((row) => [row]),
     };
   }
 
@@ -354,11 +409,12 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
     groups = groupRows(rows, (row) => toText(row[dimension]) || "Sin dato");
   } else return null;
 
-  let grouped: VaiGroupRow[] = [...groups.entries()].map(([key, subset]) => ({
+  let grouped: (VaiGroupRow & { members: VaiRow[] })[] = [...groups.entries()].map(([key, subset]) => ({
     key,
     label: temporal ? formatDateLabel(key, bucket) : key,
     values: metrics.map((metric) => aggregate(metric, subset)),
     count: subset.length,
+    members: subset,
   }));
 
   if (temporal) grouped.sort((a, b) => a.key.localeCompare(b.key));
@@ -378,23 +434,24 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
         label: `Otros (${rest.length})`,
         values: metrics.map((_, j) => rest.reduce((sum, row) => sum + (row.values[j] ?? 0), 0)),
         count: rest.reduce((sum, row) => sum + row.count, 0),
+        members: rest.flatMap((row) => row.members),
       });
     }
   }
 
-  if (widget.type === "table") {
-    const first: VaiSeriesDef = temporal
+  const first: VaiSeriesDef = temporal
       ? { id: widget.dateField ?? "period", label: "Período", format: "text" }
       : { id: widget.dimension ?? "dimension", label: vaiField(source, widget.dimension ?? "")?.label ?? "Categoría", format: "text" };
-    return {
+  const table: VaiTableData = {
       kind: "table",
       columns: [first, ...series, { id: "__count", label: "Filas", format: "integer" }],
       rows: grouped.map((row) => [row.label, ...row.values, row.count]),
       total: groupedTotal,
+      summaryRules: [null, ...metrics.map((metric) => summaryRule(widget, metric.id, metric)), { operation: "sum", label: "Total" }],
+      rowMembers: grouped.map((row) => row.members),
     };
-  }
-
-  return { kind: "series", series, rows: grouped, temporal };
+  if (widget.type === "table") return table;
+  return { kind: "series", series, rows: grouped, temporal, table };
 }
 
 /** Filas filtradas por fuente para un dashboard completo. */

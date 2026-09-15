@@ -12,9 +12,11 @@ import {
   VAI_MAX_SOURCES,
   VAI_MAX_WIDGETS,
   VAI_WIDGET_TYPES,
+  VAI_SUMMARY_OPERATIONS,
   coerceModelOutput,
   type VaiModelOutput,
 } from "./spec";
+import { limaToday } from "./dates";
 
 /** Modelo centralizado; cambiarlo aquí basta. */
 export const VAI_OPENAI_MODEL = "gpt-5-mini";
@@ -142,6 +144,8 @@ Reglas obligatorias:
 - Si una fuente snapshot ya expone una métrica o campo YTD, úsalo directamente. YTD de una métrica no significa "filtrar todas las fuentes del dashboard desde enero".
 - Prefiere una sola fuente cuando esa fuente ya contiene todos los conceptos pedidos. No agregues otra fuente solo porque existe una versión histórica/mensual del mismo concepto.
 - Todo filtro date_range debe incluir preset. Usa null si el usuario no pidió un período relativo. Valores permitidos: ${VAI_DATE_PRESETS.join(", ")}.
+- Todo filtro incluye from y to (YYYY-MM-DD o null). Para períodos absolutos guarda sus límites inclusivos y preset=null: "setiembre de 2026" o "septiembre de 2026" es from="2026-09-01", to="2026-09-30". Nunca sustituyas un mes solicitado por todo el año ni lo dejes solo en el título. Usa currentDateLima como referencia para fechas relativas, nunca supongas la fecha actual.
+- Cada widget incluye summaries: [] por defecto. Las tablas siempre calculan resúmenes apropiados desde el catálogo. Si el usuario pide un resumen específico, añade {column: id de campo/ métrica de la tabla, operation: auto|sum|avg|min|max|none}. avg significa promedio de las filas mostradas; auto recalcula la métrica sobre los registros originales y conserva ponderaciones. Nunca sumes tasas, porcentajes, promedios ni atributos de cabecera repetidos. Identificadores y fechas no llevan resumen numérico.
 - Interpreta "última semana", "últimos 7 días" o equivalentes como last_7_days; "últimos 30 días" como last_30_days; "esta semana" como current_week; "semana pasada/anterior" como previous_week; "este mes/mes actual" como current_month; "mes pasado/anterior" como previous_month; "este año/año actual/YTD" como year_to_date. Aplica ese período solo a la fuente y al campo temporal que semánticamente corresponda a lo pedido.
 - Respeta estrictamente grain, rules, businessTerms, exclusiones y definición de cada métrica. No sumes campos que el catálogo marca como no sumables y no reconstruyas una métrica manualmente si ya existe una métrica declarada para ese concepto.
 - Un concepto de negocio puede estar representado por una métrica filtrada y no por una columna física. Revisa siempre field, where, numerator, denominator y las reglas de la fuente antes de concluir que falta un dato. No inventes nombres de campos a partir del lenguaje del usuario.
@@ -178,8 +182,10 @@ const OUTPUT_SCHEMA = {
                   field: { type: "string" },
                   label: { type: "string" },
                   preset: { type: ["string", "null"], enum: [null, ...VAI_DATE_PRESETS] },
+                  from: { type: ["string", "null"], description: "Fecha inicial inclusiva YYYY-MM-DD para períodos absolutos; null para presets." },
+                  to: { type: ["string", "null"], description: "Fecha final inclusiva YYYY-MM-DD para períodos absolutos; null para presets." },
                 },
-                required: ["kind", "source", "field", "label", "preset"],
+                required: ["kind", "source", "field", "label", "preset", "from", "to"],
               },
             },
             widgets: {
@@ -197,8 +203,9 @@ const OUTPUT_SCHEMA = {
                   bucket: { type: ["string", "null"], description: `Uno de: ${VAI_BUCKETS.join(", ")}` },
                   limit: { type: ["integer", "null"] },
                   columns: { type: ["array", "null"], items: { type: "string" } },
+                  summaries: { type: "array", items: { type: "object", additionalProperties: false, properties: { column: { type: "string" }, operation: { type: "string", enum: [...VAI_SUMMARY_OPERATIONS] } }, required: ["column", "operation"] } },
                 },
-                required: ["type", "title", "source", "metrics", "dimension", "dateField", "bucket", "limit", "columns"],
+                required: ["type", "title", "source", "metrics", "dimension", "dateField", "bucket", "limit", "columns", "summaries"],
               },
             },
           },
@@ -235,6 +242,7 @@ export async function generateDashboardSpec(prompt: string, options: VaiGenerate
 
   const candidates = selectCandidateSources(prompt, options.area);
   const context = {
+    currentDateLima: limaToday(),
     catalogIndex: VAI_SOURCES.filter((source) => source.enabled).map((source) => ({
       id: source.id,
       name: source.name,

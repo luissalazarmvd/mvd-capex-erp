@@ -5,6 +5,7 @@
 // exista en el catálogo se descarta aquí, server-side, antes de tocar datos.
 
 import { VAI_SOURCE_MAP, vaiField, vaiMetric, type VaiSource } from "./catalog";
+import { requestedMonth, validIsoDate } from "./dates";
 
 export const VAI_SPEC_VERSION = 1;
 export const VAI_PROMPT_MAX = 1200;
@@ -32,7 +33,7 @@ export const VAI_DATE_PRESETS = [
 export type VaiDatePreset = (typeof VAI_DATE_PRESETS)[number];
 
 export type VaiFilterSpec =
-  | { kind: "date_range"; source: string; field: string; label: string; preset: VaiDatePreset | null }
+  | { kind: "date_range"; source: string; field: string; label: string; preset: VaiDatePreset | null; from?: string | null; to?: string | null }
   | { kind: "select"; source: string; field: string; label: string };
 
 export type VaiWidgetSpec = {
@@ -50,7 +51,12 @@ export type VaiWidgetSpec = {
   limit: number | null;
   /** Columnas de detalle para `table` sin agrupación. */
   columns: string[] | null;
+  summaries?: VaiSummarySpec[];
 };
+
+export const VAI_SUMMARY_OPERATIONS = ["auto", "sum", "avg", "min", "max", "none"] as const;
+export type VaiSummaryOperation = (typeof VAI_SUMMARY_OPERATIONS)[number];
+export type VaiSummarySpec = { column: string; operation: VaiSummaryOperation };
 
 export type VaiDashboardSpec = {
   version: typeof VAI_SPEC_VERSION;
@@ -61,7 +67,7 @@ export type VaiDashboardSpec = {
   widgets: VaiWidgetSpec[];
 };
 
-export type VaiRawFilter = { kind: string; source: string; field: string; label: string; preset: string | null };
+export type VaiRawFilter = { kind: string; source: string; field: string; label: string; preset: string | null; from?: string | null; to?: string | null };
 export type VaiRawWidget = {
   type: string;
   title: string;
@@ -72,6 +78,7 @@ export type VaiRawWidget = {
   bucket: string | null;
   limit: number | null;
   columns: string[] | null;
+  summaries?: { column: string; operation: string }[];
 };
 
 /** Salida completa del modelo antes de validar (ya parseada como JSON). */
@@ -155,6 +162,8 @@ export function coerceModelOutput(raw: unknown): VaiModelOutput | null {
               field: clean(item.field, 60),
               label: clean(item.label, 60),
               preset: item.preset == null ? null : clean(item.preset, 30),
+              from: item.from == null ? null : clean(item.from, 30),
+              to: item.to == null ? null : clean(item.to, 30),
             }))
           : [],
         widgets: Array.isArray(dashboardRaw.widgets)
@@ -168,6 +177,7 @@ export function coerceModelOutput(raw: unknown): VaiModelOutput | null {
               bucket: item.bucket == null ? null : clean(item.bucket, 10),
               limit: item.limit == null ? null : Number(item.limit),
               columns: item.columns == null ? null : stringList(item.columns, 12),
+              summaries: Array.isArray(item.summaries) ? item.summaries.filter(isRecord).slice(0, 12).map((summary) => ({ column: clean(summary.column, 80), operation: clean(summary.operation, 20) })) : [],
             }))
           : [],
       }
@@ -302,6 +312,19 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     }
   }
 
+  const summaries: VaiSummarySpec[] = [];
+  for (const summary of raw.summaries ?? []) {
+    const field = columns?.includes(summary.column) ? vaiField(source, summary.column) : null;
+    const metric = metrics.includes(summary.column) ? vaiMetric(source, summary.column) : null;
+    const numeric = field?.role === "measure" && field.type === "number";
+    const sumAllowed = metric ? ["sum", "count"].includes(metric.agg) : source.metrics.some((item) => item.field === summary.column && item.agg === "sum" && !item.where?.length);
+    if ((!numeric && !metric) || !VAI_SUMMARY_OPERATIONS.includes(summary.operation as VaiSummaryOperation) || (summary.operation === "sum" && !sumAllowed)) {
+      notes.push(`${label}: no se aplica ${summary.operation} a «${summary.column}»; se conserva el resumen del catálogo.`);
+      continue;
+    }
+    if (!summaries.some((item) => item.column === summary.column)) summaries.push({ column: summary.column, operation: summary.operation as VaiSummaryOperation });
+  }
+
   return {
     type,
     title: raw.title || source.name,
@@ -312,6 +335,7 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     bucket: dateField ? bucket ?? "month" : null,
     limit,
     columns: type === "table" && !dimension && !dateField ? columns : null,
+    summaries,
   };
 }
 
@@ -362,12 +386,24 @@ function validateFilter(
         ? (raw.preset as VaiDatePreset)
         : null;
 
+    let from = raw.from ? validIsoDate(raw.from) : null;
+    let to = raw.to ? validIsoDate(raw.to) : null;
+    if ((raw.from && !from) || (raw.to && !to) || (from && to && from > to)) {
+      notes.push(`${label}: el rango de fechas no es válido.`);
+      return null;
+    }
+    if (!from && !to) {
+      const requested = requestedMonth(raw.label) ?? requestedMonth(userPrompt);
+      if (requested) ({ from, to } = requested);
+    }
     return {
       kind: "date_range",
       source: source.id,
       field: field.id,
       label: raw.label || field.label,
-      preset,
+      preset: from || to ? null : preset,
+      from,
+      to,
     };
   }
 
@@ -431,7 +467,7 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = ""): Va
  * Revalida una especificación persistida (por ejemplo al abrir un dashboard
  * guardado): garantiza que siga apuntando a fuentes, campos y métricas vigentes.
  */
-export function parseStoredSpec(raw: unknown): VaiValidation {
+export function parseStoredSpec(raw: unknown, userPrompt = ""): VaiValidation {
   if (!isRecord(raw)) return { spec: null, notes: ["La configuración guardada no es válida."] };
   const output: VaiModelOutput = {
     status: "ok",
@@ -439,7 +475,7 @@ export function parseStoredSpec(raw: unknown): VaiValidation {
     unavailable: [],
     dashboard: coerceModelOutput({ dashboard: raw })?.dashboard ?? null,
   };
-  return validateModelOutput(output);
+  return validateModelOutput(output, userPrompt);
 }
 
 export function specSources(spec: VaiDashboardSpec): VaiSource[] {

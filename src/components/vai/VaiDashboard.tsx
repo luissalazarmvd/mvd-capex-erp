@@ -12,15 +12,18 @@ import { CHART_COLORS, CHART_OTHER, ColumnChart, DonutChart, LineChart, RankChar
 import { Button } from "../ui/Button";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 import { VAI_SOURCE_MAP, vaiAreaLabel, vaiField, type VaiSource } from "../../lib/vai/catalog";
+import { canUseLogScale, prefersLogScale, type ChartScaleMode } from "../../lib/chartScale";
+import { VaiExportProvider, VaiExportSection } from "./VaiExportControls";
 import {
   applyFilters,
   chartAxisGroup,
   chartFormat,
   computeWidget,
   distinctValues,
+  defaultFilterValues,
   filterKey,
   formatValue,
-  toIsoDate,
+  summarizeTable,
   type VaiFilterState,
   type VaiRow,
   type VaiWidgetData,
@@ -73,75 +76,7 @@ export default function VaiDashboard({ spec, refreshToken = 0 }: Props) {
     void load();
   }, [load, refreshToken]);
 
-  const defaultFilters = useMemo<VaiFilterState>(() => {
-    const next: VaiFilterState = {};
-
-    const addDays = (isoDate: string, days: number) => {
-      const date = new Date(`${isoDate}T00:00:00.000Z`);
-      date.setUTCDate(date.getUTCDate() + days);
-      return date.toISOString().slice(0, 10);
-    };
-
-    for (const filter of spec.filters) {
-      if (filter.kind !== "date_range") continue;
-
-      const source = VAI_SOURCE_MAP.get(filter.source);
-      if (!source) continue;
-
-      const rows = applyFilters(
-        source,
-        data[filter.source]?.rows ?? [],
-        [],
-        {},
-      );
-
-      const dates = rows
-        .map((row) => toIsoDate(row[filter.field]))
-        .filter(Boolean)
-        .sort();
-
-      if (!dates.length) continue;
-
-      const minDate = dates[0];
-      const maxDate = dates[dates.length - 1];
-
-      let from = minDate;
-      let to = maxDate;
-
-      if (filter.preset === "last_7_days") {
-        from = addDays(maxDate, -6);
-      } else if (filter.preset === "last_30_days") {
-        from = addDays(maxDate, -29);
-      } else if (filter.preset === "current_week") {
-        const anchor = new Date(`${maxDate}T00:00:00.000Z`);
-        const offset = (anchor.getUTCDay() + 6) % 7;
-        anchor.setUTCDate(anchor.getUTCDate() - offset);
-        from = anchor.toISOString().slice(0, 10);
-      } else if (filter.preset === "previous_week") {
-        const anchor = new Date(`${maxDate}T00:00:00.000Z`);
-        const offset = (anchor.getUTCDay() + 6) % 7;
-        anchor.setUTCDate(anchor.getUTCDate() - offset - 7);
-        from = anchor.toISOString().slice(0, 10);
-        to = addDays(from, 6);
-      } else if (filter.preset === "current_month") {
-        from = `${maxDate.slice(0, 7)}-01`;
-      } else if (filter.preset === "previous_month") {
-        const anchor = new Date(`${maxDate.slice(0, 7)}-01T00:00:00.000Z`);
-        anchor.setUTCDate(anchor.getUTCDate() - 1);
-        to = anchor.toISOString().slice(0, 10);
-        from = `${to.slice(0, 7)}-01`;
-      } else if (filter.preset === "year_to_date") {
-        from = `${maxDate.slice(0, 4)}-01-01`;
-      }
-
-      next[filterKey(filter)] = {
-        from,
-        to,
-      };
-    }
-
-    return next;
-  }, [spec.filters, data]);
+  const defaultFilters = useMemo(() => defaultFilterValues(spec.filters, VAI_SOURCE_MAP, Object.fromEntries(Object.entries(data).map(([id, state]) => [id, state.rows]))), [spec.filters, data]);
 
   const effectiveFilters = useMemo<VaiFilterState>(() => {
     const next: VaiFilterState = { ...defaultFilters };
@@ -162,7 +97,11 @@ export default function VaiDashboard({ spec, refreshToken = 0 }: Props) {
     return out;
   }, [sources, data, spec.filters, effectiveFilters]);
 
-  const loading = sources.some((source) => data[source.id]?.loading);
+  const loading = sources.some((source) => data[source.id]?.loading ?? true);
+  const exportContext = spec.filters.map((filter) => {
+    const value = effectiveFilters[filterKey(filter)] ?? {};
+    return `${filter.label}: ${filter.kind === "date_range" ? `${value.from || "Sin límite"} a ${value.to || "Sin límite"}` : value.value || "Todos"}`;
+  });
   const kpis = spec.widgets.filter((widget) => widget.type === "kpi");
   const others = spec.widgets.filter((widget) => widget.type !== "kpi");
   const hasFilters = spec.filters.some((filter) => {
@@ -182,6 +121,7 @@ export default function VaiDashboard({ spec, refreshToken = 0 }: Props) {
 
   return (
     <div className="vai-board">
+      <VaiExportProvider title={spec.title} context={exportContext} disabled={loading || sources.some((source) => Boolean(data[source.id]?.error))}>
       {spec.description ? <p className="muted" style={{ margin: 0 }}>{spec.description}</p> : null}
 
       {spec.filters.length ? (
@@ -233,7 +173,7 @@ export default function VaiDashboard({ spec, refreshToken = 0 }: Props) {
       {kpis.length ? (
         <div className="vai-kpi-grid">
           {kpis.map((widget, i) => (
-            <KpiCard key={`${widget.source}-${widget.metrics[0]}-${i}`} widget={widget} rows={filtered[widget.source] ?? []} loading={loading} />
+            <KpiCard key={`${widget.source}-${widget.metrics[0]}-${i}`} id={`kpi-${i}`} order={i} widget={widget} rows={filtered[widget.source] ?? []} loading={loading} />
           ))}
         </div>
       ) : null}
@@ -242,11 +182,12 @@ export default function VaiDashboard({ spec, refreshToken = 0 }: Props) {
         <div className="vai-widget-grid">
           {others.map((widget, i) => (
             <div key={`${widget.type}-${widget.source}-${i}`} data-span={widget.type === "table" || (widget.type === "line" && others.length % 2 === 1 && i === others.length - 1) ? "2" : "1"}>
-              <Widget widget={widget} rows={filtered[widget.source] ?? []} />
+              <Widget id={`widget-${i}`} order={kpis.length + i} widget={widget} rows={filtered[widget.source] ?? []} />
             </div>
           ))}
         </div>
       ) : null}
+      </VaiExportProvider>
     </div>
   );
 }
@@ -280,11 +221,12 @@ function FilterControl({ filter, rows, value, onChange }: { filter: VaiFilterSpe
   );
 }
 
-function KpiCard({ widget, rows, loading }: { widget: VaiWidgetSpec; rows: VaiRow[]; loading: boolean }) {
+function KpiCard({ id, order, widget, rows, loading }: { id: string; order: number; widget: VaiWidgetSpec; rows: VaiRow[]; loading: boolean }) {
   const source = VAI_SOURCE_MAP.get(widget.source);
   const result = source ? computeWidget(widget, source, rows) : null;
   if (!result || result.kind !== "kpi") return null;
   return (
+    <VaiExportSection id={id} order={order} title={widget.title} kind="kpi">
     <div className="vai-kpi" title={source?.metrics.find((metric) => metric.id === result.metric.id)?.description}>
       <span>{widget.title}</span>
       <strong>{loading && !rows.length ? "…" : formatValue(result.value, result.metric.format)}</strong>
@@ -292,10 +234,12 @@ function KpiCard({ widget, rows, loading }: { widget: VaiWidgetSpec; rows: VaiRo
         {result.metric.label} · {rows.length.toLocaleString("es-PE")} filas · {source?.name}
       </small>
     </div>
+    </VaiExportSection>
   );
 }
 
-function Widget({ widget, rows }: { widget: VaiWidgetSpec; rows: VaiRow[] }) {
+function Widget({ id, order, widget, rows }: { id: string; order: number; widget: VaiWidgetSpec; rows: VaiRow[] }) {
+  const [scaleChoice, setScaleChoice] = useState<"auto" | ChartScaleMode>("auto");
   const source = VAI_SOURCE_MAP.get(widget.source);
   const result = source ? computeWidget(widget, source, rows) : null;
   if (!source || !result) return null;
@@ -305,7 +249,7 @@ function Widget({ widget, rows }: { widget: VaiWidgetSpec; rows: VaiRow[] }) {
       ? `${source.name} · por ${widget.bucket === "day" ? "día" : widget.bucket === "week" ? "semana" : "mes"} de ${vaiField(source, widget.dateField)?.label ?? widget.dateField}`
       : source.name;
 
-  if (result.kind === "table") return <TableWidget title={widget.title} subtitle={subtitle} data={result} />;
+  if (result.kind === "table") return <TableWidget id={id} order={order} title={widget.title} subtitle={subtitle} data={result} />;
   if (result.kind !== "series") return null;
 
   const first = result.series[0];
@@ -324,20 +268,37 @@ function Widget({ widget, rows }: { widget: VaiWidgetSpec; rows: VaiRow[] }) {
     values: row.values.map((v, j) => (v == null ? null : v * formats[j].scale)),
   }));
 
-  if (widget.type === "line") return <LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={series.length === 1} />;
-  if (widget.type === "bar") return <ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} />;
+  const values = chartRows.flatMap((row) => widget.type === "rank" ? [row.values[0]] : row.values);
+  const logAllowed = canUseLogScale(values);
+  const scale: ChartScaleMode = logAllowed && (scaleChoice === "log" || (scaleChoice === "auto" && prefersLogScale(values))) ? "log" : "linear";
+  const controls = widget.type === "bar" || widget.type === "rank" ? (
+    <label className="vai-scale-control">
+      Escala
+      <select className="select" aria-label={`Escala de ${widget.title}`} value={scaleChoice} onChange={(event) => setScaleChoice(event.target.value as "auto" | ChartScaleMode)}>
+        <option value="auto">Automática</option><option value="linear">Lineal</option>
+        <option value="log" disabled={!logAllowed}>Logarítmica</option>
+      </select>
+      {!logAllowed ? <span title="La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal.">Lineal: incluye cero o negativos</span> : null}
+    </label>
+  ) : null;
+  const dataTable = <TableWidget title={`Cifras de ${widget.title}`} subtitle={subtitle} data={result.table} compact />;
+  const wrap = (chart: React.ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }} controls={controls}>{chart}</VaiExportSection>;
+  if (widget.type === "line") return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={series.length === 1} dataTable={dataTable} />);
+  if (widget.type === "bar") return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} dataTable={dataTable} />);
   if (widget.type === "rank") {
-    return (
+    return wrap(
       <RankChart
         title={widget.title}
         subtitle={subtitle}
         rows={result.rows.map((row) => ({ label: row.label, value: (row.values[0] ?? 0) * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined }))}
         digits={primaryFormat.digits}
         unit={primaryFormat.unit}
+        scale={scale}
+        dataTable={dataTable}
       />
     );
   }
-  return (
+  return wrap(
     <DonutChart
       title={widget.title}
       subtitle={subtitle}
@@ -349,11 +310,12 @@ function Widget({ widget, rows }: { widget: VaiWidgetSpec; rows: VaiRow[] }) {
       }))}
       digits={primaryFormat.digits}
       unit={primaryFormat.unit}
+      dataTable={dataTable}
     />
   );
 }
 
-function TableWidget({ title, subtitle, data }: { title: string; subtitle: string; data: Extract<VaiWidgetData, { kind: "table" }> }) {
+function TableWidget({ id, order, title, subtitle, data, compact = false }: { id?: string; order?: number; title: string; subtitle: string; data: Extract<VaiWidgetData, { kind: "table" }>; compact?: boolean }) {
   const excelColumns = useMemo<Array<ExcelColumnDef<(string | number | null)[]>>>(
     () =>
       data.columns.map((column, index) => ({
@@ -365,20 +327,21 @@ function TableWidget({ title, subtitle, data }: { title: string; subtitle: strin
     [data.columns],
   );
   const excel = useExcelColumnFilters(data.rows, excelColumns);
+  const summaries = useMemo(() => summarizeTable(data, excel.rows), [data, excel.rows]);
+  const exportTable = useMemo(() => ({ data, rows: excel.rows }), [data, excel.rows]);
   const [pageSize, setPageSize] = useState(100);
-  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, count: excel.rows.length });
+  const page = pagination.count === excel.rows.length ? pagination.page : 1;
+  const setPage = (next: number) => setPagination({ page: next, count: excel.rows.length });
   const pageCount = pageSize === 0 ? 1 : Math.max(1, Math.ceil(excel.rows.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageRows = pageSize === 0
     ? excel.rows
     : excel.rows.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  useEffect(() => {
-    setPage(1);
-  }, [pageSize, excel.rows.length]);
-
   return (
-    <section className="trjk-card trjk-chart">
+    <VaiExportSection id={id} order={order} title={title} kind="table" table={exportTable}>
+    <section className={compact ? "vai-table-detail" : "trjk-card trjk-chart"}>
       <div className="trjk-chart-head">
         <div>
           <h3>{title}</h3>
@@ -397,7 +360,7 @@ function TableWidget({ title, subtitle, data }: { title: string; subtitle: strin
             <select
               className="select"
               value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
+              onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}
               style={{ width: 92 }}
             >
               <option value={100}>100</option>
@@ -409,13 +372,13 @@ function TableWidget({ title, subtitle, data }: { title: string; subtitle: strin
           </label>
           {pageSize > 0 && pageCount > 1 ? (
             <>
-              <Button size="sm" variant="ghost" disabled={safePage <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+              <Button size="sm" variant="ghost" disabled={safePage <= 1} onClick={() => setPage(Math.max(1, safePage - 1))}>
                 Anterior
               </Button>
               <span className="muted">
                 {safePage.toLocaleString("es-PE")} / {pageCount.toLocaleString("es-PE")}
               </span>
-              <Button size="sm" variant="ghost" disabled={safePage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>
+              <Button size="sm" variant="ghost" disabled={safePage >= pageCount} onClick={() => setPage(Math.min(pageCount, safePage + 1))}>
                 Siguiente
               </Button>
             </>
@@ -448,11 +411,21 @@ function TableWidget({ title, subtitle, data }: { title: string; subtitle: strin
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr aria-label={`Resumen de ${excel.rows.length} filas filtradas`}>
+                {data.columns.map((column, index) => (
+                  <td key={column.id} data-num={Boolean(summaries[index])}>
+                    {summaries[index] ? <><small>{summaries[index]!.label}</small><strong>{formatValue(summaries[index]!.value, column.format)}</strong></> : index === 0 ? <><small>Resumen</small><strong>{excel.rows.length.toLocaleString("es-PE")} filas</strong></> : null}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
           </table>
         </div>
       ) : (
         <div className="trjk-empty">Sin datos para los filtros seleccionados.</div>
       )}
     </section>
+    </VaiExportSection>
   );
 }
