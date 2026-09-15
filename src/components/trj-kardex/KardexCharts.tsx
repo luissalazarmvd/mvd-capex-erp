@@ -5,7 +5,7 @@
 // tabla «Ver datos» como equivalente accesible de cada gráfico.
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { kardexFormat as fmt } from "../../lib/trjKardex";
 
 export type ChartSeries = { label: string; color: string };
@@ -25,17 +25,19 @@ const compact = new Intl.NumberFormat("es-PE", {
   maximumFractionDigits: 1,
 });
 
+// Ref de callback: el plot puede montarse después del primer render (datos que
+// llegan tarde o un filtro que vacía y vuelve a llenar) y debe observarse igual.
 function useWidth() {
-  const ref = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
-  useLayoutEffect(() => {
-    const node = ref.current;
+  const observer = useRef<ResizeObserver | null>(null);
+  const ref = useCallback((node: HTMLDivElement | null) => {
+    observer.current?.disconnect();
+    observer.current = null;
     if (!node) return;
-    const observer = new ResizeObserver((entries) =>
+    observer.current = new ResizeObserver((entries) =>
       setWidth(Math.round(entries[0].contentRect.width)),
     );
-    observer.observe(node);
-    return () => observer.disconnect();
+    observer.current.observe(node);
   }, []);
   return [ref, width] as const;
 }

@@ -45,6 +45,7 @@ export async function POST(req: Request) {
         "fleet",
         "trj_kardex",
         "ti",
+        "vai",
       ].includes(area)
     ) {
       return NextResponse.json({ ok: false, error: "area inválida" }, { status: 400 });
@@ -73,6 +74,7 @@ export async function POST(req: Request) {
     const TRJKARDEX_PASSWORD_L3 = process.env.TRJKARDEX_PASSWORD_L3 || "";
     const TRJKARDEX_PASSWORD_L4 = process.env.TRJKARDEX_PASSWORD_L4 || "";
     const DTI_PASSWORD = process.env.DTI_PASSWORD || "";
+    const VAI_PASSWORD = process.env.VAI_PASSWORD || "";
 
     let ok = false;
     let scopes: string[] = [area];
@@ -87,6 +89,10 @@ export async function POST(req: Request) {
     if (area === "sustainability" && password === SUSTAINABILITY_PASSWORD) ok = true;
     if (area === "fixassets" && FIXASSETS_PASSWORD && password === FIXASSETS_PASSWORD) ok = true;
     if (area === "ti" && DTI_PASSWORD && password === DTI_PASSWORD) ok = true;
+    if (area === "vai" && VAI_PASSWORD && password === VAI_PASSWORD) {
+      ok = true;
+      defaultPath = "/vai";
+    }
 
     if (area === "fleet" && FLEET_PASSWORD_L2 && password === FLEET_PASSWORD_L2) {
       ok = true;

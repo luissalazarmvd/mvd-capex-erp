@@ -17,7 +17,8 @@ type Area =
   | "sustainability"
   | "fixassets"
   | "fleet"
-  | "trj_kardex";
+  | "trj_kardex"
+  | "vai";
 
 // Mismo orden y mismas etiquetas de siempre. El acento replica el de
 // [data-module="…"] en globals.css: cada módulo se reconoce por su color
@@ -34,6 +35,7 @@ const AREAS: Array<{ key: Area; label: string; passwordLabel: string; accent: st
   { key: "fixassets", label: "Activos Fijos y Depreciación", passwordLabel: "Clave Activos Fijos y Depreciación", accent: "#c69214" },
   { key: "sustainability", label: "Sostenibilidad", passwordLabel: "Clave Sustainability", accent: "#93b25c" },
   { key: "ti", label: "Eficiencia Operacional TI", passwordLabel: "Clave Eficiencia Operacional TI", accent: "#6b6b68" },
+  { key: "vai", label: "V-Ai · Dashboards inteligentes", passwordLabel: "Clave V-Ai", accent: "#ffd882" },
 ];
 
 export default function PortalClient() {
@@ -141,6 +143,8 @@ export default function PortalClient() {
           ? j?.defaultPath || "/fleet/mgmt"
           : area === "trj_kardex"
           ? j?.defaultPath || "/kardex/sum"
+          : area === "vai"
+          ? "/vai"
           : "/ti"
       );
     } catch (error: unknown) {

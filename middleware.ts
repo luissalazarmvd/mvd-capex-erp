@@ -142,6 +142,8 @@ export async function middleware(req: NextRequest) {
     ? "trjkardex"
     : pathname.startsWith("/ti")
     ? "ti"
+    : pathname.startsWith("/vai")
+    ? "vai"
     : pathname.startsWith("/refinery")
     ? "refinery"
     : pathname.startsWith("/traceability")

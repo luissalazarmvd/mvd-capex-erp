@@ -70,6 +70,7 @@ Login general mediante `/api/auth/login`, cookie `mvd_auth`, HMAC `AUTH_SECRET`,
 - Flota: `fleet_mgmt|fleet_units` → `/fleet/mgmt`
 - Kardex TRJ: `trjkardex_sum|trjkardex_guides|trjkardex_quotes` → `/kardex/sum`, `/kardex/guides` o `/kardex/quotes`
 - TI: `ti` → `/ti`
+- V-Ai: `vai` → `/vai` (`VAI_PASSWORD`; prototipo sin permisos individuales)
 
 Kardex TRJ usa cuatro niveles de acceso: `TRJKARDEX_PASSWORD_L1` habilita Resumen, Guías y Valorización; `TRJKARDEX_PASSWORD_L2` habilita solo Guías; `TRJKARDEX_PASSWORD_L3` habilita solo Valorización; y `TRJKARDEX_PASSWORD_L4` habilita solo Resumen.
 
@@ -144,6 +145,16 @@ El portafolio de eficiencia se presenta íntegramente en inglés y francés. Par
 - La referencia laboral editable inicia en USD 10/MH y el resumen usa el promedio de filas de los meses activos.
 - El sistema anterior costaba USD 3,827.54 al año y fue pagado hasta 2025. En 2026 se reconoce el importe anual completo como costo evitado, equivalente a USD 318.96/mes solo para combinar run-rates; no se registra como gasto real en las filas históricas mensuales de 2026.
 - La tabla mensual conserva su fila de totales para volumen, MH y ahorro laboral; el costo evitado del sistema se presenta por separado y se incluye en el ahorro anual total.
+
+### V-Ai (prototipo)
+Ruta `/vai`, layout `data-module="vai"`, componentes en `src/components/vai`, lógica en `src/lib/vai`. Genera dashboards a partir de lenguaje natural sobre un catálogo controlado.
+
+- Catálogo (`src/lib/vai/catalog.ts`): solo metadatos —id, área, endpoint GET existente, vista SQL, granularidad, campos con rol (`dimension`/`date`/`measure`/`attribute`), métricas con agregación declarada, exclusiones fijas, reglas y `access.scopes` reservado para permisos futuros—. Un importe de cabecera repetido por fila de detalle se expone como `attribute`, nunca como métrica sumable. Ninguna fuente de escritura entra al catálogo.
+- Privacidad: OpenAI recibe únicamente el índice del catálogo, los metadatos de las fuentes candidatas (preselección local por área y términos en `selectCandidateSources`), las preferencias y el prompt. Nunca filas, importes, nombres de registros ni credenciales. Modelo centralizado en `VAI_OPENAI_MODEL` (`src/lib/vai/generate.ts`), API key `API_OPEN_AI` solo en el route handler `POST /api/vai/generate` (protegido por cookie `mvd_auth` con scope `vai` mediante `src/lib/auth/session.ts`).
+- El modelo devuelve una especificación JSON (`src/lib/vai/spec.ts`, schema v1: título, fuentes ≤ 3, filtros ≤ 6, widgets ≤ 10 de tipo `kpi|line|bar|rank|donut|table`); `validateModelOutput` descarta server-side todo lo que no exista en el catálogo y reporta lo omitido al usuario. Sin SQL ni React generados por el modelo; sin URLs ni endpoints fuera del catálogo; sin cruces entre fuentes en v1.
+- Datos reales: el navegador consulta cada fuente por su `endpoint` del catálogo vía `apiClient` y `src/lib/vai/engine.ts` filtra y agrega en cliente reutilizando `KardexCharts`. Filtros, «Actualizar datos», abrir, renombrar y eliminar no llaman a OpenAI.
+- Persistencia: `stg.vai_dashboards_web` (solo definición: nombre, prompt, `spec_json`, `schema_version`, `source_ids`; `owner_key`/`visibility` reservados). Endpoints `GET /api/vai/dashboards`, `GET /api/vai/dashboards/:dashboard_id`, `POST /api/vai/dashboards/insert` (crea o actualiza) y `POST /api/vai/dashboards/delete`. Al abrir, `parseStoredSpec` revalida contra el catálogo vigente.
+- Prompt limitado a `VAI_PROMPT_MAX` (1200) en frontend y backend.
 
 ---
 
