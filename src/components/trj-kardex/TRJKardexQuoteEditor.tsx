@@ -171,11 +171,13 @@ export default function TRJKardexQuoteEditor({
 
   let validation = "";
 
-  if (arrival && !arrivalKey) {
+  if (!arrival.trim()) {
+    validation = "La fecha de llegada es obligatoria";
+  } else if (!arrivalKey) {
     validation = "La fecha de llegada no es válida";
-  } else if (arrivalKey && arrivalKey > maxDateTimeKeyPe) {
+  } else if (arrivalKey > maxDateTimeKeyPe) {
     validation = "La llegada no puede ser futura (hora Perú)";
-  } else if (arrivalKey && departureKey && arrivalKey < departureKey) {
+  } else if (departureKey && arrivalKey < departureKey) {
     validation = "La llegada no puede ser anterior a la salida";
   }
 
@@ -211,12 +213,8 @@ export default function TRJKardexQuoteEditor({
     try {
       const body: Record<string, unknown> = {
         guide_number: guide.guide_number,
+        arrival_date: `${arrival.slice(0, 16)}:00.000`,
       };
-
-      if (arrival !== text(guide.arrival_date).slice(0, 16)) {
-        body.arrival_date = arrival ? `${arrival.slice(0, 16)}:00.000` : null;
-      }
-
 
       const changed = lots.filter(
         (row) =>
@@ -237,7 +235,7 @@ export default function TRJKardexQuoteEditor({
         offset < Math.max(1, changedRows.length);
         offset += 100
       ) {
-        const result = await apiPost("/api/trjkar/guides/insert", {
+        const result = await apiPost("/api/trjkar/quotes/guides/save", {
           ...body,
           ...(changedRows.length
             ? { lots: changedRows.slice(offset, offset + 100) }

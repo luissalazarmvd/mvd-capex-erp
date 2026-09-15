@@ -306,6 +306,17 @@ function InvoiceDetail({
   }
   async function action(action: "close" | "delete") {
     if (busy || dirty || closed) return;
+
+    if (
+      action === "close" &&
+      guides.some((guide) => !String(guide.arrival_date ?? "").trim())
+    ) {
+      window.alert(
+        "No se puede cerrar la factura: todas las guías deben tener fecha de llegada.",
+      );
+      return;
+    }
+
     const word = action === "close" ? "cerrar" : "eliminar";
     const detail =
       action === "close"
@@ -316,6 +327,21 @@ function InvoiceDetail({
     );
     if (confirmation?.trim().toLowerCase() !== word) return;
     await mutate(`/api/trjkar/invo/${action}`, { ...identity, confirmation });
+  }
+
+  async function reopenInvoice() {
+    if (busy || dirty || !closed) return;
+
+    const password = window.prompt(
+      `Contraseña de administrador para abrir ${invoice.document_number}:`,
+    );
+
+    if (password == null) return;
+
+    await mutate("/api/trjkar/invo/open", {
+      ...identity,
+      password,
+    });
   }
   return (
     <section
@@ -333,9 +359,20 @@ function InvoiceDetail({
           </p>
         </div>
         <div className="trjk-actions">
+          {closed && (
+            <Button
+              size="sm"
+              disabled={busy || dirty}
+              onClick={() => void reopenInvoice()}
+            >
+              Abrir
+            </Button>
+          )}
+
           <Button size="sm" disabled={busy || dirty || closed} onClick={onAdd}>
             Agregar guías
           </Button>
+
           <Button
             size="sm"
             disabled={busy || dirty || closed || !guides.length}
@@ -343,6 +380,7 @@ function InvoiceDetail({
           >
             Cerrar
           </Button>
+
           <Button
             size="sm"
             variant="danger"
