@@ -245,6 +245,7 @@ const MONTHS = [
 ];
 
 const summaryColumnSpecs: [string, string, ExcelFilterKind?][] = [
+  ["lot", "Lote"],
   ["entry_year", "Año", "number"],
   ["entry_month", "Mes", "number"],
   ["summary_tmh", "TMH", "number"],
@@ -260,7 +261,6 @@ const summaryColumnSpecs: [string, string, ExcelFilterKind?][] = [
   ["control_status_desc", "Status desc"],
   ["control_status_comment", "Status comment"],
   ["aging_days", "Aging (días)", "number"],
-  ["lot", "Lote"],
   ["lot_corr", "Corr."],
   ["summary_status", "Grupo status"],
   ["payment_status", "Clasificación pago"],
