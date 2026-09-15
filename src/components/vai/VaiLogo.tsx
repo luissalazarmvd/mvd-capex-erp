@@ -1,8 +1,8 @@
 // src/components/vai/VaiLogo.tsx
 //
-// Isotipo de V-Ai, concepto «Batea»: el domo dorado del isotipo corporativo
-// de Veta Dorada (degradado oro del manual) sobre una V de trazo redondeado,
-// que es la batea afilada en letra. Rejilla de 64; solo colores del manual.
+// Isotipo de V-Ai: monograma «VA» (la V y la A comparten el brazo central)
+// seguido de una «i» en oro cuyo punto es el domo dorado del isotipo de Veta
+// Dorada. Rejilla de 64; solo colores del manual.
 
 import { useId } from "react";
 
@@ -19,8 +19,11 @@ export default function VaiLogo({ size = 40, withWordmark = false, title = "V-Ai
           <stop offset="1" style={{ stopColor: "var(--brand-gold-light)" }} />
         </linearGradient>
       </defs>
-      <path d="M13 27 L32 53 L51 27" fill="none" stroke="var(--ink)" strokeWidth="5.5" strokeLinejoin="round" strokeLinecap="round" />
-      <path d="M22 20 A10 10 0 0 1 42 20 Z" fill={`url(#${gradientId})`} />
+      {/* V y A comparten el brazo central; la i lleva el domo dorado como punto. */}
+      <path d="M7 16 L19 48 L31 16 L43 48" fill="none" stroke="var(--ink)" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" />
+      <path d="M23.5 37 H38.5" fill="none" stroke="var(--ink)" strokeWidth="4" strokeLinecap="round" />
+      <path d="M54 31 V48" fill="none" stroke={`url(#${gradientId})`} strokeWidth="5" strokeLinecap="round" />
+      <path d="M48.5 22 A5.5 5.5 0 0 1 59.5 22 Z" fill={`url(#${gradientId})`} />
     </svg>
   );
   if (!withWordmark) return mark;
