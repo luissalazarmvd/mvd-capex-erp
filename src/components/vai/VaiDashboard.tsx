@@ -18,6 +18,7 @@ import {
   distinctValues,
   filterKey,
   formatValue,
+  toIsoDate,
   type VaiFilterState,
   type VaiRow,
   type VaiWidgetData,
@@ -70,18 +71,73 @@ export default function VaiDashboard({ spec, refreshToken = 0 }: Props) {
     void load();
   }, [load, refreshToken]);
 
+  const defaultFilters = useMemo<VaiFilterState>(() => {
+    const next: VaiFilterState = {};
+
+    for (const filter of spec.filters) {
+      if (filter.kind !== "date_range") continue;
+
+      const source = VAI_SOURCE_MAP.get(filter.source);
+      if (!source) continue;
+
+      const rows = applyFilters(
+        source,
+        data[filter.source]?.rows ?? [],
+        [],
+        {},
+      );
+
+      const dates = rows
+        .map((row) => toIsoDate(row[filter.field]))
+        .filter(Boolean)
+        .sort();
+
+      if (dates.length) {
+        next[filterKey(filter)] = {
+          from: dates[0],
+          to: dates[dates.length - 1],
+        };
+      }
+    }
+
+    return next;
+  }, [spec.filters, data]);
+
+  const effectiveFilters = useMemo<VaiFilterState>(() => {
+    const next: VaiFilterState = { ...defaultFilters };
+
+    for (const [key, value] of Object.entries(filters)) {
+      next[key] = {
+        ...(defaultFilters[key] ?? {}),
+        ...value,
+      };
+    }
+
+    return next;
+  }, [defaultFilters, filters]);
+
   const filtered = useMemo(() => {
     const out: Record<string, VaiRow[]> = {};
-    for (const source of sources) out[source.id] = applyFilters(source, data[source.id]?.rows ?? [], spec.filters, filters);
+    for (const source of sources) out[source.id] = applyFilters(source, data[source.id]?.rows ?? [], spec.filters, effectiveFilters);
     return out;
-  }, [sources, data, spec.filters, filters]);
+  }, [sources, data, spec.filters, effectiveFilters]);
 
   const loading = sources.some((source) => data[source.id]?.loading);
   const kpis = spec.widgets.filter((widget) => widget.type === "kpi");
   const others = spec.widgets.filter((widget) => widget.type !== "kpi");
   const hasFilters = spec.filters.some((filter) => {
-    const value = filters[filterKey(filter)];
-    return value && (value.from || value.to || value.value);
+    const key = filterKey(filter);
+    const value = filters[key];
+
+    if (!value) return false;
+    if (filter.kind === "select") return Boolean(value.value);
+
+    const defaults = defaultFilters[key] ?? {};
+
+    return (
+      (value.from ?? defaults.from ?? "") !== (defaults.from ?? "") ||
+      (value.to ?? defaults.to ?? "") !== (defaults.to ?? "")
+    );
   });
 
   return (
@@ -106,7 +162,7 @@ export default function VaiDashboard({ spec, refreshToken = 0 }: Props) {
                 key={filterKey(filter)}
                 filter={filter}
                 rows={data[filter.source]?.rows ?? []}
-                value={filters[filterKey(filter)] ?? {}}
+                value={effectiveFilters[filterKey(filter)] ?? {}}
                 onChange={(value) => setFilters((prev) => ({ ...prev, [filterKey(filter)]: value }))}
               />
             ))}

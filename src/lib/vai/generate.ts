@@ -98,7 +98,19 @@ function sourceContext(source: VaiSource) {
     dateFields: source.fields.filter((field) => field.role === "date").map((field) => ({ id: field.id, label: field.label, description: field.description })),
     dimensions: source.fields.filter((field) => field.role === "dimension").map((field) => ({ id: field.id, label: field.label, description: field.description })),
     attributes: source.fields.filter((field) => field.role === "attribute" || field.role === "measure").map((field) => ({ id: field.id, label: field.label, format: field.format ?? "text", description: field.description, tableOnly: true })),
-    metrics: source.metrics.map((metric) => ({ id: metric.id, label: metric.label, description: metric.description, format: metric.format })),
+    metrics: source.metrics.map((metric) => ({
+      id: metric.id,
+      label: metric.label,
+      description: metric.description,
+      agg: metric.agg,
+      format: metric.format,
+      field: metric.field ?? null,
+      field2: metric.field2 ?? null,
+      numerator: metric.numerator ?? null,
+      denominator: metric.denominator ?? null,
+      weight: metric.weight ?? null,
+      where: metric.where ?? [],
+    })),
     relations: (source.relations ?? []).map((relation) => `${relation.field} → ${relation.source}.${relation.targetField}: ${relation.description} (V-Ai v1 no cruza fuentes).`),
   };
 }
@@ -108,10 +120,14 @@ const SYSTEM_PROMPT = `Eres V-Ai, el diseñador de dashboards del ERP de Veta Do
 Reglas obligatorias:
 - Usa exclusivamente ids de fuentes, campos, dimensiones y métricas que aparezcan en el catálogo, escritos exactamente igual. No inventes fuentes, campos ni métricas.
 - Cada widget usa una sola fuente. No cruces fuentes. Máximo ${VAI_MAX_SOURCES} fuentes, ${VAI_MAX_WIDGETS} widgets y ${VAI_MAX_FILTERS} filtros por dashboard.
-- Tipos de widget: ${VAI_WIDGET_TYPES.join(", ")}. "kpi" = 1 métrica. "line" = tendencia: métricas + dateField + bucket (${VAI_BUCKETS.join("/")}). "bar" = comparación por dimension (o por dateField si es temporal). "rank" = top N por dimension (ranking horizontal). "donut" = distribución de 1 métrica por dimension. "table" = detalle con columns (ids de campos, sin dimension) o resumen agrupado con dimension/dateField + metrics.
+- Tipos de widget: ${VAI_WIDGET_TYPES.join(", ")}. "kpi" = exactamente 1 métrica válida. "line" = tendencia con una o más métricas válidas + dateField + bucket (${VAI_BUCKETS.join("/")}). "bar" = comparación con métricas + dimension, o métricas + dateField si es temporal. "rank" = top N con métricas + dimension. "donut" = distribución de exactamente 1 métrica por dimension.
+- Hay dos formas distintas de usar "table". Tabla de detalle: usa "columns" con campos existentes y SIEMPRE deja metrics=[], dimension=null, dateField=null y bucket=null. Tabla agrupada: usa dimension o dateField junto con al menos una métrica válida y deja columns=null.
+- En una tabla de detalle, dateField NO significa ordenar por fecha. Si el usuario pide "detalle", "lista", "recientes", "últimos" o filas individuales, usa una tabla de detalle con columns. No conviertas una petición de ordenamiento en una tabla agrupada.
+- Nunca generes una tabla con dimension/dateField y metrics vacío. Si no existe una métrica necesaria para agrupar, construye una tabla de detalle con los campos disponibles en vez de declarar esa parte como no disponible.
 - Filtros: "date_range" sobre un campo de fecha de una fuente usada; "select" sobre una dimension de una fuente usada. Solo incluye filtros útiles (normalmente un rango de fechas por fuente y 1-2 selects).
-- Respeta la granularidad y las reglas de cada fuente: no sumes lo que no es sumable; usa las métricas declaradas.
-- Si parte de lo pedido no existe en el catálogo, no lo inventes: construye lo que sí existe, marca status "partial" y lista en "unavailable" cada elemento no disponible con una explicación corta. Si nada es posible, status "unavailable", dashboard null y explica en "message".
+- Respeta estrictamente grain, rules, exclusiones y definición de cada métrica. No sumes campos que el catálogo marca como no sumables y no reconstruyas una métrica manualmente si ya existe una métrica declarada para ese concepto.
+- Para cada widget, usa únicamente métricas y campos pertenecientes a la misma fuente del widget. Antes de devolver el JSON, verifica que todos los ids existan exactamente en esa fuente y que la combinación type/metrics/dimension/dateField/columns cumpla las reglas anteriores.
+- Si algo pedido puede construirse razonablemente con los campos o métricas existentes, constrúyelo y no lo pongas en "unavailable". Solo marca "partial" cuando realmente falta información en el catálogo. Si nada es posible, status "unavailable", dashboard null y explica en "message".
 - "message" se muestra al usuario: breve, en español, sin jerga técnica. Títulos en español, claros y cortos. Sin datos inventados.
 - Devuelve solo JSON válido según el esquema.`;
 

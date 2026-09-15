@@ -220,12 +220,38 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     return null;
   }
   if (type === "donut" && metrics.length > 1) metrics.splice(1);
-  if (type === "table" && !columns && !dimension && !dateField) {
-    columns = source.fields.slice(0, 8).map((field) => field.id);
-  }
-  if (type === "table" && (dimension || dateField) && !metrics.length) {
-    notes.push(`${label}: una tabla agrupada necesita métricas.`);
-    return null;
+
+  if (type === "table") {
+    if (columns?.length) {
+      dimension = null;
+      dateField = null;
+      metrics.splice(0);
+    } else if ((dimension || dateField) && metrics.length) {
+      columns = null;
+    } else {
+      const preferred = [
+        source.fields[0]?.id,
+        dateField,
+        dimension,
+        ...source.fields
+          .filter((field) => field.role === "measure")
+          .map((field) => field.id),
+        ...source.fields
+          .filter((field) => field.role === "date")
+          .map((field) => field.id),
+        ...source.fields
+          .filter((field) => field.role === "dimension")
+          .map((field) => field.id),
+        ...source.fields
+          .filter((field) => field.role === "attribute")
+          .map((field) => field.id),
+      ].filter((id): id is string => Boolean(id));
+
+      columns = [...new Set(preferred)].slice(0, 10);
+      dimension = null;
+      dateField = null;
+      metrics.splice(0);
+    }
   }
 
   return {

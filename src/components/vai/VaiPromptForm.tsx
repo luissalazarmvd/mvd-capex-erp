@@ -10,6 +10,7 @@ import { Select } from "../ui/Select";
 import { VAI_AREAS, type VaiArea } from "../../lib/vai/catalog";
 import { VAI_PROMPT_MAX } from "../../lib/vai/spec";
 import type { VaiChartPreference, VaiFocus } from "../../lib/vai/generate";
+import VaiLogo from "./VaiLogo";
 
 export type VaiPromptRequest = { prompt: string; area: VaiArea | "auto"; focus: VaiFocus; charts: VaiChartPreference[] };
 
@@ -56,6 +57,7 @@ export default function VaiPromptForm({ busy, initial, onGenerate }: { busy: boo
 
       <div className="vai-brand" role="img" aria-label="V-Ai">
         <div className="vai-brand-body">
+          <VaiLogo size={52} />
           <span className="vai-brand-word" aria-hidden="true">
             V-<em>Ai</em>
           </span>
