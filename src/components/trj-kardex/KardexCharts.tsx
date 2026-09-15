@@ -154,14 +154,58 @@ function SeriesTable({
   );
 }
 
-// Índices de etiquetas del eje X que caben sin pisarse.
-function visibleLabels(count: number, band: number, minGap = 52) {
-  const every = Math.max(1, Math.ceil(minGap / Math.max(1, band)));
+function axisLabelText(label: string, maxChars = 20) {
+  const text = String(label ?? "").trim();
+
+  if (text.length <= maxChars) {
+    return text;
+  }
+
+  const available = maxChars - 1;
+  const left = Math.ceil(available / 2);
+  const right = Math.floor(available / 2);
+
+  return `${text.slice(0, left)}…${text.slice(-right)}`;
+}
+
+function visibleLabels(rows: ChartRow[], band: number) {
+  const count = rows.length;
+
+  if (!count) {
+    return new Set<number>();
+  }
+
+  const longestVisibleLabel = rows.reduce(
+    (max, row) => Math.max(max, axisLabelText(row.label).length),
+    0,
+  );
+
+  const estimatedLabelWidth = Math.min(
+    148,
+    Math.max(48, longestVisibleLabel * 6.2 + 14),
+  );
+
+  const every = Math.max(
+    1,
+    Math.ceil(estimatedLabelWidth / Math.max(1, band)),
+  );
+
   const shown = new Set<number>();
-  for (let i = 0; i < count; i += every) shown.add(i);
+
+  for (let i = 0; i < count; i += every) {
+    shown.add(i);
+  }
+
   const last = count - 1;
-  if (!shown.has(last) && (last - Math.floor(last / every) * every) * band >= minGap)
+  const lastShown = Math.floor(last / every) * every;
+
+  if (
+    !shown.has(last) &&
+    (last - lastShown) * band >= estimatedLabelWidth
+  ) {
     shown.add(last);
+  }
+
   return shown;
 }
 
@@ -193,7 +237,7 @@ export function ColumnChart({
   const n = series.length;
   const barW = Math.max(3, Math.min(24, (band * 0.68 - 2 * (n - 1)) / n));
   const groupW = n * barW + 2 * (n - 1);
-  const labels = visibleLabels(rows.length, band);
+  const labels = visibleLabels(rows, band);
   const capLabels = rows.length <= 12 && band / n >= 44;
 
   const bar = (x: number, v: number, w: number) => {
@@ -254,7 +298,8 @@ export function ColumnChart({
                     )}
                   {labels.has(i) && (
                     <text className="trjk-axis" x={pad.l + band * i + band / 2} y={height - 8} textAnchor="middle">
-                      {row.label}
+                      <title>{row.label}</title>
+                      {axisLabelText(row.label)}
                     </text>
                   )}
                   <rect className="trjk-band" x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4">
@@ -302,7 +347,7 @@ export function LineChart({
   const y = (v: number) => pad.t + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH;
   const step = rows.length > 1 ? plotW / (rows.length - 1) : 0;
   const x = (i: number) => (rows.length > 1 ? pad.l + step * i : pad.l + plotW / 2);
-  const labels = visibleLabels(rows.length, step || plotW);
+  const labels = visibleLabels(rows, step || plotW);
   const markers = rows.length <= 40;
 
   const paths = series.map((_, j) => {
@@ -381,7 +426,8 @@ export function LineChart({
             {rows.map((row, i) =>
               labels.has(i) ? (
                 <text key={row.key} className="trjk-axis" x={x(i)} y={height - 8} textAnchor="middle">
-                  {row.label}
+                  <title>{row.label}</title>
+                  {axisLabelText(row.label)}
                 </text>
               ) : null,
             )}
