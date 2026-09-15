@@ -100,6 +100,37 @@ const clean = (value: unknown, max: number) =>
     .trim()
     .slice(0, max);
 
+function normalizePromptText(value: string) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function snapshotDateWasExplicitlyRequested(
+  source: VaiSource,
+  field: ReturnType<typeof vaiField>,
+  userPrompt: string,
+) {
+  if (source.temporalMode !== "snapshot" || !userPrompt.trim() || !field) {
+    return true;
+  }
+
+  const prompt = normalizePromptText(userPrompt);
+  const terms = [
+    field.label,
+    field.id.replace(/_/g, " "),
+    ...(field.dateFilterKeywords ?? []),
+  ]
+    .map(normalizePromptText)
+    .filter(Boolean);
+
+  return terms.some((term) => prompt.includes(term));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -284,7 +315,12 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
   };
 }
 
-function validateFilter(raw: VaiRawFilter, sources: Set<string>, notes: string[]): VaiFilterSpec | null {
+function validateFilter(
+  raw: VaiRawFilter,
+  sources: Set<string>,
+  notes: string[],
+  userPrompt: string,
+): VaiFilterSpec | null {
   const label = `Filtro «${raw.label || raw.field}»`;
   if (raw.kind !== "date_range" && raw.kind !== "select") {
     notes.push(`${label}: el tipo de filtro «${raw.kind}» no está soportado.`);
@@ -305,6 +341,16 @@ function validateFilter(raw: VaiRawFilter, sources: Set<string>, notes: string[]
     notes.push(`${label}: «${field.label}» no es un campo de fecha.`);
     return null;
   }
+
+  if (
+    raw.kind === "date_range" &&
+    source.temporalMode === "snapshot" &&
+    userPrompt.trim() &&
+    !snapshotDateWasExplicitlyRequested(source, field, userPrompt)
+  ) {
+    return null;
+  }
+
   if (raw.kind === "select" && field.role !== "dimension") {
     notes.push(`${label}: «${field.label}» no es una dimensión filtrable.`);
     return null;
@@ -338,7 +384,7 @@ function validateFilter(raw: VaiRawFilter, sources: Set<string>, notes: string[]
  * cada parte inválida y la reporta en `notes`; devuelve `spec: null` si no
  * queda ningún widget utilizable.
  */
-export function validateModelOutput(output: VaiModelOutput): VaiValidation {
+export function validateModelOutput(output: VaiModelOutput, userPrompt = ""): VaiValidation {
   const notes: string[] = [];
   if (!output.dashboard) return { spec: null, notes };
 
@@ -362,7 +408,7 @@ export function validateModelOutput(output: VaiModelOutput): VaiValidation {
   const sourceSet = new Set(sources);
   const filters: VaiFilterSpec[] = [];
   for (const raw of output.dashboard.filters.slice(0, VAI_MAX_FILTERS)) {
-    const filter = validateFilter(raw, sourceSet, notes);
+    const filter = validateFilter(raw, sourceSet, notes, userPrompt);
     if (filter && !filters.some((item) => item.kind === filter.kind && item.source === filter.source && item.field === filter.field)) {
       filters.push(filter);
     }

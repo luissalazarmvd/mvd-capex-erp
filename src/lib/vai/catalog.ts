@@ -67,6 +67,7 @@ export type VaiField = {
   role: VaiFieldRole;
   format?: VaiFormat;
   description: string;
+  dateFilterKeywords?: string[];
 };
 
 export type VaiConditionOp =
@@ -132,6 +133,7 @@ export type VaiSource = {
   sqlView: string;
   /** Qué representa una fila. */
   grain: string;
+  temporalMode?: "event" | "snapshot";
   fields: VaiField[];
   metrics: VaiMetric[];
   /** Filtros fijos aplicados siempre antes de cualquier cálculo. */
@@ -155,7 +157,16 @@ const f = (
   description: string,
   type: VaiFieldType = role === "date" ? "date" : role === "measure" ? "number" : "text",
   format?: VaiFormat,
-): VaiField => ({ id, label, role, type, description, format });
+  dateFilterKeywords?: string[],
+): VaiField => ({
+  id,
+  label,
+  role,
+  type,
+  description,
+  format,
+  ...(dateFilterKeywords?.length ? { dateFilterKeywords } : {}),
+});
 
 const m = (
   id: string,
@@ -472,10 +483,11 @@ export const VAI_SOURCES: VaiSource[] = [
     name: "Catálogo de activos fijos",
     area: "fixassets",
     description:
-      "Inventario de activos fijos con ubicación, área, centro de costo, tipo, situación, fechas y valores contables (costo, depreciación acumulada y saldo) en USD y PEN.",
+      "Foto actual completa del catálogo de activos fijos: una fila por COD con clasificador de depreciación, ubicación, área, centro de costo, valor actual, depreciación YTD, depreciación acumulada y saldo en USD y PEN.",
     endpoint: "/api/actfij/catalogue",
     sqlView: "dw.v_finance_actfij_cat_get",
-    grain: "Una fila por activo (COD).",
+    grain: "Una fila por activo (COD). Incluye todo el catálogo actual, no solo activos adquiridos en el período vigente.",
+    temporalMode: "snapshot",
     fields: [
       f("asset_code", "COD", "attribute", "Código del activo (7 dígitos)."),
       f("asset_description", "Descripción", "attribute", "Descripción del activo."),
@@ -483,23 +495,25 @@ export const VAI_SOURCES: VaiSource[] = [
       f("location_name", "Ubicación", "dimension", "Ubicación física."),
       f("area_name", "Área", "dimension", "Área usuaria."),
       f("assigned_to", "Asignado a", "dimension", "Responsable asignado."),
-      f("asset_type", "Tipo de activo", "dimension", "Clase contable del activo."),
+      f("asset_type", "Clasificador de depreciación", "dimension", "Clasificación contable/depreciación del activo, por ejemplo LR, DUP o NO DEPRECIA."),
       f("origin_account_desc", "Cuenta origen", "dimension", "Descripción de la cuenta contable de origen."),
       f("cost_center_desc", "Centro de costo", "dimension", "Descripción del CECO."),
       f("capex_code", "Código CAPEX", "dimension", "Proyecto CAPEX asociado, si existe."),
       f("brand", "Marca", "dimension", "Marca."),
       f("asset_situation", "Situación", "dimension", "OPERATIVO, DEPRECIADO o vacío."),
       f("depreciation_method", "Método", "dimension", "Método de depreciación."),
-      f("comp_date", "Fecha contable", "date", "Fecha contable original."),
-      f("acquisition_date", "Fecha de adquisición", "date", "Fecha de adquisición."),
-      f("operation_date", "Fecha de operación", "date", "Inicio de operación (inicio de depreciación)."),
-      f("disposal_date", "Fecha de baja", "date", "Fecha de baja; vacía si sigue activo."),
+      f("comp_date", "Fecha contable", "date", "Fecha contable original del activo; no representa la fecha del estado actual del catálogo.", "date", "date", ["fecha contable", "contable", "comp_date"]),
+      f("acquisition_date", "Fecha de adquisición", "date", "Fecha de adquisición del activo.", "date", "date", ["fecha de adquisición", "fecha adquisicion", "adquisición", "adquisicion", "adquirido", "adquiridos", "alta", "altas"]),
+      f("operation_date", "Fecha de operación", "date", "Inicio de operación o inicio de depreciación.", "date", "date", ["fecha de operación", "fecha de operacion", "inicio de operación", "inicio de operacion"]),
+      f("disposal_date", "Fecha de baja", "date", "Fecha de baja; vacía si sigue activo.", "date", "date", ["fecha de baja", "baja", "bajas", "disposal"]),
       f("asset_ini_cost_usd", "Costo inicial USD", "measure", "Costo de adquisición en USD.", "number", "usd"),
       f("asset_ini_cost_pen", "Costo inicial PEN", "measure", "Costo de adquisición en PEN.", "number", "pen"),
-      f("asset_final_value_usd", "Valor final USD", "measure", "Valor contable tras variaciones.", "number", "usd"),
-      f("asset_final_value_pen", "Valor final PEN", "measure", "Valor contable tras variaciones.", "number", "pen"),
-      f("depreciation_cum_amount_usd", "Depreciación acumulada USD", "measure", "Depreciación acumulada.", "number", "usd"),
-      f("depreciation_cum_amount_pen", "Depreciación acumulada PEN", "measure", "Depreciación acumulada.", "number", "pen"),
+      f("asset_final_value_usd", "Valor actual USD", "measure", "Valor contable actual del activo tras altas, bajas, reclasificaciones y ajustes.", "number", "usd"),
+      f("asset_final_value_pen", "Valor actual PEN", "measure", "Valor contable actual del activo tras altas, bajas, reclasificaciones y ajustes.", "number", "pen"),
+      f("depreciation_amount_usd", "Depreciación YTD USD", "measure", "Depreciación acumulada del año contable actual desde enero hasta el período contable vigente. Ya viene calculada por activo.", "number", "usd"),
+      f("depreciation_amount_pen", "Depreciación YTD PEN", "measure", "Depreciación acumulada del año contable actual desde enero hasta el período contable vigente. Ya viene calculada por activo.", "number", "pen"),
+      f("depreciation_cum_amount_usd", "Depreciación acumulada USD", "measure", "Depreciación histórica acumulada total hasta el período vigente.", "number", "usd"),
+      f("depreciation_cum_amount_pen", "Depreciación acumulada PEN", "measure", "Depreciación histórica acumulada total hasta el período vigente.", "number", "pen"),
       f("asset_balance_usd", "Saldo USD", "measure", "Valor neto en libros USD.", "number", "usd"),
       f("asset_balance_pen", "Saldo PEN", "measure", "Valor neto en libros PEN.", "number", "pen"),
       f("deprec_rate_pct", "Tasa deprec. %", "measure", "Tasa anual de depreciación.", "number", "percent"),
@@ -510,17 +524,27 @@ export const VAI_SOURCES: VaiSource[] = [
       m("disposed_assets", "Activos dados de baja", "Activos con fecha de baja.", "count", "integer", { where: [{ field: "disposal_date", op: "not_empty" }] }),
       m("ini_cost_usd_total", "Costo inicial USD", "Suma del costo inicial USD.", "sum", "usd", { field: "asset_ini_cost_usd" }),
       m("ini_cost_pen_total", "Costo inicial PEN", "Suma del costo inicial PEN.", "sum", "pen", { field: "asset_ini_cost_pen" }),
-      m("final_value_usd_total", "Valor final USD", "Suma del valor final USD.", "sum", "usd", { field: "asset_final_value_usd" }),
-      m("final_value_pen_total", "Valor final PEN", "Suma del valor final PEN.", "sum", "pen", { field: "asset_final_value_pen" }),
-      m("deprec_cum_usd_total", "Depreciación acumulada USD", "Suma de depreciación acumulada USD.", "sum", "usd", { field: "depreciation_cum_amount_usd" }),
-      m("deprec_cum_pen_total", "Depreciación acumulada PEN", "Suma de depreciación acumulada PEN.", "sum", "pen", { field: "depreciation_cum_amount_pen" }),
+      m("final_value_usd_total", "Valor actual USD", "Suma del valor contable actual USD de todos los activos del catálogo filtrado.", "sum", "usd", { field: "asset_final_value_usd" }),
+      m("final_value_pen_total", "Valor actual PEN", "Suma del valor contable actual PEN de todos los activos del catálogo filtrado.", "sum", "pen", { field: "asset_final_value_pen" }),
+      m("deprec_ytd_usd_total", "Depreciación YTD USD", "Suma de la depreciación del año contable actual hasta el período vigente para todos los activos.", "sum", "usd", { field: "depreciation_amount_usd" }),
+      m("deprec_ytd_pen_total", "Depreciación YTD PEN", "Suma de la depreciación del año contable actual hasta el período vigente para todos los activos.", "sum", "pen", { field: "depreciation_amount_pen" }),
+      m("deprec_cum_usd_total", "Depreciación acumulada USD", "Suma de depreciación histórica acumulada USD.", "sum", "usd", { field: "depreciation_cum_amount_usd" }),
+      m("deprec_cum_pen_total", "Depreciación acumulada PEN", "Suma de depreciación histórica acumulada PEN.", "sum", "pen", { field: "depreciation_cum_amount_pen" }),
       m("balance_usd_total", "Saldo USD", "Suma del valor neto USD.", "sum", "usd", { field: "asset_balance_usd" }),
       m("balance_pen_total", "Saldo PEN", "Suma del valor neto PEN.", "sum", "pen", { field: "asset_balance_pen" }),
       m("avg_rate_pct", "Tasa promedio %", "Promedio simple de la tasa.", "avg", "percent", { field: "deprec_rate_pct" }),
     ],
-    rules: ["Los valores del catálogo son el estado actual; para evolución mensual usar la fuente de depreciación.", "La tasa es un porcentaje: se promedia, no se suma."],
+    rules: [
+      "Esta fuente es una foto actual de TODO el catálogo. No limites sus filas por Fecha contable, Fecha de adquisición, Fecha de operación o Fecha de baja salvo que el usuario pida explícitamente analizar una de esas fechas.",
+      "Pedir estado actual, valor actual, saldo actual, catálogo, inventario o clasificador de depreciación NO implica filtrar el catálogo por el mes actual.",
+      "depreciation_amount_pen y depreciation_amount_usd ya representan depreciación YTD por activo, desde enero hasta el período contable vigente. No necesitan un date_range sobre esta fuente.",
+      "Para un catálogo con clasificador, valor actual, depreciación YTD y saldo usa esta fuente directamente: asset_type + asset_final_value_* + depreciation_amount_* + asset_balance_*.",
+      "depreciation_cum_amount_* es depreciación histórica acumulada total y no debe confundirse con depreciation_amount_* que es YTD.",
+      "Para evolución mensual de depreciación usa fixassets_depreciation.",
+      "La tasa es un porcentaje: se promedia, no se suma.",
+    ],
     relations: [{ field: "asset_code", source: "fixassets_depreciation", targetField: "asset_code", description: "Activo → depreciación mensual." }],
-    keywords: ["activo", "activos", "fijos", "catálogo", "inventario", "ubicación", "área", "ceco", "centro de costo", "saldo", "valor", "costo", "baja", "capex", "marca", "tipo"],
+    keywords: ["activo", "activos", "fijos", "catálogo", "inventario", "clasificador", "clasificación", "tipo de depreciación", "depreciación ytd", "ytd", "valor actual", "ubicación", "área", "ceco", "centro de costo", "saldo", "valor", "costo", "baja", "capex", "marca", "tipo"],
     enabled: true,
     access: { scopes: ["fixassets"] },
   },

@@ -175,10 +175,7 @@ export default function VaiPromptForm({ busy, initial, onGenerate }: { busy: boo
 
       <div className="vai-brand" role="img" aria-label="V-Ai">
         <div className="vai-brand-body">
-          <VaiLogo size={52} />
-          <span className="vai-brand-word" aria-hidden="true">
-            V-<em>Ai</em>
-          </span>
+          <VaiLogo size={60} />
         </div>
       </div>
 

@@ -95,9 +95,17 @@ function sourceContext(source: VaiSource) {
     area: VAI_AREAS.find((item) => item.id === source.area)?.label ?? source.area,
     description: source.description,
     grain: source.grain,
+    temporalMode: source.temporalMode ?? "event",
     rules: [...source.rules, ...(source.exclusions ?? []).map((c) => `Exclusión fija: ${c.field} ${c.op} ${JSON.stringify(c.value ?? "")}.`)],
     businessTerms: source.keywords,
-    dateFields: source.fields.filter((field) => field.role === "date").map((field) => ({ id: field.id, label: field.label, description: field.description })),
+    dateFields: source.fields
+      .filter((field) => field.role === "date")
+      .map((field) => ({
+        id: field.id,
+        label: field.label,
+        description: field.description,
+        filterKeywords: field.dateFilterKeywords ?? [],
+      })),
     dimensions: source.fields.filter((field) => field.role === "dimension").map((field) => ({ id: field.id, label: field.label, description: field.description })),
     attributes: source.fields.filter((field) => field.role === "attribute" || field.role === "measure").map((field) => ({ id: field.id, label: field.label, format: field.format ?? "text", description: field.description, tableOnly: true })),
     metrics: source.metrics.map((metric) => ({
@@ -128,9 +136,13 @@ Reglas obligatorias:
 - Para tablas usa limit=null por defecto para conservar todas las filas o categorías filtradas. Solo usa limit cuando el usuario pida explícitamente un Top N, primeras N filas o un límite concreto. Nunca uses 50 como límite automático de una tabla.
 - En una tabla de detalle, dateField NO significa ordenar por fecha. Si el usuario pide "detalle", "lista", "recientes", "últimos" o filas individuales, usa una tabla de detalle con columns. No conviertas una petición de ordenamiento en una tabla agrupada.
 - Nunca generes una tabla con dimension/dateField y metrics vacío. Si no existe una métrica necesaria para agrupar, construye una tabla de detalle con los campos disponibles en vez de declarar esa parte como no disponible.
-- Filtros: "date_range" sobre un campo de fecha de una fuente usada; "select" sobre una dimension de una fuente usada. Solo incluye filtros útiles (normalmente un rango de fechas por fuente y 1-2 selects).
+- Filtros: "date_range" sobre un campo de fecha de una fuente usada; "select" sobre una dimension de una fuente usada. NO agregues filtros por rutina. Cada filtro debe responder a una restricción o análisis que el usuario realmente pidió.
+- Si temporalMode="snapshot", la fuente representa el estado actual completo. NO le agregues date_range solo porque tenga campos de fecha. Solo puedes filtrar uno de esos campos cuando la petición mencione explícitamente ese evento o alguno de sus filterKeywords.
+- En una fuente snapshot, palabras como "actual", "catálogo", "inventario", "saldo", "valor actual" o "YTD" no autorizan por sí solas a filtrar Fecha contable, adquisición, operación o baja.
+- Si una fuente snapshot ya expone una métrica o campo YTD, úsalo directamente. YTD de una métrica no significa "filtrar todas las fuentes del dashboard desde enero".
+- Prefiere una sola fuente cuando esa fuente ya contiene todos los conceptos pedidos. No agregues otra fuente solo porque existe una versión histórica/mensual del mismo concepto.
 - Todo filtro date_range debe incluir preset. Usa null si el usuario no pidió un período relativo. Valores permitidos: ${VAI_DATE_PRESETS.join(", ")}.
-- Interpreta "última semana", "últimos 7 días" o equivalentes como last_7_days; "últimos 30 días" como last_30_days; "esta semana" como current_week; "semana pasada/anterior" como previous_week; "este mes/mes actual" como current_month; "mes pasado/anterior" como previous_month; "este año/año actual/YTD" como year_to_date. No escribas un período relativo solamente en el título: debe quedar reflejado en el preset del filtro.
+- Interpreta "última semana", "últimos 7 días" o equivalentes como last_7_days; "últimos 30 días" como last_30_days; "esta semana" como current_week; "semana pasada/anterior" como previous_week; "este mes/mes actual" como current_month; "mes pasado/anterior" como previous_month; "este año/año actual/YTD" como year_to_date. Aplica ese período solo a la fuente y al campo temporal que semánticamente corresponda a lo pedido.
 - Respeta estrictamente grain, rules, businessTerms, exclusiones y definición de cada métrica. No sumes campos que el catálogo marca como no sumables y no reconstruyas una métrica manualmente si ya existe una métrica declarada para ese concepto.
 - Un concepto de negocio puede estar representado por una métrica filtrada y no por una columna física. Revisa siempre field, where, numerator, denominator y las reglas de la fuente antes de concluir que falta un dato. No inventes nombres de campos a partir del lenguaje del usuario.
 - Si el catálogo declara una métrica que representa el concepto pedido, ese concepto está disponible aunque el campo físico tenga otro nombre o el cálculo dependa de valores de una dimensión.

@@ -35,7 +35,7 @@ export async function POST(req: Request) {
 
   try {
     const { output, candidates } = await generateDashboardSpec(prompt, { area, focus, charts });
-    const { spec, notes } = validateModelOutput(output);
+    const { spec, notes } = validateModelOutput(output, prompt);
 
     if (!spec) {
       const unavailable = [...new Set([...output.unavailable, ...notes])];
