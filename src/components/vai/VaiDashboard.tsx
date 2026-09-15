@@ -10,9 +10,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../lib/apiClient";
 import { CHART_COLORS, CHART_OTHER, ColumnChart, DonutChart, LineChart, RankChart, type ChartRow, type ChartSeries } from "../trj-kardex/KardexCharts";
 import { Button } from "../ui/Button";
+import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 import { VAI_SOURCE_MAP, vaiAreaLabel, vaiField, type VaiSource } from "../../lib/vai/catalog";
 import {
   applyFilters,
+  chartAxisGroup,
   chartFormat,
   computeWidget,
   distinctValues,
@@ -307,24 +309,31 @@ function Widget({ widget, rows }: { widget: VaiWidgetSpec; rows: VaiRow[] }) {
   if (result.kind !== "series") return null;
 
   const first = result.series[0];
-  const format = chartFormat(first?.format ?? "decimal");
-  const series: ChartSeries[] = result.series.map((item, j) => ({ label: item.label, color: CHART_COLORS[j % CHART_COLORS.length] }));
+  const formats = result.series.map((item) => chartFormat(item.format));
+  const primaryFormat = formats[0] ?? chartFormat("decimal");
+  const series: ChartSeries[] = result.series.map((item, j) => ({
+    label: item.label,
+    color: CHART_COLORS[j % CHART_COLORS.length],
+    digits: formats[j].digits,
+    unit: formats[j].unit,
+    axisKey: chartAxisGroup(item.format),
+  }));
   const chartRows: ChartRow[] = result.rows.map((row) => ({
     key: row.label,
     label: row.label,
-    values: row.values.map((v) => (v == null ? null : v * format.scale)),
+    values: row.values.map((v, j) => (v == null ? null : v * formats[j].scale)),
   }));
 
-  if (widget.type === "line") return <LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={format.digits} unit={format.unit} area={series.length === 1} />;
-  if (widget.type === "bar") return <ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={format.digits} unit={format.unit} />;
+  if (widget.type === "line") return <LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={series.length === 1} />;
+  if (widget.type === "bar") return <ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} />;
   if (widget.type === "rank") {
     return (
       <RankChart
         title={widget.title}
         subtitle={subtitle}
-        rows={result.rows.map((row) => ({ label: row.label, value: (row.values[0] ?? 0) * format.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined }))}
-        digits={format.digits}
-        unit={format.unit}
+        rows={result.rows.map((row) => ({ label: row.label, value: (row.values[0] ?? 0) * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined }))}
+        digits={primaryFormat.digits}
+        unit={primaryFormat.unit}
       />
     );
   }
@@ -335,24 +344,82 @@ function Widget({ widget, rows }: { widget: VaiWidgetSpec; rows: VaiRow[] }) {
       centerLabel={first?.label ?? ""}
       items={result.rows.map((row, i) => ({
         label: row.label,
-        value: Math.max(0, (row.values[0] ?? 0) * format.scale),
+        value: Math.max(0, (row.values[0] ?? 0) * primaryFormat.scale),
         color: row.key === "Otros" ? CHART_OTHER : CHART_COLORS[i % CHART_COLORS.length],
       }))}
-      digits={format.digits}
-      unit={format.unit}
+      digits={primaryFormat.digits}
+      unit={primaryFormat.unit}
     />
   );
 }
 
 function TableWidget({ title, subtitle, data }: { title: string; subtitle: string; data: Extract<VaiWidgetData, { kind: "table" }> }) {
+  const excelColumns = useMemo<Array<ExcelColumnDef<(string | number | null)[]>>>(
+    () =>
+      data.columns.map((column, index) => ({
+        key: column.id,
+        label: column.label,
+        kind: column.format === "date" ? "date" : column.format === "text" ? "text" : "number",
+        value: (row) => row[index],
+      })),
+    [data.columns],
+  );
+  const excel = useExcelColumnFilters(data.rows, excelColumns);
+  const [pageSize, setPageSize] = useState(100);
+  const [page, setPage] = useState(1);
+  const pageCount = pageSize === 0 ? 1 : Math.max(1, Math.ceil(excel.rows.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = pageSize === 0
+    ? excel.rows
+    : excel.rows.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, excel.rows.length]);
+
   return (
     <section className="trjk-card trjk-chart">
       <div className="trjk-chart-head">
         <div>
           <h3>{title}</h3>
           <p className="trjk-chart-sub">
-            {subtitle} · {data.rows.length.toLocaleString("es-PE")} de {data.total.toLocaleString("es-PE")} filas
+            {subtitle} · {excel.rows.length.toLocaleString("es-PE")} de {data.total.toLocaleString("es-PE")} filas
           </p>
+        </div>
+        <div className="trjk-actions" style={{ alignItems: "center", flexWrap: "wrap" }}>
+          {excel.activeCount || excel.hasSort ? (
+            <Button size="sm" variant="ghost" onClick={excel.clear}>
+              Limpiar columnas
+            </Button>
+          ) : null}
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span className="muted">Filas</span>
+            <select
+              className="select"
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              style={{ width: 92 }}
+            >
+              <option value={100}>100</option>
+              <option value={250}>250</option>
+              <option value={500}>500</option>
+              <option value={1000}>1000</option>
+              <option value={0}>Todas</option>
+            </select>
+          </label>
+          {pageSize > 0 && pageCount > 1 ? (
+            <>
+              <Button size="sm" variant="ghost" disabled={safePage <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+                Anterior
+              </Button>
+              <span className="muted">
+                {safePage.toLocaleString("es-PE")} / {pageCount.toLocaleString("es-PE")}
+              </span>
+              <Button size="sm" variant="ghost" disabled={safePage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>
+                Siguiente
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
       {data.rows.length ? (
@@ -362,14 +429,17 @@ function TableWidget({ title, subtitle, data }: { title: string; subtitle: strin
               <tr>
                 {data.columns.map((column) => (
                   <th key={column.id} data-num={column.format !== "text" && column.format !== "date"}>
-                    {column.label}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span>{column.label}</span>
+                      <ExcelHeaderFilter {...excel.headerProps(column.id)} />
+                    </div>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((row, i) => (
-                <tr key={i}>
+              {pageRows.map((row, i) => (
+                <tr key={`${safePage}-${i}`}>
                   {row.map((cell, j) => (
                     <td key={j} data-num={data.columns[j].format !== "text" && data.columns[j].format !== "date"}>
                       {formatValue(cell, data.columns[j].format)}

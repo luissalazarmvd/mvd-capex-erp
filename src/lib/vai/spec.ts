@@ -12,6 +12,7 @@ export const VAI_MAX_SOURCES = 3;
 export const VAI_MAX_WIDGETS = 10;
 export const VAI_MAX_FILTERS = 6;
 export const VAI_MAX_LIMIT = 50;
+export const VAI_MAX_TABLE_LIMIT = 50000;
 
 export const VAI_WIDGET_TYPES = ["kpi", "line", "bar", "rank", "donut", "table"] as const;
 export type VaiWidgetType = (typeof VAI_WIDGET_TYPES)[number];
@@ -192,7 +193,10 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
   const bucket = raw.bucket && VAI_BUCKETS.includes(raw.bucket as VaiBucket) ? (raw.bucket as VaiBucket) : null;
 
   let limit: number | null = null;
-  if (raw.limit != null && Number.isFinite(raw.limit)) limit = Math.min(VAI_MAX_LIMIT, Math.max(1, Math.round(raw.limit)));
+  if (raw.limit != null && Number.isFinite(raw.limit)) {
+    const maxLimit = type === "table" ? VAI_MAX_TABLE_LIMIT : VAI_MAX_LIMIT;
+    limit = Math.min(maxLimit, Math.max(1, Math.round(raw.limit)));
+  }
 
   let columns: string[] | null = null;
   if (raw.columns) {
@@ -237,6 +241,7 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     if (columns?.length) {
       dimension = null;
       dateField = null;
+      limit = null;
       metrics.splice(0);
     } else if ((dimension || dateField) && metrics.length) {
       columns = null;

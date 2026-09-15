@@ -5,9 +5,9 @@
 // ejemplos para empezar. Ctrl+Enter o el botón circular generan.
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Select } from "../ui/Select";
-import { VAI_AREAS, type VaiArea } from "../../lib/vai/catalog";
+import { VAI_AREAS, VAI_SOURCES, type VaiArea, type VaiSource } from "../../lib/vai/catalog";
 import { VAI_PROMPT_MAX } from "../../lib/vai/spec";
 import type { VaiChartPreference, VaiFocus } from "../../lib/vai/generate";
 import VaiLogo from "./VaiLogo";
@@ -29,18 +29,136 @@ const CHART_OPTIONS: Array<{ value: VaiChartPreference; label: string }> = [
   { value: "table", label: "Tabla" },
 ];
 
-const EXAMPLES = [
-  "TMH enviadas por transportista, su evolución mensual, total enviado y guías pendientes de facturación.",
-  "Tonelaje y ley de oro promedio de los lotes ingresados por concesión y por mes, con los lotes sin factura.",
-  "Recuperación de oro y TMS tratadas por guardia en los últimos meses, con horas de parada.",
-  "Saldo en libros de activos fijos por área y tipo de activo, con depreciación mensual en PEN.",
-];
+function joinNatural(values: string[]) {
+  const clean = values.map((value) => value.trim()).filter(Boolean);
+
+  if (!clean.length) return "";
+  if (clean.length === 1) return clean[0];
+  if (clean.length === 2) return `${clean[0]} y ${clean[1]}`;
+
+  return `${clean.slice(0, -1).join(", ")} y ${clean[clean.length - 1]}`;
+}
+
+function sourceSuggestions(source: VaiSource) {
+  const metrics = source.metrics;
+  const dimensions = source.fields.filter((field) => field.role === "dimension");
+  const dates = source.fields.filter((field) => field.role === "date");
+  const detailFields = source.fields.filter(
+    (field) =>
+      field.role === "dimension" ||
+      field.role === "attribute" ||
+      field.role === "date",
+  );
+
+  const metric1 = metrics[0];
+  const metric2 = metrics[1];
+  const metric3 = metrics[2];
+  const dimension1 = dimensions[0];
+  const dimension2 = dimensions[1] ?? dimension1;
+  const date1 = dates[0];
+
+  const suggestions: string[] = [];
+
+  if (metric1) {
+    suggestions.push(
+      `Quiero ver ${joinNatural(
+        [metric1.label, metric2?.label ?? ""].filter(Boolean),
+      )}${dimension1 ? ` por ${dimension1.label}` : ""}${
+        date1 ? `, con evolución mensual según ${date1.label}` : ""
+      }.`,
+    );
+  }
+
+  if (metric1 && dimension1) {
+    suggestions.push(
+      `Compara ${metric1.label} por ${dimension1.label}${
+        metric2 ? ` y muestra también ${metric2.label}` : ""
+      }.`,
+    );
+  }
+
+  if (metric1 && dimension2) {
+    suggestions.push(
+      `Ranking de ${dimension2.label} por ${metric1.label}${
+        metric2 ? `, junto con ${metric2.label}` : ""
+      }.`,
+    );
+  }
+
+  if (date1 && metric1) {
+    suggestions.push(
+      `Muéstrame la tendencia de ${joinNatural(
+        [metric1.label, metric2?.label ?? "", metric3?.label ?? ""].filter(Boolean),
+      )} usando ${date1.label}.`,
+    );
+  }
+
+  if (metrics.length) {
+    suggestions.push(
+      `Resumen de ${source.name.toLowerCase()} con KPIs de ${joinNatural(
+        metrics.slice(0, 3).map((metric) => metric.label),
+      )}${dimension1 ? ` y comparación por ${dimension1.label}` : ""}.`,
+    );
+  }
+
+  if (detailFields.length) {
+    suggestions.push(
+      `Quiero un detalle de ${source.name.toLowerCase()} con ${joinNatural(
+        detailFields.slice(0, 5).map((field) => field.label),
+      )}.`,
+    );
+  }
+
+  return suggestions;
+}
+
+function seededShuffle<T>(items: T[], seed: number) {
+  const out = [...items];
+  let state = Math.max(1, Math.floor(seed * 2147483646));
+
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    state = (state * 48271) % 2147483647;
+    const j = state % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+
+  return out;
+}
+
+function buildSuggestions(area: VaiArea | "auto", seed: number) {
+  const sources = VAI_SOURCES.filter(
+    (source) =>
+      source.enabled &&
+      (area === "auto" || source.area === area),
+  );
+
+  const pool = [
+    ...new Set(
+      sources.flatMap((source) => sourceSuggestions(source)),
+    ),
+  ];
+
+  return seededShuffle(pool, seed);
+}
 
 export default function VaiPromptForm({ busy, initial, onGenerate }: { busy: boolean; /** Última solicitud, para no perder el texto si la generación falla. */ initial?: VaiPromptRequest | null; onGenerate: (request: VaiPromptRequest) => void }) {
   const [prompt, setPrompt] = useState(initial?.prompt ?? "");
   const [area, setArea] = useState<VaiArea | "auto">(initial?.area ?? "auto");
   const [focus, setFocus] = useState<VaiFocus>(initial?.focus ?? "auto");
   const [charts, setCharts] = useState<VaiChartPreference[]>(initial?.charts ?? []);
+  const [suggestionSeed] = useState(() => Math.random());
+
+  const suggestionPool = useMemo(
+    () => buildSuggestions(area, suggestionSeed),
+    [area, suggestionSeed],
+  );
+
+  const examples = suggestionPool.slice(0, 4);
+
+  const hint =
+    suggestionPool[4] ??
+    suggestionPool[0] ??
+    "Describe el análisis que necesitas usando la información disponible en V-Ai.";
 
   const length = prompt.length;
   const ready = prompt.trim().length >= 8 && length <= VAI_PROMPT_MAX && !busy;
@@ -70,7 +188,7 @@ export default function VaiPromptForm({ busy, initial, onGenerate }: { busy: boo
         <textarea
           value={prompt}
           maxLength={VAI_PROMPT_MAX}
-          placeholder="Quiero ver las TMH enviadas por transportista, su evolución mensual, total enviado y guías pendientes de facturación."
+          placeholder={`Ej.: ${hint}`}
           onChange={(e) => setPrompt(e.target.value.slice(0, VAI_PROMPT_MAX))}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit();
@@ -133,8 +251,14 @@ export default function VaiPromptForm({ busy, initial, onGenerate }: { busy: boo
       </details>
 
       <div className="vai-examples" aria-label="Ejemplos">
-        <div className="vd-label">Ideas para empezar</div>
-        {EXAMPLES.map((example) => (
+        <div className="vd-label">
+          {area === "auto"
+            ? "Ideas según las fuentes disponibles"
+            : `Ideas de ${
+                VAI_AREAS.find((item) => item.id === area)?.label ?? "esta área"
+              }`}
+        </div>
+        {examples.map((example) => (
           <button key={example} type="button" onClick={() => setPrompt(example)} disabled={busy}>
             {example}
           </button>

@@ -122,11 +122,43 @@ export function chartFormat(format: VaiFormat): { digits: number; unit: string; 
     case "hours":
       return { digits: 1, unit: " h", scale: 1 };
     case "grade_oztc":
-      return { digits: 3, unit: "", scale: 1 };
+      return { digits: 3, unit: " oz/TC", scale: 1 };
     case "grade_gt":
       return { digits: 2, unit: " g/t", scale: 1 };
     default:
       return { digits: 2, unit: "", scale: 1 };
+  }
+}
+
+export function chartAxisGroup(format: VaiFormat) {
+  switch (format) {
+    case "tmh":
+    case "tms":
+      return "tonnage";
+    case "percent":
+    case "fraction":
+      return "percent";
+    case "usd":
+      return "usd";
+    case "pen":
+      return "pen";
+    case "kg":
+      return "kg";
+    case "oz":
+      return "oz";
+    case "hours":
+      return "hours";
+    case "km":
+      return "km";
+    case "grade_oztc":
+      return "grade_oztc";
+    case "grade_gt":
+      return "grade_gt";
+    case "integer":
+    case "decimal":
+      return "number";
+    default:
+      return format;
   }
 }
 
@@ -299,11 +331,11 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
       .map((id) => vaiField(source, id))
       .filter((field): field is NonNullable<typeof field> => Boolean(field))
       .map((field) => ({ id: field.id, label: field.label, format: field.format ?? (field.role === "date" ? "date" : "text") } as VaiSeriesDef));
-    const limit = widget.limit ?? 50;
+    const visibleRows = widget.limit == null ? rows : rows.slice(0, widget.limit);
     return {
       kind: "table",
       columns,
-      rows: rows.slice(0, limit).map((row) => columns.map((column) => (column.format === "text" || column.format === "date" ? toText(row[column.id]) : toNumber(row[column.id])))),
+      rows: visibleRows.map((row) => columns.map((column) => (column.format === "text" || column.format === "date" ? toText(row[column.id]) : toNumber(row[column.id])))),
       total: rows.length,
     };
   }
@@ -332,7 +364,8 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
   if (temporal) grouped.sort((a, b) => a.key.localeCompare(b.key));
   else grouped.sort((a, b) => (b.values[0] ?? -Infinity) - (a.values[0] ?? -Infinity));
 
-  const limit = widget.limit ?? (temporal ? 60 : widget.type === "donut" ? 6 : 12);
+  const groupedTotal = grouped.length;
+  const limit = widget.limit ?? (widget.type === "table" ? grouped.length : temporal ? 60 : widget.type === "donut" ? 6 : 12);
   if (temporal && grouped.length > limit) grouped = grouped.slice(grouped.length - limit);
   else if (!temporal && grouped.length > limit) {
     // El resto se agrupa en «Otros» solo para métricas sumables; el resto se omite.
@@ -357,7 +390,7 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
       kind: "table",
       columns: [first, ...series, { id: "__count", label: "Filas", format: "integer" }],
       rows: grouped.map((row) => [row.label, ...row.values, row.count]),
-      total: grouped.length,
+      total: groupedTotal,
     };
   }
 

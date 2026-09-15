@@ -8,7 +8,13 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { kardexFormat as fmt } from "../../lib/trjKardex";
 
-export type ChartSeries = { label: string; color: string };
+export type ChartSeries = {
+  label: string;
+  color: string;
+  digits?: number;
+  unit?: string;
+  axisKey?: string;
+};
 export type ChartRow = { key: string; label: string; values: (number | null)[] };
 
 export const CHART_COLORS = [
@@ -145,7 +151,7 @@ function SeriesTable({
           <tr key={r.key}>
             <td>{r.key}</td>
             {r.values.map((v, j) => (
-              <td key={j}>{value(v, digits, unit)}</td>
+              <td key={j}>{value(v, series[j]?.digits ?? digits, series[j]?.unit ?? unit)}</td>
             ))}
           </tr>
         ))}
@@ -209,6 +215,108 @@ function visibleLabels(rows: ChartRow[], band: number) {
   return shown;
 }
 
+type ChartAxisSide = "left" | "right";
+
+function seriesMagnitude(rows: ChartRow[], index: number) {
+  const values = rows
+    .map((row) => row.values[index])
+    .filter((v): v is number => v != null && Number.isFinite(v))
+    .map((v) => Math.abs(v));
+
+  return values.length ? Math.max(...values) : 0;
+}
+
+function assignSeriesAxes(rows: ChartRow[], series: ChartSeries[]) {
+  const axes: ChartAxisSide[] = series.map(() => "left");
+
+  if (series.length <= 1) {
+    return axes;
+  }
+
+  const magnitudes = series.map((_, index) => seriesMagnitude(rows, index));
+  const leftKey = series[0]?.axisKey ?? "__default";
+  let leftRef = magnitudes[0] || 1;
+  let rightKey: string | null = null;
+  let rightRef = 1;
+
+  for (let index = 1; index < series.length; index += 1) {
+    const key = series[index]?.axisKey ?? leftKey;
+    const magnitude = magnitudes[index] || 0;
+    const ratio =
+      magnitude > 0 && leftRef > 0
+        ? Math.max(magnitude, leftRef) / Math.max(Math.min(magnitude, leftRef), 1e-12)
+        : 1;
+
+    if (rightKey === null) {
+      if (key !== leftKey || ratio >= 12) {
+        axes[index] = "right";
+        rightKey = key;
+        rightRef = magnitude || 1;
+      } else {
+        leftRef = Math.max(leftRef, magnitude || 0);
+      }
+      continue;
+    }
+
+    if (key === leftKey && key !== rightKey) {
+      axes[index] = "left";
+      leftRef = Math.max(leftRef, magnitude || 0);
+      continue;
+    }
+
+    if (key === rightKey && key !== leftKey) {
+      axes[index] = "right";
+      rightRef = Math.max(rightRef, magnitude || 0);
+      continue;
+    }
+
+    const current = magnitude || 1;
+    const leftDistance = Math.abs(Math.log10(current / Math.max(leftRef, 1e-12)));
+    const rightDistance = Math.abs(Math.log10(current / Math.max(rightRef, 1e-12)));
+
+    if (rightDistance < leftDistance) {
+      axes[index] = "right";
+      rightRef = Math.max(rightRef, current);
+    } else {
+      axes[index] = "left";
+      leftRef = Math.max(leftRef, current);
+    }
+  }
+
+  return axes;
+}
+
+function axisValues(rows: ChartRow[], axes: ChartAxisSide[], side: ChartAxisSide) {
+  const values: number[] = [];
+
+  rows.forEach((row) => {
+    row.values.forEach((value, index) => {
+      if (value != null && Number.isFinite(value) && axes[index] === side) {
+        values.push(value);
+      }
+    });
+  });
+
+  return values;
+}
+
+function axisUnitLabel(
+  series: ChartSeries[],
+  axes: ChartAxisSide[],
+  side: ChartAxisSide,
+  fallbackUnit: string,
+) {
+  const units = Array.from(
+    new Set(
+      series
+        .map((item, index) => (axes[index] === side ? (item.unit ?? fallbackUnit).trim() : ""))
+        .filter(Boolean),
+    ),
+  );
+
+  return units.length === 1 ? units[0] : "";
+}
+
 export function ColumnChart({
   title,
   subtitle,
@@ -227,12 +335,21 @@ export function ColumnChart({
   height?: number;
 }) {
   const [ref, width] = useWidth();
-  const pad = { l: 46, r: 10, t: 18, b: 28 };
+  const axes = assignSeriesAxes(rows, series);
+  const hasRight = axes.includes("right");
+  const pad = { l: 46, r: hasRight ? 52 : 10, t: 18, b: 28 };
   const plotW = Math.max(0, width - pad.l - pad.r);
   const plotH = height - pad.t - pad.b;
-  const finite = rows.flatMap((r) => r.values).filter((v): v is number => v != null);
-  const scale = niceScale(Math.min(...finite, 0), Math.max(...finite, 0));
-  const y = (v: number) => pad.t + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH;
+  const leftFinite = axisValues(rows, axes, "left");
+  const rightFinite = axisValues(rows, axes, "right");
+  const leftScale = niceScale(Math.min(...leftFinite, 0), Math.max(...leftFinite, 0));
+  const rightScale = niceScale(Math.min(...rightFinite, 0), Math.max(...rightFinite, 0));
+  const yFor = (index: number, v: number) => {
+    const scale = axes[index] === "right" ? rightScale : leftScale;
+    return pad.t + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH;
+  };
+  const leftAxisUnit = axisUnitLabel(series, axes, "left", unit);
+  const rightAxisUnit = axisUnitLabel(series, axes, "right", unit);
   const band = rows.length ? plotW / rows.length : 0;
   const n = series.length;
   const barW = Math.max(3, Math.min(24, (band * 0.68 - 2 * (n - 1)) / n));
@@ -240,9 +357,9 @@ export function ColumnChart({
   const labels = visibleLabels(rows, band);
   const capLabels = rows.length <= 12 && band / n >= 44;
 
-  const bar = (x: number, v: number, w: number) => {
-    const y0 = y(0);
-    const y1 = y(v);
+  const bar = (x: number, v: number, w: number, index: number) => {
+    const y0 = yFor(index, 0);
+    const y1 = yFor(index, v);
     const top = Math.min(y0, y1);
     const h = Math.abs(y0 - y1);
     const r = Math.min(4, w / 2, h);
@@ -265,21 +382,41 @@ export function ColumnChart({
         {width > 0 && (
           <svg role="img" aria-label={title} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
             <title>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</title>
-            {scale.ticks.map((t) => (
-              <g key={t}>
-                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={y(t)} y2={y(t)} />
-                <text className="trjk-axis" x={pad.l - 6} y={y(t) + 3.5} textAnchor="end">
+            {leftScale.ticks.map((t) => (
+              <g key={`l-${t}`}>
+                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
+                <text className="trjk-axis" x={pad.l - 6} y={yFor(0, t) + 3.5} textAnchor="end">
                   {compact.format(t)}
                 </text>
               </g>
             ))}
+            {hasRight
+              ? rightScale.ticks.map((t) => {
+                  const rightIndex = axes.findIndex((axis) => axis === "right");
+                  return (
+                    <text key={`r-${t}`} className="trjk-axis" x={width - pad.r + 6} y={yFor(rightIndex, t) + 3.5} textAnchor="start">
+                      {compact.format(t)}
+                    </text>
+                  );
+                })
+              : null}
+            {leftAxisUnit ? (
+              <text className="trjk-axis" x={pad.l} y={11} textAnchor="start">
+                {leftAxisUnit}
+              </text>
+            ) : null}
+            {hasRight && rightAxisUnit ? (
+              <text className="trjk-axis" x={width - pad.r} y={11} textAnchor="end">
+                {rightAxisUnit}
+              </text>
+            ) : null}
             {rows.map((row, i) => {
               const x0 = pad.l + band * i + (band - groupW) / 2;
               return (
                 <g key={row.key}>
                   {row.values.map((v, j) =>
                     v == null ? null : (
-                      <path key={j} className="trjk-mark" d={bar(x0 + j * (barW + 2), v, barW)} fill={series[j].color} />
+                      <path key={j} className="trjk-mark" d={bar(x0 + j * (barW + 2), v, barW, j)} fill={series[j].color} />
                     ),
                   )}
                   {capLabels &&
@@ -289,10 +426,10 @@ export function ColumnChart({
                           key={`l${j}`}
                           className="trjk-mark-label"
                           x={x0 + j * (barW + 2) + barW / 2}
-                          y={v >= 0 ? y(v) - 4 : y(v) + 11}
+                          y={v >= 0 ? yFor(j, v) - 4 : yFor(j, v) + 11}
                           textAnchor="middle"
                         >
-                          {fmt(v, digits)}
+                          {fmt(v, series[j]?.digits ?? digits)}
                         </text>
                       ),
                     )}
@@ -304,7 +441,7 @@ export function ColumnChart({
                   )}
                   <rect className="trjk-band" x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4">
                     <title>
-                      {[row.label, ...row.values.map((v, j) => `${series[j].label}: ${value(v, digits, unit)}`)].join("\n")}
+                      {[row.label, ...row.values.map((v, j) => `${series[j].label}: ${value(v, series[j]?.digits ?? digits, series[j]?.unit ?? unit)}`)].join("\n")}
                     </title>
                   </rect>
                 </g>
@@ -339,12 +476,21 @@ export function LineChart({
 }) {
   const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
+  const axes = assignSeriesAxes(rows, series);
+  const hasRight = axes.includes("right");
   const pad = { l: 46, r: 58, t: 18, b: 28 };
   const plotW = Math.max(0, width - pad.l - pad.r);
   const plotH = height - pad.t - pad.b;
-  const finite = rows.flatMap((r) => r.values).filter((v): v is number => v != null);
-  const scale = niceScale(Math.min(...finite, 0), Math.max(...finite, 0));
-  const y = (v: number) => pad.t + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH;
+  const leftFinite = axisValues(rows, axes, "left");
+  const rightFinite = axisValues(rows, axes, "right");
+  const leftScale = niceScale(Math.min(...leftFinite, 0), Math.max(...leftFinite, 0));
+  const rightScale = niceScale(Math.min(...rightFinite, 0), Math.max(...rightFinite, 0));
+  const yFor = (index: number, v: number) => {
+    const scale = axes[index] === "right" ? rightScale : leftScale;
+    return pad.t + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH;
+  };
+  const leftAxisUnit = axisUnitLabel(series, axes, "left", unit);
+  const rightAxisUnit = axisUnitLabel(series, axes, "right", unit);
   const step = rows.length > 1 ? plotW / (rows.length - 1) : 0;
   const x = (i: number) => (rows.length > 1 ? pad.l + step * i : pad.l + plotW / 2);
   const labels = visibleLabels(rows, step || plotW);
@@ -359,7 +505,7 @@ export function LineChart({
         open = false;
         return;
       }
-      d += `${open ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+      d += `${open ? "L" : "M"}${x(i).toFixed(1)},${yFor(j, v).toFixed(1)}`;
       open = true;
     });
     return d;
@@ -371,7 +517,7 @@ export function LineChart({
     for (let i = rows.length - 1; i >= 0; i--) {
       const v = rows[i].values[j];
       if (v == null) continue;
-      const py = y(v);
+      const py = yFor(j, v);
       if (!endLabels.some((e) => Math.abs(e.y - py) < 12)) endLabels.push({ j, i, v, y: py });
       break;
     }
@@ -379,12 +525,12 @@ export function LineChart({
 
   const areaPath = (() => {
     if (!area || !rows.length) return "";
-    const points = rows.map((r, i) => (r.values[0] == null ? null : `${x(i).toFixed(1)},${y(r.values[0]).toFixed(1)}`));
+    const points = rows.map((r, i) => (r.values[0] == null ? null : `${x(i).toFixed(1)},${yFor(0, r.values[0]).toFixed(1)}`));
     const first = points.findIndex(Boolean);
     let last = points.length - 1;
     while (last >= 0 && !points[last]) last--;
     if (first < 0 || last <= first) return "";
-    return `M${x(first).toFixed(1)},${y(0).toFixed(1)}L${points.slice(first, last + 1).filter(Boolean).join("L")}L${x(last).toFixed(1)},${y(0).toFixed(1)}z`;
+    return `M${x(first).toFixed(1)},${yFor(0, 0).toFixed(1)}L${points.slice(first, last + 1).filter(Boolean).join("L")}L${x(last).toFixed(1)},${yFor(0, 0).toFixed(1)}z`;
   })();
 
   const tip = hover == null ? null : rows[hover];
@@ -415,14 +561,34 @@ export function LineChart({
             onPointerLeave={() => setHover(null)}
           >
             <title>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</title>
-            {scale.ticks.map((t) => (
-              <g key={t}>
-                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={y(t)} y2={y(t)} />
-                <text className="trjk-axis" x={pad.l - 6} y={y(t) + 3.5} textAnchor="end">
+            {leftScale.ticks.map((t) => (
+              <g key={`l-${t}`}>
+                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
+                <text className="trjk-axis" x={pad.l - 6} y={yFor(0, t) + 3.5} textAnchor="end">
                   {compact.format(t)}
                 </text>
               </g>
             ))}
+            {hasRight
+              ? rightScale.ticks.map((t) => {
+                  const rightIndex = axes.findIndex((axis) => axis === "right");
+                  return (
+                    <text key={`r-${t}`} className="trjk-axis" x={width - pad.r + 6} y={yFor(rightIndex, t) + 3.5} textAnchor="start">
+                      {compact.format(t)}
+                    </text>
+                  );
+                })
+              : null}
+            {leftAxisUnit ? (
+              <text className="trjk-axis" x={pad.l} y={11} textAnchor="start">
+                {leftAxisUnit}
+              </text>
+            ) : null}
+            {hasRight && rightAxisUnit ? (
+              <text className="trjk-axis" x={width - pad.r} y={11} textAnchor="end">
+                {rightAxisUnit}
+              </text>
+            ) : null}
             {rows.map((row, i) =>
               labels.has(i) ? (
                 <text key={row.key} className="trjk-axis" x={x(i)} y={height - 8} textAnchor="middle">
@@ -444,7 +610,7 @@ export function LineChart({
                   <circle
                     key={`${i}-${j}`}
                     cx={x(i)}
-                    cy={y(v)}
+                    cy={yFor(j, v)}
                     r={hover === i ? 5 : 4}
                     fill={series[j].color}
                     stroke="var(--s-1)"
@@ -453,12 +619,21 @@ export function LineChart({
                 ),
               ),
             )}
-            {endLabels.map((e) => (
-              <text key={e.j} className="trjk-mark-label" x={x(e.i) + 9} y={e.y + 3.5}>
-                {fmt(e.v, digits)}
-                {unit}
-              </text>
-            ))}
+            {endLabels.map((e) => {
+              const placeLeft = hasRight || axes[e.j] === "right";
+              return (
+                <text
+                  key={e.j}
+                  className="trjk-mark-label"
+                  x={placeLeft ? x(e.i) - 9 : x(e.i) + 9}
+                  y={e.y + 3.5}
+                  textAnchor={placeLeft ? "end" : "start"}
+                >
+                  {fmt(e.v, series[e.j]?.digits ?? digits)}
+                  {series[e.j]?.unit ?? unit}
+                </text>
+              );
+            })}
           </svg>
         )}
         {tip && (
@@ -474,7 +649,7 @@ export function LineChart({
             {series.map((s, j) => (
               <div key={s.label}>
                 <i style={{ background: s.color }} />
-                <strong>{value(tip.values[j], digits, unit)}</strong>
+                <strong>{value(tip.values[j], s.digits ?? digits, s.unit ?? unit)}</strong>
                 <span>{s.label}</span>
               </div>
             ))}
