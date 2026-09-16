@@ -1712,20 +1712,8 @@ export default function FixAssetsCat() {
                 const draft =
                   drafts[assetCode] || toDraft(row);
 
-                const vetaRow =
-                  vetaBySource.get(
-                    accountingSourceIdentity({
-                      ...row,
-                      subjournal_code: draft.subjournal_code,
-                      voucher_number: draft.voucher_number,
-                      sequence_number: draft.sequence_number,
-                      annex_code: draft.annex_code,
-                      document_number: draft.document_number,
-                    })
-                  );
-
                 const documentDate =
-                  excelDateValue(vetaRow?.document_date);
+                  excelDateValue(draft.acquisition_date);
 
                 sheetRows.push([
                   documentDate,
