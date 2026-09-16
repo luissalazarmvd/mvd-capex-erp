@@ -129,22 +129,52 @@ export function VaiExportSection({ id, order = 0, title, kind, table, children, 
       className="vai-export-section"
       style={kind === "chart" ? { height: "100%", minWidth: 0 } : { minWidth: 0 }}
     >
-      {controls || (kind === "table" && id && table) ? (
+      {controls || (kind === "table" && table) ? (
         <div className="vai-export-tools" data-vai-export-ignore>
           {controls}
-          {kind === "table" && id && table ? (
-            <Button
-              size="sm"
-              variant="ghost"
+          {kind === "table" && table ? (
+            <button
+              type="button"
+              className="vai-icon-btn"
               disabled={!context || context.disabled || context.busy}
               aria-label={`Exportar ${title} a Excel`}
-              onClick={() => context?.run(async () => {
-                const { downloadTableExcel } = await import("../../lib/vai");
-                await downloadTableExcel(title, table);
-              })}
+              title="Exportar a Excel"
+              onClick={() =>
+                context?.run(async () => {
+                  const { downloadTableExcel } =
+                    await import("../../lib/vai");
+
+                  await downloadTableExcel(
+                    title,
+                    table,
+                  );
+                })
+              }
+              style={{
+                width: 28,
+                height: 28,
+                display: "inline-grid",
+                placeItems: "center",
+                flex: "0 0 28px",
+              }}
             >
-              Excel
-            </Button>
+              <svg
+                viewBox="0 0 24 24"
+                width="17"
+                height="17"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 3h11l5 5v13H4z" />
+                <path d="M15 3v5h5" />
+                <path d="M7.5 11l5 7" />
+                <path d="M12.5 11l-5 7" />
+              </svg>
+            </button>
           ) : null}
         </div>
       ) : null}
@@ -711,8 +741,28 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
 
   const loading = sources.some((source) => data[source.id]?.loading ?? true);
   const exportContext = spec.filters.map((filter) => {
-    const value = effectiveFilters[filterKey(filter)] ?? {};
-    return `${filter.label}: ${filter.kind === "date_range" ? `${value.from || "Sin límite"} a ${value.to || "Sin límite"}` : value.value || "Todos"}`;
+    const value =
+      effectiveFilters[filterKey(filter)] ?? {};
+
+    if (filter.kind === "date_range") {
+      return `${filter.label}: ${value.from || "Sin límite"} a ${value.to || "Sin límite"}`;
+    }
+
+    const selected =
+      value.values ??
+      (
+        value.value
+          ? [value.value]
+          : undefined
+      );
+
+    return `${filter.label}: ${
+      selected === undefined
+        ? "Todos"
+        : selected.length
+          ? selected.join(", ")
+          : "Ninguno"
+    }`;
   });
   const kpis = spec.widgets.filter((widget) => widget.type === "kpi");
   const others = spec.widgets.filter((widget) => widget.type !== "kpi");
@@ -736,7 +786,13 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
     const value = filters[key];
 
     if (!value) return false;
-    if (filter.kind === "select") return Boolean(value.value);
+
+    if (filter.kind === "select") {
+      return (
+        value.values !== undefined ||
+        Boolean(value.value)
+      );
+    }
 
     const defaults = defaultFilters[key] ?? {};
 
@@ -831,31 +887,242 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
   );
 }
 
-function FilterControl({ filter, rows, value, onChange }: { filter: VaiFilterSpec; rows: VaiRow[]; value: { from?: string; to?: string; value?: string }; onChange: (value: { from?: string; to?: string; value?: string }) => void }) {
-  const options = useMemo(() => (filter.kind === "select" ? distinctValues(rows, filter.field) : []), [filter, rows]);
-  const sourceName = VAI_SOURCE_MAP.get(filter.source)?.name ?? filter.source;
+function FilterControl({
+  filter,
+  rows,
+  value,
+  onChange,
+}: {
+  filter: VaiFilterSpec;
+  rows: VaiRow[];
+  value: {
+    from?: string;
+    to?: string;
+    value?: string;
+    values?: string[];
+  };
+  onChange: (value: {
+    from?: string;
+    to?: string;
+    value?: string;
+    values?: string[];
+  }) => void;
+}) {
+  const options = useMemo(
+    () =>
+      filter.kind === "select"
+        ? distinctValues(
+            rows,
+            filter.field,
+          )
+        : [],
+    [filter, rows],
+  );
+
+  const sourceName =
+    VAI_SOURCE_MAP.get(filter.source)
+      ?.name ??
+    filter.source;
+
   if (filter.kind === "date_range") {
     return (
       <label title={sourceName}>
         <span>{filter.label}</span>
+
         <div className="vai-range">
-          <input className="input" type="date" value={value.from ?? ""} max={value.to || undefined} onChange={(e) => onChange({ ...value, from: e.target.value })} />
-          <input className="input" type="date" value={value.to ?? ""} min={value.from || undefined} onChange={(e) => onChange({ ...value, to: e.target.value })} />
+          <input
+            className="input"
+            type="date"
+            value={value.from ?? ""}
+            max={value.to || undefined}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                from: e.target.value,
+              })
+            }
+          />
+
+          <input
+            className="input"
+            type="date"
+            value={value.to ?? ""}
+            min={value.from || undefined}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                to: e.target.value,
+              })
+            }
+          />
         </div>
       </label>
     );
   }
+
+  const selected =
+    value.values ??
+    (
+      value.value
+        ? [value.value]
+        : undefined
+    );
+
+  const allSelected =
+    selected === undefined;
+
+  const selectedSet =
+    new Set(selected ?? []);
+
+  const selectedLabel =
+    allSelected
+      ? "Todos"
+      : selectedSet.size === 0
+        ? "Ninguno"
+        : selectedSet.size === 1
+          ? [...selectedSet][0]
+          : `${selectedSet.size} seleccionados`;
+
+  const toggleOption = (
+    option: string,
+  ) => {
+    const next = allSelected
+      ? options.filter(
+          (item) => item !== option,
+        )
+      : selectedSet.has(option)
+        ? [...selectedSet].filter(
+            (item) => item !== option,
+          )
+        : [...selectedSet, option];
+
+    if (
+      options.length > 0 &&
+      next.length === options.length
+    ) {
+      onChange({});
+      return;
+    }
+
+    onChange({
+      values: next,
+    });
+  };
+
   return (
     <label title={sourceName}>
       <span>{filter.label}</span>
-      <select className="select" value={value.value ?? ""} onChange={(e) => onChange({ value: e.target.value })}>
-        <option value="">Todos</option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+
+      <details
+        style={{
+          position: "relative",
+          minWidth: 0,
+        }}
+      >
+        <summary
+          className="select"
+          style={{
+            listStyle: "none",
+            cursor: "pointer",
+            userSelect: "none",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {selectedLabel}
+        </summary>
+
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 500,
+            top: "calc(100% + 5px)",
+            left: 0,
+            width: "max(100%, 240px)",
+            maxWidth: 360,
+            maxHeight: 300,
+            overflow: "auto",
+            padding: 8,
+            display: "grid",
+            gap: 3,
+            background:
+              "var(--s-1, #071a24)",
+            border:
+              "1px solid var(--line, rgba(255,255,255,.16))",
+            borderRadius: 8,
+            boxShadow:
+              "0 14px 34px rgba(0,0,0,.35)",
+          }}
+        >
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 7px",
+              cursor: "pointer",
+              fontWeight: 700,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={() =>
+                onChange({})
+              }
+            />
+
+            Seleccionar todos
+          </label>
+
+          <div
+            style={{
+              height: 1,
+              background:
+                "var(--line, rgba(255,255,255,.12))",
+              margin: "2px 0 4px",
+            }}
+          />
+
+          {options.map((option) => (
+            <label
+              key={option}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "5px 7px",
+                cursor: "pointer",
+                minWidth: 0,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={
+                  allSelected ||
+                  selectedSet.has(option)
+                }
+                onChange={() =>
+                  toggleOption(option)
+                }
+              />
+
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow:
+                    "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={option}
+              >
+                {option}
+              </span>
+            </label>
+          ))}
+        </div>
+      </details>
     </label>
   );
 }
@@ -1013,6 +1280,251 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   );
 }
 
+function SourceHint({
+  source,
+  columnId,
+  columnLabel,
+}: {
+  source: VaiSource;
+  columnId: string;
+  columnLabel: string;
+}) {
+  const ref =
+    useRef<HTMLButtonElement>(null);
+
+  const [open, setOpen] =
+    useState(false);
+
+  const [position, setPosition] =
+    useState({
+      top: 0,
+      left: 0,
+    });
+
+  const field =
+    vaiField(
+      source,
+      columnId,
+    );
+
+  const metric =
+    source.metrics.find(
+      (item) =>
+        item.id === columnId,
+    );
+
+  const description =
+    field?.description ??
+    metric?.description ??
+    source.grain;
+
+  const baseFields =
+    metric
+      ? [
+          metric.field,
+          metric.field2,
+          metric.numerator,
+          metric.denominator,
+          metric.weight,
+          metric.distinctField,
+        ]
+          .filter(
+            (
+              item,
+            ): item is string =>
+              Boolean(item),
+          )
+          .filter(
+            (
+              item,
+              index,
+              list,
+            ) =>
+              list.indexOf(item) ===
+              index,
+          )
+      : [];
+
+  const show = () => {
+    const node = ref.current;
+
+    if (!node) {
+      return;
+    }
+
+    const rect =
+      node.getBoundingClientRect();
+
+    const tooltipWidth = 370;
+
+    setPosition({
+      top: Math.min(
+        rect.bottom + 8,
+        window.innerHeight - 190,
+      ),
+      left: Math.max(
+        12,
+        Math.min(
+          rect.left,
+          window.innerWidth -
+            tooltipWidth -
+            12,
+        ),
+      ),
+    });
+
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        aria-label={`Fuente de ${columnLabel}`}
+        title={`GET ${source.endpoint}`}
+        onMouseEnter={show}
+        onMouseLeave={() =>
+          setOpen(false)
+        }
+        onFocus={show}
+        onBlur={() =>
+          setOpen(false)
+        }
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          if (open) {
+            setOpen(false);
+          } else {
+            show();
+          }
+        }}
+        style={{
+          display: "inline-grid",
+          placeItems: "center",
+          width: 15,
+          height: 15,
+          padding: 0,
+          flex: "0 0 15px",
+          borderRadius: "50%",
+          border:
+            "1px solid currentColor",
+          background:
+            "transparent",
+          color: "inherit",
+          fontSize: 9,
+          fontWeight: 800,
+          lineHeight: 1,
+          opacity: 0.55,
+          cursor: "help",
+        }}
+      >
+        ?
+      </button>
+
+      {open &&
+      typeof document !==
+        "undefined"
+        ? createPortal(
+            <div
+              role="tooltip"
+              style={{
+                position:
+                  "fixed",
+                zIndex: 20000,
+                top: position.top,
+                left: position.left,
+                width:
+                  "min(370px, calc(100vw - 24px))",
+                padding: 11,
+                display:
+                  "grid",
+                gap: 5,
+                pointerEvents:
+                  "none",
+                background:
+                  "var(--s-1, #071a24)",
+                color:
+                  "var(--ink, #fff)",
+                border:
+                  "1px solid var(--line, rgba(255,255,255,.2))",
+                borderRadius: 8,
+                boxShadow:
+                  "0 14px 34px rgba(0,0,0,.48)",
+                fontSize: 11,
+                fontWeight: 400,
+                lineHeight: 1.4,
+                whiteSpace:
+                  "normal",
+                textAlign:
+                  "left",
+              }}
+            >
+              <strong>
+                {columnLabel}
+              </strong>
+
+              <code
+                style={{
+                  fontSize: 10,
+                  whiteSpace:
+                    "pre-wrap",
+                  overflowWrap:
+                    "anywhere",
+                }}
+              >
+                GET {source.endpoint}
+              </code>
+
+              <span>
+                Campo V-Ai:{" "}
+                <code>
+                  {columnId}
+                </code>
+              </span>
+
+              {baseFields.length ? (
+                <span>
+                  Campo(s) base:{" "}
+                  <code>
+                    {baseFields.join(
+                      ", ",
+                    )}
+                  </code>
+                </span>
+              ) : null}
+
+              {source.sqlView ? (
+                <span>
+                  SQL:{" "}
+                  <code>
+                    {
+                      source.sqlView
+                    }
+                  </code>
+                </span>
+              ) : null}
+
+              {description ? (
+                <span
+                  style={{
+                    color:
+                      "var(--ink-2)",
+                  }}
+                >
+                  {description}
+                </span>
+              ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
 function TableWidget({ id, order, title, subtitle, data, source, compact = false }: { id?: string; order?: number; title: string; subtitle: string; data: Extract<VaiWidgetData, { kind: "table" }>; source?: VaiSource; compact?: boolean }) {
   const excelColumns = useMemo<Array<ExcelColumnDef<(string | number | null)[]>>>(
     () =>
@@ -1089,34 +1601,6 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
             <thead>
               <tr>
                 {data.columns.map((column) => {
-                  const field =
-                    source
-                      ? vaiField(
-                          source,
-                          column.id,
-                        )
-                      : null;
-
-                  const metric =
-                    source?.metrics.find(
-                      (item) =>
-                        item.id === column.id,
-                    );
-
-                  const sourceHint = source
-                    ? [
-                        `GET ${source.endpoint}`,
-                        source.sqlView
-                          ? `SQL: ${source.sqlView}`
-                          : "",
-                        field?.description ??
-                          metric?.description ??
-                          source.grain,
-                      ]
-                        .filter(Boolean)
-                        .join("\n")
-                    : "";
-
                   return (
                     <th
                       key={column.id}
@@ -1145,27 +1629,12 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
                             {column.label}
                           </span>
 
-                          {sourceHint ? (
-                            <span
-                              title={sourceHint}
-                              aria-label={`Fuente de ${column.label}: ${source?.endpoint ?? ""}`}
-                              style={{
-                                display: "inline-grid",
-                                placeItems: "center",
-                                width: 14,
-                                height: 14,
-                                flex: "0 0 14px",
-                                borderRadius: "50%",
-                                border: "1px solid currentColor",
-                                fontSize: 9,
-                                fontWeight: 700,
-                                lineHeight: 1,
-                                opacity: 0.42,
-                                cursor: "help",
-                              }}
-                            >
-                              ?
-                            </span>
+                          {source ? (
+                            <SourceHint
+                              source={source}
+                              columnId={column.id}
+                              columnLabel={column.label}
+                            />
                           ) : null}
                         </span>
 

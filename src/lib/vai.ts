@@ -2523,17 +2523,26 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     return null;
   }
   if (type === "line") {
-    if (!dateField) {
-      const fallback = source.fields.find((field) => field.role === "date");
+    if (!metrics.length) {
+      notes.push(`${label}: un gráfico de línea necesita al menos una métrica válida.`);
+      return null;
+    }
+
+    if (dimension) {
+      dateField = null;
+    } else if (!dateField) {
+      const fallback = source.fields.find(
+        (field) => field.role === "date",
+      );
+
       if (!fallback) {
-        notes.push(`${label}: ${source.name} no tiene campos de fecha para una tendencia.`);
+        notes.push(
+          `${label}: ${source.name} necesita una dimensión o un campo de fecha válido para el eje X.`,
+        );
         return null;
       }
+
       dateField = fallback.id;
-    }
-    if (!metrics.length) {
-      notes.push(`${label}: una tendencia necesita al menos una métrica válida.`);
-      return null;
     }
   }
   if ((type === "bar" || type === "rank" || type === "donut") && !metrics.length) {
@@ -2919,7 +2928,12 @@ export function specSources(spec: VaiDashboardSpec): VaiSource[] {
 export type VaiRow = Record<string, unknown>;
 
 /** Estado de filtros del dashboard, clave = `${source}:${field}`. */
-export type VaiFilterValue = { from?: string; to?: string; value?: string };
+export type VaiFilterValue = {
+  from?: string;
+  to?: string;
+  value?: string;
+  values?: string[];
+};
 export type VaiFilterState = Record<string, VaiFilterValue>;
 
 export const filterKey = (filter: Pick<VaiFilterSpec, "source" | "field">) => `${filter.source}:${filter.field}`;
@@ -3210,17 +3224,49 @@ export function applyFilters(source: VaiSource, rows: VaiRow[], filters: VaiFilt
   const active = filters
     .filter((filter) => filter.source === source.id)
     .map((filter) => ({ filter, value: state[filterKey(filter)] }))
-    .filter(({ value }) => value && (value.from || value.to || value.value));
+    .filter(
+      ({ value }) =>
+        value &&
+        (
+          value.from ||
+          value.to ||
+          value.value ||
+          value.values !== undefined
+        ),
+    );
+
   return rows.filter((row) => {
     if (!passes(row, source.exclusions)) return false;
+
     for (const { filter, value } of active) {
       if (filter.kind === "date_range") {
         const iso = toIsoDate(row[filter.field]);
+
         if (!iso) return false;
         if (value.from && iso < value.from) return false;
         if (value.to && iso > value.to) return false;
-      } else if (value.value && toText(row[filter.field]) !== value.value) return false;
+
+        continue;
+      }
+
+      const selected =
+        value.values ??
+        (
+          value.value
+            ? [value.value]
+            : null
+        );
+
+      if (
+        selected &&
+        !selected.includes(
+          toText(row[filter.field]),
+        )
+      ) {
+        return false;
+      }
     }
+
     return true;
   });
 }
