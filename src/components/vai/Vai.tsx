@@ -878,6 +878,7 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   const scale: ChartScaleMode = logAllowed && (scaleChoice === "log" || (scaleChoice === "auto" && prefersLogScale(values))) ? "log" : "linear";
   const hasBarSeries = series.some((item) => item.seriesType !== "line");
   const isCombo = Boolean(widget.dateField) && series.some((item) => item.seriesType === "line") && hasBarSeries;
+  const comboScale: ChartScaleMode = scaleChoice === "log" ? "log" : "linear";
   const controls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "line") && hasBarSeries) ? (
     <label className="vai-scale-control">
       Escala
@@ -890,9 +891,9 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   ) : null;
   const dataTable = <TableWidget title={`Cifras de ${widget.title}`} subtitle={subtitle} data={result.table} compact />;
   const wrap = (chart: React.ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }} controls={controls}>{chart}</VaiExportSection>;
-  if (widget.type === "line" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} dataTable={dataTable} />);
+  if (widget.type === "line" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} dataTable={dataTable} />);
   if (widget.type === "line") return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={series.length === 1} dataTable={dataTable} />);
-  if (widget.type === "bar" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} dataTable={dataTable} />);
+  if (widget.type === "bar" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} dataTable={dataTable} />);
   if (widget.type === "bar") return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} dataTable={dataTable} />);
   if (widget.type === "rank") {
     return wrap(

@@ -91,6 +91,67 @@ function niceScale(low: number, high: number, count = 4) {
   return { ticks, min: start, max: end };
 }
 
+function adaptiveScale(values: number[], includeZero: boolean, count = 4) {
+  const finite = values.filter((value) => Number.isFinite(value));
+
+  if (!finite.length) {
+    return niceScale(0, 1, count);
+  }
+
+  const low = Math.min(...finite);
+  const high = Math.max(...finite);
+
+  if (includeZero) {
+    return niceScale(low, high, count);
+  }
+
+  const rawSpan = high - low;
+  const reference = Math.max(Math.abs(low), Math.abs(high), 1);
+  const padding =
+    rawSpan > 0
+      ? rawSpan * 0.1
+      : reference * 0.1;
+
+  let min = low - padding;
+  let max = high + padding;
+
+  if (low >= 0) {
+    min = Math.max(0, min);
+  }
+
+  if (high <= 0) {
+    max = Math.min(0, max);
+  }
+
+  const span = Math.max(max - min, reference * 0.01, 1e-9);
+  const power = 10 ** Math.floor(Math.log10(span / count));
+  const step =
+    [1, 2, 2.5, 5, 10]
+      .map((factor) => factor * power)
+      .find((candidate) => span / candidate <= count) ??
+    power * 10;
+
+  let start = Math.floor(min / step) * step;
+  let end = Math.ceil(max / step) * step;
+
+  if (start === end) {
+    start -= step;
+    end += step;
+  }
+
+  const ticks: number[] = [];
+
+  for (let value = start; value <= end + step / 2; value += step) {
+    ticks.push(+value.toFixed(10));
+  }
+
+  return {
+    ticks,
+    min: start,
+    max: end,
+  };
+}
+
 function value(v: number | null, digits: number, unit: string) {
   return v == null ? "—" : `${formatNumber(v, digits)}${unit}`;
 }
@@ -544,14 +605,49 @@ export function ColumnChart({
   const plotH = height - pad.t - pad.b;
   const leftFinite = axisValues(rows, axes, "left");
   const rightFinite = axisValues(rows, axes, "right");
-  const log = scaleMode === "log" && canUseLogScale([...leftFinite, ...rightFinite]);
+
+  const leftHasBars = series.some(
+    (item, index) =>
+      axes[index] === "left" &&
+      item.seriesType !== "line",
+  );
+
+  const rightHasBars = series.some(
+    (item, index) =>
+      axes[index] === "right" &&
+      item.seriesType !== "line",
+  );
+
+  const log =
+    scaleMode === "log" &&
+    canUseLogScale([...leftFinite, ...rightFinite]);
+
   const leftLog = logarithmicScale(leftFinite);
   const rightLog = logarithmicScale(rightFinite);
-  const leftScale = log ? leftLog : niceScale(Math.min(...leftFinite, 0), Math.max(...leftFinite, 0));
-  const rightScale = log ? rightLog : niceScale(Math.min(...rightFinite, 0), Math.max(...rightFinite, 0));
+
+  const leftScale = log
+    ? leftLog
+    : adaptiveScale(leftFinite, leftHasBars);
+
+  const rightScale = log
+    ? rightLog
+    : adaptiveScale(rightFinite, rightHasBars);
+
   const yFor = (index: number, v: number) => {
-    const scale = axes[index] === "right" ? rightScale : leftScale;
-    const fraction = log ? (axes[index] === "right" ? rightLog : leftLog).fraction(v) : (v - scale.min) / (scale.max - scale.min);
+    const scale =
+      axes[index] === "right"
+        ? rightScale
+        : leftScale;
+
+    const fraction = log
+      ? (
+          axes[index] === "right"
+            ? rightLog
+            : leftLog
+        ).fraction(v)
+      : (v - scale.min) /
+        (scale.max - scale.min);
+
     return pad.t + plotH - fraction * plotH;
   };
   const leftAxisUnit = axisUnitLabel(series, axes, "left", unit);
@@ -963,8 +1059,8 @@ export function LineChart({
   const plotH = height - pad.t - pad.b;
   const leftFinite = axisValues(rows, axes, "left");
   const rightFinite = axisValues(rows, axes, "right");
-  const leftScale = niceScale(Math.min(...leftFinite, 0), Math.max(...leftFinite, 0));
-  const rightScale = niceScale(Math.min(...rightFinite, 0), Math.max(...rightFinite, 0));
+  const leftScale = adaptiveScale(leftFinite, false);
+  const rightScale = adaptiveScale(rightFinite, false);
   const yFor = (index: number, v: number) => {
     const scale = axes[index] === "right" ? rightScale : leftScale;
     return pad.t + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH;
