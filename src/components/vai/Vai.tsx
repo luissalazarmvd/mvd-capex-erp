@@ -924,6 +924,59 @@ function FilterControl({
       ?.name ??
     filter.source;
 
+  const selectRootRef =
+    useRef<HTMLDetailsElement | null>(null);
+
+  useEffect(() => {
+    if (filter.kind !== "select") return;
+
+    const closeOnOutside = (event: PointerEvent) => {
+      const root = selectRootRef.current;
+      const target = event.target as Node | null;
+
+      if (
+        !root ||
+        !target ||
+        root.contains(target)
+      ) {
+        return;
+      }
+
+      root.open = false;
+    };
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (
+        event.key === "Escape" &&
+        selectRootRef.current
+      ) {
+        selectRootRef.current.open = false;
+      }
+    };
+
+    document.addEventListener(
+      "pointerdown",
+      closeOnOutside,
+    );
+
+    document.addEventListener(
+      "keydown",
+      closeOnEscape,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        closeOnOutside,
+      );
+
+      document.removeEventListener(
+        "keydown",
+        closeOnEscape,
+      );
+    };
+  }, [filter.kind]);
+
   if (filter.kind === "date_range") {
     return (
       <label title={sourceName}>
@@ -1014,6 +1067,7 @@ function FilterControl({
       <span>{filter.label}</span>
 
       <details
+        ref={selectRootRef}
         style={{
           position: "relative",
           minWidth: 0,
@@ -1466,17 +1520,20 @@ function SourceHint({
                 {columnLabel}
               </strong>
 
-              <code
-                style={{
-                  fontSize: 10,
-                  whiteSpace:
-                    "pre-wrap",
-                  overflowWrap:
-                    "anywhere",
-                }}
-              >
-                GET {source.endpoint}
-              </code>
+              <span>
+                Endpoint API:{" "}
+                <code
+                  style={{
+                    fontSize: 10,
+                    whiteSpace:
+                      "pre-wrap",
+                    overflowWrap:
+                      "anywhere",
+                  }}
+                >
+                  GET {source.endpoint}
+                </code>
+              </span>
 
               <span>
                 Campo V-Ai:{" "}
@@ -1498,7 +1555,7 @@ function SourceHint({
 
               {source.sqlView ? (
                 <span>
-                  SQL:{" "}
+                  Fuente SQL:{" "}
                   <code>
                     {
                       source.sqlView

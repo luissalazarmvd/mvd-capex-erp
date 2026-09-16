@@ -353,29 +353,113 @@ export default function ExcelHeaderFilter({
     );
   }, [distinctValues, search]);
 
+  const hasSearch =
+    search.trim().length > 0;
+
+  const selectionUniverse =
+    hasSearch
+      ? searchedValues
+      : distinctValues;
+
   const selectedSet = useMemo(
-    () => new Set(draftFilter.selected === null ? distinctValues : draftFilter.selected),
-    [draftFilter.selected, distinctValues]
+    () =>
+      new Set(
+        draftFilter.selected === null
+          ? selectionUniverse
+          : draftFilter.selected
+      ),
+    [
+      draftFilter.selected,
+      selectionUniverse,
+    ]
   );
 
   const allSelected =
-    distinctValues.length > 0 && distinctValues.every((value) => selectedSet.has(value));
-  const active = excelFilterIsActive(filter) || Boolean(sortDirection);
-  const inputType = kind === "date" ? "date" : kind === "number" ? "number" : "text";
+    selectionUniverse.length > 0 &&
+    selectionUniverse.every(
+      (value) =>
+        selectedSet.has(value)
+    );
 
-  function toggleValue(value: string, checked: boolean) {
-    const next = new Set(draftFilter.selected === null ? distinctValues : draftFilter.selected);
-    if (checked) next.add(value);
-    else next.delete(value);
+  const active =
+    excelFilterIsActive(filter) ||
+    Boolean(sortDirection);
 
-    setDraftFilter((current) => ({
-      ...current,
-      selected: next.size === distinctValues.length ? null : Array.from(next),
-    }));
+  const inputType =
+    kind === "date"
+      ? "date"
+      : kind === "number"
+        ? "number"
+        : "text";
+
+  function normalizedDraftFilter() {
+    if (
+      draftFilter.selected !== null ||
+      !hasSearch
+    ) {
+      return cloneFilter(
+        draftFilter
+      );
+    }
+
+    return {
+      ...cloneFilter(
+        draftFilter
+      ),
+      selected:
+        searchedValues.length ===
+        distinctValues.length
+          ? null
+          : [...searchedValues],
+    };
   }
 
-  function toggleAll(checked: boolean) {
-    setDraftFilter((current) => ({ ...current, selected: checked ? null : [] }));
+  function toggleValue(
+    value: string,
+    checked: boolean
+  ) {
+    const next =
+      new Set(selectedSet);
+
+    if (checked) {
+      next.add(value);
+    } else {
+      next.delete(value);
+    }
+
+    const coversEveryValue =
+      !hasSearch &&
+      distinctValues.length > 0 &&
+      distinctValues.every(
+        (item) =>
+          next.has(item)
+      );
+
+    setDraftFilter(
+      (current) => ({
+        ...current,
+        selected:
+          coversEveryValue
+            ? null
+            : Array.from(next),
+      })
+    );
+  }
+
+  function toggleAll(
+    checked: boolean
+  ) {
+    setDraftFilter(
+      (current) => ({
+        ...current,
+        selected:
+          checked
+            ? hasSearch
+              ? [...searchedValues]
+              : null
+            : [],
+      })
+    );
   }
 
   return (
@@ -465,7 +549,27 @@ export default function ExcelHeaderFilter({
               <div style={{ borderTop: "1px solid rgba(147,211,230,.18)", paddingTop: 8 }}>
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) =>
+                    setSearch(
+                      event.target.value
+                    )
+                  }
+                  onKeyDown={(event) => {
+                    if (
+                      event.key !==
+                      "Enter"
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+
+                    onApply(
+                      normalizedDraftFilter()
+                    );
+
+                    closeMenu();
+                  }}
                   placeholder="Buscar valores..."
                   style={menuInputStyle}
                 />
@@ -478,7 +582,9 @@ export default function ExcelHeaderFilter({
                     checked={allSelected}
                     onChange={(event) => toggleAll(event.target.checked)}
                   />
-                  Seleccionar todo
+                  {hasSearch
+                    ? "Seleccionar coincidencias"
+                    : "Seleccionar todo"}
                 </label>
 
                 <div style={{ maxHeight: 155, overflowY: "auto", marginTop: 5, paddingRight: 3 }}>
@@ -577,7 +683,9 @@ export default function ExcelHeaderFilter({
                   <button
                     type="button"
                     onClick={() => {
-                      onApply(cloneFilter(draftFilter));
+                      onApply(
+                        normalizedDraftFilter()
+                      );
                       closeMenu();
                     }}
                     style={{
