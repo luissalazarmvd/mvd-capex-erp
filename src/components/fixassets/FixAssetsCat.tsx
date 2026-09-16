@@ -222,7 +222,7 @@ const EDITABLE = [
   "location_name", "capex_code", "po_num", "subjournal_code", "voucher_number",
   "sequence_number", "annex_code", "annex_description", "document_number", "asset_description", "asset_type", "assigned_to",
   "area_name", "brand", "model", "serial_number", "color", "cost_center_code",
-  "acquisition_date", "operation_date", "disposal_date", "exc_rate",
+  "comp_date", "acquisition_date", "operation_date", "disposal_date", "exc_rate",
   "asset_ini_cost_pen", "asset_ini_cost_usd", "depreciation_method", "asset_situation", "asset_comment",
 ] as const satisfies readonly (keyof CatalogueRow)[];
 type EditableKey = (typeof EDITABLE)[number];
@@ -243,7 +243,7 @@ const HISTORIC_LINK_FIELDS = new Set<EditableKey>(
   HISTORIC_LINK_KEYS
 );
 
-const DATE_FIELDS = new Set<EditableKey>(["acquisition_date", "operation_date", "disposal_date"]);
+const DATE_FIELDS = new Set<EditableKey>(["comp_date", "acquisition_date", "operation_date", "disposal_date"]);
 const NUMBER_FIELDS = new Set<EditableKey>(["exc_rate", "asset_ini_cost_pen", "asset_ini_cost_usd"]);
 const SUGGESTION_FIELDS = [
   "location_name", "assigned_to", "area_name", "brand", "model", "serial_number",
@@ -2476,6 +2476,7 @@ export default function FixAssetsCat() {
           serial_number: upperOrNull(draft.serial_number),
           color: upperOrNull(draft.color),
           cost_center_code: costCenterCode(draft.cost_center_code) || null,
+          comp_date: draft.comp_date || null,
           acquisition_date: draft.acquisition_date || null,
           operation_date: draft.operation_date || null,
           disposal_date: draft.disposal_date || null,
