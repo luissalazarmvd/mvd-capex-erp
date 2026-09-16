@@ -2,17 +2,22 @@ import { NextResponse } from "next/server";
 import { sessionWithScope } from "@/src/lib/auth/session";
 import {
   VAI_AREAS,
+  VAI_BREAKDOWN_CHART_LIMIT,
+  VAI_BREAKDOWN_TABLE_LIMIT,
   VAI_BUCKETS,
   VAI_DATE_PRESETS,
   VAI_MAX_FILTERS,
   VAI_MAX_SOURCES,
   VAI_MAX_WIDGETS,
   VAI_PROMPT_MAX,
+  VAI_SORT_MODES,
   VAI_SOURCES,
+  VAI_STACK_MODES,
   VAI_SUMMARY_OPERATIONS,
   VAI_WIDGET_TYPES,
   coerceModelOutput,
   limaToday,
+  promptRenderHints,
   validateModelOutput,
   type VaiArea,
   type VaiChartPreference,
@@ -387,13 +392,39 @@ const SYSTEM_PROMPT = `Eres V-Ai, el diseñador de dashboards del ERP de Veta Do
 Reglas obligatorias:
 - Usa exclusivamente ids de fuentes, campos, dimensiones y métricas que aparezcan en el catálogo, escritos exactamente igual. No inventes fuentes, campos ni métricas.
 - Cada widget usa una sola fuente. No cruces fuentes. Máximo ${VAI_MAX_SOURCES} fuentes, ${VAI_MAX_WIDGETS} widgets y ${VAI_MAX_FILTERS} filtros por dashboard.
-- Tipos de widget: ${VAI_WIDGET_TYPES.join(", ")}. "kpi" = exactamente 1 métrica válida. "line" puede ser una tendencia temporal con métricas + dateField + bucket (${VAI_BUCKETS.join("/")}) o una comparación categórica con métricas + dimension y dateField=null. "bar" = comparación categórica con métricas + dimension, o temporal con métricas + dateField. "rank" = top N con métricas + dimension. "donut" = distribución de exactamente 1 métrica por dimension.
+- Catálogo visual, campo "type": ${VAI_WIDGET_TYPES.join(", ")}.
+  · kpi = exactamente 1 métrica válida.
+  · line = tendencia temporal (metrics + dateField + bucket) o comparación categórica (metrics + dimension, dateField=null).
+  · area = igual que line, con relleno bajo cada serie; úsalo cuando pidan "gráfico de área".
+  · bar = barras agrupadas por dimension (categórico) o por dateField (temporal). Con "stack": "stack" se apilan y con "percent" se apilan al 100 %; solo para métricas sumables de la misma unidad o con breakdown.
+  · combo = barras + líneas en un mismo gráfico: 2 o 3 métricas y "seriesTypes" alineado 1 a 1 con "metrics" (valores "bar"/"line"); eje X categórico (dimension) o temporal (dateField). Es obligatorio cuando el usuario mezcla barras y líneas, pide un eje secundario o compara dos unidades distintas en un solo gráfico (galones vs PEN, TMH vs USD, cantidad vs porcentaje). El renderer asigna el eje Y derecho automáticamente a la unidad distinta.
+  · rank = Top N horizontal de 1 métrica por dimension (una 2.ª métrica se muestra como nota); también para "barras horizontales".
+  · donut = distribución de exactamente 1 métrica sumable por dimension ("torta", "pastel", "anillo", "pie").
+  · scatter = dispersión o correlación: exactamente 2 métricas por dimension (eje X = primera métrica, eje Y = segunda); un punto por categoría, con recta de tendencia.
+  · table = detalle (columns) o agrupada (dimension o dateField + metrics); con breakdown es una tabla dinámica (pivot).
+- "breakdown" (segunda dimensión, opcional) divide la PRIMERA métrica en una serie por categoría: "una línea por sede", "barras apiladas por tipo de combustible", "desglosado por conductor", "tabla de galones por sede y grifo". Solo en line, area, bar y table; con breakdown usa una sola métrica y una dimensión distinta de "dimension". Se dibujan hasta ${VAI_BREAKDOWN_CHART_LIMIT} series (el resto sale como «Otros»); en tablas hasta ${VAI_BREAKDOWN_TABLE_LIMIT} columnas.
+- "sort" ordena las categorías del eje X: ${VAI_SORT_MODES.join(", ")} (value_desc es el predeterminado; "de menor a mayor" = value_asc; "orden alfabético" = label_asc). "sortMetric" es el id de la métrica que manda cuando no es la primera. En ejes temporales ambos van en null.
+- "cumulative": true acumula a lo largo del tiempo ("acumulado", "curva acumulada", "avance acumulado"); solo con dateField y métricas sumables; si no, null.
+- "bucket": ${VAI_BUCKETS.join("/")} según pidan diario, semanal, mensual, trimestral o anual; month si no dicen nada; null sin dateField.
+- Traducción obligatoria de instrucciones visuales del usuario cuando aparezcan en la petición:
+  · "X en barras y Y en líneas", "barras de X con línea de Y", "Y como línea", "eje secundario para Y" → type "combo", metrics [X, Y], seriesTypes ["bar", "line"] en ese orden.
+  · "apilado", "apiladas" → bar + stack "stack"; "apilado al 100 %", "porcentual", "participación apilada" → stack "percent".
+  · "una línea/serie/barra por <dimensión>", "desglosado/segmentado/separado/dividido por <dimensión>", "por <eje> y <dimensión>" → breakdown = esa dimensión.
+  · "acumulado" → cumulative true. "torta/pastel/anillo/pie" → donut. "ranking/top N/barras horizontales" → rank. "dispersión/correlación/scatter" → scatter. "gráfico de área" → area. "tabla dinámica/pivot/matriz" → table + dimension + breakdown.
+  · "orden alfabético" → sort label_asc; "de menor a mayor" → value_asc; "de mayor a menor" → value_desc; "ordenado por <métrica>" → sortMetric.
+  · "trimestral" → bucket quarter; "anual/por año" → year; "semanal" → week; "diario/por día" → day.
 - El eje X categórico de un gráfico siempre se define mediante "dimension". Si el usuario pide explícitamente "eje X por placa", "eje X oficina", "por sede", "por proveedor", "por conductor", "por área", "por estado" o cualquier clasificación equivalente disponible en la fuente, usa ese id exacto como dimension. En ese caso dateField debe ser null salvo que el usuario haya pedido además explícitamente una evolución temporal separada.
 - Las dimensiones del eje X son genéricas para todas las áreas. No limites esta capacidad a Flota: cualquier field role="dimension" de la fuente puede ser el eje categórico cuando tenga sentido.
 - Si el usuario pide un gráfico por una clasificación no temporal, no sustituyas esa clasificación por una fecha solo porque la fuente tenga defaultDateField.
-- En widgets "line" y "bar" puedes usar además "seriesTypes" para indicar cómo se dibuja cada métrica, alineado 1 a 1 con "metrics", con valores "line" o "bar".
-- En line y bar puedes combinar métricas solo cuando la lectura sea clara. Considera siempre el format/unidad de cada métrica: tonelaje, leyes, porcentajes, moneda, horas, conteos, etc. El renderer usa eje Y secundario cuando hay dos unidades incompatibles o escalas muy distintas. No combines más de dos familias de escala incompatibles en un mismo gráfico; si hacen falta más, sepáralas en widgets distintos.
-- Si el usuario pide explícitamente una combinación como "X en barras y Y en líneas", "barras para X y línea para Y" o equivalente, constrúyela en un solo widget colocando ambas métricas en "metrics" y especificando "seriesTypes" en el mismo orden. Puede ser temporal mediante dateField o categórica mediante dimension según el eje X solicitado.
+- En line, area, bar y combo, "seriesTypes" indica cómo se dibuja cada métrica, alineado 1 a 1 con "metrics", con valores "line" o "bar"; en los demás tipos va null.
+- Combina métricas en un mismo gráfico solo cuando la lectura sea clara. Considera siempre el format/unidad de cada métrica: tonelaje, leyes, porcentajes, moneda, horas, conteos, etc. El renderer usa eje Y secundario cuando hay dos unidades incompatibles o escalas muy distintas. No combines más de dos familias de escala incompatibles en un mismo gráfico; si hacen falta más, sepáralas en widgets distintos.
+- Un dashboard completo mezcla formas: KPIs para los totales, un gráfico principal que responda exactamente a la instrucción visual del usuario, una tendencia temporal cuando la fuente es de eventos, una comparación categórica (bar, rank, donut o combo) y, si aporta, una tabla agrupada o de detalle. No repitas la misma métrica con la misma dimensión en dos gráficos.
+- Ejemplos de widgets bien formados (ids ilustrativos de Vales de combustible; usa siempre los ids de la fuente elegida):
+  · Sedes en eje X, galones en barras y PEN en línea → {"type":"combo","title":"Galones y costo PEN por sede","source":"fleet_fuel_refuels","metrics":["qty_total","cost_pen_known"],"seriesTypes":["bar","line"],"dimension":"group_name","dateField":null,"bucket":null,"limit":null,"columns":null,"summaries":[],"breakdown":null,"stack":null,"sort":null,"sortMetric":null,"cumulative":null}
+  · Galones mensuales apilados por tipo de combustible → {"type":"bar","title":"Galones por mes y tipo de combustible","source":"fleet_fuel_refuels","metrics":["qty_total"],"seriesTypes":null,"dimension":null,"dateField":"date_cons","bucket":"month","limit":null,"columns":null,"summaries":[],"breakdown":"type_fuel","stack":"stack","sort":null,"sortMetric":null,"cumulative":null}
+  · Costo PEN acumulado con una línea por sede → {"type":"line","title":"Costo PEN acumulado por sede","source":"fleet_fuel_refuels","metrics":["cost_pen_known"],"seriesTypes":null,"dimension":null,"dateField":"date_cons","bucket":"month","limit":null,"columns":null,"summaries":[],"breakdown":"group_name","stack":null,"sort":null,"sortMetric":null,"cumulative":true}
+  · Dispersión de recorrido vs galones por placa → {"type":"scatter","title":"Recorrido vs galones por placa","source":"fleet_performance","metrics":["distance_total","qty_total"],"seriesTypes":null,"dimension":"plate","dateField":null,"bucket":null,"limit":50,"columns":null,"summaries":[],"breakdown":null,"stack":null,"sort":null,"sortMetric":null,"cumulative":null}
+  · Sedes en orden alfabético con galones y abastecimientos → {"type":"bar","title":"Galones y abastecimientos por sede","source":"fleet_fuel_refuels","metrics":["qty_total","refuel_count"],"seriesTypes":["bar","bar"],"dimension":"group_name","dateField":null,"bucket":null,"limit":null,"columns":null,"summaries":[],"breakdown":null,"stack":null,"sort":"label_asc","sortMetric":null,"cumulative":null}
 - Hay dos formas distintas de usar "table". Tabla de detalle: usa "columns" únicamente con ids de fields existentes; NUNCA pongas ids de metrics dentro de columns. En detalle deja metrics=[], dimension=null, dateField=null y bucket=null. Tabla agrupada: usa dimension o dateField junto con al menos una métrica válida en metrics y deja columns=null. Si quieres una tabla "por placa/sede/proveedor" con totales o ratios, eso es tabla agrupada, no tabla de detalle.
 - Para tablas usa limit=null por defecto para conservar todas las filas o categorías filtradas. Solo usa limit cuando el usuario pida explícitamente un Top N, primeras N filas o un límite concreto. Nunca uses 50 como límite automático de una tabla.
 - En una tabla de detalle, dateField NO significa ordenar por fecha. Si el usuario pide "detalle", "lista", "recientes", "últimos" o filas individuales, usa una tabla de detalle con columns. No conviertas una petición de ordenamiento en una tabla agrupada.
@@ -580,8 +611,12 @@ const OUTPUT_SCHEMA = {
                       "string",
                       "null",
                     ],
+                    enum: [
+                      null,
+                      ...VAI_BUCKETS,
+                    ],
                     description:
-                      `Uno de: ${VAI_BUCKETS.join(", ")}`,
+                      `Grano temporal cuando hay dateField: ${VAI_BUCKETS.join(", ")}`,
                   },
                   limit: {
                     type: [
@@ -621,6 +656,54 @@ const OUTPUT_SCHEMA = {
                       ],
                     },
                   },
+                  breakdown: {
+                    type: [
+                      "string",
+                      "null",
+                    ],
+                    description:
+                      "Segunda dimensión que divide la primera métrica en una serie por categoría (line, area, bar, table); null si no se pide.",
+                  },
+                  stack: {
+                    type: [
+                      "string",
+                      "null",
+                    ],
+                    enum: [
+                      null,
+                      ...VAI_STACK_MODES,
+                    ],
+                    description:
+                      "Solo bar: stack = barras apiladas, percent = apiladas al 100 %; null = agrupadas.",
+                  },
+                  sort: {
+                    type: [
+                      "string",
+                      "null",
+                    ],
+                    enum: [
+                      null,
+                      ...VAI_SORT_MODES,
+                    ],
+                    description:
+                      "Orden de las categorías del eje X; null = de mayor a menor por la primera métrica.",
+                  },
+                  sortMetric: {
+                    type: [
+                      "string",
+                      "null",
+                    ],
+                    description:
+                      "Id de la métrica que decide el orden cuando no es la primera; null en caso contrario.",
+                  },
+                  cumulative: {
+                    type: [
+                      "boolean",
+                      "null",
+                    ],
+                    description:
+                      "true acumula la serie a lo largo del eje temporal; null en caso contrario.",
+                  },
                 },
                 required: [
                   "type",
@@ -634,6 +717,11 @@ const OUTPUT_SCHEMA = {
                   "limit",
                   "columns",
                   "summaries",
+                  "breakdown",
+                  "stack",
+                  "sort",
+                  "sortMetric",
+                  "cumulative",
                 ],
               },
             },
@@ -670,10 +758,97 @@ const FOCUS_TEXT: Record<
   trends:
     "Prioriza tendencias temporales (line con bucket adecuado).",
   comparisons:
-    "Prioriza comparaciones por dimensión (bar, rank, donut o line categórico cuando el usuario lo pida).",
+    "Prioriza comparaciones por dimensión (bar, combo, rank, donut, scatter o line categórico cuando el usuario lo pida).",
   detail:
     "Prioriza tablas de detalle o resumen (table).",
 };
+
+const CHART_PREFERENCE_TEXT: Record<VaiChartPreference, string> = {
+  kpi: "kpi",
+  line: "line (tendencias)",
+  area: "area (línea con relleno)",
+  bar: "bar (barras agrupadas o apiladas)",
+  combo: "combo (barras + líneas en un gráfico)",
+  rank: "rank (Top N horizontal)",
+  donut: "donut (distribución)",
+  scatter: "scatter (dispersión de dos métricas)",
+  table: "table",
+};
+
+/** Resumen legible de lo que el usuario pidió visualmente, para el contexto del modelo. */
+function visualInstructions(
+  prompt: string,
+) {
+  const hints =
+    promptRenderHints(prompt);
+
+  const items: string[] = [];
+
+  for (const hint of hints.renders) {
+    items.push(
+      `«${hint.term.join(" ")}» debe dibujarse como ${hint.render === "bar" ? "barras" : "línea"}`,
+    );
+  }
+
+  if (
+    hints.mentionsBars &&
+    hints.mentionsLines &&
+    !hints.renders.length
+  ) {
+    items.push(
+      "mezcla barras y líneas en un mismo gráfico (combo con seriesTypes)",
+    );
+  }
+
+  for (const family of hints.families) {
+    if (
+      family === "donut" ||
+      family === "rank" ||
+      family === "scatter" ||
+      family === "area"
+    ) {
+      items.push(
+        `pide un gráfico de tipo ${family}`,
+      );
+    }
+  }
+
+  for (const item of hints.stack) {
+    items.push(
+      item.value === "percent"
+        ? `barras apiladas al 100 % (stack percent) en el gráfico de «${item.context.join(" ")}»`
+        : `barras apiladas (stack) en el gráfico de «${item.context.join(" ")}»`,
+    );
+  }
+
+  for (const item of hints.cumulative) {
+    items.push(
+      `valores acumulados en el tiempo (cumulative true) en el gráfico de «${item.context.join(" ")}»`,
+    );
+  }
+
+  for (const item of hints.sort) {
+    items.push(
+      `orden ${item.value} en el gráfico de «${item.context.join(" ")}»`,
+    );
+  }
+
+  for (const item of hints.bucket) {
+    items.push(
+      `grano temporal ${item.value} en el gráfico de «${item.context.join(" ")}»`,
+    );
+  }
+
+  for (const item of hints.breakdown) {
+    items.push(
+      `una serie por «${item.value.join(" ")}» (breakdown con esa dimensión) en el gráfico de «${item.context.join(" ")}»`,
+    );
+  }
+
+  return items.length
+    ? items
+    : "ninguna instrucción visual explícita; elige la mezcla más útil";
+}
 
 class VaiGenerationError extends Error {
   constructor(
@@ -740,6 +915,11 @@ async function generateDashboardSpec(
       candidates.map(
         sourceContext,
       ),
+    // Instrucciones visuales detectadas localmente en la petición; el mismo
+    // detector las impone después sobre la respuesta, así que conviene
+    // reflejarlas ya en el diseño.
+    visualInstructions:
+      visualInstructions(prompt),
     preferences: {
       focus:
         FOCUS_TEXT[
@@ -747,7 +927,10 @@ async function generateDashboardSpec(
         ],
       preferredWidgets:
         options.charts.length
-          ? options.charts
+          ? options.charts.map(
+              (chart) =>
+                CHART_PREFERENCE_TEXT[chart],
+            )
           : "sin preferencia",
       areaRestriction:
         options.area ===
@@ -997,9 +1180,14 @@ const FOCUS: VaiFocus[] = [
 
 const CHARTS:
   VaiChartPreference[] = [
-    "line",
-    "bar",
     "kpi",
+    "line",
+    "area",
+    "bar",
+    "combo",
+    "rank",
+    "donut",
+    "scatter",
     "table",
   ];
 

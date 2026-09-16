@@ -66,6 +66,7 @@ import {
   KpiTooltip,
   LineChart,
   RankChart,
+  ScatterChart,
   type ChartRow,
   type ChartSeries,
 } from "../ui/Charts";
@@ -399,9 +400,14 @@ const FOCUS_OPTIONS: Array<{ value: VaiFocus; label: string }> = [
 ];
 
 const CHART_OPTIONS: Array<{ value: VaiChartPreference; label: string }> = [
-  { value: "line", label: "Línea" },
-  { value: "bar", label: "Barras" },
   { value: "kpi", label: "KPI" },
+  { value: "line", label: "Línea" },
+  { value: "area", label: "Área" },
+  { value: "bar", label: "Barras" },
+  { value: "combo", label: "Barras + línea" },
+  { value: "rank", label: "Ranking" },
+  { value: "donut", label: "Anillo" },
+  { value: "scatter", label: "Dispersión" },
   { value: "table", label: "Tabla" },
 ];
 
@@ -450,6 +456,25 @@ function sourceSuggestions(source: VaiSource) {
       `Compara ${metric1.label} por ${dimension1.label}${
         metric2 ? ` y muestra también ${metric2.label}` : ""
       }.`,
+    );
+  }
+
+  // Instrucciones visuales explícitas: combo, desglose apilado y dispersión.
+  if (metric1 && metric2 && dimension1) {
+    suggestions.push(
+      `${dimension1.label} en el eje X, ${metric1.label} en barras y ${metric2.label} en línea.`,
+    );
+  }
+
+  if (metric1 && date1 && dimensions[1]) {
+    suggestions.push(
+      `Evolución mensual de ${metric1.label} según ${date1.label}, en barras apiladas por ${dimensions[1].label}.`,
+    );
+  }
+
+  if (metric1 && metric2 && dimension1 && metric1.format !== metric2.format) {
+    suggestions.push(
+      `Dispersión de ${metric1.label} frente a ${metric2.label} por ${dimension1.label}.`,
     );
   }
 
@@ -1206,16 +1231,26 @@ function KpiCard({ id, order, widget, rows, loading, trendDateField }: { id: str
   );
 }
 
+const BUCKET_LABEL: Record<NonNullable<VaiWidgetSpec["bucket"]>, string> = { day: "día", week: "semana", month: "mes", quarter: "trimestre", year: "año" };
+
 function Widget({ id, order, widget, rows }: { id: string; order: number; widget: VaiWidgetSpec; rows: VaiRow[] }) {
   const [scaleChoice, setScaleChoice] = useState<"auto" | ChartScaleMode>("auto");
   const source = VAI_SOURCE_MAP.get(widget.source);
   const result = source ? computeWidget(widget, source, rows) : null;
   if (!source || !result) return null;
-  const subtitle = widget.dimension
-    ? `${source.name} · por ${vaiField(source, widget.dimension)?.label ?? widget.dimension}`
-    : widget.dateField
-      ? `${source.name} · por ${widget.bucket === "day" ? "día" : widget.bucket === "week" ? "semana" : "mes"} de ${vaiField(source, widget.dateField)?.label ?? widget.dateField}`
-      : source.name;
+  const lineLike = widget.type === "line" || widget.type === "area";
+  const temporalAxis = Boolean(widget.dateField) && (lineLike || !widget.dimension);
+  const axisLabel = temporalAxis
+    ? `por ${BUCKET_LABEL[widget.bucket ?? "month"]} de ${vaiField(source, widget.dateField ?? "")?.label ?? widget.dateField}`
+    : widget.dimension
+      ? `por ${vaiField(source, widget.dimension)?.label ?? widget.dimension}`
+      : "";
+  const extras = [
+    result.kind === "series" && result.breakdown ? `una serie por ${result.breakdown.toLowerCase()}` : "",
+    result.kind === "series" && result.stack === "percent" ? "apilado al 100 %" : result.kind === "series" && result.stack ? "apilado" : "",
+    result.kind === "series" && result.cumulative ? "acumulado" : "",
+  ].filter(Boolean);
+  const subtitle = [source.name, axisLabel, ...extras].filter(Boolean).join(" · ");
 
   if (result.kind === "table") return <TableWidget id={id} order={order} title={widget.title} subtitle={subtitle} data={result} source={source} />;
   if (result.kind !== "series") return null;
@@ -1223,13 +1258,14 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   const first = result.series[0];
   const formats = result.series.map((item) => chartFormat(item.format));
   const primaryFormat = formats[0] ?? chartFormat("decimal");
+  const baseRender = lineLike ? "line" : "bar";
   const series: ChartSeries[] = result.series.map((item, j) => ({
     label: item.label,
-    color: CHART_COLORS[j % CHART_COLORS.length],
+    color: item.other ? CHART_OTHER : CHART_COLORS[j % CHART_COLORS.length],
     digits: formats[j].digits,
     unit: formats[j].unit,
     axisKey: chartAxisGroup(item.format),
-    seriesType: widget.seriesTypes?.[j] ?? (widget.type === "line" ? "line" : "bar"),
+    seriesType: result.breakdown ? baseRender : widget.seriesTypes?.[j] ?? baseRender,
   }));
   const chartRows: ChartRow[] = result.rows.map((row) => ({
     key: row.label,
@@ -1239,12 +1275,14 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   }));
 
   const values = chartRows.flatMap((row) => widget.type === "rank" ? [row.values[0]] : row.values);
-  const logAllowed = canUseLogScale(values);
+  const logAllowed = canUseLogScale(values) && !result.stack;
   const scale: ChartScaleMode = logAllowed && (scaleChoice === "log" || (scaleChoice === "auto" && prefersLogScale(values))) ? "log" : "linear";
   const hasBarSeries = series.some((item) => item.seriesType !== "line");
-  const isCombo = Boolean(widget.dateField) && series.some((item) => item.seriesType === "line") && hasBarSeries;
-  const comboScale: ChartScaleMode = scaleChoice === "log" ? "log" : "linear";
-  const controls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "line") && hasBarSeries) ? (
+  const hasLineSeries = series.some((item) => item.seriesType === "line");
+  // Barras y líneas juntas se dibujan en el mismo plano, sea el eje X categórico o temporal.
+  const isCombo = widget.type !== "rank" && widget.type !== "donut" && widget.type !== "scatter" && hasBarSeries && hasLineSeries;
+  const comboScale: ChartScaleMode = logAllowed && scaleChoice === "log" ? "log" : "linear";
+  const controls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "combo" || lineLike) && hasBarSeries && !result.stack) ? (
     <label
       className="vai-scale-control"
       style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }}
@@ -1298,10 +1336,31 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   );
 
   const wrap = (chart: React.ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }}>{chart}</VaiExportSection>;
-  if (widget.type === "line" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} controls={controls} dataTable={dataTable} />);
-  if (widget.type === "line") return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={series.length === 1} dataTable={dataTable} />);
-  if (widget.type === "bar" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} controls={controls} dataTable={dataTable} />);
-  if (widget.type === "bar") return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} controls={controls} dataTable={dataTable} />);
+  if (widget.type === "scatter" && result.series.length >= 2) {
+    const [xSeries, ySeries] = result.series;
+    return wrap(
+      <ScatterChart
+        title={widget.title}
+        subtitle={subtitle}
+        points={chartRows.flatMap((row) => (row.values[0] == null || row.values[1] == null ? [] : [{ label: row.label, x: row.values[0], y: row.values[1], notes: row.notes }]))}
+        xLabel={xSeries.label}
+        yLabel={ySeries.label}
+        xDigits={formats[0].digits}
+        xUnit={formats[0].unit}
+        yDigits={formats[1].digits}
+        yUnit={formats[1].unit}
+        controls={controls}
+        dataTable={dataTable}
+      />,
+    );
+  }
+  if (isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} controls={controls} dataTable={dataTable} />);
+  if (lineLike || (widget.type === "combo" && !hasBarSeries)) {
+    return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={widget.type === "area" ? "all" : series.length === 1} dataTable={dataTable} />);
+  }
+  if (widget.type === "bar" || widget.type === "combo") {
+    return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} stacked={result.stack === "percent" ? "percent" : result.stack === "stack" ? "stack" : false} controls={controls} dataTable={dataTable} />);
+  }
   if (widget.type === "rank") {
     return wrap(
       <RankChart
@@ -2066,9 +2125,11 @@ export default function VaiWorkspace() {
                 <div className="vai-board-meta">
                   {board.id ? `Guardado · ${formatStamp(board.savedAt)}` : "Sin guardar"}
                   {board.saveError ? <span style={{ color: "var(--bad)" }}> · {board.saveError}</span> : null}
-                  {" · "}
-                  <span title={board.prompt}>Prompt: {board.prompt.length > 90 ? `${board.prompt.slice(0, 90)}…` : board.prompt}</span>
                 </div>
+                <p className="vai-board-prompt">
+                  <span>Prompt</span>
+                  {board.prompt}
+                </p>
               </div>
               <div className="trjk-actions">
                 {board.saveError ? (

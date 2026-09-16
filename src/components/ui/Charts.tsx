@@ -1,7 +1,8 @@
 // src/components/ui/Charts.tsx
 //
-// Gráficos SVG compartidos: columnas, líneas, anillo y ranking.
-// Colores por tokens (--chart-*), marcas finas, tooltip HTML con notas de
+// Gráficos SVG compartidos: columnas (agrupadas o apiladas), combo barras +
+// líneas, líneas/área, anillo, ranking y dispersión. Colores por tokens
+// (--chart-*), marcas finas con degradado sutil, tooltip HTML con notas de
 // contexto en todas las series y tabla «Ver datos» como equivalente accesible
 // de cada gráfico. `KpiTooltip` es el desglose flotante de las tarjetas KPI.
 "use client";
@@ -9,6 +10,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type CSSProperties,
@@ -607,6 +609,74 @@ function seriesLines(row: ChartRow, series: ChartSeries[], digits: number, unit:
   }));
 }
 
+// ── Acabado de las marcas ──────────────────────────────────────────────
+//
+// Las barras llevan un degradado vertical del color de la serie hacia una
+// versión más translúcida en la base; las líneas, un halo del mismo color. Se
+// resuelve con defs SVG y opacidades (sin filtros) para que la exportación a
+// PDF lo reproduzca igual.
+
+function BarGradients({ id, series }: { id: string; series: ChartSeries[] }) {
+  return (
+    <defs>
+      {series.map((s, j) => (
+        <linearGradient key={j} id={`${id}-${j}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={s.color} />
+          <stop offset="1" stopColor={s.color} stopOpacity="0.58" />
+        </linearGradient>
+      ))}
+    </defs>
+  );
+}
+
+/** Trazo de una serie de línea: halo translúcido debajo y línea fina encima. */
+function LinePath({ d, color }: { d: string; color: string }) {
+  if (!d) return null;
+  return (
+    <>
+      <path d={d} fill="none" stroke={color} strokeWidth="7" strokeOpacity="0.14" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+    </>
+  );
+}
+
+/** Rectángulo de una barra con remate redondeado en el extremo libre. */
+function barPath(x: number, y0: number, y1: number, w: number, roundEnd: boolean) {
+  const top = Math.min(y0, y1);
+  const h = Math.abs(y0 - y1);
+  if (h < 0.5) return `M${x},${top}h${w}v0.5h-${w}z`;
+  const r = roundEnd ? Math.min(4, w / 2, h) : 0;
+  const upward = y1 <= y0;
+  if (!r) return `M${x},${top}h${w}v${h}h-${w}z`;
+  return upward
+    ? `M${x},${y0}V${top + r}a${r},${r} 0 0 1 ${r},-${r}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}V${y0}z`
+    : `M${x},${y0}V${y0 + h - r}a${r},${r} 0 0 0 ${r},${r}h${w - 2 * r}a${r},${r} 0 0 0 ${r},-${r}V${y0}z`;
+}
+
+/**
+ * Segmentos de una fila apilada: positivos hacia arriba y negativos hacia
+ * abajo, cada uno desde donde terminó el anterior de su mismo signo.
+ */
+function stackSegments(values: (number | null)[]) {
+  let positive = 0;
+  let negative = 0;
+  const segments = values.map((v) => {
+    if (v == null || v === 0) return null;
+    if (v > 0) {
+      const from = positive;
+      positive += v;
+      return { from, to: positive };
+    }
+    const from = negative;
+    negative += v;
+    return { from, to: negative };
+  });
+  const lastPositive = values.reduce((last, v, j) => (v != null && v > 0 ? j : last), -1);
+  const lastNegative = values.reduce((last, v, j) => (v != null && v < 0 ? j : last), -1);
+  // Sin ruido flotante: 100,0000001 no debe empujar la escala al siguiente paso.
+  return { segments, positive: Number(positive.toFixed(9)), negative: Number(negative.toFixed(9)), lastPositive, lastNegative };
+}
+
 export function ColumnChart({
   title,
   subtitle,
@@ -616,6 +686,7 @@ export function ColumnChart({
   unit = "",
   height = 220,
   scale: scaleMode = "linear",
+  stacked = false,
   dataTable,
   controls,
 }: {
@@ -627,17 +698,23 @@ export function ColumnChart({
   unit?: string;
   height?: number;
   scale?: ChartScaleMode;
+  /** Apila las series en una sola columna por categoría (mismo eje y unidad); "percent" omite el total (siempre 100 %). */
+  stacked?: boolean | "stack" | "percent";
   dataTable?: ReactNode;
   controls?: ReactNode;
 }) {
+  const gradientId = useId();
   const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
-  const axes = assignSeriesAxes(rows, series);
+  const stack = Boolean(stacked) && series.length > 1;
+  const stackTotals = stack && stacked !== "percent";
+  const axes = stack ? series.map(() => "left" as ChartAxisSide) : assignSeriesAxes(rows, series);
   const hasRight = axes.includes("right");
   const pad = { l: 46, r: hasRight ? 52 : 10, t: 18, b: 28 };
   const plotW = Math.max(0, width - pad.l - pad.r);
   const plotH = height - pad.t - pad.b;
-  const leftFinite = axisValues(rows, axes, "left");
+  const stacks = stack ? rows.map((row) => stackSegments(row.values)) : [];
+  const leftFinite = stack ? stacks.flatMap((item) => [item.positive, item.negative]) : axisValues(rows, axes, "left");
   const rightFinite = axisValues(rows, axes, "right");
 
   const leftHasBars = series.some(
@@ -653,6 +730,7 @@ export function ColumnChart({
   );
 
   const log =
+    !stack &&
     scaleMode === "log" &&
     canUseLogScale([...leftFinite, ...rightFinite]);
 
@@ -661,7 +739,7 @@ export function ColumnChart({
 
   const leftScale = log
     ? leftLog
-    : adaptiveScale(leftFinite, leftHasBars);
+    : adaptiveScale(leftFinite, leftHasBars || stack);
 
   const rightScale = log
     ? rightLog
@@ -687,23 +765,13 @@ export function ColumnChart({
   const leftAxisUnit = axisUnitLabel(series, axes, "left", unit);
   const rightAxisUnit = axisUnitLabel(series, axes, "right", unit);
   const band = rows.length ? plotW / rows.length : 0;
-  const n = series.length;
+  const n = stack ? 1 : series.length;
   const barW = Math.max(3, Math.min(24, (band * 0.68 - 2 * (n - 1)) / n));
   const groupW = n * barW + 2 * (n - 1);
   const labels = visibleLabels(rows, band);
   const capLabels = rows.length <= 12 && band / n >= 44;
 
-  const bar = (x: number, v: number, w: number, index: number) => {
-    const y0 = yFor(index, 0);
-    const y1 = yFor(index, v);
-    const top = Math.min(y0, y1);
-    const h = Math.abs(y0 - y1);
-    const r = Math.min(4, w / 2, h);
-    if (h < 0.5) return `M${x},${y0}h${w}v0.5h-${w}z`;
-    return v >= 0
-      ? `M${x},${y0}V${top + r}a${r},${r} 0 0 1 ${r},-${r}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}V${y0}z`
-      : `M${x},${y0}V${y0 + h - r}a${r},${r} 0 0 0 ${r},${r}h${w - 2 * r}a${r},${r} 0 0 0 ${r},-${r}V${y0}z`;
-  };
+  const bar = (x: number, v: number, w: number, index: number) => barPath(x, yFor(index, 0), yFor(index, v), w, true);
 
   const tip = hover == null ? null : rows[hover];
   // La banda bajo el puntero (o bajo el toque) fija la fila del tooltip.
@@ -716,6 +784,16 @@ export function ColumnChart({
       return;
     }
     setHover(Math.max(0, Math.min(rows.length - 1, Math.floor(px / band))));
+  };
+
+  const capLabel = (x: number, v: number, index: number, key: string) => {
+    const labelY = v >= 0 ? yFor(index, v) - 4 : yFor(index, v) + 11;
+    if (labelY < pad.t + 9 || labelY > pad.t + plotH - 4) return null;
+    return (
+      <text key={key} className="trjk-mark-label" x={x} y={labelY} textAnchor="middle">
+        {formatMarkLabel(v, series[index]?.digits ?? digits)}
+      </text>
+    );
   };
 
   return (
@@ -741,6 +819,7 @@ export function ColumnChart({
             onPointerLeave={() => setHover(null)}
           >
             <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
+            <BarGradients id={gradientId} series={series} />
             {leftScale.ticks.map((t) => (
               <g key={`l-${t}`}>
                 <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
@@ -772,45 +851,33 @@ export function ColumnChart({
             {rows.map((row, i) => {
               const x0 = pad.l + band * i + (band - groupW) / 2;
               const dimmed = hover != null && hover !== i;
+              const stackRow = stacks[i];
               return (
                 <g key={row.key}>
                   <rect className="trjk-band" data-hover={hover === i} x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4" />
-                  {row.values.map((v, j) =>
-                    v == null ? null : (
-                      <path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + j * (barW + 2), v, barW, j)} fill={series[j].color} />
-                    ),
-                  )}
-                  {capLabels &&
-                    row.values.map((v, j) => {
-                      if (v == null || v === 0) return null;
-
-                      const labelY =
-                        v >= 0
-                          ? yFor(j, v) - 4
-                          : yFor(j, v) + 11;
-
-                      if (
-                        labelY < pad.t + 9 ||
-                        labelY > pad.t + plotH - 4
-                      ) {
-                        return null;
-                      }
-
-                      return (
-                        <text
-                          key={`l${j}`}
-                          className="trjk-mark-label"
-                          x={x0 + j * (barW + 2) + barW / 2}
-                          y={labelY}
-                          textAnchor="middle"
-                        >
-                          {formatMarkLabel(
-                            v,
-                            series[j]?.digits ?? digits,
-                          )}
-                        </text>
-                      );
-                    })}
+                  {stackRow
+                    ? stackRow.segments.map((segment, j) =>
+                        segment == null ? null : (
+                          <path
+                            key={j}
+                            className="trjk-mark"
+                            opacity={dimmed ? 0.45 : 1}
+                            d={barPath(x0, yFor(j, segment.from), yFor(j, segment.to), barW, j === stackRow.lastPositive || j === stackRow.lastNegative)}
+                            fill={`url(#${gradientId}-${j})`}
+                          />
+                        ),
+                      )
+                    : row.values.map((v, j) =>
+                        v == null ? null : (
+                          <path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + j * (barW + 2), v, barW, j)} fill={`url(#${gradientId}-${j})`} />
+                        ),
+                      )}
+                  {capLabels && stackRow
+                    ? stackTotals
+                      ? [stackRow.positive > 0 ? capLabel(x0 + barW / 2, stackRow.positive, 0, "lp") : null, stackRow.negative < 0 ? capLabel(x0 + barW / 2, stackRow.negative, 0, "ln") : null]
+                      : null
+                    : capLabels &&
+                      row.values.map((v, j) => (v == null || v === 0 ? null : capLabel(x0 + j * (barW + 2) + barW / 2, v, j, `l${j}`)))}
                   {labels.has(i) && (
                     <text className="trjk-axis" x={pad.l + band * i + band / 2} y={height - 8} textAnchor="middle">
                       <title>{row.label}</title>
@@ -835,6 +902,11 @@ export function ColumnChart({
   );
 }
 
+/**
+ * Barras y líneas en un mismo plano, con eje X categórico o temporal. Cada
+ * punto de línea se sitúa en el centro de la banda de su categoría, alineado
+ * con las barras, el resalte y el tooltip.
+ */
 export function ComboChart({
   title,
   subtitle,
@@ -858,11 +930,12 @@ export function ComboChart({
   dataTable?: ReactNode;
   controls?: ReactNode;
 }) {
+  const gradientId = useId();
   const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
   const axes = assignSeriesAxes(rows, series);
   const hasRight = axes.includes("right");
-  const pad = { l: 46, r: 64, t: 18, b: 28 };
+  const pad = { l: 46, r: hasRight ? 56 : 14, t: 18, b: 28 };
   const plotW = Math.max(0, width - pad.l - pad.r);
   const plotH = height - pad.t - pad.b;
   const leftFinite = axisValues(rows, axes, "left");
@@ -926,20 +999,10 @@ export function ComboChart({
   const capLabels = barCount > 0 && rows.length <= 12 && band / Math.max(barCount, 1) >= 44;
   const markers = rows.length <= 40;
 
-  const bar = (x: number, v: number, w: number, index: number) => {
-    const y0 = yFor(index, 0);
-    const y1 = yFor(index, v);
-    const top = Math.min(y0, y1);
-    const h = Math.abs(y0 - y1);
-    const r = Math.min(4, w / 2, h);
-    if (h < 0.5) return `M${x},${y0}h${w}v0.5h-${w}z`;
-    return v >= 0
-      ? `M${x},${y0}V${top + r}a${r},${r} 0 0 1 ${r},-${r}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}V${y0}z`
-      : `M${x},${y0}V${y0 + h - r}a${r},${r} 0 0 0 ${r},${r}h${w - 2 * r}a${r},${r} 0 0 0 ${r},-${r}V${y0}z`;
-  };
+  const bar = (x: number, v: number, w: number, index: number) => barPath(x, yFor(index, 0), yFor(index, v), w, true);
 
-  const step = rows.length > 1 ? plotW / (rows.length - 1) : 0;
-  const x = (i: number) => (rows.length > 1 ? pad.l + step * i : pad.l + plotW / 2);
+  // Centro de la banda: el mismo punto para barra, línea, resalte y tooltip.
+  const x = (i: number) => pad.l + band * i + band / 2;
 
   const paths = series.map((item, j) => {
     if (item.seriesType !== "line") return "";
@@ -1026,6 +1089,7 @@ export function ComboChart({
             onPointerLeave={() => setHover(null)}
           >
             <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
+            <BarGradients id={gradientId} series={series} />
             {leftScale.ticks.map((t) => (
               <g key={`l-${t}`}>
                 <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
@@ -1062,7 +1126,7 @@ export function ComboChart({
                   <rect className="trjk-band" data-hover={hover === i} x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4" />
                   {row.values.map((v, j) =>
                     v == null || !barSlots.has(j) ? null : (
-                      <path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + (barSlots.get(j) ?? 0) * (barW + 2), v, barW, j)} fill={series[j].color} />
+                      <path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + (barSlots.get(j) ?? 0) * (barW + 2), v, barW, j)} fill={`url(#${gradientId}-${j})`} />
                     ),
                   )}
                   {capLabels &&
@@ -1117,7 +1181,7 @@ export function ComboChart({
                       );
                     })}
                   {labels.has(i) && (
-                    <text className="trjk-axis" x={pad.l + band * i + band / 2} y={height - 8} textAnchor="middle">
+                    <text className="trjk-axis" x={x(i)} y={height - 8} textAnchor="middle">
                       <title>{row.label}</title>
                       {axisLabelText(row.label)}
                     </text>
@@ -1126,13 +1190,11 @@ export function ComboChart({
               );
             })}
             {hover != null && (
-              <line className="trjk-crosshair" x1={pad.l + band * hover + band / 2} x2={pad.l + band * hover + band / 2} y1={pad.t} y2={pad.t + plotH} />
+              <line className="trjk-crosshair" x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + plotH} />
             )}
-            {paths.map((d, j) =>
-              !d ? null : (
-                <path key={j} d={d} fill="none" stroke={series[j].color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-              ),
-            )}
+            {paths.map((d, j) => (
+              <LinePath key={j} d={d} color={series[j].color} />
+            ))}
             {rows.map((row, i) =>
               row.values.map((v, j) =>
                 v == null || series[j]?.seriesType !== "line" || (!markers && hover !== i) ? null : (
@@ -1149,7 +1211,9 @@ export function ComboChart({
               ),
             )}
             {endLabels.map((e) => {
-              const placeLeft = hasRight || axes[e.j] === "right";
+              const text = formatMarkLabel(e.v, series[e.j]?.digits ?? digits, series[e.j]?.unit ?? unit);
+              // A la derecha del último punto si cabe antes del borde del plano; si no, a la izquierda.
+              const placeLeft = x(e.i) + 9 + text.length * 6 > width - pad.r;
 
               return (
                 <text
@@ -1159,11 +1223,7 @@ export function ComboChart({
                   y={e.y + 3.5}
                   textAnchor={placeLeft ? "end" : "start"}
                 >
-                  {formatMarkLabel(
-                    e.v,
-                    series[e.j]?.digits ?? digits,
-                    series[e.j]?.unit ?? unit,
-                  )}
+                  {text}
                 </text>
               );
             })}
@@ -1174,7 +1234,7 @@ export function ComboChart({
             title={tip.label}
             lines={seriesLines(tip, series, digits, unit)}
             notes={tip.notes}
-            style={tipStyle(pad.l + band * hover + band / 2, width, { top: pad.t })}
+            style={tipStyle(x(hover), width, { top: pad.t })}
           />
         )}
       </div>
@@ -1192,6 +1252,7 @@ export function LineChart({
   height = 220,
   area = false,
   dataTable,
+  controls,
 }: {
   title: string;
   subtitle: string;
@@ -1200,9 +1261,10 @@ export function LineChart({
   digits?: number;
   unit?: string;
   height?: number;
-  /** Lavado del 12 % bajo la primera serie. */
-  area?: boolean;
+  /** Lavado bajo la primera serie (true) o bajo todas (gráfico de área). */
+  area?: boolean | "all";
   dataTable?: ReactNode;
+  controls?: ReactNode;
 }) {
   const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
@@ -1265,13 +1327,13 @@ export function LineChart({
     }
   });
 
-  const areaPath = (() => {
-    if (!area || !rows.length) return "";
-
+  // Lavado bajo cada serie (solo la primera si el gráfico no es de área).
+  const areaPaths = series.map((_, j) => {
+    if (!rows.length || !area || (area !== "all" && j > 0)) return "";
     const points = rows.map((r, i) =>
-      r.values[0] == null
+      r.values[j] == null
         ? null
-        : `${x(i).toFixed(1)},${yFor(0, r.values[0]).toFixed(1)}`,
+        : `${x(i).toFixed(1)},${yFor(j, r.values[j] as number).toFixed(1)}`,
     );
 
     const first = points.findIndex(Boolean);
@@ -1289,7 +1351,7 @@ export function LineChart({
       .slice(first, last + 1)
       .filter(Boolean)
       .join("L")}L${x(last).toFixed(1)},${baselineY.toFixed(1)}z`;
-  })();
+  });
 
   const tip = hover == null ? null : rows[hover];
   // El punto más cercano en x (puntero o toque) fija la fila del tooltip.
@@ -1306,6 +1368,7 @@ export function LineChart({
       series={series}
       kind="line"
       empty={!rows.length}
+      controls={controls}
       table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
     >
       <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
@@ -1357,12 +1420,12 @@ export function LineChart({
                 </text>
               ) : null,
             )}
-            {areaPath && <path d={areaPath} fill={series[0].color} opacity="0.12" />}
+            {areaPaths.map((d, j) => (d ? <path key={`a${j}`} d={d} fill={series[j].color} opacity={series.length > 1 ? 0.09 : 0.12} /> : null))}
             {hover != null && (
               <line className="trjk-crosshair" x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + plotH} />
             )}
             {paths.map((d, j) => (
-              <path key={j} d={d} fill="none" stroke={series[j].color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              <LinePath key={j} d={d} color={series[j].color} />
             ))}
             {rows.map((row, i) =>
               row.values.map((v, j) =>
@@ -1690,6 +1753,212 @@ export function RankChart({
             lines={[{ color, value: value(tip.value, digits, unit), label: "" }, ...(tip.note ? [{ label: tip.note }] : [])]}
             notes={tip.notes}
             style={tipStyle(pointer.x, pointer.w, { pointerY: pointer.y, height: pointer.h })}
+          />
+        )}
+      </div>
+    </ChartCard>
+  );
+}
+
+export type ScatterPoint = { label: string; x: number; y: number; notes?: ChartNote[] };
+
+/** Recta de mínimos cuadrados y correlación de Pearson; nula con menos de tres puntos. */
+function linearFit(points: ScatterPoint[]) {
+  const n = points.length;
+  if (n < 3) return null;
+  const mx = points.reduce((sum, p) => sum + p.x, 0) / n;
+  const my = points.reduce((sum, p) => sum + p.y, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  let syy = 0;
+  for (const p of points) {
+    sxy += (p.x - mx) * (p.y - my);
+    sxx += (p.x - mx) ** 2;
+    syy += (p.y - my) ** 2;
+  }
+  if (sxx === 0 || syy === 0) return null;
+  const slope = sxy / sxx;
+  return { slope, intercept: my - slope * mx, r: sxy / Math.sqrt(sxx * syy) };
+}
+
+/**
+ * Dispersión: un punto por categoría con dos medidas. Incluye la recta de
+ * tendencia lineal y el coeficiente r cuando hay al menos tres puntos, y
+ * etiqueta los puntos mientras no se pisen entre sí.
+ */
+export function ScatterChart({
+  title,
+  subtitle,
+  points,
+  xLabel,
+  yLabel,
+  xDigits = 0,
+  xUnit = "",
+  yDigits = 0,
+  yUnit = "",
+  color = CHART_COLORS[0],
+  height = 240,
+  dataTable,
+  controls,
+}: {
+  title: string;
+  subtitle: string;
+  points: ScatterPoint[];
+  xLabel: string;
+  yLabel: string;
+  xDigits?: number;
+  xUnit?: string;
+  yDigits?: number;
+  yUnit?: string;
+  color?: string;
+  height?: number;
+  dataTable?: ReactNode;
+  controls?: ReactNode;
+}) {
+  const [ref, width] = useWidth();
+  const [hover, setHover] = useState<number | null>(null);
+  const pad = { l: 52, r: 18, t: 18, b: 34 };
+  const plotW = Math.max(0, width - pad.l - pad.r);
+  const plotH = height - pad.t - pad.b;
+  const shown = points.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+  const xScale = adaptiveScale(shown.map((p) => p.x), false, 5);
+  const yScale = adaptiveScale(shown.map((p) => p.y), false, 4);
+  const xFor = (v: number) => pad.l + ((v - xScale.min) / (xScale.max - xScale.min)) * plotW;
+  const yFor = (v: number) => pad.t + plotH - ((v - yScale.min) / (yScale.max - yScale.min)) * plotH;
+  const fit = linearFit(shown);
+  const fitLine = fit
+    ? (() => {
+        const x0 = xScale.min;
+        const x1 = xScale.max;
+        const y0 = fit.intercept + fit.slope * x0;
+        const y1 = fit.intercept + fit.slope * x1;
+        return { x0: xFor(x0), y0: yFor(y0), x1: xFor(x1), y1: yFor(y1) };
+      })()
+    : null;
+
+  // Etiquetas de punto: solo cuando hay pocas y ninguna cae sobre otra.
+  const placed: { x: number; y: number }[] = [];
+  const labeled = new Set<number>();
+  if (shown.length <= 14) {
+    shown.forEach((p, i) => {
+      const px = xFor(p.x) + 8;
+      const py = yFor(p.y) + 3.5;
+      if (placed.some((q) => Math.abs(q.x - px) < 64 && Math.abs(q.y - py) < 12)) return;
+      placed.push({ x: px, y: py });
+      labeled.add(i);
+    });
+  }
+
+  const tip = hover == null ? null : shown[hover];
+  // El punto más cercano al puntero (hasta 26 px) fija el tooltip.
+  const locate = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - box.left;
+    const py = e.clientY - box.top;
+    let best = -1;
+    let bestDistance = 26;
+    shown.forEach((p, i) => {
+      const distance = Math.hypot(xFor(p.x) - px, yFor(p.y) - py);
+      if (distance < bestDistance) {
+        best = i;
+        bestDistance = distance;
+      }
+    });
+    setHover(best >= 0 ? best : null);
+  };
+
+  return (
+    <ChartCard
+      title={title}
+      subtitle={`${subtitle}${fit ? ` · tendencia lineal, r = ${formatNumber(fit.r, 2)}` : ""}`}
+      empty={!shown.length}
+      controls={controls}
+      table={
+        dataTable ?? (
+          <table>
+            <thead>
+              <tr>
+                <th>Categoría</th>
+                <th>{xLabel}</th>
+                <th>{yLabel}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((p) => (
+                <tr key={p.label}>
+                  <td>{p.label}</td>
+                  <td>{value(p.x, xDigits, xUnit)}</td>
+                  <td>{value(p.y, yDigits, yUnit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      }
+    >
+      <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
+        {width > 0 && (
+          <svg
+            role="img"
+            aria-label={title}
+            width={width}
+            height={height}
+            viewBox={`0 0 ${width} ${height}`}
+            onPointerMove={locate}
+            onPointerDown={locate}
+            onPointerLeave={() => setHover(null)}
+          >
+            <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
+            {yScale.ticks.map((t) => (
+              <g key={`y-${t}`}>
+                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(t)} y2={yFor(t)} />
+                <text className="trjk-axis" x={pad.l - 6} y={yFor(t) + 3.5} textAnchor="end">
+                  {compact.format(t)}
+                </text>
+              </g>
+            ))}
+            {xScale.ticks.map((t) => (
+              <g key={`x-${t}`}>
+                <line className="trjk-grid-line" x1={xFor(t)} x2={xFor(t)} y1={pad.t} y2={pad.t + plotH} opacity="0.5" />
+                <text className="trjk-axis" x={xFor(t)} y={height - 20} textAnchor="middle">
+                  {compact.format(t)}
+                </text>
+              </g>
+            ))}
+            <text className="trjk-axis" x={pad.l} y={11} textAnchor="start">
+              {`${yLabel}${yUnit ? ` (${yUnit.trim()})` : ""}`}
+            </text>
+            <text className="trjk-axis" x={width - pad.r} y={height - 6} textAnchor="end">
+              {`${xLabel}${xUnit ? ` (${xUnit.trim()})` : ""}`}
+            </text>
+            {fitLine ? (
+              <line x1={fitLine.x0} y1={fitLine.y0} x2={fitLine.x1} y2={fitLine.y1} stroke={color} strokeWidth="1.5" strokeOpacity="0.55" strokeDasharray="5 4" />
+            ) : null}
+            {shown.map((p, i) => {
+              const dimmed = hover != null && hover !== i;
+              return (
+                <g key={`${p.label}-${i}`} opacity={dimmed ? 0.4 : 1}>
+                  <circle cx={xFor(p.x)} cy={yFor(p.y)} r={hover === i ? 7 : 5.5} fill={color} fillOpacity="0.22" />
+                  <circle className="trjk-mark" cx={xFor(p.x)} cy={yFor(p.y)} r={hover === i ? 5 : 3.5} fill={color} stroke="var(--s-1)" strokeWidth="1.5" />
+                  {labeled.has(i) ? (
+                    <text className="trjk-mark-label" x={xFor(p.x) + 8} y={yFor(p.y) + 3.5} textAnchor="start">
+                      {axisLabelText(p.label, 16)}
+                    </text>
+                  ) : null}
+                </g>
+              );
+            })}
+          </svg>
+        )}
+        {tip && hover != null && (
+          <ChartTip
+            title={tip.label}
+            lines={[
+              { color, value: value(tip.x, xDigits, xUnit), label: xLabel },
+              { color, value: value(tip.y, yDigits, yUnit), label: yLabel },
+            ]}
+            notes={tip.notes}
+            style={tipStyle(xFor(tip.x), width, { pointerY: yFor(tip.y), height })}
           />
         )}
       </div>

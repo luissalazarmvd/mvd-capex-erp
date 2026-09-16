@@ -8,7 +8,7 @@ import { apiGet, apiPost } from "./apiClient";
 import { kardexPeriodKey } from "./trjKardex";
 
 export type VaiFocus = "auto" | "kpis" | "trends" | "comparisons" | "detail";
-export type VaiChartPreference = "line" | "bar" | "kpi" | "table";
+export type VaiChartPreference = "line" | "bar" | "combo" | "area" | "donut" | "rank" | "scatter" | "kpi" | "table";
 
 // ── CATALOG ─────────────────────────────────────────────────────────
 
@@ -2158,12 +2158,64 @@ export const VAI_MAX_FILTERS = 6;
 export const VAI_MAX_LIMIT = 50;
 export const VAI_MAX_TABLE_LIMIT = 50000;
 
-export const VAI_WIDGET_TYPES = ["kpi", "line", "bar", "rank", "donut", "table"] as const;
+/**
+ * Catálogo visual de V-Ai. Cada tipo fija qué necesita del catálogo:
+ * - `kpi`: una métrica.
+ * - `line` / `area`: métricas sobre `dateField` (tendencia) o sobre `dimension`
+ *   (comparación categórica); `area` rellena bajo cada línea.
+ * - `bar`: barras agrupadas o apiladas (`stack`) por `dimension` o `dateField`.
+ * - `combo`: barras + líneas en un mismo gráfico (`seriesTypes` por métrica),
+ *   con eje X categórico o temporal; eje Y secundario automático por unidad.
+ * - `rank`: barras horizontales ordenadas (Top N) de una métrica por `dimension`.
+ * - `donut`: distribución de una métrica sumable por `dimension`.
+ * - `scatter`: dispersión de dos métricas por `dimension` (un punto por categoría).
+ * - `table`: detalle (`columns`) o agrupada (`dimension`/`dateField` + métricas);
+ *   con `breakdown` es una tabla dinámica (pivot).
+ */
+export const VAI_WIDGET_TYPES = ["kpi", "line", "area", "bar", "combo", "rank", "donut", "scatter", "table"] as const;
 export type VaiWidgetType = (typeof VAI_WIDGET_TYPES)[number];
 export type VaiSeriesRender = "line" | "bar";
 
-export const VAI_BUCKETS = ["day", "week", "month"] as const;
+/** Sinónimos que el modelo (o una definición antigua) puede usar como tipo. */
+const WIDGET_TYPE_ALIASES: Record<string, VaiWidgetType> = {
+  column: "bar",
+  columns: "bar",
+  bars: "bar",
+  stacked_bar: "bar",
+  stacked: "bar",
+  hbar: "rank",
+  horizontal_bar: "rank",
+  ranking: "rank",
+  top: "rank",
+  pie: "donut",
+  ring: "donut",
+  mixed: "combo",
+  bar_line: "combo",
+  lines: "line",
+  trend: "line",
+  bubble: "scatter",
+  xy: "scatter",
+  pivot: "table",
+  grid: "table",
+  card: "kpi",
+  metric: "kpi",
+  number: "kpi",
+};
+
+export const VAI_BUCKETS = ["day", "week", "month", "quarter", "year"] as const;
 export type VaiBucket = (typeof VAI_BUCKETS)[number];
+
+/** Apilado de barras: agrupadas, apiladas o apiladas al 100 %. */
+export const VAI_STACK_MODES = ["none", "stack", "percent"] as const;
+export type VaiStackMode = (typeof VAI_STACK_MODES)[number];
+
+/** Orden de las categorías del eje X; las series temporales siempre van cronológicas. */
+export const VAI_SORT_MODES = ["value_desc", "value_asc", "label_asc", "label_desc"] as const;
+export type VaiSortMode = (typeof VAI_SORT_MODES)[number];
+
+/** Series por categoría: cuántas se dibujan antes de agrupar el resto en «Otros». */
+export const VAI_BREAKDOWN_CHART_LIMIT = 5;
+export const VAI_BREAKDOWN_TABLE_LIMIT = 12;
 
 export const VAI_DATE_PRESETS = [
   "last_7_days",
@@ -2184,7 +2236,7 @@ export type VaiWidgetSpec = {
   type: VaiWidgetType;
   title: string;
   source: string;
-  /** Ids de métricas del catálogo; KPI usa una, el resto hasta 3. */
+  /** Ids de métricas del catálogo; KPI usa una, el resto hasta 3 (6 en tablas). */
   metrics: string[];
   /** Tipo de render por métrica en widgets temporales/comparativos. */
   seriesTypes: VaiSeriesRender[] | null;
@@ -2198,6 +2250,20 @@ export type VaiWidgetSpec = {
   /** Columnas de detalle para `table` sin agrupación. */
   columns: string[] | null;
   summaries?: VaiSummarySpec[];
+  /**
+   * Segunda dimensión que divide la primera métrica en una serie por categoría
+   * («una línea por sede», «apilado por tipo de combustible», pivot en tablas).
+   * Las categorías sobrantes se agrupan en «Otros».
+   */
+  breakdown?: string | null;
+  /** Barras apiladas (`stack`) o apiladas al 100 % (`percent`). */
+  stack?: VaiStackMode | null;
+  /** Orden de categorías; nulo = de mayor a menor por la primera métrica. */
+  sort?: VaiSortMode | null;
+  /** Métrica que decide el orden cuando no es la primera. */
+  sortMetric?: string | null;
+  /** Acumulado a lo largo del eje temporal (solo métricas sumables). */
+  cumulative?: boolean | null;
 };
 
 export const VAI_SUMMARY_OPERATIONS = ["auto", "sum", "avg", "min", "max", "none"] as const;
@@ -2226,6 +2292,11 @@ export type VaiRawWidget = {
   limit: number | null;
   columns: string[] | null;
   summaries?: { column: string; operation: string }[];
+  breakdown?: string | null;
+  stack?: string | null;
+  sort?: string | null;
+  sortMetric?: string | null;
+  cumulative?: boolean | null;
 };
 
 /** Salida completa del modelo antes de validar (ya parseada como JSON). */
@@ -2376,6 +2447,11 @@ export function coerceModelOutput(raw: unknown): VaiModelOutput | null {
               limit: item.limit == null ? null : Number(item.limit),
               columns: item.columns == null ? null : stringList(item.columns, 12),
               summaries: Array.isArray(item.summaries) ? item.summaries.filter(isRecord).slice(0, 12).map((summary) => ({ column: clean(summary.column, 80), operation: clean(summary.operation, 20) })) : [],
+              breakdown: item.breakdown == null ? null : clean(item.breakdown, 60),
+              stack: item.stack == null ? null : clean(item.stack, 20),
+              sort: item.sort == null ? null : clean(item.sort, 20),
+              sortMetric: item.sortMetric == null ? null : clean(item.sortMetric, 60),
+              cumulative: typeof item.cumulative === "boolean" ? item.cumulative : item.cumulative == null ? null : clean(item.cumulative, 10).toLowerCase() === "true",
             }))
           : [],
       }
@@ -2397,15 +2473,50 @@ function resolveSource(id: string, notes: string[], label: string) {
   return source;
 }
 
+/** Tipo de widget aceptado, resolviendo sinónimos del modelo o de definiciones antiguas. */
+function normalizeWidgetType(value: string): VaiWidgetType | null {
+  const key = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (VAI_WIDGET_TYPES.includes(key as VaiWidgetType)) return key as VaiWidgetType;
+  return WIDGET_TYPE_ALIASES[key] ?? null;
+}
+
+const LINE_TYPES: ReadonlySet<VaiWidgetType> = new Set(["line", "area"]);
+/** Tipos que dibujan series (aceptan `seriesTypes`). */
+const SERIES_TYPES: ReadonlySet<VaiWidgetType> = new Set(["line", "area", "bar", "combo"]);
+/** Tipos que admiten una serie por categoría (`breakdown`). */
+const BREAKDOWN_TYPES: ReadonlySet<VaiWidgetType> = new Set(["line", "area", "bar", "table"]);
+/** Agregaciones que se pueden apilar o acumular sin cambiar de significado. */
+const STACKABLE_AGGS: ReadonlySet<VaiAgg> = new Set(["sum", "count"]);
+
+function normalizeStack(value: string | null | undefined): VaiStackMode | null {
+  const key = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (!key || key === "none" || key === "false" || key === "grouped") return null;
+  if (key === "stack" || key === "stacked" || key === "true") return "stack";
+  if (key === "percent" || key === "100" || key === "100%" || key === "normalized" || key === "share") return "percent";
+  return null;
+}
+
+function normalizeSort(value: string | null | undefined): VaiSortMode | null {
+  const key = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (VAI_SORT_MODES.includes(key as VaiSortMode)) return key as VaiSortMode;
+  if (key === "desc" || key === "value" || key === "descending") return "value_desc";
+  if (key === "asc" || key === "ascending") return "value_asc";
+  if (key === "label" || key === "alpha" || key === "alphabetical" || key === "name") return "label_asc";
+  return null;
+}
+
 function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | null {
   const label = `Widget «${raw.title || raw.type || "sin título"}»`;
-  if (!VAI_WIDGET_TYPES.includes(raw.type as VaiWidgetType)) {
+  const normalizedType = normalizeWidgetType(raw.type);
+  if (!normalizedType) {
     notes.push(`${label}: el tipo «${raw.type}» no está soportado.`);
     return null;
   }
-  const type = raw.type as VaiWidgetType;
+  let type: VaiWidgetType = normalizedType;
   const source = resolveSource(raw.source, notes, label);
   if (!source) return null;
+  // «stacked_bar» como tipo equivale a bar + stack.
+  const rawStack = normalizeStack(raw.stack) ?? (/^stacked/.test(String(raw.type).trim().toLowerCase()) ? "stack" : null);
 
   const metrics: string[] = [];
   for (const id of raw.metrics) {
@@ -2413,23 +2524,8 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
       if (!metrics.includes(id)) metrics.push(id);
     } else notes.push(`${label}: la métrica «${id}» no existe en ${source.name}.`);
   }
-  const maxMetrics = type === "kpi" ? 1 : type === "table" ? 6 : 3;
+  const maxMetrics = type === "kpi" ? 1 : type === "table" ? 6 : type === "scatter" ? 2 : 3;
   if (metrics.length > maxMetrics) metrics.splice(maxMetrics);
-
-  let seriesTypes: VaiSeriesRender[] | null = null;
-  if (type === "line" || type === "bar") {
-    const requestedSeriesTypes = Array.isArray(raw.seriesTypes)
-      ? raw.seriesTypes
-          .map((value) => (value === "line" || value === "bar" ? value : ""))
-          .filter((value): value is VaiSeriesRender => Boolean(value))
-      : [];
-
-    if (requestedSeriesTypes.length) {
-      seriesTypes = metrics.map((_, index) => requestedSeriesTypes[index] ?? (type === "line" ? "line" : "bar"));
-    } else if (metrics.length) {
-      seriesTypes = metrics.map(() => (type === "line" ? "line" : "bar"));
-    }
-  }
 
   let dimension: string | null = null;
   if (raw.dimension) {
@@ -2437,6 +2533,14 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     if (field && field.role === "dimension") dimension = field.id;
     else notes.push(`${label}: «${raw.dimension}» no es una dimensión válida de ${source.name}.`);
   }
+
+  let breakdown: string | null = null;
+  if (raw.breakdown) {
+    const field = vaiField(source, raw.breakdown);
+    if (field && field.role === "dimension") breakdown = field.id;
+    else notes.push(`${label}: «${raw.breakdown}» no es una dimensión válida de ${source.name} para desglosar series.`);
+  }
+  if (breakdown && breakdown === dimension) breakdown = null;
 
   let dateField: string | null = null;
   if (raw.dateField) {
@@ -2502,12 +2606,54 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     }
   }
 
+  // Tipos compuestos: cada uno degrada al tipo simple más cercano si le
+  // faltan métricas, en vez de descartar el widget.
+  if (type === "scatter" && metrics.length < 2) {
+    notes.push(`${label}: la dispersión necesita dos métricas; se muestra como barras.`);
+    type = "bar";
+  }
+  if (type === "scatter") breakdown = null;
+  if (breakdown && !BREAKDOWN_TYPES.has(type)) {
+    if (type === "combo") notes.push(`${label}: un combo no se desglosa por ${vaiField(source, breakdown)?.label ?? breakdown}; se conservan sus métricas.`);
+    breakdown = null;
+  }
+  if (breakdown && metrics.length > 1) {
+    notes.push(`${label}: el desglose por ${vaiField(source, breakdown)?.label ?? breakdown} usa solo la primera métrica.`);
+    metrics.splice(1);
+  }
+
+  let seriesTypes: VaiSeriesRender[] | null = null;
+  if (SERIES_TYPES.has(type)) {
+    const requestedSeriesTypes = Array.isArray(raw.seriesTypes)
+      ? raw.seriesTypes
+          .map((value) => (value === "line" || value === "bar" ? value : ""))
+          .filter((value): value is VaiSeriesRender => Boolean(value))
+      : [];
+    const base: VaiSeriesRender = LINE_TYPES.has(type) ? "line" : "bar";
+    const comboDefault = (index: number): VaiSeriesRender => (index === 0 ? "bar" : "line");
+
+    if (breakdown) {
+      seriesTypes = metrics.map(() => base);
+    } else if (requestedSeriesTypes.length) {
+      seriesTypes = metrics.map((_, index) => requestedSeriesTypes[index] ?? (type === "combo" ? comboDefault(index) : base));
+    } else if (metrics.length) {
+      seriesTypes = metrics.map((_, index) => (type === "combo" ? comboDefault(index) : base));
+    }
+
+    if (seriesTypes?.length) {
+      const mixed = seriesTypes.includes("line") && seriesTypes.includes("bar");
+      if (type === "combo" && !mixed && metrics.length >= 2) seriesTypes = metrics.map((_, index) => comboDefault(index));
+      else if (type !== "combo" && mixed) type = "combo";
+      if (type === "combo" && metrics.length < 2) type = seriesTypes[0] === "line" ? "line" : "bar";
+    }
+  }
+
   // Requisitos por tipo: si falta lo esencial, el widget se descarta.
   if (type === "kpi" && !metrics.length) {
     notes.push(`${label}: un KPI necesita una métrica válida.`);
     return null;
   }
-  if (type === "line") {
+  if (LINE_TYPES.has(type)) {
     if (!metrics.length) {
       notes.push(`${label}: un gráfico de línea necesita al menos una métrica válida.`);
       return null;
@@ -2530,21 +2676,25 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
       dateField = fallback.id;
     }
   }
-  if ((type === "bar" || type === "rank" || type === "donut") && !metrics.length) {
+  if ((type === "bar" || type === "combo" || type === "rank" || type === "donut" || type === "scatter") && !metrics.length) {
     notes.push(`${label}: necesita al menos una métrica válida.`);
     return null;
   }
-  if ((type === "bar" || type === "rank" || type === "donut") && !dimension && !(type === "bar" && dateField)) {
+  if ((type === "bar" || type === "combo" || type === "rank" || type === "donut" || type === "scatter") && !dimension && !((type === "bar" || type === "combo") && dateField)) {
     notes.push(`${label}: necesita una dimensión válida para comparar.`);
     return null;
   }
+  // En un gráfico, el eje categórico manda sobre la fecha (la tabla puede combinarlos).
+  if (type !== "table" && type !== "kpi" && dimension) dateField = null;
   if (type === "donut" && metrics.length > 1) metrics.splice(1);
+  if (type === "donut" || type === "rank" || type === "scatter") seriesTypes = null;
 
   if (type === "table") {
     if (columns?.length) {
       dimension = null;
       dateField = null;
       limit = null;
+      breakdown = null;
       metrics.splice(0);
     } else if ((dimension || dateField) && metrics.length) {
       columns = null;
@@ -2570,8 +2720,34 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
       columns = [...new Set(preferred)].slice(0, 10);
       dimension = null;
       dateField = null;
+      breakdown = null;
       metrics.splice(0);
     }
+  }
+
+  const temporal = Boolean(dateField) && (LINE_TYPES.has(type) || !dimension);
+  const aggOf = (id: string) => vaiMetric(source, id)?.agg ?? "sum";
+
+  // Apilado: solo barras, con series de la misma unidad y agregación sumable.
+  let stack: VaiStackMode | null = null;
+  if (type === "bar" && rawStack) {
+    const additive = metrics.every((id) => STACKABLE_AGGS.has(aggOf(id)));
+    const sameUnit = Boolean(breakdown) || (metrics.length >= 2 && new Set(metrics.map((id) => chartAxisGroup(vaiMetric(source, id)?.format ?? "decimal"))).size === 1);
+    if (!additive) notes.push(`${label}: solo se apilan métricas sumables (sumas o conteos); se muestran agrupadas.`);
+    else if (!sameUnit) notes.push(`${label}: no se apilan ${breakdown || metrics.length >= 2 ? "métricas con unidades distintas" : "una sola serie"}; se muestran agrupadas.`);
+    else stack = rawStack;
+  }
+
+  // Orden: solo ejes categóricos; la línea temporal siempre es cronológica.
+  const sort = !temporal && dimension && type !== "kpi" && !columns ? normalizeSort(raw.sort) : null;
+  const sortMetric = sort && raw.sortMetric && metrics.includes(raw.sortMetric) && raw.sortMetric !== metrics[0] ? raw.sortMetric : null;
+
+  // Acumulado: solo sobre el eje temporal y para métricas sumables.
+  let cumulative: boolean | null = null;
+  if (raw.cumulative) {
+    if (!temporal || columns) notes.push(`${label}: el acumulado necesita un eje temporal; se muestra el valor por período.`);
+    else if (!metrics.every((id) => STACKABLE_AGGS.has(aggOf(id)))) notes.push(`${label}: solo se acumulan sumas o conteos; se muestra el valor por período.`);
+    else cumulative = true;
   }
 
   const summaries: VaiSummarySpec[] = [];
@@ -2599,6 +2775,11 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     limit,
     columns: type === "table" && !dimension && !dateField ? columns : null,
     summaries,
+    breakdown,
+    stack,
+    sort,
+    sortMetric,
+    cumulative,
   };
 }
 
@@ -2770,6 +2951,389 @@ function contextualSelectFilters(source: VaiSource, userPrompt: string, limit = 
     }));
 }
 
+// ── Instrucciones explícitas del prompt ────────────────────────────────
+//
+// El modelo recibe el catálogo visual, pero cuando el usuario dice cómo quiere
+// ver algo («galones en barras y PEN en líneas», «apilado por sede», «acumulado»,
+// «orden alfabético», «trimestral»…) esa instrucción se impone aquí de forma
+// determinista sobre la especificación devuelta, exista o no en la respuesta.
+
+const HINT_STOP = new Set(["de", "del", "la", "el", "los", "las", "y", "e", "o", "u", "un", "una", "unos", "unas", "en", "con", "por", "para", "al", "a", "su", "sus", "mi", "mis", "que", "como", "mas", "menos", "eje", "x", "grafico", "graficos", "chart", "serie", "series", "linea", "lineas", "barra", "barras", "columna", "columnas", "curva", "curvas", "otra", "otro", "misma", "mismo", "cada", "todo", "todos", "toda", "todas"]);
+
+const stemWord = (word: string) => word.replace(/(ciones|cion)$/, "cion").replace(/(es|s)$/, "");
+
+function hintWords(text: string) {
+  return normalizePromptText(text).split(" ").filter((word) => word && !HINT_STOP.has(word)).map(stemWord);
+}
+
+/** Palabras por las que se reconoce una métrica en el prompt: etiqueta, id y unidad. */
+function metricTerms(metric: VaiMetric) {
+  const unit: Record<string, string[]> = {
+    pen: ["pen", "sol", "soles", "s/"],
+    usd: ["usd", "dolar", "dolares"],
+    gal: ["galon", "galones", "gal"],
+    km: ["km", "kilometro", "kilometros", "recorrido"],
+    percent: ["porcentaje", "%"],
+    fraction: ["porcentaje", "%"],
+    tmh: ["tmh", "tonelada", "toneladas"],
+    tms: ["tms", "tonelada", "toneladas"],
+    kg: ["kg", "kilo", "kilos"],
+    hours: ["hora", "horas"],
+    days: ["dia", "dias"],
+    integer: ["cantidad", "numero", "conteo"],
+  };
+  const ids = metric.id.split("_");
+  return new Set([...hintWords(metric.label), ...ids.map(stemWord), ...(unit[metric.format] ?? []).map(stemWord)]);
+}
+
+/** Coincidencias ponderadas por cercanía: la primera palabra del término pesa más. */
+const wordHits = (words: string[], candidates: Set<string>) =>
+  words.reduce((score, word, index) => (word.length >= 2 && [...candidates].some((candidate) => candidate === word || (word.length >= 4 && candidate.startsWith(word))) ? score + words.length - index : score), 0);
+
+/** Métrica del widget que mejor coincide con el término; empates → primera libre. */
+function matchMetric(term: string[], metrics: VaiMetric[], taken: Set<number>) {
+  let best = -1;
+  let bestScore = 0;
+  metrics.forEach((metric, index) => {
+    if (taken.has(index)) return;
+    const score = wordHits(term, metricTerms(metric));
+    if (score > bestScore) {
+      best = index;
+      bestScore = score;
+    }
+  });
+  return best;
+}
+
+/** Palabras por las que se reconoce una dimensión: etiqueta e id. */
+function matchDimension(term: string[], source: VaiSource, exclude: string | null) {
+  const words = term.filter((word) => word.length >= 3);
+  if (!words.length) return null;
+  let best: { field: VaiField; score: number } | null = null;
+  for (const field of source.fields) {
+    if (field.role !== "dimension" || field.id === exclude || /^(?:is_|has_)/.test(field.id)) continue;
+    const score = wordHits(words, new Set([...hintWords(field.label), ...field.id.split("_").map(stemWord)]));
+    if (score && (!best || score > best.score)) best = { field, score };
+  }
+  return best?.field ?? null;
+}
+
+/** Mención de una instrucción con las palabras que la rodean, para saber a qué widget se refiere. */
+type VaiHintMention<T> = { value: T; context: string[] };
+
+type VaiPromptHints = {
+  /** Términos con el render pedido, en orden de aparición. */
+  renders: { term: string[]; render: VaiSeriesRender }[];
+  mentionsBars: boolean;
+  mentionsLines: boolean;
+  /** Familias visuales nombradas explícitamente. */
+  families: Set<"donut" | "rank" | "scatter" | "area" | "bar" | "line" | "table" | "kpi">;
+  stack: VaiHintMention<VaiStackMode>[];
+  cumulative: VaiHintMention<true>[];
+  sort: VaiHintMention<VaiSortMode>[];
+  bucket: VaiHintMention<VaiBucket>[];
+  /** Dimensión pedida tras «una línea por», «apilado por», «desglosado por»…, con su contexto. */
+  breakdown: VaiHintMention<string[]>[];
+  /** Palabras del prompt normalizado, para medir cercanía. */
+  words: string[];
+};
+
+const BAR_WORDS = /^(?:barra|barras|columna|columnas)$/;
+const RENDER_WORDS = /^(?:barra|barras|columna|columnas|linea|lineas|curva|curvas)$/;
+/** Palabras que separan una instrucción de la siguiente. */
+const HINT_BOUNDARY = /^(?:y|e|o|u|ni|mas|ademas|junto|mientras|donde|que|tambien|luego|despues|antes|sobre|contra|frente|versus|vs)$/;
+
+export function promptRenderHints(userPrompt: string): VaiPromptHints {
+  // Las comas y puntos marcan límites de cláusula: el contexto de una
+  // instrucción no cruza a la siguiente.
+  const tokens = String(userPrompt ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[,;.:()\n]+/g, " | ")
+    .replace(/[^a-z0-9|]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const words: string[] = [];
+  const breakBefore: boolean[] = [];
+  let pendingBreak = false;
+  for (const token of tokens) {
+    if (token === "|") {
+      pendingBreak = true;
+      continue;
+    }
+    words.push(token);
+    breakBefore.push(pendingBreak);
+    pendingBreak = false;
+  }
+  const text = words.join(" ");
+  const offsets: number[] = [];
+  let position = 0;
+  for (const word of words) {
+    offsets.push(position);
+    position += word.length + 1;
+  }
+  /** Palabras significativas de la cláusula que rodea una posición del texto. */
+  const contextAt = (charIndex: number, span = 6) => {
+    let index = 0;
+    while (index + 1 < offsets.length && offsets[index + 1] <= charIndex) index += 1;
+    let lo = index;
+    while (lo > 0 && index - lo < span && !breakBefore[lo] && !HINT_BOUNDARY.test(words[lo - 1])) lo -= 1;
+    let hi = index;
+    while (hi + 1 < words.length && hi - index < span && !breakBefore[hi + 1] && !HINT_BOUNDARY.test(words[hi + 1])) hi += 1;
+    return words.slice(lo, hi + 1).filter((word) => !HINT_STOP.has(word)).map(stemWord);
+  };
+  const mentions = <T,>(pattern: RegExp, valueOf: (match: RegExpExecArray, context: string[]) => T | null) => {
+    const out: VaiHintMention<T>[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text))) {
+      const context = contextAt(match.index);
+      const value = valueOf(match, context);
+      if (value != null) out.push({ value, context });
+    }
+    return out;
+  };
+
+  const renderOf = (word: string): VaiSeriesRender => (BAR_WORDS.test(word) ? "bar" : "line");
+  const renders: VaiPromptHints["renders"] = [];
+  const pushRender = (term: string[], render: VaiSeriesRender) => {
+    const clean = term.filter((word) => word && !HINT_STOP.has(word)).map(stemWord);
+    if (clean.length) renders.push({ term: clean, render });
+  };
+  const isBoundary = (word: string) => HINT_BOUNDARY.test(word) || RENDER_WORDS.test(word);
+  let match: RegExpExecArray | null;
+  // «galones en barras», «costo como línea»: las palabras previas hasta una
+  // conjunción u otra marca de render (la más cercana primero).
+  const before = /\b(?:en|como)\s(barra|barras|columna|columnas|linea|lineas|curva|curvas)\b(?!\s(?:de|del|para|los|las|el|la)\b)/g;
+  while ((match = before.exec(text))) {
+    const previous = text.slice(0, match.index).trim().split(" ").filter(Boolean);
+    const term: string[] = [];
+    for (let i = previous.length - 1; i >= 0 && term.length < 4; i -= 1) {
+      if (isBoundary(previous[i])) break;
+      term.push(previous[i]);
+    }
+    pushRender(term, renderOf(match[1]));
+  }
+  // «barras de galones», «línea para el costo», «en barras los galones»: las siguientes.
+  const after = /\b(barra|barras|columna|columnas|linea|lineas|curva|curvas)\s(?:de|del|para|con|los|las|el|la)\s/g;
+  while ((match = after.exec(text))) {
+    const following = text.slice(match.index + match[0].length).split(" ").filter(Boolean);
+    const term: string[] = [];
+    for (const word of following) {
+      if (term.length >= 4 || isBoundary(word) || /^(?:en|como|con|para|por|segun)$/.test(word)) break;
+      term.push(word);
+    }
+    pushRender(term, renderOf(match[1]));
+    after.lastIndex = match.index + match[0].length;
+  }
+
+  const families: VaiPromptHints["families"] = new Set();
+  if (/\b(?:torta|pastel|pie|anillo|dona|donut|donuts)\b/.test(text)) families.add("donut");
+  if (/\b(?:ranking|rankings|top \d+|top n|barras horizontales|horizontal|horizontales)\b/.test(text)) families.add("rank");
+  if (/\b(?:dispersion|scatter|correlacion|burbuja|burbujas|nube de puntos)\b/.test(text)) families.add("scatter");
+  if (/\b(?:grafico|graficos|chart) de area(?:s)?\b|\ben area(?:s)?\b|\barea(?:s)? apilad/.test(text)) families.add("area");
+  if (/\b(?:barra|barras|columna|columnas)\b/.test(text)) families.add("bar");
+  if (/\b(?:linea|lineas|curva|curvas)\b/.test(text)) families.add("line");
+  if (/\b(?:tabla|tablas|listado|detalle)\b/.test(text)) families.add("table");
+  if (/\b(?:kpi|kpis|indicador|indicadores|tarjeta|tarjetas)\b/.test(text)) families.add("kpi");
+
+  const stack = mentions<VaiStackMode>(/\bapilad[oa]s?\b|\bstacked?\b/g, (_, context) =>
+    context.some((word) => word === "100" || /^(?:porcentual|participacion|normalizad)/.test(word)) ? "percent" : "stack",
+  );
+  const cumulative = mentions<true>(/\bacumulad[oa]s?\b|\bacumulativ[oa]s?\b/g, () => true);
+  const sort = [
+    ...mentions<VaiSortMode>(/\borden alfabetic\w*|\balfabeticamente\b|\bpor nombre\b/g, () => "label_asc"),
+    ...mentions<VaiSortMode>(/\bde menor a mayor\b|\bascendente\b/g, () => "value_asc"),
+    ...mentions<VaiSortMode>(/\bde mayor a menor\b|\bdescendente\b/g, () => "value_desc"),
+  ];
+  const bucket = [
+    ...mentions<VaiBucket>(/\bdiari[oa]s?\b|\bpor dia\b|\bcada dia\b/g, () => "day"),
+    ...mentions<VaiBucket>(/\bsemanal(?:es)?\b|\bpor semana\b|\bcada semana\b/g, () => "week"),
+    ...mentions<VaiBucket>(/\bmensual(?:es)?\b|\bpor mes\b|\bcada mes\b/g, () => "month"),
+    ...mentions<VaiBucket>(/\btrimestral(?:es)?\b|\bpor trimestre\b|\btrimestre\b/g, () => "quarter"),
+    ...mentions<VaiBucket>(/\banual(?:es)?\b|\bpor ano\b|\bcada ano\b/g, () => "year"),
+  ];
+
+  // «una línea por sede» exige artículo (sin él, «en líneas por sede» es el eje
+  // X); los verbos de desglose admiten un adjetivo intermedio («apilado mensual por»).
+  const breakdown = mentions<string[]>(
+    /\b(?:(?:una|un|cada)\s(?:linea|lineas|serie|series|curva|curvas|barra|barras|columna|columnas|color)|(?:desglos\w*|segment\w*|separad\w*|dividid\w*|apilad\w*|discriminad\w*|abiert\w*|colore\w*)(?:\s\w+)?)\s(?:por|segun|para cada)\s((?:[a-z0-9]+\s?){1,3})/g,
+    (found, context) => {
+      const term = hintWords(found[1]);
+      if (!term.length) return null;
+      // El contexto no incluye la dimensión pedida, para no marcarlo como específico.
+      context.splice(0, context.length, ...context.filter((word) => !term.includes(word)));
+      return term;
+    },
+  );
+
+  return { renders, mentionsBars: families.has("bar"), mentionsLines: families.has("line"), families, stack, cumulative, sort, bucket, breakdown, words };
+}
+
+/** Distancia mínima en palabras entre una expresión y las palabras de una dimensión. */
+function wordDistance(words: string[], pattern: RegExp, terms: string[]) {
+  const stems = words.map(stemWord);
+  const a = words.map((word, i) => (pattern.test(word) ? i : -1)).filter((i) => i >= 0);
+  const b = stems.map((word, i) => (terms.includes(word) ? i : -1)).filter((i) => i >= 0);
+  if (!a.length || !b.length) return Infinity;
+  return Math.min(...a.map((i) => Math.min(...b.map((j) => Math.abs(i - j)))));
+}
+
+const dimensionTerms = (field: VaiField) => new Set([...hintWords(field.label), ...field.id.split("_").map(stemWord)]);
+
+/**
+ * Cuánto corresponde una instrucción a un widget según su contexto: 2 si
+ * nombra una métrica, dimensión o palabra del título del widget; 0 si nombra
+ * otras métricas o dimensiones de la fuente (es para otro widget); 1 si es
+ * general y vale para todos.
+ */
+function hintScore(context: string[], widget: VaiWidgetSpec, source: VaiSource) {
+  const metrics = widget.metrics.map((id) => vaiMetric(source, id)).filter((metric): metric is VaiMetric => Boolean(metric));
+  if (metrics.some((metric) => wordHits(context, metricTerms(metric)) > 0)) return 2;
+  const fields = [widget.dimension, widget.breakdown].map((id) => (id ? vaiField(source, id) : null)).filter((field): field is VaiField => Boolean(field));
+  if (fields.some((field) => wordHits(context, dimensionTerms(field)) > 0)) return 2;
+  if (wordHits(context, new Set(hintWords(widget.title))) > 0) return 2;
+  const specific =
+    source.metrics.some((metric) => wordHits(context, metricTerms(metric)) > 0) ||
+    source.fields.some((field) => field.role === "dimension" && wordHits(context, dimensionTerms(field)) > 0);
+  return specific ? 0 : 1;
+}
+
+/** La mención que mejor corresponde al widget; nula si ninguna alcanza `minScore`. */
+function bestMention<T>(list: VaiHintMention<T>[], widget: VaiWidgetSpec, source: VaiSource, minScore = 1): T | null {
+  let best: { value: T; score: number } | null = null;
+  for (const item of list) {
+    const score = hintScore(item.context, widget, source);
+    if (score >= minScore && (!best || score > best.score)) best = { value: item.value, score };
+  }
+  return best?.value ?? null;
+}
+
+/**
+ * Aplica sobre un widget válido lo que el usuario pidió literalmente. Solo
+ * cambia lo que el catálogo permite para esa fuente; si el modelo ya lo hizo,
+ * no altera nada.
+ */
+function applyPromptHints(widget: VaiWidgetSpec, hints: VaiPromptHints, notes: string[], chartWidgets: number): VaiWidgetSpec {
+  const source = VAI_SOURCE_MAP.get(widget.source);
+  if (!source || widget.type === "kpi" || (widget.type === "table" && widget.columns)) return widget;
+  const next: VaiWidgetSpec = { ...widget, metrics: [...widget.metrics], seriesTypes: widget.seriesTypes ? [...widget.seriesTypes] : null };
+  const metricOf = (id: string) => vaiMetric(source, id);
+  const metrics = () => next.metrics.map(metricOf).filter((metric): metric is VaiMetric => Boolean(metric));
+  const additive = () => metrics().every((metric) => STACKABLE_AGGS.has(metric.agg));
+  const temporal = () => Boolean(next.dateField) && (LINE_TYPES.has(next.type) || !next.dimension);
+  const isChart = next.type !== "table";
+  // Con varios gráficos, desglose y apilado solo se aplican al widget que la
+  // instrucción nombra; el resto de instrucciones también valen si son generales.
+  const mention = <T,>(list: VaiHintMention<T>[], strict = false) => bestMention(list, next, source, strict && chartWidgets > 1 ? 2 : 1);
+
+  // Serie por categoría: «una línea por sede», «apilado por tipo de combustible».
+  if (!next.breakdown && BREAKDOWN_TYPES.has(next.type)) {
+    const resolved = hints.breakdown.flatMap((item) => {
+      const field = matchDimension(item.value, source, next.dimension);
+      return field ? [{ value: field, context: item.context }] : [];
+    });
+    const field = bestMention(resolved, next, source, chartWidgets > 1 ? 2 : 1);
+    if (field) {
+      next.breakdown = field.id;
+      if (next.metrics.length > 1) next.metrics.splice(1);
+      if (next.seriesTypes && next.seriesTypes.length > 1) next.seriesTypes = next.seriesTypes.slice(0, 1);
+      if (next.type === "combo") next.type = "bar";
+    }
+  }
+
+  // Render por métrica: «galones en barras y PEN en líneas».
+  if (SERIES_TYPES.has(next.type) && next.metrics.length >= 2 && !next.breakdown) {
+    const list = metrics();
+    const current = next.seriesTypes ?? list.map(() => (LINE_TYPES.has(next.type) ? "line" : "bar") as VaiSeriesRender);
+    const assigned = new Map<number, VaiSeriesRender>();
+    const taken = new Set<number>();
+    for (const hint of hints.renders) {
+      const index = matchMetric(hint.term, list, taken);
+      if (index < 0) continue;
+      taken.add(index);
+      assigned.set(index, hint.render);
+    }
+    let seriesTypes = current.map((render, index) => assigned.get(index) ?? render);
+    if (assigned.size) {
+      // Con una sola familia asignada, el resto toma la otra si el prompt nombra
+      // ambas («galones en barras y PEN en líneas») y la misma si solo nombra una
+      // («gráfico de líneas con galones y PEN»).
+      const renders = new Set(assigned.values());
+      if (renders.size === 1) {
+        const [only] = [...renders];
+        const rest: VaiSeriesRender = hints.mentionsBars && hints.mentionsLines ? (only === "bar" ? "line" : "bar") : only;
+        seriesTypes = seriesTypes.map((render, index) => (assigned.has(index) ? render : rest));
+      }
+    } else if (hints.mentionsBars && hints.mentionsLines && new Set(current).size === 1 && next.type !== "area") {
+      // Sin término reconocible («con barras y líneas»), la mezcla va al único
+      // gráfico o al que nombra en su título alguna de las métricas pedidas.
+      const named = hints.renders.some((hint) => wordHits(hint.term, new Set(hintWords(next.title))) > 0);
+      if (chartWidgets === 1 || named) seriesTypes = current.map((_, index) => (index === 0 ? "bar" : "line"));
+    }
+    const mixed = seriesTypes.includes("bar") && seriesTypes.includes("line");
+    if (mixed) next.type = "combo";
+    else if (next.type === "combo") next.type = seriesTypes[0] === "line" ? "line" : "bar";
+    else if (assigned.size && !LINE_TYPES.has(next.type) && seriesTypes[0] === "line") next.type = "line";
+    else if (assigned.size && LINE_TYPES.has(next.type) && seriesTypes[0] === "bar") next.type = "bar";
+    next.seriesTypes = seriesTypes;
+  }
+
+  // Familia visual pedida de forma explícita y única, aplicada al único gráfico
+  // categórico o al que nombra su dimensión junto a la palabra clave.
+  const exclusive = (["donut", "rank", "scatter", "area", "bar", "line"] as const).filter((family) => hints.families.has(family));
+  if (isChart && exclusive.length === 1) {
+    const family = exclusive[0];
+    const dimensionField = next.dimension ? vaiField(source, next.dimension) : null;
+    const patterns: Record<typeof family, RegExp> = {
+      donut: /^(?:torta|pastel|pie|anillo|dona|donut|donuts)$/,
+      rank: /^(?:ranking|rankings|top|horizontal|horizontales)$/,
+      scatter: /^(?:dispersion|scatter|correlacion|burbuja|burbujas)$/,
+      area: /^(?:area|areas)$/,
+      bar: /^(?:barra|barras|columna|columnas)$/,
+      line: /^(?:linea|lineas|curva|curvas)$/,
+    };
+    const near = dimensionField ? wordDistance(hints.words, patterns[family], hintWords(dimensionField.label)) <= 8 : false;
+    if (chartWidgets === 1 || near) {
+      if (family === "donut" && next.dimension && additive() && next.type !== "donut") {
+        next.type = "donut"; next.metrics.splice(1); next.seriesTypes = null; next.breakdown = null; next.stack = null; next.cumulative = null;
+      } else if (family === "rank" && next.dimension && next.type !== "rank") {
+        next.type = "rank"; next.seriesTypes = null; next.breakdown = null; next.stack = null; next.cumulative = null;
+      } else if (family === "scatter" && next.dimension && next.metrics.length >= 2 && next.type !== "scatter") {
+        next.type = "scatter"; next.metrics.splice(2); next.seriesTypes = null; next.breakdown = null; next.stack = null; next.cumulative = null;
+      } else if (family === "area" && (LINE_TYPES.has(next.type) || (next.type === "bar" && temporal()))) {
+        next.type = "area"; next.seriesTypes = next.metrics.map(() => "line"); next.stack = null;
+      } else if (family === "bar" && LINE_TYPES.has(next.type)) {
+        next.type = "bar"; next.seriesTypes = next.metrics.map(() => "bar");
+      } else if (family === "line" && next.type === "bar" && !next.stack) {
+        next.type = "line"; next.seriesTypes = next.metrics.map(() => "line");
+      }
+    }
+  }
+
+  // Apilado.
+  const stack = next.type === "bar" && !next.stack ? mention(hints.stack, true) : null;
+  if (stack) {
+    const list = metrics();
+    const sameUnit = Boolean(next.breakdown) || (list.length >= 2 && new Set(list.map((metric) => chartAxisGroup(metric.format))).size === 1);
+    if (sameUnit && additive()) next.stack = stack;
+    else if (list.length >= 2 || next.breakdown) notes.push(`Widget «${next.title}»: no se apilan métricas de unidades distintas o no sumables; se muestran agrupadas.`);
+  }
+
+  // Acumulado.
+  if (!next.cumulative && temporal() && (SERIES_TYPES.has(next.type) || next.type === "table") && mention(hints.cumulative)) {
+    if (additive()) next.cumulative = true;
+    else notes.push(`Widget «${next.title}»: solo se acumulan sumas o conteos; se muestra el valor por período.`);
+  }
+
+  // Orden y grano temporal.
+  if (!temporal() && next.dimension && !next.sort) next.sort = mention(hints.sort);
+  if (next.dateField && temporal()) next.bucket = mention(hints.bucket) ?? next.bucket;
+
+  return next;
+}
+
 /**
  * Valida la salida del modelo contra el catálogo. Descarta de forma controlada
  * cada parte inválida y la reporta en `notes`; devuelve `spec: null` si no
@@ -2786,7 +3350,7 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = ""): Va
     /\b(rendimiento|eficiencia|recorrido|recorridos|gps|kilometro|kilometros|km gal|l 100|autonomia|costo por km)\b/.test(promptText);
   const preferFuelRefuels = asksFuelConsumption && !asksFleetPerformance;
 
-  const widgets: VaiWidgetSpec[] = [];
+  const validated: VaiWidgetSpec[] = [];
   for (const rawWidget of output.dashboard.widgets.slice(0, VAI_MAX_WIDGETS)) {
     const raw =
       preferFuelRefuels && rawWidget.source === "fleet_performance"
@@ -2798,9 +3362,15 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = ""): Va
         : rawWidget;
 
     const widget = validateWidget(raw, notes);
-    if (widget) widgets.push(widget);
+    if (widget) validated.push(widget);
   }
   if (output.dashboard.widgets.length > VAI_MAX_WIDGETS) notes.push(`Se limitó el dashboard a ${VAI_MAX_WIDGETS} widgets.`);
+
+  // Lo que el usuario pidió literalmente (barras/líneas por métrica, apilado,
+  // acumulado, orden, grano, serie por categoría) se impone sobre la respuesta.
+  const hints = promptRenderHints(userPrompt);
+  const chartWidgets = validated.filter((widget) => widget.type !== "kpi" && widget.type !== "table").length;
+  const widgets = validated.map((widget) => applyPromptHints(widget, hints, notes, chartWidgets));
 
   // Fuentes en orden de aparición, con tope; los widgets de fuentes sobrantes se descartan.
   const sources: string[] = [];
@@ -2993,11 +3563,20 @@ function num(value: number, digits: number) {
 }
 
 export function formatDateLabel(iso: string, bucket: VaiBucket | "none" = "none") {
+  if (/^\d{4}-Q[1-4]$/.test(iso)) return `T${iso.slice(6)} ${iso.slice(0, 4)}`;
+  if (/^\d{4}$/.test(iso)) return iso;
   if (!/^\d{4}-\d{2}/.test(iso)) return iso || "—";
   const [y, mo, d] = iso.split("-");
   if (bucket === "month" || !d) return `${MONTHS[Number(mo) - 1] ?? mo} ${y}`;
   if (bucket === "week") return `sem ${d}/${mo}/${y.slice(2)}`;
   return `${d}/${mo}/${y.slice(2)}`;
+}
+
+/** Clave de período por grano; trimestre y año se resuelven aquí, el resto en Kardex. */
+export function periodKey(iso: string, bucket: VaiBucket) {
+  if (bucket === "quarter") return /^\d{4}-\d{2}/.test(iso) ? `${iso.slice(0, 4)}-Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}` : "Sin fecha";
+  if (bucket === "year") return /^\d{4}/.test(iso) ? iso.slice(0, 4) : "Sin fecha";
+  return kardexPeriodKey(iso, bucket);
 }
 
 export function formatValue(value: unknown, format: VaiFormat | undefined) {
@@ -3546,7 +4125,7 @@ export function kpiTrend(metric: VaiMetric, source: VaiSource, rows: VaiRow[], d
   const dated = rows.filter((row) => toIsoDate(row[dateField]));
   if (!dated.length) return null;
   const bucket = trendBucket(dated.map((row) => toIsoDate(row[dateField])));
-  const groups = groupRows(dated, (row) => kardexPeriodKey(toIsoDate(row[dateField]), bucket));
+  const groups = groupRows(dated, (row) => periodKey(toIsoDate(row[dateField]), bucket));
   const keys = [...groups.keys()].sort().slice(-36);
   const values = keys.map((key) => aggregate(metric, groups.get(key) ?? []));
   if (values.filter((v) => v != null).length < 3) return null;
@@ -3561,7 +4140,13 @@ export function kpiTrend(metric: VaiMetric, source: VaiSource, rows: VaiRow[], d
 
 // ── Datos por widget ───────────────────────────────────────────────────
 
-export type VaiSeriesDef = { id: string; label: string; format: VaiFormat };
+export type VaiSeriesDef = {
+  id: string;
+  label: string;
+  format: VaiFormat;
+  /** Serie «Otros» de un desglose; se pinta con el color neutro. */
+  other?: boolean;
+};
 export type VaiGroupRow = { key: string; label: string; values: (number | null)[]; count: number; notes: VaiNote[] };
 export type VaiTableRow = (string | number | null)[];
 export type VaiTableSummaryRule = { operation: VaiSummaryOperation; label: string; metric?: VaiMetric } | null;
@@ -3570,7 +4155,17 @@ export type VaiTableSummary = { value: number | null; label: string } | null;
 
 export type VaiWidgetData =
   | { kind: "kpi"; metric: VaiSeriesDef; value: number | null; rows: number; notes: VaiNote[]; trend: VaiTrend | null }
-  | { kind: "series"; series: VaiSeriesDef[]; rows: VaiGroupRow[]; temporal: boolean; table: VaiTableData }
+  | {
+      kind: "series";
+      series: VaiSeriesDef[];
+      rows: VaiGroupRow[];
+      temporal: boolean;
+      table: VaiTableData;
+      /** Etiqueta de la dimensión que genera una serie por categoría. */
+      breakdown: string | null;
+      stack: VaiStackMode | null;
+      cumulative: boolean;
+    }
   | VaiTableData;
 
 /** Opciones de cálculo que dependen del dashboard, no del widget. */
@@ -3670,6 +4265,7 @@ export function widgetDetailTable(
 
   addField(widget.dateField);
   addField(widget.dimension);
+  addField(widget.breakdown);
 
   source.fields
     .filter(
@@ -3899,7 +4495,6 @@ function groupRows(rows: VaiRow[], keyOf: (row: VaiRow) => string) {
 
 export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: VaiRow[], options: VaiComputeOptions = {}): VaiWidgetData | null {
   const metrics = widget.metrics.map((id) => vaiMetric(source, id)).filter((metric): metric is VaiMetric => Boolean(metric));
-  const series: VaiSeriesDef[] = metrics.map((metric) => ({ id: metric.id, label: metric.label, format: metric.format }));
 
   if (widget.type === "kpi") {
     if (!metrics.length) return null;
@@ -3910,7 +4505,7 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
       (source.temporalMode === "snapshot" ? null : source.defaultDateField ?? source.fields.find((field) => field.role === "date")?.id ?? null);
     return {
       kind: "kpi",
-      metric: series[0],
+      metric: { id: metrics[0].id, label: metrics[0].label, format: metrics[0].format },
       value: aggregate(metrics[0], rows),
       rows: rows.length,
       notes: kpiInsights(metrics[0], source, rows),
@@ -3940,61 +4535,148 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
     };
   }
 
-  const temporal = Boolean(widget.dateField) && (widget.type === "line" || !widget.dimension);
+  if (!metrics.length) return null;
+  const lineLike = widget.type === "line" || widget.type === "area";
+  const temporal = Boolean(widget.dateField) && (lineLike || !widget.dimension);
   const bucket = widget.bucket ?? "month";
   let groups: Map<string, VaiRow[]>;
+  let base: VaiRow[];
   if (temporal && widget.dateField) {
     const dateField = widget.dateField;
-    groups = groupRows(
-      rows.filter((row) => toIsoDate(row[dateField])),
-      (row) => kardexPeriodKey(toIsoDate(row[dateField]), bucket),
-    );
+    base = rows.filter((row) => toIsoDate(row[dateField]));
+    groups = groupRows(base, (row) => periodKey(toIsoDate(row[dateField]), bucket));
   } else if (widget.dimension) {
     const dimension = widget.dimension;
+    base = rows;
     groups = groupRows(rows, (row) => toText(row[dimension]) || "Sin dato");
   } else return null;
 
-  let grouped: (VaiGroupRow & { members: VaiRow[] })[] = [...groups.entries()].map(([key, subset]) => ({
-    key,
-    label: temporal ? formatDateLabel(key, bucket) : key,
-    values: metrics.map((metric) => aggregate(metric, subset)),
-    count: subset.length,
-    notes: [],
-    members: subset,
-  }));
+  // Desglose: la primera métrica se divide en una serie por categoría de la
+  // segunda dimensión. Cada serie es la misma métrica con una condición fija
+  // más, de modo que valores, resúmenes y detalle usan idéntica agregación.
+  const primary = metrics[0];
+  const breakdownField = widget.breakdown ? vaiField(source, widget.breakdown) : null;
+  const breakdown = breakdownField?.role === "dimension" ? breakdownField.id : null;
+  let seriesMetrics: VaiMetric[] = metrics;
+  let series: VaiSeriesDef[] = metrics.map((metric) => ({ id: metric.id, label: metric.label, format: metric.format }));
+  if (breakdown) {
+    const byCategory = groupRows(base, (row) => toText(row[breakdown]) || "Sin dato");
+    const ranked = [...byCategory.entries()]
+      .map(([key, subset]) => ({ key, value: aggregate(primary, subset), count: subset.length }))
+      .sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity) || b.count - a.count);
+    const cap = widget.type === "table" ? VAI_BREAKDOWN_TABLE_LIMIT : VAI_BREAKDOWN_CHART_LIMIT;
+    const drawn = ranked.slice(0, cap).map((item) => item.key);
+    const rest = ranked.length - drawn.length;
+    const condition = (key: string): VaiCondition => (key === "Sin dato" ? { field: breakdown, op: "empty" } : { field: breakdown, op: "eq", value: key });
+    seriesMetrics = drawn.map((key) => ({ ...primary, id: `${primary.id}:${key}`, label: key, where: [...(primary.where ?? []), condition(key)] }));
+    series = drawn.map((key) => ({ id: `${primary.id}:${key}`, label: key, format: primary.format }));
+    if (rest > 0) {
+      // «Otros» excluye las categorías dibujadas; el vacío cuenta como «Sin dato».
+      const others: VaiCondition[] = drawn.includes("Sin dato")
+        ? [{ field: breakdown, op: "not_empty" }, { field: breakdown, op: "not_in", value: drawn.filter((key) => key !== "Sin dato") }]
+        : [{ field: breakdown, op: "not_in", value: drawn }];
+      seriesMetrics.push({ ...primary, id: `${primary.id}:__others`, label: `Otros (${rest})`, where: [...(primary.where ?? []), ...others] });
+      series.push({ id: `${primary.id}:__others`, label: `Otros (${rest})`, format: primary.format, other: true });
+    }
+  }
+
+  type Group = VaiGroupRow & { members: VaiRow[]; rank: number; order: number };
+  const sortIndex = widget.sortMetric && !breakdown ? metrics.findIndex((metric) => metric.id === widget.sortMetric) : -1;
+  let grouped: Group[] = [...groups.entries()].map(([key, members]) => {
+    const values = seriesMetrics.map((metric) => aggregate(metric, members));
+    // Posición por la primera métrica (el total de la fila en un desglose).
+    const total = breakdown ? aggregate(primary, members) : values[0];
+    return {
+      key,
+      label: temporal ? formatDateLabel(key, bucket) : key,
+      values,
+      count: members.length,
+      notes: [],
+      members,
+      rank: total ?? -Infinity,
+      order: (sortIndex > 0 ? values[sortIndex] : total) ?? -Infinity,
+    };
+  });
 
   if (temporal) grouped.sort((a, b) => a.key.localeCompare(b.key));
-  else grouped.sort((a, b) => (b.values[0] ?? -Infinity) - (a.values[0] ?? -Infinity));
+  else {
+    const byRank = [...grouped].sort((a, b) => b.rank - a.rank);
+    byRank.forEach((row, index) => {
+      row.rank = index + 1;
+    });
+    const mode = widget.sort ?? "value_desc";
+    const byLabel = (a: Group, b: Group) => a.label.localeCompare(b.label, "es", { numeric: true, sensitivity: "base" });
+    grouped.sort((a, b) =>
+      mode === "label_asc" ? byLabel(a, b)
+        : mode === "label_desc" ? byLabel(b, a)
+          : mode === "value_asc" ? a.order - b.order
+            : b.order - a.order,
+    );
+  }
 
   // Referencias para las notas, sobre todos los grupos antes de recortar:
   // total y promedio por categoría de las métricas sumables; la misma métrica
   // sobre todas las filas para tasas y promedios.
   const groupedTotal = grouped.length;
-  const totals = metrics.map((metric, j) => (ADDITIVE_AGGS.has(metric.agg) ? sumOf(grouped.map((row) => row.values[j] ?? 0)) : null));
-  const references = metrics.map((metric, j) => {
+  const totals = seriesMetrics.map((metric, j) => (ADDITIVE_AGGS.has(metric.agg) ? sumOf(grouped.map((row) => row.values[j] ?? 0)) : null));
+  const references = seriesMetrics.map((metric, j) => {
     if (RATE_AGGS.has(metric.agg)) return aggregate(metric, rows);
     if (metric.agg === "min" || metric.agg === "max") return null;
     const known = grouped.map((row) => row.values[j]).filter((v): v is number => v != null);
     return known.length ? sumOf(known) / known.length : null;
   });
 
-  const limit = widget.limit ?? (widget.type === "table" ? grouped.length : temporal ? 60 : widget.type === "donut" ? 6 : 12);
+  const limit = widget.limit ?? (widget.type === "table" ? grouped.length : temporal ? 60 : widget.type === "donut" ? 6 : widget.type === "scatter" ? 50 : 12);
   if (temporal && grouped.length > limit) grouped = grouped.slice(grouped.length - limit);
   else if (!temporal && grouped.length > limit) {
-    // El resto se agrupa en «Otros» solo para métricas sumables; el resto se omite.
+    // El resto se agrupa en «Otros» agregando sus filas originales; en un
+    // ranking o anillo solo cuando la métrica es sumable, y nunca en dispersión.
     const rest = grouped.slice(limit);
     grouped = grouped.slice(0, limit);
-    const additive = metrics.every((metric) => metric.agg === "sum" || metric.agg === "count");
-    if (additive && rest.length) {
+    const othersAllowed = widget.type !== "scatter" && (widget.type === "bar" || widget.type === "combo" || lineLike || widget.type === "table" || seriesMetrics.every((metric) => ADDITIVE_AGGS.has(metric.agg)));
+    if (othersAllowed && rest.length) {
+      const members = rest.flatMap((row) => row.members);
       grouped.push({
         key: "Otros",
         label: `Otros (${rest.length})`,
-        values: metrics.map((_, j) => rest.reduce((sum, row) => sum + (row.values[j] ?? 0), 0)),
-        count: rest.reduce((sum, row) => sum + row.count, 0),
+        values: seriesMetrics.map((metric) => aggregate(metric, members)),
+        count: members.length,
         notes: [],
-        members: rest.flatMap((row) => row.members),
+        members,
+        rank: 0,
+        order: 0,
       });
     }
+  }
+
+  // Acumulado a lo largo del tiempo (solo sumas y conteos, validado antes).
+  const cumulative = Boolean(widget.cumulative) && temporal;
+  if (cumulative) {
+    const running = seriesMetrics.map(() => 0);
+    grouped.forEach((row) => {
+      row.values = row.values.map((v, j) => {
+        running[j] += v ?? 0;
+        return running[j];
+      });
+    });
+  }
+
+  // Apilado al 100 %: cada fila pasa a participación; el valor absoluto va al tooltip.
+  const stack = widget.type === "bar" && widget.stack && series.length > 1 ? widget.stack : null;
+  const absolute = grouped.map((row) => [...row.values]);
+  if (stack === "percent") {
+    grouped.forEach((row) => {
+      const total = sumOf(row.values.filter((v): v is number => v != null && v > 0));
+      const shares = row.values.map((v) => (v == null || total <= 0 ? null : v > 0 ? Math.round((v / total) * 100000) / 1000 : 0));
+      // Cierre exacto a 100: el redondeo sobrante va a la participación mayor.
+      const known = shares.filter((v): v is number => v != null);
+      if (known.length) {
+        const largest = shares.indexOf(known.reduce((a, b) => Math.max(a, b)));
+        shares[largest] = Math.round(((shares[largest] ?? 0) + 100 - sumOf(known)) * 1000) / 1000;
+      }
+      row.values = shares;
+    });
+    series = series.map((item) => ({ ...item, format: "percent" }));
   }
 
   // Notas del tooltip por fila: las de cada métrica llevan su índice de serie
@@ -4004,37 +4686,41 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
   grouped.forEach((row, i) => {
     const notes: VaiNote[] = [];
     const other = !temporal && row.key === "Otros";
-    if (!temporal && !other) notes.push(["Posición", `#${i + 1} de ${groupedTotal}`]);
-    metrics.forEach((metric, j) => {
+    if (!temporal && !other) notes.push(["Posición", `#${row.rank} de ${groupedTotal}`]);
+    seriesMetrics.forEach((metric, j) => {
       const v = row.values[j];
       if (v == null) return;
+      if (stack === "percent") notes.push(["Valor", formatValue(absolute[i][j], metric.format), j]);
       if (temporal && i > 0) {
         const previous = grouped[i - 1];
         const change = relative(v, previous.values[j]);
-        if (change != null) notes.push([`Δ vs ${previous.label}`, `${signedPct(change)} (${signedDelta(v - (previous.values[j] ?? 0), metric.format)})`, j]);
+        if (change != null) notes.push([`Δ vs ${previous.label}`, `${signedPct(change)} (${signedDelta(v - (previous.values[j] ?? 0), series[j].format)})`, j]);
       }
       const total = totals[j];
-      if (widget.type !== "donut" && total) notes.push(["Participación", `${num((v / total) * 100, 1)} %`, j]);
-      const change = temporal || other ? null : relative(v, references[j]);
+      if (widget.type !== "donut" && stack !== "percent" && total) notes.push([cumulative ? "Avance del total" : "Participación", `${num((v / total) * 100, 1)} %`, j]);
+      const change = temporal || other || stack === "percent" ? null : relative(v, references[j]);
       if (change != null) notes.push([RATE_AGGS.has(metric.agg) ? "vs global" : `vs promedio por ${dimensionLabel}`, signedPct(change), j]);
     });
+    if (stack === "stack") notes.push(["Total apilado", formatValue(sumOf(row.values.filter((v): v is number => v != null)), primary.format)]);
     notes.push(["Filas", num(row.count, 0)]);
     row.notes = notes;
   });
 
   const first: VaiSeriesDef = temporal
-      ? { id: widget.dateField ?? "period", label: "Período", format: "text" }
-      : { id: widget.dimension ?? "dimension", label: vaiField(source, widget.dimension ?? "")?.label ?? "Categoría", format: "text" };
+    ? { id: widget.dateField ?? "period", label: "Período", format: "text" }
+    : { id: widget.dimension ?? "dimension", label: vaiField(source, widget.dimension ?? "")?.label ?? "Categoría", format: "text" };
   const table: VaiTableData = {
-      kind: "table",
-      columns: [first, ...series, { id: "__count", label: "Filas", format: "integer" }],
-      rows: grouped.map((row) => [row.label, ...row.values, row.count]),
-      total: groupedTotal,
-      summaryRules: [null, ...metrics.map((metric) => summaryRule(widget, metric.id, metric)), { operation: "sum", label: "Total" }],
-      rowMembers: grouped.map((row) => row.members),
-    };
+    kind: "table",
+    columns: [first, ...series, { id: "__count", label: "Filas", format: "integer" }],
+    rows: grouped.map((row) => [row.label, ...row.values, row.count]),
+    total: groupedTotal,
+    // Cada columna de un desglose resume con su propia condición (categoría);
+    // las participaciones del apilado al 100 % no se resumen.
+    summaryRules: [null, ...seriesMetrics.map((metric) => (stack === "percent" ? null : summaryRule(widget, breakdown ? primary.id : metric.id, metric))), { operation: "sum", label: "Total" }],
+    rowMembers: grouped.map((row) => row.members),
+  };
   if (widget.type === "table") return table;
-  return { kind: "series", series, rows: grouped, temporal, table };
+  return { kind: "series", series, rows: grouped, temporal, table, breakdown: breakdownField?.label ?? null, stack, cumulative };
 }
 
 /** Filas filtradas por fuente para un dashboard completo. */
