@@ -2467,7 +2467,11 @@ export default function FixAssetsCat() {
           comp_date: draft.comp_date || null,
           acquisition_date: draft.acquisition_date || null,
           operation_date: draft.operation_date || null,
-          disposal_date: draft.disposal_date || null,
+          update_disposal_date: draft.disposal_date !== originals[code]?.disposal_date,
+          disposal_date:
+            draft.disposal_date !== originals[code]?.disposal_date
+              ? draft.disposal_date || null
+              : undefined,
           exc_rate: draft.exc_rate.trim() ? Number(draft.exc_rate) : null,
           asset_ini_cost_pen: draft.asset_ini_cost_pen.trim() ? Number(draft.asset_ini_cost_pen) : null,
           asset_ini_cost_usd: draft.asset_ini_cost_usd.trim() ? Number(draft.asset_ini_cost_usd) : null,
