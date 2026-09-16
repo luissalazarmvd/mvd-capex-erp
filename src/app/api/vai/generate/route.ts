@@ -35,7 +35,7 @@ export const maxDuration = 180;
 const VAI_OPENAI_MODEL = "gpt-5-mini";
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const OPENAI_TIMEOUT_MS = 150_000;
-const MAX_CANDIDATES = 5;
+const MAX_CANDIDATES = 6;
 
 
 type VaiGenerateOptions = {
@@ -117,6 +117,9 @@ function sourceContext(source: VaiSource) {
     grain: source.grain,
     temporalMode: source.temporalMode ?? "event",
     defaultDateField: source.defaultDateField ?? null,
+    serverFilters: source.query
+      ? { dateFields: source.query.dateFields, dimensions: source.query.dimensions, note: "from/to del date_range se resuelven en SQL sobre estos campos; el resto se calcula en el navegador." }
+      : null,
     rules: [...source.rules, ...(source.exclusions ?? []).map((c) => `Exclusión fija: ${c.field} ${c.op} ${JSON.stringify(c.value ?? "")}.`)],
     businessTerms: source.keywords,
     dateFields: source.fields
@@ -168,11 +171,16 @@ Reglas obligatorias:
 - Todo filtro date_range debe incluir preset. Usa null si el usuario no pidió un período relativo. Valores permitidos: ${VAI_DATE_PRESETS.join(", ")}.
 - Todo filtro incluye from y to (YYYY-MM-DD o null). Para períodos absolutos guarda sus límites inclusivos y preset=null: "setiembre de 2026" o "septiembre de 2026" es from="2026-09-01", to="2026-09-30". Nunca sustituyas un mes solicitado por todo el año ni lo dejes solo en el título. Usa currentDateLima como referencia para fechas relativas, nunca supongas la fecha actual.
 - Si el usuario no indica período, usa desde 2026-01-01 hasta currentDateLima sobre defaultDateField de cada fuente de eventos. Si pide todo el histórico de forma explícita, no agregues rango. No apliques esta regla a fuentes snapshot.
+- serverFilters indica qué campos de fecha resuelve el backend en SQL: el date_range de una fuente debe usar preferentemente uno de esos dateFields para que la consulta descargue solo el período pedido.
 - Cada widget incluye summaries: [] por defecto. Las tablas siempre calculan resúmenes apropiados desde el catálogo. Si el usuario pide un resumen específico, añade {column: id de campo/ métrica de la tabla, operation: auto|sum|avg|min|max|none}. avg significa promedio de las filas mostradas; auto recalcula la métrica sobre los registros originales y conserva ponderaciones. Nunca sumes tasas, porcentajes, promedios ni atributos de cabecera repetidos. Identificadores y fechas no llevan resumen numérico.
 - En combustible y recorridos, elige la granularidad de la fuente que corresponda a la petición: vale para auditoría individual, día para fechas exactas o períodos menores a un mes y mes para tendencias de meses completos. Las fuentes resumen ya aplican apply_factor=1. Usa las métricas declaradas para consolidar ratios; no agregues directamente los ratios de cada fila. Distingue costo PEN, costo USD y valores con moneda desconocida, sin convertir ni mezclar monedas. Consumo y costos incluyen todo el universo; las métricas de eficiencia usan únicamente is_vehicle=1. Presenta group_name como Sede. No uses status_name para conclusiones porque sus umbrales no son oficiales.
 - Para una petición simple de "dashboard de combustible", prioriza: galones consumidos, costos PEN y USD separados, costo promedio por galón por moneda, consumo promedio por vehículo en galones y costo, y cantidad de vehículos. Si una moneda o precio no está identificado, muéstralo por separado.
 - Para una petición simple de Kardex, toma como referencia los KPIs actuales de KardexSum: guías, TMH enviadas, lotes por guía, USD facturado, USD Concar y diferencia; acompáñalos cuando corresponda con merma, tiempo de tránsito, tarifa media y TMH por guía. El importe oficial facturado es amount_usd de facturas; Concar es solo contraste contable.
-- En Trazabilidad, "ingresados", "procesados", "valorizados", "facturados" y "pagados" corresponden respectivamente a entry_date, process_date, valuation_date, doc_date y payment_date. Para un dashboard típico prioriza lotes, proveedores, lotes sin valorización, lotes sin pago, USD/TMS promedio simple, leyes Au/Ag ponderadas por TMS, monto valorizado y monto pagado.
+- En Trazabilidad, "ingresados", "procesados", "valorizados", "facturados" y "pagados" corresponden respectivamente a entry_date, process_date, valuation_date, doc_date y payment_date. Para un dashboard típico prioriza lotes, proveedores, lotes sin valorización, lotes sin pago, USD/TMS promedio simple, leyes Au/Ag ponderadas por TMS, monto valorizado y monto pagado. "Por sede/oficina" usa office_name (o zone_name para Sur/Norte/Sur Aqp); "programa" y "adicional" usan program_class. El cumplimiento de metas por oficina se muestra con traceability_targets y traceability_payments en widgets separados (no se cruzan fuentes). Los pagos efectivos por comprobante están en traceability_payment_vouchers y el stock de mineral en cancha en traceability_stock.
+- En Planta, plant_shifts es la fuente principal del balance; los costos por cuenta/CECO y USD/TMS usan plant_costs; los costos e insumos por guardia (reactivos y bolas) usan plant_consumables; las leyes de carbón en tanques usan plant_carbon_tanks; la conciliación planta vs Control de Mineral usa plant_cm_reconciliation. Los ratios kg/TMS y USD/TMS se calculan con las métricas declaradas (TMS contada una vez por guardia o mes), nunca sumando atributos repetidos.
+- En Refinería, el período es campaign_month; el costo por campaña, por gramo de Au o por kg de carbón está disponible en refinery_campaigns y por insumo/subproceso en refinery_consumption (real vs óptimo ML). Cada insumo conserva su unidad: cantidades y desviaciones de cantidad solo con un insumo filtrado o agrupado; los costos USD sí se consolidan.
+- En Logística, el stock actual (Chala, CEVA, pendiente de OC, cobertura y valor) usa logistics_stock; el consumo de almacén por centro de costo o familia usa logistics_consumption; requerimientos y OC usan logistics_requirements.
+- En Kardex, trjkar_guides ya trae lotes por guía, horas de tránsito y PERD/EXCE por guía; trjkar_lots es el detalle por movimiento (movement_type OPERATIVO/PERD/EXCE); trjkar_invoices trae la diferencia contra Concar por factura.
 - En Activos Fijos, "activos de <período>" usa acquisition_date. Una foto de valor actual por área no lleva filtro de fecha salvo que se pida explícitamente adquisición, operación o baja. Presenta PEN y USD en widgets separados.
 - En Logística, requerimientos usa req_date; compras u órdenes de compra usa po_date; entregas usa delivery_date. En Flota de mantenimiento, el período predeterminado usa req_date.
 - Los valores nulos de dimensiones se muestran como "Sin dato"; los nulos numéricos se excluyen de los cálculos. Si la ausencia cambia la interpretación, incluye el conteo o detalle correspondiente.

@@ -38,6 +38,7 @@ import {
   listDashboards,
   parseStoredSpec,
   saveDashboard,
+  sourceRequestPath,
   summarizeTable,
   vaiAreaLabel,
   vaiField,
@@ -622,7 +623,15 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
   const [data, setData] = useState<Record<string, SourceState>>({});
   const [filters, setFilters] = useState<VaiFilterState>({});
 
+  // Rutas por fuente con el rango de fechas resuelto en SQL; la clave solo
+  // cambia cuando cambia un rango, no cuando cambia un filtro de selección.
+  const requestKey = useMemo(
+    () => JSON.stringify(Object.fromEntries(sources.map((source) => [source.id, sourceRequestPath(source, spec.filters, filters)]))),
+    [sources, spec.filters, filters],
+  );
+
   const load = useCallback(async () => {
+    const paths = JSON.parse(requestKey) as Record<string, string>;
     setData((prev) => {
       const next = { ...prev };
       for (const source of sources) next[source.id] = { rows: prev[source.id]?.rows ?? [], loading: true, error: null, loadedAt: prev[source.id]?.loadedAt ?? null };
@@ -631,7 +640,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
     await Promise.all(
       sources.map(async (source) => {
         try {
-          const out = await apiGet(source.endpoint);
+          const out = await apiGet(paths[source.id] ?? source.endpoint);
           const rows = Array.isArray(out?.rows) ? (out.rows as VaiRow[]) : [];
           setData((prev) => ({ ...prev, [source.id]: { rows, loading: false, error: null, loadedAt: Date.now() } }));
         } catch (error) {
@@ -642,7 +651,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
         }
       }),
     );
-  }, [sources]);
+  }, [sources, requestKey]);
 
   useEffect(() => {
     setFilters({});
