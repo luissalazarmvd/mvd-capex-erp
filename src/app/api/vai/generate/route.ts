@@ -15,6 +15,8 @@ import {
   VAI_STACK_MODES,
   VAI_SUMMARY_OPERATIONS,
   VAI_WIDGET_TYPES,
+  VAI_VISUAL_CATALOG,
+  resolveVisualRequests,
   coerceModelOutput,
   limaToday,
   promptRenderHints,
@@ -24,15 +26,19 @@ import {
   type VaiFocus,
   type VaiModelOutput,
   type VaiSource,
+  type VaiValidation,
 } from "@/src/lib/vai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
-const VAI_OPENAI_MODEL = "gpt-5-mini";
+// Configuración exclusivamente server-side; API_OPEN_AI no cambia.
+const VAI_OPENAI_MODEL = process.env.VAI_OPENAI_MODEL?.trim() || "gpt-5.4";
+const VAI_REASONING = ["low", "medium", "high"].includes(process.env.VAI_OPENAI_REASONING ?? "")
+  ? process.env.VAI_OPENAI_REASONING! : "medium";
 const OPENAI_URL = "https://api.openai.com/v1/responses";
-const OPENAI_TIMEOUT_MS = 150_000;
+const OPENAI_TIMEOUT_MS = 155_000;
 const MAX_CANDIDATES = 6;
 
 type VaiGenerateOptions = {
@@ -397,17 +403,22 @@ Reglas obligatorias:
   · line = tendencia temporal (metrics + dateField + bucket) o comparación categórica (metrics + dimension, dateField=null).
   · area = igual que line, con relleno bajo cada serie; úsalo cuando pidan "gráfico de área".
   · bar = barras agrupadas por dimension (categórico) o por dateField (temporal). Con "stack": "stack" se apilan y con "percent" se apilan al 100 %; solo para métricas sumables de la misma unidad o con breakdown.
-  · combo = barras + líneas en un mismo gráfico: 2 o 3 métricas y "seriesTypes" alineado 1 a 1 con "metrics" (valores "bar"/"line"); eje X categórico (dimension) o temporal (dateField). Es obligatorio cuando el usuario mezcla barras y líneas, pide un eje secundario o compara dos unidades distintas en un solo gráfico (galones vs PEN, TMH vs USD, cantidad vs porcentaje). El renderer asigna el eje Y derecho automáticamente a la unidad distinta.
+  · combo = barras + líneas en un mismo gráfico: 2 o 3 métricas y "seriesTypes" alineado 1 a 1 con "metrics" (valores "bar"/"line"); eje X categórico (dimension) o temporal (dateField). Es obligatorio cuando el usuario mezcla barras y líneas. Dos unidades o un eje secundario por sí solos NO autorizan cambiar las marcas que pidió el usuario: dos líneas siguen siendo line y dos barras siguen siendo bar. El renderer asigna el eje Y derecho automáticamente a la unidad distinta.
   · rank = Top N horizontal de 1 métrica por dimension (una 2.ª métrica se muestra como nota); también para "barras horizontales".
   · donut = distribución de exactamente 1 métrica sumable por dimension ("torta", "pastel", "anillo", "pie").
   · scatter = dispersión o correlación: exactamente 2 métricas por dimension (eje X = primera métrica, eje Y = segunda); un punto por categoría, con recta de tendencia.
+  · pareto = una métrica aditiva por dimension: barras descendentes y línea % acumulado calculada localmente. metrics contiene SOLO la métrica base; no inventes un id de porcentaje acumulado.
+  · heatmap = una métrica por dimension O dateField (filas) y breakdown (columnas). Usa etiquetas reales del catálogo; por ejemplo fecha mensual + sede.
+  · histogram = frecuencia por intervalos sobre el campo numérico directo de una métrica simple (sum/avg/min/max). metrics contiene UNA métrica con field numérico; dimension/dateField/breakdown null, bins 3 a 40 o null (automático). No es una suma por sede ni una distribución de ratios agregados.
+  · waterfall = cascada de aportes positivos/negativos de UNA métrica aditiva por dimension/dateField. Parte de cero y añade total neto; no inventa saldo inicial, saldo final ni variaciones entre métricas.
   · table = detalle (columns) o agrupada (dimension o dateField + metrics); con breakdown es una tabla dinámica (pivot).
-- "breakdown" (segunda dimensión, opcional) divide la PRIMERA métrica en una serie por categoría: "una línea por sede", "barras apiladas por tipo de combustible", "desglosado por conductor", "tabla de galones por sede y grifo". Solo en line, area, bar y table; con breakdown usa una sola métrica y una dimensión distinta de "dimension". Se dibujan hasta ${VAI_BREAKDOWN_CHART_LIMIT} series (el resto sale como «Otros»); en tablas hasta ${VAI_BREAKDOWN_TABLE_LIMIT} columnas.
+- "breakdown" (segunda dimensión, opcional) divide la PRIMERA métrica en una serie por categoría: "una línea por sede", "barras apiladas por tipo de combustible", "desglosado por conductor", "tabla de galones por sede y grifo". Solo en line, area, bar, heatmap y table; con breakdown usa una sola métrica y una dimensión distinta de "dimension". Se dibujan hasta ${VAI_BREAKDOWN_CHART_LIMIT} series (el resto sale como «Otros»); en tablas hasta ${VAI_BREAKDOWN_TABLE_LIMIT} columnas.
 - "sort" ordena las categorías del eje X: ${VAI_SORT_MODES.join(", ")} (value_desc es el predeterminado; "de menor a mayor" = value_asc; "orden alfabético" = label_asc). "sortMetric" es el id de la métrica que manda cuando no es la primera. En ejes temporales ambos van en null.
 - "cumulative": true acumula a lo largo del tiempo ("acumulado", "curva acumulada", "avance acumulado"); solo con dateField y métricas sumables; si no, null.
 - "bucket": ${VAI_BUCKETS.join("/")} según pidan diario, semanal, mensual, trimestral o anual; month si no dicen nada; null sin dateField.
 - Traducción obligatoria de instrucciones visuales del usuario cuando aparezcan en la petición:
-  · "X en barras y Y en líneas", "barras de X con línea de Y", "Y como línea", "eje secundario para Y" → type "combo", metrics [X, Y], seriesTypes ["bar", "line"] en ese orden.
+  · "X en barras y Y en líneas", "barras de X con línea de Y" → type "combo", metrics [X, Y], seriesTypes ["bar", "line"]. Respeta también la combinación inversa (X línea, Y barra) y varias barras con una línea.
+  · "eje secundario para Y" → seriesAxes asigna "right" a Y; no cambia su marca si pidió dos líneas o dos barras.
   · "apilado", "apiladas" → bar + stack "stack"; "apilado al 100 %", "porcentual", "participación apilada" → stack "percent".
   · "una línea/serie/barra por <dimensión>", "desglosado/segmentado/separado/dividido por <dimensión>", "por <eje> y <dimensión>" → breakdown = esa dimensión.
   · "acumulado" → cumulative true. "torta/pastel/anillo/pie" → donut. "ranking/top N/barras horizontales" → rank. "dispersión/correlación/scatter" → scatter. "gráfico de área" → area. "tabla dinámica/pivot/matriz" → table + dimension + breakdown.
@@ -418,7 +429,12 @@ Reglas obligatorias:
 - Si el usuario pide un gráfico por una clasificación no temporal, no sustituyas esa clasificación por una fecha solo porque la fuente tenga defaultDateField.
 - En line, area, bar y combo, "seriesTypes" indica cómo se dibuja cada métrica, alineado 1 a 1 con "metrics", con valores "line" o "bar"; en los demás tipos va null.
 - Combina métricas en un mismo gráfico solo cuando la lectura sea clara. Considera siempre el format/unidad de cada métrica: tonelaje, leyes, porcentajes, moneda, horas, conteos, etc. El renderer usa eje Y secundario cuando hay dos unidades incompatibles o escalas muy distintas. No combines más de dos familias de escala incompatibles en un mismo gráfico; si hacen falta más, sepáralas en widgets distintos.
-- Un dashboard completo mezcla formas: KPIs para los totales, un gráfico principal que responda exactamente a la instrucción visual del usuario, una tendencia temporal cuando la fuente es de eventos, una comparación categórica (bar, rank, donut o combo) y, si aporta, una tabla agrupada o de detalle. No repitas la misma métrica con la misma dimensión en dos gráficos.
+- "seriesAxes": array alineado con metrics ("left", "right" o null), solo gráficos de series. Prioriza la asignación explícita de izquierda/derecha del usuario; si no indicó lados, agrupa por unidad. Nunca mezcles PEN con galones en un mismo eje.
+- "includeOthers": null por defecto, false para rankings salvo petición expresa. "limit": null para mostrar todas las sedes/categorías/períodos de un eje; NO agregues Top 12, Top 50 u Otros por rutina. Solo fija limit si pide Top N o un ranking. "bins" solo para histogram.
+- Respeta las negaciones: "no quiero tortas" NO solicita donut. Cada instrucción pertenece a su gráfico: no conviertas una tendencia mensual o un ranking adicional al combo del gráfico principal.
+- Antes de devolver el JSON verifica internamente cada gráfico explícito contra type, dimension/dateField, metrics, seriesTypes, seriesAxes, breakdown y período. Un título que dice "barras y línea" NO satisface el pedido si type=donut o falta la línea. Las preferencias de botones y la variedad visual son secundarias al texto del usuario.
+- No prometas capacidades no implementadas: bubble con tamaño, boxplot, treemap, Sankey, mapas geográficos, objetivos no catalogados y pronósticos sin datos/modelos NO se sustituyen silenciosamente por otro tipo. Informa la parte no disponible; no inventes funciones ni métricas.
+- Un dashboard completo mezcla formas: KPIs para los totales, un gráfico principal que responda exactamente a la instrucción visual del usuario, una tendencia temporal cuando la fuente es de eventos, una comparación categórica (bar, rank, donut o combo) y, si aporta, una tabla agrupada o de detalle. No repitas la misma métrica con la misma dimensión en dos gráficos, salvo que el usuario haya pedido esas dos vistas explícitamente.
 - Ejemplos de widgets bien formados (ids ilustrativos de Vales de combustible; usa siempre los ids de la fuente elegida):
   · Sedes en eje X, galones en barras y PEN en línea → {"type":"combo","title":"Galones y costo PEN por sede","source":"fleet_fuel_refuels","metrics":["qty_total","cost_pen_known"],"seriesTypes":["bar","line"],"dimension":"group_name","dateField":null,"bucket":null,"limit":null,"columns":null,"summaries":[],"breakdown":null,"stack":null,"sort":null,"sortMetric":null,"cumulative":null}
   · Galones mensuales apilados por tipo de combustible → {"type":"bar","title":"Galones por mes y tipo de combustible","source":"fleet_fuel_refuels","metrics":["qty_total"],"seriesTypes":null,"dimension":null,"dateField":"date_cons","bucket":"month","limit":null,"columns":null,"summaries":[],"breakdown":"type_fuel","stack":"stack","sort":null,"sortMetric":null,"cumulative":null}
@@ -696,6 +712,19 @@ const OUTPUT_SCHEMA = {
                     description:
                       "Id de la métrica que decide el orden cuando no es la primera; null en caso contrario.",
                   },
+                  seriesAxes: {
+                    type: ["array", "null"],
+                    items: { type: ["string", "null"], enum: [null, "left", "right"] },
+                    description: "Lados Y alineados con metrics; null = automático por unidad.",
+                  },
+                  includeOthers: {
+                    type: ["boolean", "null"],
+                    description: "Añadir Otros al Top N solo si se solicita; null = solo anillo por defecto.",
+                  },
+                  bins: {
+                    type: ["integer", "null"],
+                    description: "Solo histogram: entre 3 y 40 intervalos de igual ancho, null = automático.",
+                  },
                   cumulative: {
                     type: [
                       "boolean",
@@ -711,6 +740,9 @@ const OUTPUT_SCHEMA = {
                   "source",
                   "metrics",
                   "seriesTypes",
+                  "seriesAxes",
+                  "includeOthers",
+                  "bins",
                   "dimension",
                   "dateField",
                   "bucket",
@@ -772,6 +804,10 @@ const CHART_PREFERENCE_TEXT: Record<VaiChartPreference, string> = {
   rank: "rank (Top N horizontal)",
   donut: "donut (distribución)",
   scatter: "scatter (dispersión de dos métricas)",
+  pareto: "pareto (barras + porcentaje acumulado)",
+  heatmap: "heatmap (mapa de calor)",
+  histogram: "histogram (frecuencia por intervalos de registros)",
+  waterfall: "waterfall (cascada de aportes y total neto)",
   table: "table",
 };
 
@@ -862,238 +898,91 @@ class VaiGenerationError extends Error {
 async function generateDashboardSpec(
   prompt: string,
   options: VaiGenerateOptions,
-): Promise<{
-  output: VaiModelOutput;
-  candidates: string[];
-}> {
-  const apiKey =
-    process.env.API_OPEN_AI?.trim();
-
-  if (!apiKey) {
-    throw new VaiGenerationError(
-      "V-Ai no está configurado en este entorno.",
-      "missing API_OPEN_AI",
-    );
-  }
-
-  const candidates =
-    selectCandidateSources(
-      prompt,
-      options.area,
-    );
-
+): Promise<{ output: VaiModelOutput; candidates: string[]; model: string; validation: VaiValidation }> {
+  const apiKey = process.env.API_OPEN_AI?.trim();
+  if (!apiKey) throw new VaiGenerationError("V-Ai no está configurado en este entorno.", "missing API_OPEN_AI");
+  const candidates = selectCandidateSources(prompt, options.area);
+  const ids = candidates.map((source) => source.id);
   const context = {
-    currentDateLima:
-      limaToday(),
-    defaultHistoryStart:
-      "2026-01-01",
-    catalogIndex:
-      VAI_SOURCES.filter(
-        (source) =>
-          source.enabled,
-      ).map((source) => ({
-        id: source.id,
-        name: source.name,
-        area:
-          VAI_AREAS.find(
-            (item) =>
-              item.id ===
-              source.area,
-          )?.label ??
-          source.area,
-        description:
-          source.description,
-        explicitOnly:
-          source.explicitOnly ??
-          false,
-        detailed:
-          candidates.includes(
-            source,
-          ),
-      })),
-    sources:
-      candidates.map(
-        sourceContext,
-      ),
-    // Instrucciones visuales detectadas localmente en la petición; el mismo
-    // detector las impone después sobre la respuesta, así que conviene
-    // reflejarlas ya en el diseño.
-    visualInstructions:
-      visualInstructions(prompt),
-    preferences: {
-      focus:
-        FOCUS_TEXT[
-          options.focus
-        ],
-      preferredWidgets:
-        options.charts.length
-          ? options.charts.map(
-              (chart) =>
-                CHART_PREFERENCE_TEXT[chart],
-            )
-          : "sin preferencia",
-      areaRestriction:
-        options.area ===
-        "auto"
-          ? "ninguna"
-          : VAI_AREAS.find(
-              (item) =>
-                item.id ===
-                options.area,
-            )?.label,
-    },
+    currentDateLima: limaToday(), defaultHistoryStart: "2026-01-01",
+    catalogIndex: VAI_SOURCES.filter((source) => source.enabled && (options.area === "auto" || source.area === options.area))
+      .map((source) => ({ id: source.id, name: source.name, area: source.area,
+        description: source.description, explicitOnly: source.explicitOnly ?? false, detailed: candidates.includes(source) })),
+    sources: candidates.map(sourceContext),
+    visualCatalog: VAI_VISUAL_CATALOG,
+    visualInstructions: visualInstructions(prompt),
+    explicitVisualRequests: resolveVisualRequests(prompt, ids),
+    preferences: { focus: FOCUS_TEXT[options.focus], preferredWidgets: options.charts.map((chart) => CHART_PREFERENCE_TEXT[chart]),
+      areaRestriction: options.area },
     request: prompt,
   };
-
-  const controller =
-    new AbortController();
-
-  const timer =
-    setTimeout(
-      () =>
-        controller.abort(),
-      OPENAI_TIMEOUT_MS,
-    );
-
-  let response: Response;
-
-  try {
-    response = await fetch(
-      OPENAI_URL,
-      {
-        method: "POST",
-        headers: {
-          Authorization:
-            `Bearer ${apiKey}`,
-          "Content-Type":
-            "application/json",
-        },
-        cache: "no-store",
-        signal:
-          controller.signal,
+  const deadline = Date.now() + OPENAI_TIMEOUT_MS;
+  let feedback: string[] = [];
+  let previous: VaiModelOutput | null = null;
+  // A lo sumo dos llamadas. La segunda solo repara un contrato incumplido.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const remaining = deadline - Date.now();
+    if (remaining < 8_000) break;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.min(remaining, attempt === 0 ? 100_000 : remaining));
+    let payload: unknown;
+    try {
+      const response = await fetch(OPENAI_URL, {
+        method: "POST", cache: "no-store", signal: controller.signal,
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model:
-            VAI_OPENAI_MODEL,
-          reasoning: {
-            effort: "low",
-          },
+          model: VAI_OPENAI_MODEL, store: false, max_output_tokens: 20000,
+          ...(/^(?:gpt-[56]|o[134])/.test(VAI_OPENAI_MODEL) ? { reasoning: { effort: VAI_REASONING } } : {}),
           input: [
-            {
-              role: "system",
-              content: [
-                {
-                  type:
-                    "input_text",
-                  text:
-                    SYSTEM_PROMPT,
-                },
-              ],
-            },
-            {
-              role: "user",
-              content: [
-                {
-                  type:
-                    "input_text",
-                  text:
-                    JSON.stringify(
-                      context,
-                    ),
-                },
-              ],
-            },
+            { role: "system", content: [{ type: "input_text", text: SYSTEM_PROMPT }] },
+            { role: "user", content: [{ type: "input_text", text: JSON.stringify({ ...context,
+              ...(attempt ? { repair: { instruction: "Repara el diseño completo. No basta cambiar títulos; corrige ids, tipos de serie y ejes. Solo datos del catálogo.",
+                problems: feedback, previousSpecification: previous } } : {}) }) }] },
           ],
-          text: {
-            format: {
-              type:
-                "json_schema",
-              name:
-                "vai_dashboard",
-              strict: true,
-              schema:
-                OUTPUT_SCHEMA,
-            },
-          },
+          text: { format: { type: "json_schema", name: "vai_dashboard", strict: true, schema: OUTPUT_SCHEMA } },
         }),
-      },
-    );
-  } catch (error) {
-    const aborted =
-      error instanceof
-        Error &&
-      error.name ===
-        "AbortError";
-
-    throw new VaiGenerationError(
-      aborted
-        ? "El servicio de IA tardó demasiado en responder. Inténtalo de nuevo."
-        : "No se pudo contactar al servicio de IA.",
-      error instanceof Error
-        ? error.message
-        : String(error),
-    );
-  } finally {
-    clearTimeout(timer);
+      });
+      // El timeout cubre también la descarga y el parseo, no solo las cabeceras.
+      const bodyText = await response.text();
+      if (!response.ok) {
+        const message = response.status === 401 || response.status === 403
+          ? "La API de IA rechazó las credenciales o el acceso al modelo. Revisa la configuración de V-Ai."
+          : response.status === 429 ? "La API de IA alcanzó su límite de uso. Inténtalo nuevamente en unos minutos."
+          : response.status === 404 ? "El modelo configurado no está disponible para esta API. Revisa VAI_OPENAI_MODEL."
+          : "El servicio de IA devolvió un error. Inténtalo nuevamente.";
+        throw new VaiGenerationError(message, `openai status=${response.status} model=${VAI_OPENAI_MODEL}`);
+      }
+      try { payload = JSON.parse(bodyText); }
+      catch { throw new VaiGenerationError("La API de IA devolvió una respuesta que no es JSON."); }
+    } catch (error) {
+      if (error instanceof VaiGenerationError) throw error;
+      const aborted = controller.signal.aborted;
+      if (aborted && attempt === 0 && deadline - Date.now() > 15_000) {
+        feedback = ["La primera generación agotó su tiempo. Devuelve un diseño más compacto sin omitir el gráfico principal."];
+        continue;
+      }
+      throw new VaiGenerationError(aborted ? "La generación agotó su tiempo. No se guardó un diseño incompleto."
+        : "No se pudo contactar al servicio de IA.");
+    } finally { clearTimeout(timer); }
+    const record = payload as { status?: string; incomplete_details?: { reason?: string }; output?: unknown[] };
+    if (record.status === "incomplete" || record.status === "failed") {
+      feedback = [`Respuesta ${record.status}: ${record.incomplete_details?.reason ?? "sin diseño completo"}. Devuelve un diseño compacto válido.`];
+      continue;
+    }
+    const text = extractOutputText(payload);
+    let parsed: unknown = null;
+    try { parsed = JSON.parse(text); } catch { /* se repara una sola vez */ }
+    const output = coerceModelOutput(parsed);
+    if (!output) { feedback = ["Falta una respuesta JSON completa conforme al esquema."]; continue; }
+    previous = output;
+    const validation = validateModelOutput(output, prompt, ids);
+    if (validation.issues?.length) { feedback = validation.issues; continue; }
+    return { output, candidates: ids, model: VAI_OPENAI_MODEL, validation };
   }
-
-  if (!response.ok) {
-    const detail =
-      await response
-        .text()
-        .catch(() => "");
-
-    throw new VaiGenerationError(
-      "El servicio de IA devolvió un error. Inténtalo de nuevo en unos minutos.",
-      `openai ${response.status}: ${detail.slice(0, 500)}`,
-    );
-  }
-
-  const payload =
-    (
-      await response
-        .json()
-        .catch(
-          () => null,
-        )
-    ) as unknown;
-
-  const text =
-    extractOutputText(
-      payload,
-    );
-
-  let parsed:
-    unknown = null;
-
-  try {
-    parsed =
-      text
-        ? JSON.parse(text)
-        : null;
-  } catch {
-    parsed = null;
-  }
-
-  const output =
-    coerceModelOutput(
-      parsed,
-    );
-
-  if (!output) {
-    throw new VaiGenerationError(
-      "La respuesta de la IA no tiene el formato esperado.",
-      `unparseable output: ${String(text).slice(0, 300)}`,
-    );
-  }
-
-  return {
-    output,
-    candidates:
-      candidates.map(
-        (source) =>
-          source.id,
-      ),
-  };
+  throw new VaiGenerationError(
+    `No se pudo construir un diseño que respete la solicitud. ${feedback.slice(0, 2).join(" ")}`,
+    `visual contract not satisfied model=${VAI_OPENAI_MODEL}`,
+  );
 }
 
 function extractOutputText(
@@ -1178,18 +1067,7 @@ const FOCUS: VaiFocus[] = [
   "detail",
 ];
 
-const CHARTS:
-  VaiChartPreference[] = [
-    "kpi",
-    "line",
-    "area",
-    "bar",
-    "combo",
-    "rank",
-    "donut",
-    "scatter",
-    "table",
-  ];
+const CHARTS: readonly VaiChartPreference[] = VAI_WIDGET_TYPES;
 
 export async function POST(
   req: Request,
@@ -1231,7 +1109,7 @@ export async function POST(
     String(
       body.prompt ?? "",
     )
-      .replace(/\s+/g, " ")
+      .replace(/[ \t]+/g, " ")
       .trim();
 
   if (
@@ -1315,6 +1193,8 @@ export async function POST(
     const {
       output,
       candidates,
+      model,
+      validation,
     } =
       await generateDashboardSpec(
         prompt,
@@ -1329,10 +1209,7 @@ export async function POST(
       spec,
       notes,
     } =
-      validateModelOutput(
-        output,
-        prompt,
-      );
+      validation;
 
     if (!spec) {
       const unavailable =
@@ -1378,6 +1255,7 @@ export async function POST(
       unavailable,
       spec,
       candidates,
+      model,
     });
   } catch (error) {
     if (

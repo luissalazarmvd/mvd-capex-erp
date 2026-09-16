@@ -25,6 +25,10 @@ export type ChartSeries = {
   digits?: number;
   unit?: string;
   axisKey?: string;
+  /** Lado explícito: no depende de magnitudes ni cambia al filtrar. */
+  axisSide?: "left" | "right";
+  /** Rango fijo opcional (ej. 0..100 para la línea de Pareto). */
+  axisRange?: [number, number];
   seriesType?: "bar" | "line";
 };
 /**
@@ -354,10 +358,10 @@ function ChartCard({
 
   return (
     <section className="trjk-card trjk-chart" style={{ height: "100%", minWidth: 0 }}>
-      <div className="trjk-chart-head" style={{ alignItems: "flex-start", gap: 12 }}>
+      <div className="trjk-chart-head" style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 12 }}>
         <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-          <h3>{title}</h3>
-          <p className="trjk-chart-sub">{subtitle}</p>
+          <h3 style={{ whiteSpace: "normal", overflow: "visible", textOverflow: "clip", overflowWrap: "anywhere", lineHeight: 1.4 }}>{title}</h3>
+          <p className="trjk-chart-sub" style={{ whiteSpace: "normal", overflow: "visible", textOverflow: "clip", overflowWrap: "anywhere", lineHeight: 1.5 }}>{subtitle}</p>
         </div>
         {hasLegend || controls ? (
           <div
@@ -368,14 +372,17 @@ function ChartCard({
               gap: 10,
               flexWrap: "wrap",
               minWidth: 0,
-              maxWidth: "62%",
+              maxWidth: "100%",
+              flex: "1 1 260px",
             }}
           >
             {hasLegend ? (
-              <div className="trjk-legend">
+              <div className="trjk-legend" style={{ display: "flex", flexWrap: "wrap", gap: "7px 14px", whiteSpace: "normal" }}>
                 {series!.map((s) => (
                   <span key={s.label}>
-                    <i data-kind={s.seriesType ?? kind} style={{ background: s.color }} />
+                    <i data-kind={s.seriesType ?? kind} style={{ background: s.color,
+                      display: "inline-block", width: (s.seriesType ?? kind) === "line" ? 18 : 9,
+                      height: (s.seriesType ?? kind) === "line" ? 3 : 9, borderRadius: 2, marginRight: 5 }} />
                     {s.label}
                   </span>
                 ))}
@@ -510,6 +517,12 @@ function seriesMagnitude(rows: ChartRow[], index: number) {
 }
 
 function assignSeriesAxes(rows: ChartRow[], series: ChartSeries[]) {
+  if (series.some((s) => s.axisSide)) {
+    const firstKey = series[0]?.axisKey ?? "__default";
+    const explicitByUnit = new Map<string, ChartAxisSide>();
+    series.forEach((s) => { if (s.axisSide) explicitByUnit.set(s.axisKey ?? firstKey, s.axisSide); });
+    return series.map((s) => s.axisSide ?? explicitByUnit.get(s.axisKey ?? firstKey) ?? ((s.axisKey ?? firstKey) === firstKey ? "left" : "right"));
+  }
   const axes: ChartAxisSide[] = series.map(() => "left");
 
   if (series.length <= 1) {
@@ -567,6 +580,12 @@ function assignSeriesAxes(rows: ChartRow[], series: ChartSeries[]) {
   }
 
   return axes;
+}
+
+function fixedAxisScale(series: ChartSeries[], axes: ChartAxisSide[], side: ChartAxisSide, fallback: ReturnType<typeof adaptiveScale>) {
+  const range = series.find((s, i) => axes[i] === side && s.axisRange)?.axisRange;
+  if (!range || !Number.isFinite(range[0]) || !Number.isFinite(range[1]) || range[1] <= range[0]) return fallback;
+  return { min: range[0], max: range[1], ticks: Array.from({ length: 5 }, (_, i) => range[0] + (range[1] - range[0]) * i / 4) };
 }
 
 function axisValues(rows: ChartRow[], axes: ChartAxisSide[], side: ChartAxisSide) {
@@ -630,13 +649,13 @@ function BarGradients({ id, series }: { id: string; series: ChartSeries[] }) {
 }
 
 /** Trazo de una serie de línea: halo translúcido debajo y línea fina encima. */
-function LinePath({ d, color }: { d: string; color: string }) {
+function LinePath({ d, color, axis }: { d: string; color: string; axis?: ChartAxisSide }) {
   if (!d) return null;
   return (
-    <>
+    <g data-series-type="line" data-axis={axis}>
       <path d={d} fill="none" stroke={color} strokeWidth="7" strokeOpacity="0.14" strokeLinejoin="round" strokeLinecap="round" />
       <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-    </>
+    </g>
   );
 }
 
@@ -689,6 +708,8 @@ export function ColumnChart({
   stacked = false,
   dataTable,
   controls,
+  minCategoryWidth = 0,
+  intervals = false,
 }: {
   title: string;
   subtitle: string;
@@ -702,6 +723,10 @@ export function ColumnChart({
   stacked?: boolean | "stack" | "percent";
   dataTable?: ReactNode;
   controls?: ReactNode;
+  /** Ancho mínimo por categoría; activa desplazamiento sin descartar valores. */
+  minCategoryWidth?: number;
+  /** Barras contiguas para intervalos de histogramas. */
+  intervals?: boolean;
 }) {
   const gradientId = useId();
   const [ref, width] = useWidth();
@@ -766,7 +791,7 @@ export function ColumnChart({
   const rightAxisUnit = axisUnitLabel(series, axes, "right", unit);
   const band = rows.length ? plotW / rows.length : 0;
   const n = stack ? 1 : series.length;
-  const barW = Math.max(3, Math.min(24, (band * 0.68 - 2 * (n - 1)) / n));
+  const barW = intervals && n === 1 ? Math.max(0.5, band - 1) : Math.max(3, Math.min(30, (band * 0.68 - 2 * (n - 1)) / n));
   const groupW = n * barW + 2 * (n - 1);
   const labels = visibleLabels(rows, band);
   const capLabels = rows.length <= 12 && band / n >= 44;
@@ -806,11 +831,20 @@ export function ColumnChart({
       controls={controls}
       table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
     >
-      <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
+      <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+      <div className="trjk-chart-plot" ref={ref} style={{ position: "relative", minHeight: height, minWidth: minCategoryWidth > 0 ? rows.length * minCategoryWidth + 110 : undefined }}>
         {width > 0 && (
           <svg
             role="img"
-            aria-label={title}
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setHover(null);
+              if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+                event.preventDefault();
+                setHover((current) => Math.max(0, Math.min(rows.length - 1, (current ?? -1) + (event.key === "ArrowRight" ? 1 : -1))));
+              }
+            }}
+            aria-label={`${title}. Usa las flechas para consultar valores; Escape cierra el detalle.`}
             width={width}
             height={height}
             viewBox={`0 0 ${width} ${height}`}
@@ -820,10 +854,10 @@ export function ColumnChart({
           >
             <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
             <BarGradients id={gradientId} series={series} />
-            {leftScale.ticks.map((t) => (
+            {(axes.includes("left") ? leftScale.ticks : []).map((t) => (
               <g key={`l-${t}`}>
-                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
-                <text className="trjk-axis" x={pad.l - 6} y={yFor(0, t) + 3.5} textAnchor="end">
+                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(Math.max(0, axes.indexOf("left")), t)} y2={yFor(Math.max(0, axes.indexOf("left")), t)} />
+                <text className="trjk-axis" x={pad.l - 6} y={yFor(Math.max(0, axes.indexOf("left")), t) + 3.5} textAnchor="end">
                   {compact.format(t)}
                 </text>
               </g>
@@ -898,6 +932,7 @@ export function ColumnChart({
           />
         )}
       </div>
+      </div>
     </ChartCard>
   );
 }
@@ -918,6 +953,7 @@ export function ComboChart({
   scale: scaleMode = "linear",
   dataTable,
   controls,
+  minCategoryWidth = 0,
 }: {
   title: string;
   subtitle: string;
@@ -929,6 +965,8 @@ export function ComboChart({
   scale?: ChartScaleMode;
   dataTable?: ReactNode;
   controls?: ReactNode;
+  /** Ancho mínimo por categoría; activa desplazamiento sin descartar valores. */
+  minCategoryWidth?: number;
 }) {
   const gradientId = useId();
   const [ref, width] = useWidth();
@@ -962,11 +1000,11 @@ export function ComboChart({
 
   const leftScale = log
     ? leftLog
-    : adaptiveScale(leftFinite, leftHasBars);
+    : fixedAxisScale(series, axes, "left", adaptiveScale(leftFinite, leftHasBars));
 
   const rightScale = log
     ? rightLog
-    : adaptiveScale(rightFinite, rightHasBars);
+    : fixedAxisScale(series, axes, "right", adaptiveScale(rightFinite, rightHasBars));
 
   const yFor = (index: number, v: number) => {
     const scale =
@@ -1076,11 +1114,20 @@ export function ComboChart({
       controls={controls}
       table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
     >
-      <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
+      <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+      <div className="trjk-chart-plot" ref={ref} style={{ position: "relative", minHeight: height, minWidth: minCategoryWidth > 0 ? rows.length * minCategoryWidth + 110 : undefined }}>
         {width > 0 && (
           <svg
             role="img"
-            aria-label={title}
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setHover(null);
+              if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+                event.preventDefault();
+                setHover((current) => Math.max(0, Math.min(rows.length - 1, (current ?? -1) + (event.key === "ArrowRight" ? 1 : -1))));
+              }
+            }}
+            aria-label={`${title}. Usa las flechas para consultar valores; Escape cierra el detalle.`}
             width={width}
             height={height}
             viewBox={`0 0 ${width} ${height}`}
@@ -1090,10 +1137,10 @@ export function ComboChart({
           >
             <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
             <BarGradients id={gradientId} series={series} />
-            {leftScale.ticks.map((t) => (
+            {(axes.includes("left") ? leftScale.ticks : []).map((t) => (
               <g key={`l-${t}`}>
-                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
-                <text className="trjk-axis" x={pad.l - 6} y={yFor(0, t) + 3.5} textAnchor="end">
+                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(Math.max(0, axes.indexOf("left")), t)} y2={yFor(Math.max(0, axes.indexOf("left")), t)} />
+                <text className="trjk-axis" x={pad.l - 6} y={yFor(Math.max(0, axes.indexOf("left")), t) + 3.5} textAnchor="end">
                   {compact.format(t)}
                 </text>
               </g>
@@ -1126,7 +1173,7 @@ export function ComboChart({
                   <rect className="trjk-band" data-hover={hover === i} x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4" />
                   {row.values.map((v, j) =>
                     v == null || !barSlots.has(j) ? null : (
-                      <path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + (barSlots.get(j) ?? 0) * (barW + 2), v, barW, j)} fill={`url(#${gradientId}-${j})`} />
+                      <path key={j} data-series-type="bar" data-axis={axes[j]} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + (barSlots.get(j) ?? 0) * (barW + 2), v, barW, j)} fill={`url(#${gradientId}-${j})`} />
                     ),
                   )}
                   {capLabels &&
@@ -1193,7 +1240,7 @@ export function ComboChart({
               <line className="trjk-crosshair" x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + plotH} />
             )}
             {paths.map((d, j) => (
-              <LinePath key={j} d={d} color={series[j].color} />
+              <LinePath key={j} d={d} color={series[j].color} axis={axes[j]} />
             ))}
             {rows.map((row, i) =>
               row.values.map((v, j) =>
@@ -1238,6 +1285,7 @@ export function ComboChart({
           />
         )}
       </div>
+      </div>
     </ChartCard>
   );
 }
@@ -1253,6 +1301,7 @@ export function LineChart({
   area = false,
   dataTable,
   controls,
+  minCategoryWidth = 0,
 }: {
   title: string;
   subtitle: string;
@@ -1265,6 +1314,8 @@ export function LineChart({
   area?: boolean | "all";
   dataTable?: ReactNode;
   controls?: ReactNode;
+  /** Ancho mínimo por categoría; activa desplazamiento sin descartar valores. */
+  minCategoryWidth?: number;
 }) {
   const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
@@ -1371,11 +1422,20 @@ export function LineChart({
       controls={controls}
       table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
     >
-      <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
+      <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+      <div className="trjk-chart-plot" ref={ref} style={{ position: "relative", minHeight: height, minWidth: minCategoryWidth > 0 ? rows.length * minCategoryWidth + 110 : undefined }}>
         {width > 0 && (
           <svg
             role="img"
-            aria-label={title}
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setHover(null);
+              if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+                event.preventDefault();
+                setHover((current) => Math.max(0, Math.min(rows.length - 1, (current ?? -1) + (event.key === "ArrowRight" ? 1 : -1))));
+              }
+            }}
+            aria-label={`${title}. Usa las flechas para consultar valores; Escape cierra el detalle.`}
             width={width}
             height={height}
             viewBox={`0 0 ${width} ${height}`}
@@ -1384,10 +1444,10 @@ export function LineChart({
             onPointerLeave={() => setHover(null)}
           >
             <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
-            {leftScale.ticks.map((t) => (
+            {(axes.includes("left") ? leftScale.ticks : []).map((t) => (
               <g key={`l-${t}`}>
-                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
-                <text className="trjk-axis" x={pad.l - 6} y={yFor(0, t) + 3.5} textAnchor="end">
+                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(Math.max(0, axes.indexOf("left")), t)} y2={yFor(Math.max(0, axes.indexOf("left")), t)} />
+                <text className="trjk-axis" x={pad.l - 6} y={yFor(Math.max(0, axes.indexOf("left")), t) + 3.5} textAnchor="end">
                   {compact.format(t)}
                 </text>
               </g>
@@ -1471,6 +1531,7 @@ export function LineChart({
             style={tipStyle(x(hover), width, { top: pad.t })}
           />
         )}
+      </div>
       </div>
     </ChartCard>
   );
@@ -1676,7 +1737,10 @@ export function RankChart({
 }) {
   const [active, setActive] = useState<number | null>(null);
   const [pointer, onPointerMove, clearPointer] = usePointer();
-  const max = Math.max(1, ...rows.map((r) => r.value));
+  const max = rows.reduce((n, row) => Math.max(n, row.value), 1);
+  const min = rows.reduce((n, row) => Math.min(n, row.value), 0);
+  const diverging = min < 0;
+  const zero = -min / (max - min) * 100;
   const log = scaleMode === "log" && canUseLogScale(rows.map((row) => row.value));
   const logScale = logarithmicScale(rows.map((row) => row.value));
   const tip = active != null && pointer ? rows[active] : null;
@@ -1737,8 +1801,12 @@ export function RankChart({
               <span>
                 {i + 1}. {r.label}
               </span>
-              <div>
-                <div className="trjk-rank-bar" style={{ width: `${(log ? logScale.fraction(r.value) : r.value / max) * 100}%`, background: color }} />
+              <div style={diverging ? { position: "relative", minHeight: 8 } : undefined}>
+                {diverging ? <span aria-hidden="true" style={{ position: "absolute", left: `${zero}%`, top: -3, bottom: -3, borderLeft: "1px solid var(--chart-other)", opacity: .6 }} /> : null}
+                <div className="trjk-rank-bar" style={diverging ? {
+                  position: "relative", marginLeft: `${r.value < 0 ? (r.value - min) / (max - min) * 100 : zero}%`,
+                  width: `${Math.abs(r.value) / (max - min) * 100}%`, background: r.value < 0 ? CHART_COLORS[1] : color,
+                } : { width: `${(log ? logScale.fraction(r.value) : r.value / max) * 100}%`, background: color }} />
               </div>
               <strong>
                 {value(r.value, digits, unit)}
@@ -1964,4 +2032,122 @@ export function ScatterChart({
       </div>
     </ChartCard>
   );
+}
+
+/** Matriz de una sola unidad: X = grupos, Y = categorías del desglose.
+ * El color y su opacidad codifican signo/magnitud, nunca se convierten nulos en cero.
+ */
+export function HeatmapChart({ title, subtitle, rows, series, dataTable }: {
+  title: string; subtitle: string; rows: ChartRow[]; series: ChartSeries[]; dataTable?: ReactNode;
+}) {
+  const [ref, measured] = useWidth();
+  const [hover, setHover] = useState<{ row: number; column: number } | null>(null);
+  const width = Math.max(measured, rows.length * 76 + 170);
+  const left = 162, top = 48, cellH = 36;
+  const cellW = (width - left - 16) / Math.max(1, rows.length);
+  const height = top + series.length * cellH + 24;
+  const finite = rows.flatMap((r) => r.values).filter((v): v is number => v != null && Number.isFinite(v));
+  const maximum = finite.reduce((n, v) => Math.max(n, Math.abs(v)), 0);
+  const selected = hover ? rows[hover.row] : null;
+  const metric = hover ? series[hover.column] : null;
+  const selectedValue = hover ? selected?.values[hover.column] : null;
+  return <ChartCard title={title} subtitle={subtitle} empty={!rows.length || !series.length}
+    table={dataTable ?? <SeriesTable rows={rows} series={series} digits={2} unit="" head="Grupo" />}>
+    <div className="muted" style={{ fontSize: 11, marginBottom: 10, whiteSpace: "normal" }}>
+      Intensidad: menor a mayor magnitud · — sin dato{finite.some((v) => v < 0) ? " · tono secundario: valores negativos" : ""}.
+    </div>
+    <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+      <div ref={ref} className="trjk-chart-plot" style={{ minWidth: rows.length * 76 + 170, position: "relative" }}>
+        <svg width={width} height={height} role="img" aria-label={`${title}. Cada celda es consultable con Tab.`}>
+          <desc>Valores por grupo y categoría; intensidad proporcional a la magnitud absoluta. El detalle conserva las filas originales.</desc>
+          {rows.map((row, i) => <text key={row.key} className="trjk-axis" x={left + (i + .5) * cellW} y={25} textAnchor="middle">
+            <title>{row.label}</title>{axisLabelText(row.label, 11)}
+          </text>)}
+          {series.map((s, j) => <text key={`${j}-${s.label}`} className="trjk-axis" x={left - 10} y={top + (j + .5) * cellH + 4} textAnchor="end">
+            <title>{s.label}</title>{axisLabelText(s.label, 24)}
+          </text>)}
+          {rows.flatMap((row, i) => series.map((s, j) => {
+            const v = row.values[j];
+            const valid = v != null && Number.isFinite(v);
+            const x = left + i * cellW, y = top + j * cellH;
+            const active = hover?.row === i && hover.column === j;
+            const text = value(v, s.digits ?? 2, s.unit ?? "");
+            return <g key={`${row.key}-${j}`} role="img" tabIndex={0} aria-label={`${row.label}, ${s.label}: ${text}`}
+              onPointerEnter={() => setHover({ row: i, column: j })} onPointerLeave={() => setHover(null)}
+              onFocus={() => setHover({ row: i, column: j })} onBlur={() => setHover(null)}
+              onKeyDown={(e) => { if (e.key === "Escape") setHover(null); }}>
+              <rect data-heatmap-cell="true" x={x + 2} y={y + 2} width={Math.max(1, cellW - 4)} height={cellH - 4} rx={4}
+                fill={valid ? (v < 0 ? CHART_COLORS[1] : CHART_COLORS[0]) : CHART_OTHER}
+                fillOpacity={valid ? .12 + .72 * (maximum ? Math.abs(v) / maximum : 0) : .08}
+                stroke={active ? CHART_COLORS[0] : "none"} />
+              <text className="trjk-axis" x={x + cellW / 2} y={y + cellH / 2 + 4} textAnchor="middle" style={{ fontSize: 10, pointerEvents: "none" }}>
+                {valid ? compact.format(v) : "—"}
+              </text>
+              <title>{`${row.label} · ${s.label}: ${text}`}</title>
+            </g>;
+          }))}
+        </svg>
+        {hover && selected && metric ? <ChartTip title={selected.label}
+          lines={[{ label: metric.label, color: selectedValue != null && selectedValue < 0 ? CHART_COLORS[1] : CHART_COLORS[0], value: value(selectedValue ?? null, metric.digits ?? 2, metric.unit ?? "") }]}
+          style={tipStyle(left + (hover.row + .5) * cellW, width, { top: top + (hover.column + 1) * cellH })} /> : null}
+      </div>
+    </div>
+  </ChartCard>;
+}
+
+/** Cascada de contribuciones firmadas. Parte de cero, agrega cada contribución
+ * y termina en el neto; no finge conocer saldos de apertura o de cierre. */
+export function WaterfallChart({ title, subtitle, rows, digits = 2, unit = "", dataTable, height = 320 }: {
+  title: string; subtitle: string; rows: ChartRow[]; digits?: number; unit?: string; dataTable?: ReactNode; height?: number;
+}) {
+  const [ref, width] = useWidth();
+  const [hover, setHover] = useState<number | null>(null);
+  let balance = 0;
+  const steps = rows.map((row) => {
+    const from = balance;
+    const delta = row.values[0];
+    if (delta != null && Number.isFinite(delta)) balance += delta;
+    return { row, from, to: balance, delta };
+  });
+  const final = balance;
+  const entries = [...steps, { row: { key: "__net__", label: "Neto", values: [final] } as ChartRow, from: 0, to: final, delta: final }];
+  const pad = { l: 70, r: 18, t: 30, b: 44 };
+  const plotH = height - pad.t - pad.b;
+  const band = Math.max(1, (width - pad.l - pad.r) / entries.length);
+  const barW = Math.min(44, band * .64);
+  const scale = adaptiveScale(entries.flatMap((e) => [e.from, e.to]), true);
+  const yFor = (v: number) => pad.t + plotH - (v - scale.min) / (scale.max - scale.min || 1) * plotH;
+  const tip = hover == null ? null : entries[hover];
+  return <ChartCard title={title} subtitle={subtitle} empty={!rows.length}
+    series={[{ label: "Aporte positivo", color: CHART_COLORS[0] }, { label: "Aporte negativo", color: CHART_COLORS[1] }, { label: "Neto", color: CHART_OTHER }]} kind="bar"
+    table={dataTable ?? <SeriesTable rows={rows} series={[{ label: "Aporte", color: CHART_COLORS[0] }]} digits={digits} unit={unit} head="Categoría" />}>
+    <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+      <div ref={ref} className="trjk-chart-plot" style={{ position: "relative", minWidth: entries.length * 80 + 90, minHeight: height }}>
+        {width > 0 ? <svg width={width} height={height} role="img" aria-label={`${title}. Contribuciones desde cero y neto final.`}>
+          {scale.ticks.map((v) => <g key={v}>
+            <line className={v === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(v)} y2={yFor(v)} />
+            <text className="trjk-axis" x={pad.l - 8} y={yFor(v) + 4} textAnchor="end">{compact.format(v)}</text>
+          </g>)}
+          <text className="trjk-axis" x={pad.l} y={12}>{unit.trim()}</text>
+          {entries.map((step, i) => {
+            const x = pad.l + (i + .5) * band;
+            const color = i === entries.length - 1 ? CHART_OTHER : (step.delta ?? 0) < 0 ? CHART_COLORS[1] : CHART_COLORS[0];
+            return <g key={step.row.key} tabIndex={0} role="img" aria-label={`${step.row.label}: ${value(step.delta, digits, unit)}`}
+              onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)}>
+              <rect x={x - band / 2} y={pad.t} width={band} height={plotH} fill="transparent" />
+              {step.delta != null ? <rect data-waterfall-step="true" x={x - barW / 2} y={Math.min(yFor(step.from), yFor(step.to))}
+                width={barW} height={Math.max(.8, Math.abs(yFor(step.to) - yFor(step.from)))} rx={2} fill={color} fillOpacity={hover == null || hover === i ? .9 : .45} /> : null}
+              {i < steps.length - 1 ? <line x1={x + barW / 2} x2={x + band - barW / 2} y1={yFor(step.to)} y2={yFor(step.to)} stroke={CHART_OTHER} strokeDasharray="3 3" strokeOpacity={.6} /> : null}
+              <text className="trjk-axis" x={x} y={height - 14} textAnchor="middle"><title>{step.row.label}</title>{axisLabelText(step.row.label, 12)}</text>
+              <title>{`${step.row.label}: ${value(step.delta, digits, unit)} · acumulado: ${value(step.to, digits, unit)}`}</title>
+            </g>;
+          })}
+        </svg> : null}
+        {tip && hover != null ? <ChartTip title={tip.row.label} lines={[
+          { label: hover === entries.length - 1 ? "Neto" : "Aporte", value: value(tip.delta, digits, unit) },
+          { label: "Acumulado desde cero", value: value(tip.to, digits, unit) },
+        ]} notes={tip.row.notes} style={tipStyle(pad.l + (hover + .5) * band, width, { top: pad.t })} /> : null}
+      </div>
+    </div>
+  </ChartCard>;
 }

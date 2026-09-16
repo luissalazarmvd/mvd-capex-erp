@@ -22,6 +22,7 @@ import { apiGet } from "../../lib/apiClient";
 import { canUseLogScale, prefersLogScale, type ChartScaleMode } from "../../lib/chartScale";
 import {
   VAI_AREAS,
+  VAI_VISUAL_CATALOG,
   VAI_PROMPT_MAX,
   VAI_SOURCES,
   VAI_SOURCE_MAP,
@@ -63,6 +64,8 @@ import {
   ColumnChart,
   ComboChart,
   DonutChart,
+  HeatmapChart,
+  WaterfallChart,
   KpiTooltip,
   LineChart,
   RankChart,
@@ -399,17 +402,7 @@ const FOCUS_OPTIONS: Array<{ value: VaiFocus; label: string }> = [
   { value: "detail", label: "Detalle / tablas" },
 ];
 
-const CHART_OPTIONS: Array<{ value: VaiChartPreference; label: string }> = [
-  { value: "kpi", label: "KPI" },
-  { value: "line", label: "Línea" },
-  { value: "area", label: "Área" },
-  { value: "bar", label: "Barras" },
-  { value: "combo", label: "Barras + línea" },
-  { value: "rank", label: "Ranking" },
-  { value: "donut", label: "Anillo" },
-  { value: "scatter", label: "Dispersión" },
-  { value: "table", label: "Tabla" },
-];
+const CHART_OPTIONS: Array<{ value: VaiChartPreference; label: string }> = VAI_VISUAL_CATALOG.map((item) => ({ value: item.type, label: item.label }));
 
 function joinNatural(values: string[]) {
   const clean = values.map((value) => value.trim()).filter(Boolean);
@@ -794,13 +787,13 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
 
   const widgetSpan = (index: number) => {
     const widget = others[index];
-    if (!widget || widget.type === "table") return "2";
+    if (!widget || ["table", "combo", "heatmap", "waterfall", "pareto"].includes(widget.type)) return "2";
 
     let runStart = index;
-    while (runStart > 0 && others[runStart - 1]?.type !== "table") runStart -= 1;
+    while (runStart > 0 && !["table", "combo", "heatmap", "waterfall", "pareto"].includes(others[runStart - 1]?.type)) runStart -= 1;
 
     let runEnd = index;
-    while (runEnd + 1 < others.length && others[runEnd + 1]?.type !== "table") runEnd += 1;
+    while (runEnd + 1 < others.length && !["table", "combo", "heatmap", "waterfall", "pareto"].includes(others[runEnd + 1]?.type)) runEnd += 1;
 
     const runLength = runEnd - runStart + 1;
     return index === runEnd && runLength % 2 === 1 ? "2" : "1";
@@ -830,7 +823,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
   return (
     <div className="vai-board">
       <VaiExportProvider title={spec.title} context={exportContext} disabled={loading || sources.some((source) => Boolean(data[source.id]?.error))}>
-      {spec.description ? <p className="muted" style={{ margin: 0 }}>{spec.description}</p> : null}
+      {spec.description ? <p className="muted" style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip", maxHeight: "none" }}>{spec.description}</p> : null}
 
       {spec.filters.length ? (
         <section className="trjk-card">
@@ -900,7 +893,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
             <div
               key={`${widget.type}-${widget.source}-${i}`}
               data-span={widgetSpan(i)}
-              style={{ minWidth: 0, height: "100%" }}
+              style={{ minWidth: 0, height: "100%", gridColumn: widgetSpan(i) === "2" ? "1 / -1" : undefined }}
             >
               <Widget id={`widget-${i}`} order={kpis.length + i} widget={widget} rows={filtered[widget.source] ?? []} />
             </div>
@@ -1236,8 +1229,9 @@ const BUCKET_LABEL: Record<NonNullable<VaiWidgetSpec["bucket"]>, string> = { day
 function Widget({ id, order, widget, rows }: { id: string; order: number; widget: VaiWidgetSpec; rows: VaiRow[] }) {
   const [scaleChoice, setScaleChoice] = useState<"auto" | ChartScaleMode>("auto");
   const source = VAI_SOURCE_MAP.get(widget.source);
-  const result = source ? computeWidget(widget, source, rows) : null;
-  if (!source || !result) return null;
+  const result = useMemo(() => source ? computeWidget(widget, source, rows) : null, [widget, source, rows]);
+  if (!source || !result) return <section className="trjk-card" role="alert">No se pudo resolver la fuente de este gráfico.</section>;
+  if (result.kind === "unavailable") return <section className="trjk-card" role="status"><h3>{widget.title}</h3><p className="muted">{result.message}</p></section>;
   const lineLike = widget.type === "line" || widget.type === "area";
   const temporalAxis = Boolean(widget.dateField) && (lineLike || !widget.dimension);
   const axisLabel = temporalAxis
@@ -1259,28 +1253,37 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   const formats = result.series.map((item) => chartFormat(item.format));
   const primaryFormat = formats[0] ?? chartFormat("decimal");
   const baseRender = lineLike ? "line" : "bar";
+  const unitGroups = [...new Set(result.series.map((item) => chartAxisGroup(item.format)))];
+  const explicitByUnit = new Map<string, "left" | "right">();
+  result.series.forEach((item, j) => {
+    const side = widget.seriesAxes?.[j];
+    if (side && !result.breakdown) explicitByUnit.set(chartAxisGroup(item.format), side);
+  });
+  const firstSide = explicitByUnit.get(unitGroups[0]) ?? (explicitByUnit.get(unitGroups[1]) === "left" ? "right" : "left");
   const series: ChartSeries[] = result.series.map((item, j) => ({
     label: item.label,
     color: item.other ? CHART_OTHER : CHART_COLORS[j % CHART_COLORS.length],
     digits: formats[j].digits,
     unit: formats[j].unit,
     axisKey: chartAxisGroup(item.format),
-    seriesType: result.breakdown ? baseRender : widget.seriesTypes?.[j] ?? baseRender,
+    seriesType: widget.type === "pareto" ? (j === 0 ? "bar" : "line") : result.breakdown ? baseRender : widget.seriesTypes?.[j] ?? baseRender,
+    axisSide: widget.type === "pareto" ? (j === 0 ? "left" : "right") : (!result.breakdown ? widget.seriesAxes?.[j] : null) ?? (unitGroups.length === 1 && widget.seriesAxes?.some(Boolean) ? "left" : undefined) ?? explicitByUnit.get(chartAxisGroup(item.format)) ?? (chartAxisGroup(item.format) === unitGroups[0] ? firstSide : firstSide === "left" ? "right" : "left"),
+    axisRange: widget.type === "pareto" && j === 1 ? [0, 100] : undefined,
   }));
   const chartRows: ChartRow[] = result.rows.map((row) => ({
-    key: row.label,
+    key: row.key,
     label: row.label,
     values: row.values.map((v, j) => (v == null ? null : v * formats[j].scale)),
     notes: row.notes,
   }));
 
   const values = chartRows.flatMap((row) => widget.type === "rank" ? [row.values[0]] : row.values);
-  const logAllowed = canUseLogScale(values) && !result.stack;
+  const logAllowed = canUseLogScale(values) && !result.stack && unitGroups.length === 1 && widget.type !== "pareto";
   const scale: ChartScaleMode = logAllowed && (scaleChoice === "log" || (scaleChoice === "auto" && prefersLogScale(values))) ? "log" : "linear";
   const hasBarSeries = series.some((item) => item.seriesType !== "line");
   const hasLineSeries = series.some((item) => item.seriesType === "line");
   // Barras y líneas juntas se dibujan en el mismo plano, sea el eje X categórico o temporal.
-  const isCombo = widget.type !== "rank" && widget.type !== "donut" && widget.type !== "scatter" && hasBarSeries && hasLineSeries;
+  const isCombo = widget.type === "pareto" || (["bar", "combo", "line", "area"].includes(widget.type) && hasBarSeries && hasLineSeries);
   const comboScale: ChartScaleMode = logAllowed && scaleChoice === "log" ? "log" : "linear";
   const controls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "combo" || lineLike) && hasBarSeries && !result.stack) ? (
     <label
@@ -1335,7 +1338,16 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
     </div>
   );
 
-  const wrap = (chart: React.ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }}>{chart}</VaiExportSection>;
+  const wrap = (chart: ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }}>
+    {chart}
+    {result.notices?.length ? <p className="muted" style={{ fontSize: 11, margin: "7px 2px 0", whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.5 }}>{result.notices.join(" · ")}</p> : null}
+  </VaiExportSection>;
+  // Mantener cada categoría y etiquetas legibles; nunca sustituirlas por «Otros» para que quepan.
+  const minCategoryWidth = !result.temporal ? (widget.type === "histogram" ? 65 : chartRows.reduce((max, row) => Math.max(max, Math.min(148, Math.min(20, row.label.length) * 6.2 + 16)), 86)) : 0;
+  const chartHeight = widget.type === "combo" || widget.type === "pareto" ? 340 : 290;
+  if (widget.type === "heatmap") return wrap(<HeatmapChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} dataTable={dataTable} />);
+  if (widget.type === "waterfall") return wrap(<WaterfallChart title={widget.title} subtitle={subtitle} rows={chartRows} digits={primaryFormat.digits} unit={primaryFormat.unit} dataTable={dataTable} />);
+  if (widget.type === "histogram") return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series.map((s) => ({ ...s, unit: " registros" }))} digits={0} unit=" registros" intervals minCategoryWidth={65} height={chartHeight} dataTable={dataTable} />);
   if (widget.type === "scatter" && result.series.length >= 2) {
     const [xSeries, ySeries] = result.series;
     return wrap(
@@ -1354,19 +1366,19 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
       />,
     );
   }
-  if (isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} controls={controls} dataTable={dataTable} />);
+  if (isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={widget.type === "pareto" ? "linear" : comboScale} minCategoryWidth={minCategoryWidth} height={chartHeight} controls={controls} dataTable={dataTable} />);
   if (lineLike || (widget.type === "combo" && !hasBarSeries)) {
-    return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={widget.type === "area" ? "all" : series.length === 1} dataTable={dataTable} />);
+    return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={widget.type === "area" ? "all" : false} minCategoryWidth={minCategoryWidth} height={chartHeight} dataTable={dataTable} />);
   }
   if (widget.type === "bar" || widget.type === "combo") {
-    return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} stacked={result.stack === "percent" ? "percent" : result.stack === "stack" ? "stack" : false} controls={controls} dataTable={dataTable} />);
+    return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} minCategoryWidth={minCategoryWidth} height={chartHeight} stacked={result.stack === "percent" ? "percent" : result.stack === "stack" ? "stack" : false} controls={controls} dataTable={dataTable} />);
   }
   if (widget.type === "rank") {
     return wrap(
       <RankChart
         title={widget.title}
         subtitle={subtitle}
-        rows={result.rows.map((row) => ({ label: row.label, value: (row.values[0] ?? 0) * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined, notes: row.notes }))}
+        rows={result.rows.filter((row) => row.values[0] != null).map((row) => ({ label: row.label, value: row.values[0]! * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined, notes: row.notes }))}
         digits={primaryFormat.digits}
         unit={primaryFormat.unit}
         scale={scale}
@@ -1375,15 +1387,15 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
       />
     );
   }
-  return wrap(
+  if (widget.type === "donut") return wrap(
     <DonutChart
       title={widget.title}
       subtitle={subtitle}
       centerLabel={first?.label ?? ""}
-      items={result.rows.map((row, i) => ({
+      items={result.rows.filter((row) => row.values[0] != null).map((row, i) => ({
         label: row.label,
-        value: Math.max(0, (row.values[0] ?? 0) * primaryFormat.scale),
-        color: row.key === "Otros" ? CHART_OTHER : CHART_COLORS[i % CHART_COLORS.length],
+        value: row.values[0]! * primaryFormat.scale,
+        color: row.key === "__vai_other__" ? CHART_OTHER : CHART_COLORS[i % CHART_COLORS.length],
         notes: row.notes,
       }))}
       digits={primaryFormat.digits}
@@ -1391,6 +1403,7 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
       dataTable={dataTable}
     />
   );
+  return <section className="trjk-card" role="alert"><h3>{widget.title}</h3><p>No hay un renderer válido para «{widget.type}». No se reemplazó por otro tipo de gráfico.</p></section>;
 }
 
 function SourceHint({
@@ -1841,7 +1854,7 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
 // Abrir, filtrar, actualizar, renombrar y eliminar no consumen IA.
 
 type GenerateResponse =
-  | { ok: true; status: "ok" | "partial" | "unavailable"; message: string; unavailable: string[]; spec: VaiDashboardSpec | null }
+  | { ok: true; status: "ok" | "partial" | "unavailable"; message: string; unavailable: string[]; spec: VaiDashboardSpec | null; model?: string }
   | { ok: false; error: string };
 
 type Board = {
@@ -1853,6 +1866,7 @@ type Board = {
   message: string;
   notes: string[];
   saveError: string | null;
+  model: string | null;
 };
 
 const STEPS = ["Validando la solicitud", "Identificando fuentes del catálogo", "Diseñando el dashboard con IA", "Validando la especificación", "Consultando datos reales"];
@@ -1931,20 +1945,27 @@ export default function VaiWorkspace() {
       return;
     }
 
+    const checked = parseStoredSpec(response.spec, request.prompt);
+    if (!checked.spec) {
+      setGenerating(null);
+      setFailure({ message: "La definición recibida no cumple el gráfico solicitado. No se guardó una versión distinta.", unavailable: checked.notes });
+      return;
+    }
     setGenerating({ step: 4, prompt: request.prompt });
     const next: Board = {
-      spec: response.spec,
+      spec: checked.spec,
       prompt: request.prompt,
       id: null,
       name: response.spec.title,
       savedAt: null,
       message: response.status === "partial" ? response.message : "",
-      notes: response.unavailable,
+      notes: [...new Set([...response.unavailable, ...checked.notes])],
       saveError: null,
+      model: response.model ?? null,
     };
     // Guardado automático de la definición; los datos se consultan al abrir.
     try {
-      const id = await saveDashboard({ name: next.name, description: next.spec.description, prompt: next.prompt, spec: next.spec, model: null });
+      const id = await saveDashboard({ name: next.name, description: next.spec.description, prompt: next.prompt, spec: next.spec, model: next.model });
       next.id = Number.isFinite(id) ? id : null;
       next.savedAt = new Date().toISOString();
     } catch (error) {
@@ -1985,6 +2006,7 @@ export default function VaiWorkspace() {
         message: "",
         notes,
         saveError: null,
+        model: detail.model_name ?? null,
       });
       setRefreshToken((token) => token + 1);
     } catch (error) {
@@ -1996,7 +2018,7 @@ export default function VaiWorkspace() {
 
   async function persist(current: Board, name: string) {
     try {
-      const id = await saveDashboard({ dashboard_id: current.id, name, description: current.spec.description, prompt: current.prompt, spec: current.spec, model: null });
+      const id = await saveDashboard({ dashboard_id: current.id, name, description: current.spec.description, prompt: current.prompt, spec: current.spec, model: current.model });
       setBoard((prev) => (prev ? { ...prev, id: Number.isFinite(id) ? id : prev.id, name, spec: { ...prev.spec, title: name }, savedAt: new Date().toISOString(), saveError: null } : prev));
       void reloadInventory();
     } catch (error) {
@@ -2090,7 +2112,7 @@ export default function VaiWorkspace() {
         {generating ? (
           <section className="trjk-card vai-progress" aria-live="polite">
             <h3>Generando dashboard</h3>
-            <p className="muted" style={{ margin: 0 }}>«{generating.prompt.length > 160 ? `${generating.prompt.slice(0, 160)}…` : generating.prompt}»</p>
+            <p className="muted" style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>«{generating.prompt}»</p>
             <div className="vai-bar">
               <span />
             </div>
@@ -2107,7 +2129,7 @@ export default function VaiWorkspace() {
 
         {board ? (
           <section className="trjk-card" style={{ display: "grid", gap: 12 }}>
-            <div className="vai-board-head">
+            <div className="vai-board-head" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
               <div style={{ display: "grid", gap: 4, minWidth: 0, flex: 1 }}>
                 <input
                   className="input vai-title"
@@ -2122,12 +2144,13 @@ export default function VaiWorkspace() {
                   aria-label="Nombre del dashboard"
                   title="Editar nombre; se guarda al salir del campo"
                 />
-                <div className="vai-board-meta">
+                <div className="vai-board-meta" style={{ whiteSpace: "normal", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip" }}>
                   {board.id ? `Guardado · ${formatStamp(board.savedAt)}` : "Sin guardar"}
                   {board.saveError ? <span style={{ color: "var(--bad)" }}> · {board.saveError}</span> : null}
                 </div>
-                <p className="vai-board-prompt">
-                  <span>Prompt</span>
+                <p className="vai-board-prompt" style={{ display: "block", whiteSpace: "pre-wrap", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip", WebkitLineClamp: "unset", maxHeight: "none", height: "auto", margin: "4px 0 0", lineHeight: 1.6 }}>
+
+                  <span style={{ marginRight: 8 }}>Prompt:</span>
                   {board.prompt}
                 </p>
               </div>
@@ -2149,7 +2172,7 @@ export default function VaiWorkspace() {
             {board.message ? <div className="vai-message">{board.message}</div> : null}
             {board.notes.length ? (
               <div className="vai-notes">
-                <strong>Partes no construidas:</strong>
+                <strong>Observaciones de la definición:</strong>
                 <ul>
                   {board.notes.map((note, i) => (
                     <li key={i}>{note}</li>
