@@ -1,11 +1,20 @@
 // src/components/ui/Charts.tsx
 //
 // Gráficos SVG compartidos: columnas, líneas, anillo y ranking.
-// Colores por tokens (--chart-*), marcas finas, tooltip en todas las series y
-// tabla «Ver datos» como equivalente accesible de cada gráfico.
+// Colores por tokens (--chart-*), marcas finas, tooltip HTML con notas de
+// contexto en todas las series y tabla «Ver datos» como equivalente accesible
+// de cada gráfico. `KpiTooltip` es el desglose flotante de las tarjetas KPI.
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { canUseLogScale, logarithmicScale, type ChartScaleMode } from "../../lib/chartScale";
 
 export type ChartSeries = {
@@ -15,7 +24,13 @@ export type ChartSeries = {
   unit?: string;
   axisKey?: string;
 };
-export type ChartRow = { key: string; label: string; values: (number | null)[] };
+/**
+ * Línea adicional del tooltip: etiqueta y valor ya formateado por quien conoce
+ * la semántica. Con índice de serie se muestra debajo de esa serie; sin él, en
+ * el bloque general del final.
+ */
+export type ChartNote = [label: string, value: string, series?: number];
+export type ChartRow = { key: string; label: string; values: (number | null)[]; notes?: ChartNote[] };
 
 export const CHART_COLORS = [
   "var(--chart-1)",
@@ -78,6 +93,167 @@ function niceScale(low: number, high: number, count = 4) {
 function value(v: number | null, digits: number, unit: string) {
   return v == null ? "—" : `${formatNumber(v, digits)}${unit}`;
 }
+
+// ── Tooltip ────────────────────────────────────────────────────────────
+
+/** Línea principal del tooltip; sin color ni valor es una línea de detalle. */
+type TipLine = { color?: string; value?: string; label: string };
+
+/** Posición del pointer relativa al contenedor que lo escucha. */
+type Pointer = { x: number; y: number; w: number; h: number };
+
+function usePointer() {
+  const [pointer, setPointer] = useState<Pointer | null>(null);
+  const onPointerMove = useCallback((e: ReactPointerEvent<HTMLElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    setPointer({ x: e.clientX - box.left, y: e.clientY - box.top, w: box.width, h: box.height });
+  }, []);
+  const clear = useCallback(() => setPointer(null), []);
+  return [pointer, onPointerMove, clear] as const;
+}
+
+// El tooltip cambia de lado al cruzar la mitad del ancho y, cuando sigue al
+// pointer, también la mitad del alto, para no salirse del contenedor.
+function tipStyle(x: number, width: number, vertical: { top: number } | { pointerY: number; height: number }): CSSProperties {
+  const horizontal = x > width / 2 ? { right: Math.max(0, width - x + 12) } : { left: Math.max(0, x + 12) };
+  if ("top" in vertical) return { ...horizontal, top: vertical.top };
+  return vertical.pointerY > vertical.height / 2
+    ? { ...horizontal, bottom: Math.max(0, vertical.height - vertical.pointerY + 14) }
+    : { ...horizontal, top: Math.max(0, vertical.pointerY + 14) };
+}
+
+function NoteRows({ notes, className }: { notes: ChartNote[]; className: string }) {
+  if (!notes.length) return null;
+  return (
+    <div className={className}>
+      {notes.map(([label, note], i) => (
+        <div key={`${i}-${label}`}>
+          <span>{label}</span>
+          <strong>{note}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChartTip({ title, lines, notes = [], style }: { title: string; lines: TipLine[]; notes?: ChartNote[]; style: CSSProperties }) {
+  const bySeries = (index: number) => notes.filter((note) => note[2] === index);
+  const general = notes.filter((note) => note[2] == null || note[2] >= lines.length);
+  return (
+    <div className="trjk-tip" style={style}>
+      <header>{title}</header>
+      {lines.map((line, i) => (
+        <div key={i} className="trjk-tip-line">
+          <div>
+            {line.color ? <i style={{ background: line.color }} /> : null}
+            {line.value ? <strong>{line.value}</strong> : null}
+            <span>{line.label}</span>
+          </div>
+          <NoteRows notes={bySeries(i)} className="trjk-tip-sub" />
+        </div>
+      ))}
+      <NoteRows notes={general} className="trjk-tip-notes" />
+    </div>
+  );
+}
+
+export type KpiTrend = {
+  label: string;
+  values: (number | null)[];
+  /** Etiquetas del primer y último período, para leer el sparkline. */
+  from?: string;
+  to?: string;
+};
+
+/**
+ * Desglose flotante de una tarjeta KPI: sparkline de tendencia, notas
+ * (etiqueta, valor) y una nota al pie con la definición. La tarjeta que lo
+ * contiene declara `data-tip` y `position: relative`; se muestra al pasar el
+ * puntero y se alinea a la derecha cuando la tarjeta está pegada al borde.
+ */
+export function KpiTooltip({
+  label,
+  notes,
+  trend,
+  loading = false,
+  footer,
+}: {
+  label: string;
+  notes: ChartNote[];
+  trend?: KpiTrend | null;
+  loading?: boolean;
+  footer?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [align, setAlign] = useState<"start" | "end">("start");
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const update = () => {
+      const card = node.parentElement;
+      if (!card) return;
+      setAlign(card.getBoundingClientRect().left + 300 > window.innerWidth - 12 ? "end" : "start");
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  const trendValues = (trend?.values ?? []).filter((item): item is number => item != null && Number.isFinite(item));
+  const sparkWidth = 220;
+  const sparkHeight = 54;
+  const sparkPad = 4;
+  const min = trendValues.length ? Math.min(...trendValues) : 0;
+  const max = trendValues.length ? Math.max(...trendValues) : 0;
+  const span = max - min;
+  const spark =
+    trendValues.length > 1
+      ? trendValues.map((item, index) => ({
+          x: sparkPad + (index * (sparkWidth - sparkPad * 2)) / (trendValues.length - 1),
+          y: span === 0 ? sparkHeight / 2 : sparkHeight - sparkPad - ((item - min) / span) * (sparkHeight - sparkPad * 2),
+        }))
+      : [];
+  const sparkPoints = spark.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const areaPoints = spark.length
+    ? `${spark[0].x.toFixed(1)},${sparkHeight - sparkPad} ${sparkPoints} ${spark[spark.length - 1].x.toFixed(1)},${sparkHeight - sparkPad}`
+    : "";
+  const lastPoint = spark[spark.length - 1];
+
+  return (
+    <div ref={ref} className="trjk-tip trjk-kpi-tip" role="tooltip" data-align={align}>
+      <header>{label}</header>
+      {spark.length > 1 && (
+        <div className="trjk-kpi-trend">
+          <div className="trjk-kpi-trend-head">
+            <span>{trend?.label}</span>
+            <small>{trendValues.length} puntos</small>
+          </div>
+          <svg viewBox={`0 0 ${sparkWidth} ${sparkHeight}`} preserveAspectRatio="none" aria-hidden="true">
+            <polygon className="trjk-kpi-spark-area" points={areaPoints} />
+            <polyline className="trjk-kpi-spark-line" points={sparkPoints} />
+            {lastPoint && <circle className="trjk-kpi-spark-dot" cx={lastPoint.x} cy={lastPoint.y} r="2.8" />}
+          </svg>
+          {trend?.from || trend?.to ? (
+            <div className="trjk-kpi-trend-range">
+              <span>{trend.from}</span>
+              <span>{trend.to}</span>
+            </div>
+          ) : null}
+        </div>
+      )}
+      {notes.map(([name, amount], i) => (
+        <div key={`${i}-${name}`}>
+          <span>{name}</span>
+          <strong>{loading ? "…" : amount}</strong>
+        </div>
+      ))}
+      {footer ? <footer>{footer}</footer> : null}
+    </div>
+  );
+}
+
+// ── Tarjeta ────────────────────────────────────────────────────────────
 
 function ChartCard({
   title,
@@ -328,6 +504,15 @@ function axisUnitLabel(
   return units.length === 1 ? units[0] : "";
 }
 
+/** Líneas del tooltip para una fila: una por serie, en el color de la serie. */
+function seriesLines(row: ChartRow, series: ChartSeries[], digits: number, unit: string): TipLine[] {
+  return series.map((s, j) => ({
+    color: s.color,
+    value: value(row.values[j] ?? null, s.digits ?? digits, s.unit ?? unit),
+    label: s.label,
+  }));
+}
+
 export function ColumnChart({
   title,
   subtitle,
@@ -350,6 +535,7 @@ export function ColumnChart({
   dataTable?: ReactNode;
 }) {
   const [ref, width] = useWidth();
+  const [hover, setHover] = useState<number | null>(null);
   const axes = assignSeriesAxes(rows, series);
   const hasRight = axes.includes("right");
   const pad = { l: 46, r: hasRight ? 52 : 10, t: 18, b: 28 };
@@ -388,6 +574,19 @@ export function ColumnChart({
       : `M${x},${y0}V${y0 + h - r}a${r},${r} 0 0 0 ${r},${r}h${w - 2 * r}a${r},${r} 0 0 0 ${r},-${r}V${y0}z`;
   };
 
+  const tip = hover == null ? null : rows[hover];
+  // La banda bajo el puntero (o bajo el toque) fija la fila del tooltip.
+  const locate = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - box.left - pad.l;
+    const py = e.clientY - box.top;
+    if (!band || px < 0 || px > plotW || py < pad.t || py > pad.t + plotH) {
+      setHover(null);
+      return;
+    }
+    setHover(Math.max(0, Math.min(rows.length - 1, Math.floor(px / band))));
+  };
+
   return (
     <ChartCard
       title={title}
@@ -399,8 +598,17 @@ export function ColumnChart({
     >
       <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
         {width > 0 && (
-          <svg role="img" aria-label={title} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-            <title>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</title>
+          <svg
+            role="img"
+            aria-label={title}
+            width={width}
+            height={height}
+            viewBox={`0 0 ${width} ${height}`}
+            onPointerMove={locate}
+            onPointerDown={locate}
+            onPointerLeave={() => setHover(null)}
+          >
+            <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
             {leftScale.ticks.map((t) => (
               <g key={`l-${t}`}>
                 <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
@@ -431,11 +639,13 @@ export function ColumnChart({
             ) : null}
             {rows.map((row, i) => {
               const x0 = pad.l + band * i + (band - groupW) / 2;
+              const dimmed = hover != null && hover !== i;
               return (
                 <g key={row.key}>
+                  <rect className="trjk-band" data-hover={hover === i} x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4" />
                   {row.values.map((v, j) =>
                     v == null ? null : (
-                      <path key={j} className="trjk-mark" d={bar(x0 + j * (barW + 2), v, barW, j)} fill={series[j].color} />
+                      <path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + j * (barW + 2), v, barW, j)} fill={series[j].color} />
                     ),
                   )}
                   {capLabels &&
@@ -458,15 +668,18 @@ export function ColumnChart({
                       {axisLabelText(row.label)}
                     </text>
                   )}
-                  <rect className="trjk-band" x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4">
-                    <title>
-                      {[row.label, ...row.values.map((v, j) => `${series[j].label}: ${value(v, series[j]?.digits ?? digits, series[j]?.unit ?? unit)}`)].join("\n")}
-                    </title>
-                  </rect>
                 </g>
               );
             })}
           </svg>
+        )}
+        {tip && hover != null && (
+          <ChartTip
+            title={tip.label}
+            lines={seriesLines(tip, series, digits, unit)}
+            notes={tip.notes}
+            style={tipStyle(pad.l + band * hover + band / 2, width, { top: pad.t })}
+          />
         )}
       </div>
     </ChartCard>
@@ -555,7 +768,12 @@ export function LineChart({
   })();
 
   const tip = hover == null ? null : rows[hover];
-  const tipLeft = hover == null ? 0 : x(hover);
+  // El punto más cercano en x (puntero o toque) fija la fila del tooltip.
+  const locate = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - box.left - pad.l;
+    setHover(Math.max(0, Math.min(rows.length - 1, step ? Math.round(px / step) : 0)));
+  };
 
   return (
     <ChartCard
@@ -574,14 +792,11 @@ export function LineChart({
             width={width}
             height={height}
             viewBox={`0 0 ${width} ${height}`}
-            onPointerMove={(e) => {
-              const box = e.currentTarget.getBoundingClientRect();
-              const px = e.clientX - box.left - pad.l;
-              setHover(Math.max(0, Math.min(rows.length - 1, step ? Math.round(px / step) : 0)));
-            }}
+            onPointerMove={locate}
+            onPointerDown={locate}
             onPointerLeave={() => setHover(null)}
           >
-            <title>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</title>
+            <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
             {leftScale.ticks.map((t) => (
               <g key={`l-${t}`}>
                 <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
@@ -657,31 +872,20 @@ export function LineChart({
             })}
           </svg>
         )}
-        {tip && (
-          <div
-            className="trjk-tip"
-            style={
-              tipLeft > width / 2
-                ? { right: width - tipLeft + 12, top: pad.t }
-                : { left: tipLeft + 12, top: pad.t }
-            }
-          >
-            <header>{tip.label}</header>
-            {series.map((s, j) => (
-              <div key={s.label}>
-                <i style={{ background: s.color }} />
-                <strong>{value(tip.values[j], s.digits ?? digits, s.unit ?? unit)}</strong>
-                <span>{s.label}</span>
-              </div>
-            ))}
-          </div>
+        {tip && hover != null && (
+          <ChartTip
+            title={tip.label}
+            lines={seriesLines(tip, series, digits, unit)}
+            notes={tip.notes}
+            style={tipStyle(x(hover), width, { top: pad.t })}
+          />
         )}
       </div>
     </ChartCard>
   );
 }
 
-export type DonutItem = { label: string; value: number; color: string; note?: string };
+export type DonutItem = { label: string; value: number; color: string; note?: string; notes?: ChartNote[] };
 
 function arc(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number) {
   const p = (r: number, a: number) => `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`;
@@ -714,8 +918,8 @@ export function DonutChart({
   showTable?: boolean;
   dataTable?: ReactNode;
 }) {
-  
   const [active, setActive] = useState<number | null>(null);
+  const [pointer, onPointerMove, clearPointer] = usePointer();
   const shown = items.filter((i) => i.value > 0);
   const total = shown.reduce((sum, i) => sum + i.value, 0);
   const size = 150;
@@ -738,6 +942,7 @@ export function DonutChart({
   const focusIndex =
     active != null ? active : selectedIndex >= 0 ? selectedIndex : null;
   const focus = focusIndex != null ? shown[focusIndex] : null;
+  const tip = active != null && pointer ? segments[active] : null;
 
   return (
     <ChartCard
@@ -768,13 +973,21 @@ export function DonutChart({
         ) : undefined)
       }
     >
-      <div className="trjk-donut" onPointerLeave={() => setActive(null)}>
+      <div
+        className="trjk-donut"
+        onPointerMove={onPointerMove}
+        onPointerDown={onPointerMove}
+        onPointerLeave={() => {
+          setActive(null);
+          clearPointer();
+        }}
+      >
         <svg role="img" aria-label={title} width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <title>
+          <desc>
             {showTable
               ? `${title}. Los valores exactos están en «Ver cifras exactas».`
               : title}
-          </title>
+          </desc>
           {segments.map((s, i) => (
             <path
               key={s.item.label}
@@ -791,9 +1004,7 @@ export function DonutChart({
                   : undefined
               }
               style={onSelect ? { cursor: "pointer" } : undefined}
-            >
-              <title>{`${s.item.label}: ${value(s.item.value, digits, unit)} (${formatNumber(s.pct, 1)} %)`}</title>
-            </path>
+            />
           ))}
           <text className="trjk-donut-value" x={cx} y={cx - 2} textAnchor="middle">
             {focus ? `${formatNumber(focus.value / total * 100, 0)} %` : compact.format(total)}
@@ -822,18 +1033,26 @@ export function DonutChart({
               }
             >
               <i style={{ background: s.item.color }} />
-              <span title={s.item.note ? `${s.item.label} · ${s.item.note}` : s.item.label}>{s.item.label}</span>
+              <span>{s.item.label}</span>
               <strong>{value(s.item.value, digits, unit)}</strong>
               <em>{formatNumber(s.pct, 1)} %</em>
             </button>
           ))}
         </div>
+        {tip && pointer && (
+          <ChartTip
+            title={tip.item.label}
+            lines={[{ color: tip.item.color, value: value(tip.item.value, digits, unit), label: `${formatNumber(tip.pct, 1)} % de ${centerLabel || "total"}` }]}
+            notes={[...(tip.item.note ? ([["Detalle", tip.item.note]] as ChartNote[]) : []), ...(tip.item.notes ?? [])]}
+            style={tipStyle(pointer.x, pointer.w, { pointerY: pointer.y, height: pointer.h })}
+          />
+        )}
       </div>
     </ChartCard>
   );
 }
 
-export type RankRow = { label: string; value: number; note?: string };
+export type RankRow = { label: string; value: number; note?: string; notes?: ChartNote[] };
 
 export function RankChart({
   title,
@@ -862,9 +1081,12 @@ export function RankChart({
   scale?: ChartScaleMode;
   dataTable?: ReactNode;
 }) {
+  const [active, setActive] = useState<number | null>(null);
+  const [pointer, onPointerMove, clearPointer] = usePointer();
   const max = Math.max(1, ...rows.map((r) => r.value));
   const log = scaleMode === "log" && canUseLogScale(rows.map((row) => row.value));
   const logScale = logarithmicScale(rows.map((row) => row.value));
+  const tip = active != null && pointer ? rows[active] : null;
   return (
     <ChartCard
       title={title}
@@ -894,14 +1116,22 @@ export function RankChart({
         </table>
       )}
     >
-      <div className="trjk-rank">
+      <div
+        className="trjk-rank"
+        onPointerMove={onPointerMove}
+        onPointerDown={onPointerMove}
+        onPointerLeave={() => {
+          setActive(null);
+          clearPointer();
+        }}
+      >
         {rows.map((r, i) => {
           const Row = onSelect ? "button" : "div";
           return (
             <Row
               className="trjk-rank-row"
               key={r.label}
-              title={`${r.label}: ${value(r.value, digits, unit)}${r.note ? ` · ${r.note}` : ""}`}
+              onPointerEnter={() => setActive(i)}
               {...(onSelect
                 ? {
                     type: "button" as const,
@@ -923,6 +1153,14 @@ export function RankChart({
             </Row>
           );
         })}
+        {tip && pointer && active != null && (
+          <ChartTip
+            title={`${active + 1}. ${tip.label}`}
+            lines={[{ color, value: value(tip.value, digits, unit), label: "" }, ...(tip.note ? [{ label: tip.note }] : [])]}
+            notes={tip.notes}
+            style={tipStyle(pointer.x, pointer.w, { pointerY: pointer.y, height: pointer.h })}
+          />
+        )}
       </div>
     </ChartCard>
   );

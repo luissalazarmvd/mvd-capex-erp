@@ -28,9 +28,11 @@ import {
   ColumnChart,
   DonutChart,
   LineChart,
+  KpiTooltip,
   RankChart,
   type ChartRow,
   type DonutItem,
+  type KpiTrend,
 } from "../ui/Charts";
 
 type LotStatus =
@@ -193,11 +195,6 @@ type Kpi = {
   value: string;
   note: string;
   tip: [string, string][];
-};
-
-type KpiTrend = {
-  label: string;
-  values: (number | null)[];
 };
 
 const LOT_STATUS_ORDER: SummaryStatus[] = [
@@ -885,100 +882,6 @@ function KpiCard({
   loading: boolean;
   trend?: KpiTrend;
 }) {
-  const trendValues =
-    (
-      trend?.values
-      || []
-    ).filter(
-      (
-        item
-      ): item is number =>
-        item != null &&
-        Number.isFinite(item)
-    );
-
-  const sparkWidth = 220;
-  const sparkHeight = 54;
-  const sparkPad = 4;
-
-  const min =
-    trendValues.length
-      ? Math.min(
-          ...trendValues
-        )
-      : 0;
-
-  const max =
-    trendValues.length
-      ? Math.max(
-          ...trendValues
-        )
-      : 0;
-
-  const span =
-    max - min;
-
-  const spark =
-    trendValues.length > 1
-      ? trendValues.map(
-          (
-            item,
-            index
-          ) => ({
-            x:
-              sparkPad +
-              (
-                index *
-                (
-                  sparkWidth -
-                  sparkPad * 2
-                )
-              ) /
-                (
-                  trendValues.length -
-                  1
-                ),
-            y:
-              span === 0
-                ? sparkHeight / 2
-                : sparkHeight -
-                  sparkPad -
-                  (
-                    (
-                      item -
-                      min
-                    ) /
-                    span
-                  ) *
-                    (
-                      sparkHeight -
-                      sparkPad * 2
-                    ),
-          })
-        )
-      : [];
-
-  const sparkPoints =
-    spark
-      .map(
-        ({
-          x,
-          y,
-        }) =>
-          `${x.toFixed(1)},${y.toFixed(1)}`
-      )
-      .join(" ");
-
-  const areaPoints =
-    spark.length
-      ? `${spark[0].x.toFixed(1)},${sparkHeight - sparkPad} ${sparkPoints} ${spark[spark.length - 1].x.toFixed(1)},${sparkHeight - sparkPad}`
-      : "";
-
-  const lastPoint =
-    spark[
-      spark.length - 1
-    ];
-
   return (
     <div
       className="trjk-kpi"
@@ -995,65 +898,12 @@ function KpiCard({
       <small>
         {note}
       </small>
-      <div
-        className="trjk-tip trjk-kpi-tip"
-        role="tooltip"
-      >
-        <header>
-          {label}
-        </header>
-        {spark.length > 1 && (
-          <div className="trjk-kpi-trend">
-            <div className="trjk-kpi-trend-head">
-              <span>
-                {trend?.label}
-              </span>
-              <small>
-                {trendValues.length} puntos
-              </small>
-            </div>
-            <svg
-              viewBox={`0 0 ${sparkWidth} ${sparkHeight}`}
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <polygon
-                className="trjk-kpi-spark-area"
-                points={areaPoints}
-              />
-              <polyline
-                className="trjk-kpi-spark-line"
-                points={sparkPoints}
-              />
-              {lastPoint && (
-                <circle
-                  className="trjk-kpi-spark-dot"
-                  cx={lastPoint.x}
-                  cy={lastPoint.y}
-                  r="2.8"
-                />
-              )}
-            </svg>
-          </div>
-        )}
-        {tip.map(
-          ([
-            name,
-            amount,
-          ]) => (
-            <div key={name}>
-              <span>
-                {name}
-              </span>
-              <strong>
-                {loading
-                  ? "…"
-                  : amount}
-              </strong>
-            </div>
-          )
-        )}
-      </div>
+      <KpiTooltip
+        label={label}
+        notes={tip}
+        trend={trend}
+        loading={loading}
+      />
     </div>
   );
 }

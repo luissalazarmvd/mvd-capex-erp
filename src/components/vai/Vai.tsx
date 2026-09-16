@@ -61,6 +61,7 @@ import {
   CHART_OTHER,
   ColumnChart,
   DonutChart,
+  KpiTooltip,
   LineChart,
   RankChart,
   type ChartRow,
@@ -758,7 +759,15 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
       {kpis.length ? (
         <div className="vai-kpi-grid">
           {kpis.map((widget, i) => (
-            <KpiCard key={`${widget.source}-${widget.metrics[0]}-${i}`} id={`kpi-${i}`} order={i} widget={widget} rows={filtered[widget.source] ?? []} loading={loading} />
+            <KpiCard
+              key={`${widget.source}-${widget.metrics[0]}-${i}`}
+              id={`kpi-${i}`}
+              order={i}
+              widget={widget}
+              rows={filtered[widget.source] ?? []}
+              loading={loading}
+              trendDateField={spec.filters.find((filter): filter is Extract<VaiFilterSpec, { kind: "date_range" }> => filter.kind === "date_range" && filter.source === widget.source)?.field ?? null}
+            />
           ))}
         </div>
       ) : null}
@@ -806,18 +815,26 @@ function FilterControl({ filter, rows, value, onChange }: { filter: VaiFilterSpe
   );
 }
 
-function KpiCard({ id, order, widget, rows, loading }: { id: string; order: number; widget: VaiWidgetSpec; rows: VaiRow[]; loading: boolean }) {
+function KpiCard({ id, order, widget, rows, loading, trendDateField }: { id: string; order: number; widget: VaiWidgetSpec; rows: VaiRow[]; loading: boolean; trendDateField: string | null }) {
   const source = VAI_SOURCE_MAP.get(widget.source);
-  const result = source ? computeWidget(widget, source, rows) : null;
+  const result = useMemo(() => (source ? computeWidget(widget, source, rows, { trendDateField }) : null), [widget, source, rows, trendDateField]);
   if (!result || result.kind !== "kpi") return null;
+  const waiting = loading && !rows.length;
   return (
     <VaiExportSection id={id} order={order} title={widget.title} kind="kpi">
-    <div className="vai-kpi" title={source?.metrics.find((metric) => metric.id === result.metric.id)?.description}>
+    <div className="vai-kpi" data-tip="true">
       <span>{widget.title}</span>
-      <strong>{loading && !rows.length ? "…" : formatValue(result.value, result.metric.format)}</strong>
+      <strong>{waiting ? "…" : formatValue(result.value, result.metric.format)}</strong>
       <small>
         {result.metric.label} · {rows.length.toLocaleString("es-PE")} filas · {source?.name}
       </small>
+      <KpiTooltip
+        label={widget.title}
+        notes={result.notes}
+        trend={result.trend}
+        loading={waiting}
+        footer={source?.metrics.find((metric) => metric.id === result.metric.id)?.description}
+      />
     </div>
     </VaiExportSection>
   );
@@ -851,6 +868,7 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
     key: row.label,
     label: row.label,
     values: row.values.map((v, j) => (v == null ? null : v * formats[j].scale)),
+    notes: row.notes,
   }));
 
   const values = chartRows.flatMap((row) => widget.type === "rank" ? [row.values[0]] : row.values);
@@ -875,7 +893,7 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
       <RankChart
         title={widget.title}
         subtitle={subtitle}
-        rows={result.rows.map((row) => ({ label: row.label, value: (row.values[0] ?? 0) * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined }))}
+        rows={result.rows.map((row) => ({ label: row.label, value: (row.values[0] ?? 0) * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined, notes: row.notes }))}
         digits={primaryFormat.digits}
         unit={primaryFormat.unit}
         scale={scale}
@@ -892,6 +910,7 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
         label: row.label,
         value: Math.max(0, (row.values[0] ?? 0) * primaryFormat.scale),
         color: row.key === "Otros" ? CHART_OTHER : CHART_COLORS[i % CHART_COLORS.length],
+        notes: row.notes,
       }))}
       digits={primaryFormat.digits}
       unit={primaryFormat.unit}

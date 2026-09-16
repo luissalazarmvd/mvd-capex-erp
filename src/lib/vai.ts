@@ -3086,12 +3086,17 @@ function hoursBetween(a: unknown, b: unknown) {
   return (end - start) / 3600000;
 }
 
-export function aggregate(metric: VaiMetric, rows: VaiRow[]): number | null {
-  const subset = rows.filter(
+/** Filas que cumplen las condiciones fijas de la métrica (`where` / `whereAny`). */
+function metricSubset(metric: VaiMetric, rows: VaiRow[]) {
+  return rows.filter(
     (row) =>
       passes(row, metric.where) &&
       (!metric.whereAny?.length || metric.whereAny.some((condition) => matches(row, condition))),
   );
+}
+
+export function aggregate(metric: VaiMetric, rows: VaiRow[]): number | null {
+  const subset = metricSubset(metric, rows);
   const values = (field: string | undefined) =>
     field ? subset.map((row) => toNumber(row[field])).filter((v): v is number => v != null) : [];
   switch (metric.agg) {
@@ -3184,19 +3189,206 @@ export function aggregate(metric: VaiMetric, rows: VaiRow[]): number | null {
   }
 }
 
+// ── Notas de tooltip ───────────────────────────────────────────────────
+//
+// Lo que un tooltip puede decir de un valor depende de cómo se agregó: una
+// suma admite participación y promedio por fila; una razón solo tiene sentido
+// frente a la razón global; un conteo distinto no se reparte. Las notas se
+// calculan aquí, junto a la agregación, y los gráficos solo las muestran.
+
+/** Nota de tooltip: etiqueta y valor ya formateado (misma forma que `ChartNote`). */
+export type VaiNote = [label: string, value: string, series?: number];
+/** Tendencia de un KPI por período, para el sparkline de su tooltip. */
+export type VaiTrend = { label: string; values: (number | null)[]; from: string; to: string };
+
+/** Métricas que se reparten entre categorías: participación y promedio por categoría. */
+const ADDITIVE_AGGS: ReadonlySet<VaiAgg> = new Set(["sum", "count"]);
+/** Tasas y promedios: se comparan con la misma métrica calculada sobre todas las filas. */
+const RATE_AGGS: ReadonlySet<VaiAgg> = new Set(["avg", "weighted_avg", "ratio", "diff_pct", "pct_change", "avg_hours_diff", "avg_days_diff", "sum_per_distinct", "count_per_distinct"]);
+/** Agregaciones sobre un campo numérico, donde una fila sin valor queda fuera. */
+const NUMERIC_FIELD_AGGS: ReadonlySet<VaiAgg> = new Set(["sum", "avg", "min", "max", "sum_distinct", "sum_per_distinct", "weighted_avg"]);
+
+const fieldLabel = (source: VaiSource, id?: string) => (id ? vaiField(source, id)?.label ?? id : "");
+const fieldFormat = (source: VaiSource, id?: string): VaiFormat => (id ? vaiField(source, id)?.format ?? "decimal" : "decimal");
+const sumOf = (list: number[]) => list.reduce((sum, v) => sum + v, 0);
+// Sin spread: las listas pueden tener decenas de miles de valores.
+const minOf = (list: number[]) => list.reduce((min, v) => (v < min ? v : min), Infinity);
+const maxOf = (list: number[]) => list.reduce((max, v) => (v > max ? v : max), -Infinity);
+const numbers = (rows: VaiRow[], field?: string) => (field ? rows.map((row) => toNumber(row[field])).filter((v): v is number => v != null) : []);
+const distinctCount = (rows: VaiRow[], field?: string) => new Set(rows.map((row) => toText(row[field ?? ""])).filter(Boolean)).size;
+const median = (list: number[]) => {
+  const sorted = [...list].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+const ofRows = (part: number, total: number) => (part === total ? num(part, 0) : `${num(part, 0)} de ${num(total, 0)}`);
+const signedPct = (value: number) => `${value < 0 ? "−" : "+"}${num(Math.abs(value), 1)} %`;
+/** Variación relativa frente a una referencia; nula si no hay base comparable. */
+const relative = (value: number | null, reference: number | null) =>
+  value == null || reference == null || reference === 0 ? null : ((value - reference) / Math.abs(reference)) * 100;
+/** Diferencia absoluta con signo; porcentajes y fracciones en puntos porcentuales. */
+function signedDelta(diff: number, format: VaiFormat) {
+  const sign = diff < 0 ? "−" : "+";
+  if (format === "percent" || format === "fraction") return `${sign}${num(Math.abs(diff) * (format === "fraction" ? 100 : 1), 2)} pp`;
+  return `${sign}${formatValue(Math.abs(diff), format)}`;
+}
+
+/** Desglose de un KPI según su agregación: qué entró al cálculo y cómo se distribuye. */
+export function kpiInsights(metric: VaiMetric, source: VaiSource, rows: VaiRow[]): VaiNote[] {
+  const subset = metricSubset(metric, rows);
+  const notes: VaiNote[] = [];
+  const fmt = (v: number | null) => formatValue(v, metric.format);
+  const fmtField = (v: number | null, field?: string) => formatValue(v, fieldFormat(source, field));
+  const list = numbers(subset, metric.field);
+  // Solo interesa cuando las condiciones fijas de la métrica dejan filas fuera.
+  const considered: VaiNote[] = subset.length === rows.length ? [] : [["Filas consideradas", ofRows(subset.length, rows.length)]];
+  const distinctNote = (field?: string): VaiNote => [`Valores distintos · ${fieldLabel(source, field)}`, num(distinctCount(subset, field), 0)];
+
+  switch (metric.agg) {
+    case "count":
+      notes.push(...considered);
+      if (subset.length !== rows.length && rows.length) notes.push(["Participación en filas", `${num((subset.length / rows.length) * 100, 1)} %`]);
+      break;
+    case "count_distinct": {
+      const keys = distinctCount(subset, metric.field);
+      notes.push(...considered);
+      if (keys) notes.push([`Filas por ${fieldLabel(source, metric.field).toLowerCase()}`, num(subset.length / keys, 1)]);
+      break;
+    }
+    case "sum":
+      if (list.length) notes.push(["Promedio por fila", fmt(sumOf(list) / list.length)], ["Máximo", fmt(maxOf(list))], ["Mínimo", fmt(minOf(list))]);
+      notes.push(...considered);
+      break;
+    case "avg":
+      if (list.length) notes.push(["Mediana", fmt(median(list))], ["Máximo", fmt(maxOf(list))], ["Mínimo", fmt(minOf(list))]);
+      notes.push(...considered);
+      break;
+    case "min":
+    case "max":
+      if (list.length) notes.push([metric.agg === "min" ? "Máximo" : "Mínimo", fmt(metric.agg === "min" ? maxOf(list) : minOf(list))], ["Promedio", fmt(sumOf(list) / list.length)]);
+      notes.push(...considered);
+      break;
+    case "sum_distinct":
+      notes.push(distinctNote(metric.distinctField), ...considered);
+      break;
+    case "sum_per_distinct":
+      notes.push([`Σ ${fieldLabel(source, metric.field)}`, fmt(sumOf(list))], distinctNote(metric.distinctField), ...considered);
+      break;
+    case "count_per_distinct":
+      notes.push(["Filas consideradas", ofRows(subset.length, rows.length)], distinctNote(metric.distinctField));
+      break;
+    case "sum_diff":
+      notes.push([`Σ ${fieldLabel(source, metric.field)}`, fmt(sumOf(list))], [`Σ ${fieldLabel(source, metric.field2)}`, fmt(sumOf(numbers(subset, metric.field2)))], ...considered);
+      break;
+    case "ratio":
+    case "diff_pct":
+    case "pct_change": {
+      let numerator = 0;
+      let denominator = 0;
+      let pairs = 0;
+      const distinct = metric.agg === "ratio" && metric.distinctField ? new Map<string, number>() : null;
+      for (const row of subset) {
+        const a = toNumber(row[metric.numerator ?? ""]);
+        const b = toNumber(row[metric.denominator ?? ""]);
+        if (a == null || b == null) continue;
+        pairs += 1;
+        numerator += a;
+        if (distinct) {
+          const key = toText(row[metric.distinctField ?? ""]);
+          if (key && !distinct.has(key)) distinct.set(key, b);
+        } else denominator += b;
+      }
+      if (distinct) denominator = sumOf([...distinct.values()]);
+      const perKey = distinct ? ` · una vez por ${fieldLabel(source, metric.distinctField).toLowerCase()}` : "";
+      notes.push([`Σ ${fieldLabel(source, metric.numerator)}`, fmtField(numerator, metric.numerator)], [`Σ ${fieldLabel(source, metric.denominator)}${perKey}`, fmtField(denominator, metric.denominator)]);
+      if (metric.agg !== "ratio") notes.push(["Diferencia", signedDelta(numerator - denominator, fieldFormat(source, metric.numerator))]);
+      if (distinct) notes.push([`Valores distintos · ${fieldLabel(source, metric.distinctField)}`, num(distinct.size, 0)]);
+      notes.push(["Filas con ambos valores", ofRows(pairs, rows.length)]);
+      break;
+    }
+    case "weighted_avg": {
+      let weight = 0;
+      let simple = 0;
+      let weighted = 0;
+      for (const row of subset) {
+        const v = toNumber(row[metric.field ?? ""]);
+        const w = toNumber(row[metric.weight ?? ""]);
+        if (v == null || w == null || w <= 0) continue;
+        weight += w;
+        simple += v;
+        weighted += 1;
+      }
+      notes.push([`Σ ${fieldLabel(source, metric.weight)} (peso)`, fmtField(weight, metric.weight)]);
+      if (weighted) notes.push(["Promedio simple", fmt(simple / weighted)]);
+      notes.push(["Filas ponderadas", ofRows(weighted, rows.length)]);
+      break;
+    }
+    case "avg_hours_diff":
+    case "avg_days_diff": {
+      const divisor = metric.agg === "avg_days_diff" ? 24 : 1;
+      const spans = subset.map((row) => hoursBetween(row[metric.field ?? ""], row[metric.field2 ?? ""])).filter((v): v is number => v != null).map((v) => v / divisor);
+      if (spans.length) notes.push(["Mediana", fmt(median(spans))], ["Máximo", fmt(maxOf(spans))], ["Mínimo", fmt(minOf(spans))]);
+      notes.push(["Filas con ambas fechas", ofRows(spans.length, rows.length)]);
+      break;
+    }
+  }
+
+  const missing = NUMERIC_FIELD_AGGS.has(metric.agg) && metric.field ? subset.length - list.length : 0;
+  if (missing > 0) notes.push([`Sin valor en ${fieldLabel(source, metric.field).toLowerCase()}`, num(missing, 0)]);
+  return notes;
+}
+
+/** Grano del sparkline según el período que cubren las fechas. */
+function trendBucket(dates: string[]): VaiBucket {
+  const sorted = [...dates].sort();
+  const span = (Date.parse(sorted[sorted.length - 1]) - Date.parse(sorted[0])) / 86400000;
+  return span <= 45 ? "day" : span <= 200 ? "week" : "month";
+}
+
+/**
+ * Tendencia de un KPI por período sobre `dateField`, con la misma agregación
+ * que el valor principal (una razón se recalcula por período, no se promedia).
+ * Se omite con menos de tres períodos con dato.
+ */
+export function kpiTrend(metric: VaiMetric, source: VaiSource, rows: VaiRow[], dateField: string | null | undefined): VaiTrend | null {
+  if (!dateField) return null;
+  const field = vaiField(source, dateField);
+  if (!field || field.role !== "date") return null;
+  const dated = rows.filter((row) => toIsoDate(row[dateField]));
+  if (!dated.length) return null;
+  const bucket = trendBucket(dated.map((row) => toIsoDate(row[dateField])));
+  const groups = groupRows(dated, (row) => kardexPeriodKey(toIsoDate(row[dateField]), bucket));
+  const keys = [...groups.keys()].sort().slice(-36);
+  const values = keys.map((key) => aggregate(metric, groups.get(key) ?? []));
+  if (values.filter((v) => v != null).length < 3) return null;
+  const grain = bucket === "day" ? "diaria" : bucket === "week" ? "semanal" : "mensual";
+  return {
+    label: `Evolución ${grain} · ${field.label}`,
+    values,
+    from: formatDateLabel(keys[0], bucket),
+    to: formatDateLabel(keys[keys.length - 1], bucket),
+  };
+}
+
 // ── Datos por widget ───────────────────────────────────────────────────
 
 export type VaiSeriesDef = { id: string; label: string; format: VaiFormat };
-export type VaiGroupRow = { key: string; label: string; values: (number | null)[]; count: number };
+export type VaiGroupRow = { key: string; label: string; values: (number | null)[]; count: number; notes: VaiNote[] };
 export type VaiTableRow = (string | number | null)[];
 export type VaiTableSummaryRule = { operation: VaiSummaryOperation; label: string; metric?: VaiMetric } | null;
 export type VaiTableData = { kind: "table"; columns: VaiSeriesDef[]; rows: VaiTableRow[]; total: number; summaryRules: VaiTableSummaryRule[]; rowMembers: VaiRow[][] };
 export type VaiTableSummary = { value: number | null; label: string } | null;
 
 export type VaiWidgetData =
-  | { kind: "kpi"; metric: VaiSeriesDef; value: number | null; rows: number }
+  | { kind: "kpi"; metric: VaiSeriesDef; value: number | null; rows: number; notes: VaiNote[]; trend: VaiTrend | null }
   | { kind: "series"; series: VaiSeriesDef[]; rows: VaiGroupRow[]; temporal: boolean; table: VaiTableData }
   | VaiTableData;
+
+/** Opciones de cálculo que dependen del dashboard, no del widget. */
+export type VaiComputeOptions = {
+  /** Campo de fecha del filtro de rango del dashboard para la fuente del widget; da el sparkline del KPI. */
+  trendDateField?: string | null;
+};
 
 function summaryRule(widget: VaiWidgetSpec, column: string, metric?: VaiMetric, fallback?: VaiSummaryOperation): VaiTableSummaryRule {
   const requested = widget.summaries?.find((item) => item.column === column)?.operation ?? "auto";
@@ -3233,13 +3425,25 @@ function groupRows(rows: VaiRow[], keyOf: (row: VaiRow) => string) {
   return groups;
 }
 
-export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: VaiRow[]): VaiWidgetData | null {
+export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: VaiRow[], options: VaiComputeOptions = {}): VaiWidgetData | null {
   const metrics = widget.metrics.map((id) => vaiMetric(source, id)).filter((metric): metric is VaiMetric => Boolean(metric));
   const series: VaiSeriesDef[] = metrics.map((metric) => ({ id: metric.id, label: metric.label, format: metric.format }));
 
   if (widget.type === "kpi") {
     if (!metrics.length) return null;
-    return { kind: "kpi", metric: series[0], value: aggregate(metrics[0], rows), rows: rows.length };
+    // Una foto (snapshot) solo se despliega en el tiempo si alguien pidió esa fecha.
+    const trendDateField =
+      widget.dateField ??
+      options.trendDateField ??
+      (source.temporalMode === "snapshot" ? null : source.defaultDateField ?? source.fields.find((field) => field.role === "date")?.id ?? null);
+    return {
+      kind: "kpi",
+      metric: series[0],
+      value: aggregate(metrics[0], rows),
+      rows: rows.length,
+      notes: kpiInsights(metrics[0], source, rows),
+      trend: kpiTrend(metrics[0], source, rows, trendDateField),
+    };
   }
 
   if (widget.type === "table" && widget.columns) {
@@ -3283,13 +3487,25 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
     label: temporal ? formatDateLabel(key, bucket) : key,
     values: metrics.map((metric) => aggregate(metric, subset)),
     count: subset.length,
+    notes: [],
     members: subset,
   }));
 
   if (temporal) grouped.sort((a, b) => a.key.localeCompare(b.key));
   else grouped.sort((a, b) => (b.values[0] ?? -Infinity) - (a.values[0] ?? -Infinity));
 
+  // Referencias para las notas, sobre todos los grupos antes de recortar:
+  // total y promedio por categoría de las métricas sumables; la misma métrica
+  // sobre todas las filas para tasas y promedios.
   const groupedTotal = grouped.length;
+  const totals = metrics.map((metric, j) => (ADDITIVE_AGGS.has(metric.agg) ? sumOf(grouped.map((row) => row.values[j] ?? 0)) : null));
+  const references = metrics.map((metric, j) => {
+    if (RATE_AGGS.has(metric.agg)) return aggregate(metric, rows);
+    if (metric.agg === "min" || metric.agg === "max") return null;
+    const known = grouped.map((row) => row.values[j]).filter((v): v is number => v != null);
+    return known.length ? sumOf(known) / known.length : null;
+  });
+
   const limit = widget.limit ?? (widget.type === "table" ? grouped.length : temporal ? 60 : widget.type === "donut" ? 6 : 12);
   if (temporal && grouped.length > limit) grouped = grouped.slice(grouped.length - limit);
   else if (!temporal && grouped.length > limit) {
@@ -3303,10 +3519,36 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
         label: `Otros (${rest.length})`,
         values: metrics.map((_, j) => rest.reduce((sum, row) => sum + (row.values[j] ?? 0), 0)),
         count: rest.reduce((sum, row) => sum + row.count, 0),
+        notes: [],
         members: rest.flatMap((row) => row.members),
       });
     }
   }
+
+  // Notas del tooltip por fila: las de cada métrica llevan su índice de serie
+  // (se muestran bajo esa serie); posición y filas van al bloque general. El
+  // anillo ya muestra la participación.
+  const dimensionLabel = (vaiField(source, widget.dimension ?? "")?.label ?? "categoría").toLowerCase();
+  grouped.forEach((row, i) => {
+    const notes: VaiNote[] = [];
+    const other = !temporal && row.key === "Otros";
+    if (!temporal && !other) notes.push(["Posición", `#${i + 1} de ${groupedTotal}`]);
+    metrics.forEach((metric, j) => {
+      const v = row.values[j];
+      if (v == null) return;
+      if (temporal && i > 0) {
+        const previous = grouped[i - 1];
+        const change = relative(v, previous.values[j]);
+        if (change != null) notes.push([`Δ vs ${previous.label}`, `${signedPct(change)} (${signedDelta(v - (previous.values[j] ?? 0), metric.format)})`, j]);
+      }
+      const total = totals[j];
+      if (widget.type !== "donut" && total) notes.push(["Participación", `${num((v / total) * 100, 1)} %`, j]);
+      const change = temporal || other ? null : relative(v, references[j]);
+      if (change != null) notes.push([RATE_AGGS.has(metric.agg) ? "vs global" : `vs promedio por ${dimensionLabel}`, signedPct(change), j]);
+    });
+    notes.push(["Filas", num(row.count, 0)]);
+    row.notes = notes;
+  });
 
   const first: VaiSeriesDef = temporal
       ? { id: widget.dateField ?? "period", label: "Período", format: "text" }
@@ -3604,7 +3846,7 @@ export async function createDashboardPdf(title: string, blocks: VaiExportBlock[]
       continue;
     }
     const canvas = await html2canvas(block.element, { scale: 2, backgroundColor: theme.canvas, logging: false, useCORS: true,
-      ignoreElements: (element) => element.hasAttribute("data-vai-export-ignore") || element.classList.contains("trjk-chart-data"),
+      ignoreElements: (element) => element.hasAttribute("data-vai-export-ignore") || element.classList.contains("trjk-chart-data") || element.classList.contains("trjk-tip"),
     });
     const tileHeight = (canvas.height / canvas.width) * tileWidth;
     if (!started) newPage(title, 297, Math.max(210, tileHeight + 70));

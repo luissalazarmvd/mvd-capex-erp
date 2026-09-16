@@ -152,21 +152,26 @@
 .trjk-kpi strong { font-size: 23px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .trjk-kpi small { color: var(--ink-3); font-size: 10px; }
 
-.trjk-kpi[data-tip] { position: relative; cursor: help; }
-.trjk-kpi[data-tip] > span::after { content: "i"; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; margin-left: 6px; border: 1px solid var(--line-2); border-radius: 50%; font-size: 8px; font-weight: 600; color: var(--ink-3); vertical-align: 1px; }
+/* Desglose flotante de KPI (KpiTooltip): la tarjeta declara data-tip; se
+   alinea a la derecha cuando queda al borde (última de la fila o data-align). */
+.trjk-kpi[data-tip], .vai-kpi[data-tip] { position: relative; cursor: help; }
+.trjk-kpi[data-tip] > span::after, .vai-kpi[data-tip] > span::after { content: "i"; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; margin-left: 6px; border: 1px solid var(--line-2); border-radius: 50%; font-size: 8px; font-weight: 600; color: var(--ink-3); vertical-align: 1px; }
 .trjk-tip.trjk-kpi-tip { display: grid; opacity: 0; visibility: hidden; left: 0; top: calc(100% + 8px); width: 290px; min-width: 0; max-width: min(320px, calc(100vw - 24px)); transform: translateY(-6px) scale(.985); transform-origin: top left; transition: opacity .12s ease, transform .12s ease, visibility 0s linear .12s; }
-.trjk-kpi[data-tip]:hover { z-index: 20; }
-.trjk-kpi[data-tip]:hover .trjk-kpi-tip { opacity: 1; visibility: visible; transform: translateY(0) scale(1); transition-delay: 0s; }
-.trjk-kpi-grid .trjk-kpi:last-child .trjk-kpi-tip, .trjk-stat-grid .trjk-kpi:last-child .trjk-kpi-tip { left: auto; right: 0; transform-origin: top right; }
+.trjk-kpi[data-tip]:hover, .vai-kpi[data-tip]:hover { z-index: 20; }
+.trjk-kpi[data-tip]:hover .trjk-kpi-tip, .vai-kpi[data-tip]:hover .trjk-kpi-tip { opacity: 1; visibility: visible; transform: translateY(0) scale(1); transition-delay: 0s; }
+.trjk-kpi-grid .trjk-kpi:last-child .trjk-kpi-tip, .trjk-stat-grid .trjk-kpi:last-child .trjk-kpi-tip, .trjk-kpi-tip[data-align="end"] { left: auto; right: 0; transform-origin: top right; }
 .trjk-kpi-tip > header { padding-bottom: 2px; font-size: 11px; letter-spacing: .02em; }
 .trjk-kpi-tip > div:not(.trjk-kpi-trend) { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 2px 0; }
 .trjk-kpi-tip span { flex: 1; }
 .trjk-kpi-tip strong { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.trjk-kpi-tip > footer { margin-top: 3px; padding-top: 5px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 10px; line-height: 1.4; white-space: normal; }
 .trjk-kpi-tip .trjk-kpi-trend { display: grid; gap: 6px; margin: 2px 0 5px; padding: 8px; background: rgba(0, 0, 0, .14); border: 1px solid var(--line); border-radius: var(--r-1); }
 .trjk-kpi-tip .trjk-kpi-trend-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .trjk-kpi-trend-head span { color: var(--ink-2); font-size: 10px; }
 .trjk-kpi-trend-head small { flex: none; color: var(--ink-3); font-size: 9px; }
 .trjk-kpi-trend svg { display: block; width: 100%; height: 54px; overflow: visible; }
+.trjk-kpi-tip .trjk-kpi-trend-range { display: flex; justify-content: space-between; gap: 10px; }
+.trjk-kpi-trend-range span { flex: none; color: var(--ink-3); font-size: 9px; font-variant-numeric: tabular-nums; }
 .trjk-kpi-spark-area { fill: var(--mod-soft); }
 .trjk-kpi-spark-line { fill: none; stroke: var(--mod); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .trjk-kpi-spark-dot { fill: var(--mod); stroke: var(--s-3); stroke-width: 2; vector-effect: non-scaling-stroke; }
@@ -196,14 +201,24 @@
 .trjk-mark-label { fill: var(--ink-2); font-size: 10px; font-variant-numeric: tabular-nums; }
 .trjk-mark { transition: opacity .12s ease; }
 .trjk-band { fill: transparent; }
-.trjk-band:hover { fill: rgba(255, 255, 255, .045); }
-.trjk-tip { position: absolute; z-index: 5; pointer-events: none; min-width: 140px; padding: 8px 10px; display: grid; gap: 4px; font-size: 11px; background: var(--s-3); border: 1px solid var(--line-2); border-radius: var(--r-1); box-shadow: var(--shadow); }
+.trjk-band:hover, .trjk-band[data-hover="true"] { fill: rgba(255, 255, 255, .045); }
+/* Tooltip flotante de los gráficos: cabecera, una línea por serie y notas de
+   contexto (participación, variación, filas) que aporta quien conoce el dato. */
+.trjk-tip { position: absolute; z-index: 5; pointer-events: none; width: max-content; min-width: 140px; max-width: 320px; padding: 8px 10px; display: grid; gap: 4px; font-size: 11px; background: var(--s-3); border: 1px solid var(--line-2); border-radius: var(--r-1); box-shadow: var(--shadow); }
 .trjk-tip header { color: var(--ink-2); font-weight: 600; }
 .trjk-tip div { display: flex; align-items: center; gap: 7px; }
 .trjk-tip i { width: 12px; height: 2px; border-radius: 1px; display: inline-block; flex-shrink: 0; }
-.trjk-tip strong { font-variant-numeric: tabular-nums; }
+.trjk-tip strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .trjk-tip span { color: var(--ink-2); }
-.trjk-donut { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: center; }
+.trjk-tip .trjk-tip-line { display: grid; gap: 2px; }
+.trjk-tip .trjk-tip-sub { display: grid; gap: 1px; padding-left: 19px; }
+.trjk-tip .trjk-tip-notes { display: grid; gap: 2px; margin-top: 2px; padding-top: 5px; border-top: 1px solid var(--line); }
+.trjk-tip .trjk-tip-sub > div, .trjk-tip .trjk-tip-notes > div { justify-content: space-between; align-items: baseline; gap: 12px; }
+.trjk-tip .trjk-tip-sub > div { font-size: 10px; }
+.trjk-tip-sub span, .trjk-tip-notes span { flex: 1; }
+.trjk-tip-sub strong { font-weight: 500; }
+.trjk-tip-notes strong { font-weight: 600; }
+.trjk-donut { position: relative; display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: center; }
 .trjk-donut path { transition: opacity .12s ease; cursor: default; }
 .trjk-donut-value { fill: var(--ink); font-size: 22px; font-weight: 600; }
 .trjk-donut-label { fill: var(--ink-2); font-size: 10px; }
@@ -214,7 +229,7 @@
 .trjk-donut-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trjk-donut-list strong { font-variant-numeric: tabular-nums; }
 .trjk-donut-list em { font-style: normal; color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
-.trjk-rank { display: grid; gap: 6px; }
+.trjk-rank { position: relative; display: grid; gap: 6px; }
 .trjk-rank-row { display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(0, 3fr) auto; gap: 10px; align-items: center; padding: 3px 6px; border-radius: var(--r-1); font-size: 11px; }
 .trjk-rank-row:hover { background: rgba(255, 255, 255, .045); }
 .trjk-rank-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -425,9 +440,9 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-range { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .vai-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
 .vai-kpi { display: grid; gap: 8px; padding: 14px; background: var(--s-1); border: 1px solid var(--line); border-radius: var(--r-2); border-top: 3px solid var(--mod); min-width: 0; }
-.vai-kpi span { font-size: 11px; color: var(--ink-2); }
-.vai-kpi strong { font-size: 23px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.vai-kpi small { color: var(--ink-3); font-size: 10px; }
+.vai-kpi > span { font-size: 11px; color: var(--ink-2); }
+.vai-kpi > strong { font-size: 23px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.vai-kpi > small { color: var(--ink-3); font-size: 10px; }
 .vai-widget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .vai-widget-grid > [data-span="2"] { grid-column: 1 / -1; }
 .vai-board table, .vai-inventory table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; text-align: left; }
