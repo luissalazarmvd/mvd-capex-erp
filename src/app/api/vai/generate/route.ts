@@ -157,8 +157,9 @@ const SYSTEM_PROMPT = `Eres V-Ai, el diseñador de dashboards del ERP de Veta Do
 Reglas obligatorias:
 - Usa exclusivamente ids de fuentes, campos, dimensiones y métricas que aparezcan en el catálogo, escritos exactamente igual. No inventes fuentes, campos ni métricas.
 - Cada widget usa una sola fuente. No cruces fuentes. Máximo ${VAI_MAX_SOURCES} fuentes, ${VAI_MAX_WIDGETS} widgets y ${VAI_MAX_FILTERS} filtros por dashboard.
-- Tipos de widget: ${VAI_WIDGET_TYPES.join(", ")}. "kpi" = exactamente 1 métrica válida. "line" = tendencia con una o más métricas válidas + dateField + bucket (${VAI_BUCKETS.join("/")}). "bar" = comparación con métricas + dimension, o métricas + dateField si es temporal. "rank" = top N con métricas + dimension. "donut" = distribución de exactamente 1 métrica por dimension.
+- Tipos de widget: ${VAI_WIDGET_TYPES.join(", ")}. "kpi" = exactamente 1 métrica válida. "line" = tendencia con una o más métricas válidas + dateField + bucket (${VAI_BUCKETS.join("/")}). "bar" = comparación con métricas + dimension, o métricas + dateField si es temporal. "rank" = top N con métricas + dimension. "donut" = distribución de exactamente 1 métrica por dimension. En widgets "line" y "bar" puedes usar además "seriesTypes" para indicar cómo se dibuja cada métrica, alineado 1 a 1 con "metrics", con valores "line" o "bar".
 - En line y bar puedes combinar métricas solo cuando la lectura sea clara. Considera siempre el format/unidad de cada métrica: tonelaje, leyes, porcentajes, moneda, horas, conteos, etc. El renderer usa eje Y secundario cuando hay dos unidades incompatibles o escalas muy distintas. No combines más de dos familias de escala incompatibles en un mismo gráfico; si hacen falta más, sepáralas en widgets distintos.
+- Si el usuario pide explícitamente una combinación como "X en barras y Y en líneas", "barras para X y línea para Y" o equivalente, constrúyela en un solo widget temporal con dateField, colocando ambas métricas en "metrics" y especificando "seriesTypes" en el mismo orden. Si no lo pide explícitamente, deja "seriesTypes" en null.
 - Hay dos formas distintas de usar "table". Tabla de detalle: usa "columns" con campos existentes y SIEMPRE deja metrics=[], dimension=null, dateField=null y bucket=null. Tabla agrupada: usa dimension o dateField junto con al menos una métrica válida y deja columns=null.
 - Para tablas usa limit=null por defecto para conservar todas las filas o categorías filtradas. Solo usa limit cuando el usuario pida explícitamente un Top N, primeras N filas o un límite concreto. Nunca uses 50 como límite automático de una tabla.
 - En una tabla de detalle, dateField NO significa ordenar por fecha. Si el usuario pide "detalle", "lista", "recientes", "últimos" o filas individuales, usa una tabla de detalle con columns. No conviertas una petición de ordenamiento en una tabla agrupada.
@@ -237,6 +238,7 @@ const OUTPUT_SCHEMA = {
                   title: { type: "string" },
                   source: { type: "string" },
                   metrics: { type: "array", items: { type: "string" } },
+                  seriesTypes: { type: ["array", "null"], items: { type: "string", enum: ["line", "bar"] } },
                   dimension: { type: ["string", "null"] },
                   dateField: { type: ["string", "null"] },
                   bucket: { type: ["string", "null"], description: `Uno de: ${VAI_BUCKETS.join(", ")}` },
@@ -244,7 +246,7 @@ const OUTPUT_SCHEMA = {
                   columns: { type: ["array", "null"], items: { type: "string" } },
                   summaries: { type: "array", items: { type: "object", additionalProperties: false, properties: { column: { type: "string" }, operation: { type: "string", enum: [...VAI_SUMMARY_OPERATIONS] } }, required: ["column", "operation"] } },
                 },
-                required: ["type", "title", "source", "metrics", "dimension", "dateField", "bucket", "limit", "columns", "summaries"],
+                required: ["type", "title", "source", "metrics", "seriesTypes", "dimension", "dateField", "bucket", "limit", "columns", "summaries"],
               },
             },
           },

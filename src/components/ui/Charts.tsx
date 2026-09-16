@@ -23,6 +23,7 @@ export type ChartSeries = {
   digits?: number;
   unit?: string;
   axisKey?: string;
+  seriesType?: "bar" | "line";
 };
 /**
  * Línea adicional del tooltip: etiqueta y valor ya formateado por quien conoce
@@ -286,7 +287,7 @@ function ChartCard({
           <div className="trjk-legend">
             {series.map((s) => (
               <span key={s.label}>
-                <i data-kind={kind} style={{ background: s.color }} />
+                <i data-kind={s.seriesType ?? kind} style={{ background: s.color }} />
                 {s.label}
               </span>
             ))}
@@ -669,6 +670,251 @@ export function ColumnChart({
                     </text>
                   )}
                 </g>
+              );
+            })}
+          </svg>
+        )}
+        {tip && hover != null && (
+          <ChartTip
+            title={tip.label}
+            lines={seriesLines(tip, series, digits, unit)}
+            notes={tip.notes}
+            style={tipStyle(pad.l + band * hover + band / 2, width, { top: pad.t })}
+          />
+        )}
+      </div>
+    </ChartCard>
+  );
+}
+
+export function ComboChart({
+  title,
+  subtitle,
+  rows,
+  series,
+  digits = 0,
+  unit = "",
+  height = 220,
+  scale: scaleMode = "linear",
+  dataTable,
+}: {
+  title: string;
+  subtitle: string;
+  rows: ChartRow[];
+  series: ChartSeries[];
+  digits?: number;
+  unit?: string;
+  height?: number;
+  scale?: ChartScaleMode;
+  dataTable?: ReactNode;
+}) {
+  const [ref, width] = useWidth();
+  const [hover, setHover] = useState<number | null>(null);
+  const axes = assignSeriesAxes(rows, series);
+  const hasRight = axes.includes("right");
+  const pad = { l: 46, r: hasRight ? 52 : 10, t: 18, b: 28 };
+  const plotW = Math.max(0, width - pad.l - pad.r);
+  const plotH = height - pad.t - pad.b;
+  const leftFinite = axisValues(rows, axes, "left");
+  const rightFinite = axisValues(rows, axes, "right");
+  const log = scaleMode === "log" && canUseLogScale([...leftFinite, ...rightFinite]);
+  const leftLog = logarithmicScale(leftFinite);
+  const rightLog = logarithmicScale(rightFinite);
+  const leftScale = log ? leftLog : niceScale(Math.min(...leftFinite, 0), Math.max(...leftFinite, 0));
+  const rightScale = log ? rightLog : niceScale(Math.min(...rightFinite, 0), Math.max(...rightFinite, 0));
+  const yFor = (index: number, v: number) => {
+    const scale = axes[index] === "right" ? rightScale : leftScale;
+    const fraction = log ? (axes[index] === "right" ? rightLog : leftLog).fraction(v) : (v - scale.min) / (scale.max - scale.min);
+    return pad.t + plotH - fraction * plotH;
+  };
+  const leftAxisUnit = axisUnitLabel(series, axes, "left", unit);
+  const rightAxisUnit = axisUnitLabel(series, axes, "right", unit);
+  const band = rows.length ? plotW / rows.length : 0;
+
+  const barIndexes = series.map((item, index) => (item.seriesType === "line" ? -1 : index)).filter((index) => index >= 0);
+  const barSlots = new Map(barIndexes.map((index, slot) => [index, slot]));
+  const barCount = barIndexes.length;
+  const barW = barCount ? Math.max(3, Math.min(24, (band * 0.68 - 2 * (barCount - 1)) / barCount)) : 0;
+  const groupW = barCount ? barCount * barW + 2 * (barCount - 1) : 0;
+
+  const labels = visibleLabels(rows, band);
+  const capLabels = barCount > 0 && rows.length <= 12 && band / Math.max(barCount, 1) >= 44;
+  const markers = rows.length <= 40;
+
+  const bar = (x: number, v: number, w: number, index: number) => {
+    const y0 = yFor(index, 0);
+    const y1 = yFor(index, v);
+    const top = Math.min(y0, y1);
+    const h = Math.abs(y0 - y1);
+    const r = Math.min(4, w / 2, h);
+    if (h < 0.5) return `M${x},${y0}h${w}v0.5h-${w}z`;
+    return v >= 0
+      ? `M${x},${y0}V${top + r}a${r},${r} 0 0 1 ${r},-${r}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}V${y0}z`
+      : `M${x},${y0}V${y0 + h - r}a${r},${r} 0 0 0 ${r},${r}h${w - 2 * r}a${r},${r} 0 0 0 ${r},-${r}V${y0}z`;
+  };
+
+  const step = rows.length > 1 ? plotW / (rows.length - 1) : 0;
+  const x = (i: number) => (rows.length > 1 ? pad.l + step * i : pad.l + plotW / 2);
+
+  const paths = series.map((item, j) => {
+    if (item.seriesType !== "line") return "";
+    let d = "";
+    let open = false;
+    rows.forEach((row, i) => {
+      const v = row.values[j];
+      if (v == null) {
+        open = false;
+        return;
+      }
+      d += `${open ? "L" : "M"}${x(i).toFixed(1)},${yFor(j, v).toFixed(1)}`;
+      open = true;
+    });
+    return d;
+  });
+
+  const endLabels: { j: number; i: number; v: number; y: number }[] = [];
+  series.forEach((item, j) => {
+    if (item.seriesType !== "line") return;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const v = rows[i].values[j];
+      if (v == null) continue;
+      const py = yFor(j, v);
+      if (!endLabels.some((e) => Math.abs(e.y - py) < 12)) endLabels.push({ j, i, v, y: py });
+      break;
+    }
+  });
+
+  const tip = hover == null ? null : rows[hover];
+  const locate = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - box.left - pad.l;
+    const py = e.clientY - box.top;
+    if (!band || px < 0 || px > plotW || py < pad.t || py > pad.t + plotH) {
+      setHover(null);
+      return;
+    }
+    setHover(Math.max(0, Math.min(rows.length - 1, Math.floor(px / band))));
+  };
+
+  return (
+    <ChartCard
+      title={title}
+      subtitle={`${subtitle}${log ? " · Escala logarítmica (base 10)" : ""}`}
+      series={series}
+      empty={!rows.length}
+      table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
+    >
+      <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
+        {width > 0 && (
+          <svg
+            role="img"
+            aria-label={title}
+            width={width}
+            height={height}
+            viewBox={`0 0 ${width} ${height}`}
+            onPointerMove={locate}
+            onPointerDown={locate}
+            onPointerLeave={() => setHover(null)}
+          >
+            <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
+            {leftScale.ticks.map((t) => (
+              <g key={`l-${t}`}>
+                <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(0, t)} y2={yFor(0, t)} />
+                <text className="trjk-axis" x={pad.l - 6} y={yFor(0, t) + 3.5} textAnchor="end">
+                  {compact.format(t)}
+                </text>
+              </g>
+            ))}
+            {hasRight
+              ? rightScale.ticks.map((t) => {
+                  const rightIndex = axes.findIndex((axis) => axis === "right");
+                  return (
+                    <text key={`r-${t}`} className="trjk-axis" x={width - pad.r + 6} y={yFor(rightIndex, t) + 3.5} textAnchor="start">
+                      {compact.format(t)}
+                    </text>
+                  );
+                })
+              : null}
+            {leftAxisUnit ? (
+              <text className="trjk-axis" x={pad.l} y={11} textAnchor="start">
+                {leftAxisUnit}
+              </text>
+            ) : null}
+            {hasRight && rightAxisUnit ? (
+              <text className="trjk-axis" x={width - pad.r} y={11} textAnchor="end">
+                {rightAxisUnit}
+              </text>
+            ) : null}
+            {rows.map((row, i) => {
+              const x0 = pad.l + band * i + (band - groupW) / 2;
+              const dimmed = hover != null && hover !== i;
+              return (
+                <g key={row.key}>
+                  <rect className="trjk-band" data-hover={hover === i} x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4" />
+                  {row.values.map((v, j) =>
+                    v == null || !barSlots.has(j) ? null : (
+                      <path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + (barSlots.get(j) ?? 0) * (barW + 2), v, barW, j)} fill={series[j].color} />
+                    ),
+                  )}
+                  {capLabels &&
+                    row.values.map((v, j) =>
+                      v == null || v === 0 || !barSlots.has(j) ? null : (
+                        <text
+                          key={`l${j}`}
+                          className="trjk-mark-label"
+                          x={x0 + (barSlots.get(j) ?? 0) * (barW + 2) + barW / 2}
+                          y={v >= 0 ? yFor(j, v) - 4 : yFor(j, v) + 11}
+                          textAnchor="middle"
+                        >
+                          {formatNumber(v, series[j]?.digits ?? digits)}
+                        </text>
+                      ),
+                    )}
+                  {labels.has(i) && (
+                    <text className="trjk-axis" x={pad.l + band * i + band / 2} y={height - 8} textAnchor="middle">
+                      <title>{row.label}</title>
+                      {axisLabelText(row.label)}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+            {hover != null && (
+              <line className="trjk-crosshair" x1={pad.l + band * hover + band / 2} x2={pad.l + band * hover + band / 2} y1={pad.t} y2={pad.t + plotH} />
+            )}
+            {paths.map((d, j) =>
+              !d ? null : (
+                <path key={j} d={d} fill="none" stroke={series[j].color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              ),
+            )}
+            {rows.map((row, i) =>
+              row.values.map((v, j) =>
+                v == null || series[j]?.seriesType !== "line" || (!markers && hover !== i) ? null : (
+                  <circle
+                    key={`${i}-${j}`}
+                    cx={x(i)}
+                    cy={yFor(j, v)}
+                    r={hover === i ? 5 : 4}
+                    fill={series[j].color}
+                    stroke="var(--s-1)"
+                    strokeWidth="2"
+                  />
+                ),
+              ),
+            )}
+            {endLabels.map((e) => {
+              const placeLeft = hasRight || axes[e.j] === "right";
+              return (
+                <text
+                  key={e.j}
+                  className="trjk-mark-label"
+                  x={placeLeft ? x(e.i) - 9 : x(e.i) + 9}
+                  y={e.y + 3.5}
+                  textAnchor={placeLeft ? "end" : "start"}
+                >
+                  {formatNumber(e.v, series[e.j]?.digits ?? digits)}
+                  {series[e.j]?.unit ?? unit}
+                </text>
               );
             })}
           </svg>

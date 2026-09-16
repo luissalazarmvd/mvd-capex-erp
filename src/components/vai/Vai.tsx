@@ -60,6 +60,7 @@ import {
   CHART_COLORS,
   CHART_OTHER,
   ColumnChart,
+  ComboChart,
   DonutChart,
   KpiTooltip,
   LineChart,
@@ -863,6 +864,7 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
     digits: formats[j].digits,
     unit: formats[j].unit,
     axisKey: chartAxisGroup(item.format),
+    seriesType: widget.seriesTypes?.[j] ?? (widget.type === "line" ? "line" : "bar"),
   }));
   const chartRows: ChartRow[] = result.rows.map((row) => ({
     key: row.label,
@@ -874,7 +876,9 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   const values = chartRows.flatMap((row) => widget.type === "rank" ? [row.values[0]] : row.values);
   const logAllowed = canUseLogScale(values);
   const scale: ChartScaleMode = logAllowed && (scaleChoice === "log" || (scaleChoice === "auto" && prefersLogScale(values))) ? "log" : "linear";
-  const controls = widget.type === "bar" || widget.type === "rank" ? (
+  const hasBarSeries = series.some((item) => item.seriesType !== "line");
+  const isCombo = Boolean(widget.dateField) && series.some((item) => item.seriesType === "line") && hasBarSeries;
+  const controls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "line") && hasBarSeries) ? (
     <label className="vai-scale-control">
       Escala
       <select className="select" aria-label={`Escala de ${widget.title}`} value={scaleChoice} onChange={(event) => setScaleChoice(event.target.value as "auto" | ChartScaleMode)}>
@@ -886,7 +890,9 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   ) : null;
   const dataTable = <TableWidget title={`Cifras de ${widget.title}`} subtitle={subtitle} data={result.table} compact />;
   const wrap = (chart: React.ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }} controls={controls}>{chart}</VaiExportSection>;
+  if (widget.type === "line" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} dataTable={dataTable} />);
   if (widget.type === "line") return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={series.length === 1} dataTable={dataTable} />);
+  if (widget.type === "bar" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} dataTable={dataTable} />);
   if (widget.type === "bar") return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} dataTable={dataTable} />);
   if (widget.type === "rank") {
     return wrap(

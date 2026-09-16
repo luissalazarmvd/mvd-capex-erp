@@ -2216,6 +2216,7 @@ export const VAI_MAX_TABLE_LIMIT = 50000;
 
 export const VAI_WIDGET_TYPES = ["kpi", "line", "bar", "rank", "donut", "table"] as const;
 export type VaiWidgetType = (typeof VAI_WIDGET_TYPES)[number];
+export type VaiSeriesRender = "line" | "bar";
 
 export const VAI_BUCKETS = ["day", "week", "month"] as const;
 export type VaiBucket = (typeof VAI_BUCKETS)[number];
@@ -2241,6 +2242,8 @@ export type VaiWidgetSpec = {
   source: string;
   /** Ids de métricas del catálogo; KPI usa una, el resto hasta 3. */
   metrics: string[];
+  /** Tipo de render por métrica en widgets temporales/comparativos. */
+  seriesTypes: VaiSeriesRender[] | null;
   /** Dimensión (bar/rank/donut/table) del catálogo. */
   dimension: string | null;
   /** Campo fecha (line, o tabla agrupada por período). */
@@ -2272,6 +2275,7 @@ export type VaiRawWidget = {
   title: string;
   source: string;
   metrics: string[];
+  seriesTypes: string[] | null;
   dimension: string | null;
   dateField: string | null;
   bucket: string | null;
@@ -2421,6 +2425,7 @@ export function coerceModelOutput(raw: unknown): VaiModelOutput | null {
               title: clean(item.title, 120),
               source: clean(item.source, 60),
               metrics: stringList(item.metrics, 5),
+              seriesTypes: item.seriesTypes == null ? null : stringList(item.seriesTypes, 5),
               dimension: item.dimension == null ? null : clean(item.dimension, 60),
               dateField: item.dateField == null ? null : clean(item.dateField, 60),
               bucket: item.bucket == null ? null : clean(item.bucket, 10),
@@ -2466,6 +2471,21 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
   }
   const maxMetrics = type === "kpi" ? 1 : type === "table" ? 6 : 3;
   if (metrics.length > maxMetrics) metrics.splice(maxMetrics);
+
+  let seriesTypes: VaiSeriesRender[] | null = null;
+  if (type === "line" || type === "bar") {
+    const requestedSeriesTypes = Array.isArray(raw.seriesTypes)
+      ? raw.seriesTypes
+          .map((value) => (value === "line" || value === "bar" ? value : ""))
+          .filter((value): value is VaiSeriesRender => Boolean(value))
+      : [];
+
+    if (requestedSeriesTypes.length) {
+      seriesTypes = metrics.map((_, index) => requestedSeriesTypes[index] ?? (type === "line" ? "line" : "bar"));
+    } else if (metrics.length) {
+      seriesTypes = metrics.map(() => (type === "line" ? "line" : "bar"));
+    }
+  }
 
   let dimension: string | null = null;
   if (raw.dimension) {
@@ -2579,6 +2599,7 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     title: raw.title || source.name,
     source: source.id,
     metrics,
+    seriesTypes,
     dimension,
     dateField,
     bucket: dateField ? bucket ?? "month" : null,
