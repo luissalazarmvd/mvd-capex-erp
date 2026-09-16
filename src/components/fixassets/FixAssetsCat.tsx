@@ -220,21 +220,13 @@ type MappingDraft = { deprec_rate_pct: string };
 
 const EDITABLE = [
   "location_name", "capex_code", "po_num", "subjournal_code", "voucher_number",
-  "sequence_number", "annex_code", "document_number", "asset_description", "asset_type", "assigned_to",
+  "sequence_number", "annex_code", "annex_description", "document_number", "asset_description", "asset_type", "assigned_to",
   "area_name", "brand", "model", "serial_number", "color", "cost_center_code",
   "acquisition_date", "operation_date", "disposal_date", "exc_rate",
   "asset_ini_cost_pen", "asset_ini_cost_usd", "depreciation_method", "asset_situation", "asset_comment",
 ] as const satisfies readonly (keyof CatalogueRow)[];
 type EditableKey = (typeof EDITABLE)[number];
-type Draft = Record<EditableKey, string> & { annex_description: string };
-
-const HISTORIC_ACCOUNTING_FIELDS = new Set<EditableKey>([
-  "subjournal_code",
-  "voucher_number",
-  "sequence_number",
-  "annex_code",
-  "document_number",
-]);
+type Draft = Record<EditableKey, string>;
 
 const HISTORIC_LINK_KEYS = [
   "po_num",
@@ -2699,17 +2691,11 @@ export default function FixAssetsCat() {
                     />
                   </td>
                   {displayColumns.map((column, columnIndex) => {
-                    const sourceName = text(row.source_name).trim().toUpperCase();
                     const key = column.key as EditableKey;
-                    const historicAccountingEditable =
-                      sourceName === "HISTORIC"
-                      && HISTORIC_ACCOUNTING_FIELDS.has(key);
                     const editable =
                       column.key === "po_num"
-                      || historicAccountingEditable
                       || (
                         EDITABLE.includes(key)
-                        && !HISTORIC_ACCOUNTING_FIELDS.has(key)
                         && column.key !== "asset_type"
                       );
                     const value = catalogueExcelFilterValue(
