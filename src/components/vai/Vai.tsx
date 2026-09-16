@@ -125,7 +125,10 @@ export function VaiExportSection({ id, order = 0, title, kind, table, children, 
     return register(id, order, () => ({ title, kind, table, element: ref.current }));
   }, [id, register, order, title, kind, table]);
   return (
-    <div className="vai-export-section">
+    <div
+      className="vai-export-section"
+      style={kind === "chart" ? { height: "100%", minWidth: 0 } : { minWidth: 0 }}
+    >
       {controls || (kind === "table" && id && table) ? (
         <div className="vai-export-tools" data-vai-export-ignore>
           {controls}
@@ -145,7 +148,13 @@ export function VaiExportSection({ id, order = 0, title, kind, table, children, 
           ) : null}
         </div>
       ) : null}
-      <div ref={ref} className="vai-export-content">{children}</div>
+      <div
+        ref={ref}
+        className="vai-export-content"
+        style={kind === "chart" ? { height: "100%", minWidth: 0 } : { minWidth: 0 }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -707,6 +716,21 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
   });
   const kpis = spec.widgets.filter((widget) => widget.type === "kpi");
   const others = spec.widgets.filter((widget) => widget.type !== "kpi");
+
+  const widgetSpan = (index: number) => {
+    const widget = others[index];
+    if (!widget || widget.type === "table") return "2";
+
+    let runStart = index;
+    while (runStart > 0 && others[runStart - 1]?.type !== "table") runStart -= 1;
+
+    let runEnd = index;
+    while (runEnd + 1 < others.length && others[runEnd + 1]?.type !== "table") runEnd += 1;
+
+    const runLength = runEnd - runStart + 1;
+    return index === runEnd && runLength % 2 === 1 ? "2" : "1";
+  };
+
   const hasFilters = spec.filters.some((filter) => {
     const key = filterKey(filter);
     const value = filters[key];
@@ -790,9 +814,13 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
       ) : null}
 
       {others.length ? (
-        <div className="vai-widget-grid">
+        <div className="vai-widget-grid" style={{ alignItems: "stretch" }}>
           {others.map((widget, i) => (
-            <div key={`${widget.type}-${widget.source}-${i}`} data-span={widget.type === "table" || (widget.type === "line" && others.length % 2 === 1 && i === others.length - 1) ? "2" : "1"}>
+            <div
+              key={`${widget.type}-${widget.source}-${i}`}
+              data-span={widgetSpan(i)}
+              style={{ minWidth: 0, height: "100%" }}
+            >
               <Widget id={`widget-${i}`} order={kpis.length + i} widget={widget} rows={filtered[widget.source] ?? []} />
             </div>
           ))}
@@ -896,13 +924,23 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   const isCombo = Boolean(widget.dateField) && series.some((item) => item.seriesType === "line") && hasBarSeries;
   const comboScale: ChartScaleMode = scaleChoice === "log" ? "log" : "linear";
   const controls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "line") && hasBarSeries) ? (
-    <label className="vai-scale-control">
-      Escala
-      <select className="select" aria-label={`Escala de ${widget.title}`} value={scaleChoice} onChange={(event) => setScaleChoice(event.target.value as "auto" | ChartScaleMode)}>
-        <option value="auto">Automática</option><option value="linear">Lineal</option>
+    <label
+      className="vai-scale-control"
+      style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }}
+      title={!logAllowed ? "La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal." : undefined}
+    >
+      <span>Escala</span>
+      <select
+        className="select"
+        aria-label={`Escala de ${widget.title}`}
+        value={scaleChoice}
+        onChange={(event) => setScaleChoice(event.target.value as "auto" | ChartScaleMode)}
+        style={{ width: 128, minWidth: 128, maxWidth: 128 }}
+      >
+        <option value="auto">Automática</option>
+        <option value="linear">Lineal</option>
         <option value="log" disabled={!logAllowed}>Logarítmica</option>
       </select>
-      {!logAllowed ? <span title="La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal.">Lineal: incluye cero o negativos</span> : null}
     </label>
   ) : null;
   const detailTable = widgetDetailTable(
@@ -938,11 +976,11 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
     </div>
   );
 
-  const wrap = (chart: React.ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }} controls={controls}>{chart}</VaiExportSection>;
-  if (widget.type === "line" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} dataTable={dataTable} />);
+  const wrap = (chart: React.ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }}>{chart}</VaiExportSection>;
+  if (widget.type === "line" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} controls={controls} dataTable={dataTable} />);
   if (widget.type === "line") return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={series.length === 1} dataTable={dataTable} />);
-  if (widget.type === "bar" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} dataTable={dataTable} />);
-  if (widget.type === "bar") return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} dataTable={dataTable} />);
+  if (widget.type === "bar" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} controls={controls} dataTable={dataTable} />);
+  if (widget.type === "bar") return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} controls={controls} dataTable={dataTable} />);
   if (widget.type === "rank") {
     return wrap(
       <RankChart
@@ -952,6 +990,7 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
         digits={primaryFormat.digits}
         unit={primaryFormat.unit}
         scale={scale}
+        controls={controls}
         dataTable={dataTable}
       />
     );

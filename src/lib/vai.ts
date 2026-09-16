@@ -2649,6 +2649,10 @@ function validateFilter(
     return null;
   }
 
+  if (raw.kind === "select" && /^(?:is_|has_)/.test(field.id)) {
+    return null;
+  }
+
   if (raw.kind === "date_range") {
     const preset =
       raw.preset && VAI_DATE_PRESETS.includes(raw.preset as VaiDatePreset)
@@ -2712,6 +2716,10 @@ function contextualFleetFilterScore(source: VaiSource, field: VaiField, userProm
     "is_tank_anomaly",
   ]);
 
+  if (technical.has(field.id) || /^(?:is_|has_)/.test(field.id)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
   const prompt = normalizedContextText(userPrompt);
   const fieldText = normalizedContextText(`${field.id.replace(/_/g, " ")} ${field.label} ${field.description}`);
   const tokens = fieldText.split(" ").filter((token) => token.length >= 3);
@@ -2722,33 +2730,31 @@ function contextualFleetFilterScore(source: VaiSource, field: VaiField, userProm
 
   const baseByField: Record<string, number> = source.id === "fleet_fuel_refuels" || source.id === "fleet_fuel_alerts"
     ? {
-        plate: 50,
-        driver_name: 45,
-        group_name: 40,
-        type_fuel: 30,
-        gas_station: 25,
-        brand: 15,
-        model: 10,
+        plate: 60,
+        driver_name: 55,
+        group_name: 50,
+        type_fuel: 45,
+        gas_station: 30,
+        brand: 20,
+        model: 15,
         currency_code: 5,
       }
     : source.id === "fleet_gps_distance"
       ? {
-          plate: 50,
-          driver_name: 45,
-          group_name: 40,
-          brand: 15,
-          model: 10,
+          plate: 60,
+          driver_name: 55,
+          group_name: 50,
+          brand: 20,
+          model: 15,
         }
       : {
-          plate: 50,
-          group_name: 40,
-          brand: 15,
-          model: 10,
+          plate: 60,
+          group_name: 50,
+          brand: 20,
+          model: 15,
         };
 
   score += baseByField[field.id] ?? 0;
-
-  if (technical.has(field.id) && score < 100) return Number.NEGATIVE_INFINITY;
 
   return score;
 }
@@ -2779,8 +2785,24 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = ""): Va
   const notes: string[] = [];
   if (!output.dashboard) return { spec: null, notes };
 
+  const promptText = normalizedContextText(userPrompt);
+  const asksFuelConsumption =
+    /\b(combustible|combustibles|galon|galones|abastecimiento|abastecimientos|tanqueo|tanqueos|grifo|grifos|diesel|gasolina|costo pen|costo usd)\b/.test(promptText);
+  const asksFleetPerformance =
+    /\b(rendimiento|eficiencia|recorrido|recorridos|gps|kilometro|kilometros|km gal|l 100|autonomia|costo por km)\b/.test(promptText);
+  const preferFuelRefuels = asksFuelConsumption && !asksFleetPerformance;
+
   const widgets: VaiWidgetSpec[] = [];
-  for (const raw of output.dashboard.widgets.slice(0, VAI_MAX_WIDGETS)) {
+  for (const rawWidget of output.dashboard.widgets.slice(0, VAI_MAX_WIDGETS)) {
+    const raw =
+      preferFuelRefuels && rawWidget.source === "fleet_performance"
+        ? {
+            ...rawWidget,
+            source: "fleet_fuel_refuels",
+            dateField: rawWidget.dateField === "cal_date" ? "date_cons" : rawWidget.dateField,
+          }
+        : rawWidget;
+
     const widget = validateWidget(raw, notes);
     if (widget) widgets.push(widget);
   }

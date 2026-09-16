@@ -334,6 +334,7 @@ function ChartCard({
   empty,
   table,
   panel,
+  controls,
   children,
 }: {
   title: string;
@@ -344,23 +345,45 @@ function ChartCard({
   table?: ReactNode;
   /** Detalle propio del gráfico; sustituye a la tabla «Ver datos». */
   panel?: ReactNode;
+  controls?: ReactNode;
   children: ReactNode;
 }) {
+  const hasLegend = Boolean(series && series.length > 1);
+
   return (
-    <section className="trjk-card trjk-chart">
-      <div className="trjk-chart-head">
-        <div>
+    <section className="trjk-card trjk-chart" style={{ height: "100%", minWidth: 0 }}>
+      <div className="trjk-chart-head" style={{ alignItems: "flex-start", gap: 12 }}>
+        <div style={{ minWidth: 0, flex: "1 1 auto" }}>
           <h3>{title}</h3>
           <p className="trjk-chart-sub">{subtitle}</p>
         </div>
-        {series && series.length > 1 ? (
-          <div className="trjk-legend">
-            {series.map((s) => (
-              <span key={s.label}>
-                <i data-kind={s.seriesType ?? kind} style={{ background: s.color }} />
-                {s.label}
-              </span>
-            ))}
+        {hasLegend || controls ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 10,
+              flexWrap: "wrap",
+              minWidth: 0,
+              maxWidth: "62%",
+            }}
+          >
+            {hasLegend ? (
+              <div className="trjk-legend">
+                {series!.map((s) => (
+                  <span key={s.label}>
+                    <i data-kind={s.seriesType ?? kind} style={{ background: s.color }} />
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {controls ? (
+              <div data-vai-export-ignore style={{ flex: "0 0 auto", minWidth: 0 }}>
+                {controls}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -594,6 +617,7 @@ export function ColumnChart({
   height = 220,
   scale: scaleMode = "linear",
   dataTable,
+  controls,
 }: {
   title: string;
   subtitle: string;
@@ -604,6 +628,7 @@ export function ColumnChart({
   height?: number;
   scale?: ChartScaleMode;
   dataTable?: ReactNode;
+  controls?: ReactNode;
 }) {
   const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
@@ -700,6 +725,7 @@ export function ColumnChart({
       series={series}
       kind="bar"
       empty={!rows.length}
+      controls={controls}
       table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
     >
       <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
@@ -819,6 +845,7 @@ export function ComboChart({
   height = 220,
   scale: scaleMode = "linear",
   dataTable,
+  controls,
 }: {
   title: string;
   subtitle: string;
@@ -829,6 +856,7 @@ export function ComboChart({
   height?: number;
   scale?: ChartScaleMode;
   dataTable?: ReactNode;
+  controls?: ReactNode;
 }) {
   const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
@@ -982,6 +1010,7 @@ export function ComboChart({
       subtitle={`${subtitle}${log ? " · Escala logarítmica (base 10)" : ""}`}
       series={series}
       empty={!rows.length}
+      controls={controls}
       table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit} />}
     >
       <div className="trjk-chart-plot" ref={ref} style={{ minHeight: height }}>
@@ -1565,6 +1594,7 @@ export function RankChart({
   panel,
   scale: scaleMode = "linear",
   dataTable,
+  controls,
 }: {
   title: string;
   subtitle: string;
@@ -1579,6 +1609,7 @@ export function RankChart({
   panel?: ReactNode;
   scale?: ChartScaleMode;
   dataTable?: ReactNode;
+  controls?: ReactNode;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const [pointer, onPointerMove, clearPointer] = usePointer();
@@ -1592,6 +1623,7 @@ export function RankChart({
       subtitle={`${subtitle}${log ? " · Escala logarítmica (base 10)" : ""}`}
       empty={!rows.length}
       panel={panel}
+      controls={controls}
       table={dataTable ?? (
         <table>
           <thead>
