@@ -685,6 +685,21 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
     return out;
   }, [sources, data, spec.filters, effectiveFilters]);
 
+  const filterOptionRows = useCallback(
+    (filter: VaiFilterSpec) => {
+      const source = VAI_SOURCE_MAP.get(filter.source);
+      if (!source) return [];
+
+      return applyFilters(
+        source,
+        data[filter.source]?.rows ?? [],
+        spec.filters.filter((item) => filterKey(item) !== filterKey(filter)),
+        effectiveFilters,
+      );
+    },
+    [data, spec.filters, effectiveFilters],
+  );
+
   const loading = sources.some((source) => data[source.id]?.loading ?? true);
   const exportContext = spec.filters.map((filter) => {
     const value = effectiveFilters[filterKey(filter)] ?? {};
@@ -729,7 +744,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
               <FilterControl
                 key={filterKey(filter)}
                 filter={filter}
-                rows={data[filter.source]?.rows ?? []}
+                rows={filterOptionRows(filter)}
                 value={effectiveFilters[filterKey(filter)] ?? {}}
                 onChange={(value) => setFilters((prev) => ({ ...prev, [filterKey(filter)]: value }))}
               />

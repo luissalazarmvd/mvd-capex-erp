@@ -2468,13 +2468,53 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
   }
 
   let columns: string[] | null = null;
+  const metricColumns: string[] = [];
+  let hasMetricOnlyColumn = false;
+
   if (raw.columns) {
-    columns = raw.columns.filter((id) => {
-      const ok = Boolean(vaiField(source, id));
-      if (!ok) notes.push(`${label}: la columna «${id}» no existe en ${source.name}.`);
-      return ok;
-    });
-    if (!columns.length) columns = null;
+    const fieldColumns: string[] = [];
+
+    for (const id of raw.columns) {
+      const field = vaiField(source, id);
+      const metric = type === "table" ? vaiMetric(source, id) : null;
+
+      if (field && !fieldColumns.includes(field.id)) {
+        fieldColumns.push(field.id);
+      }
+
+      if (metric && !metricColumns.includes(metric.id)) {
+        metricColumns.push(metric.id);
+      }
+
+      if (!field && metric) {
+        hasMetricOnlyColumn = true;
+      }
+
+      if (!field && !metric) {
+        notes.push(`${label}: la columna «${id}» no existe en ${source.name}.`);
+      }
+    }
+
+    columns = fieldColumns.length ? fieldColumns : null;
+  }
+
+  if (type === "table" && hasMetricOnlyColumn && metricColumns.length) {
+    const groupingField = columns
+      ?.map((id) => vaiField(source, id))
+      .find((field): field is VaiField => Boolean(field && (field.role === "dimension" || field.role === "date")));
+
+    if (!dimension && !dateField && groupingField) {
+      if (groupingField.role === "date") dateField = groupingField.id;
+      else dimension = groupingField.id;
+    }
+
+    if (dimension || dateField) {
+      for (const id of metricColumns) {
+        if (!metrics.includes(id) && metrics.length < 6) metrics.push(id);
+      }
+
+      columns = null;
+    }
   }
 
   // Requisitos por tipo: si falta lo esencial, el widget se descarta.
@@ -2644,6 +2684,92 @@ function validateFilter(
   };
 }
 
+function normalizedContextText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function contextualFleetFilterScore(source: VaiSource, field: VaiField, userPrompt: string) {
+  if (field.role !== "dimension") return Number.NEGATIVE_INFINITY;
+
+  const supported = new Set([
+    "fleet_fuel_refuels",
+    "fleet_fuel_alerts",
+    "fleet_gps_distance",
+    "fleet_performance",
+  ]);
+
+  if (!supported.has(source.id)) return Number.NEGATIVE_INFINITY;
+
+  const technical = new Set([
+    "has_gps",
+    "has_fuel",
+    "is_vehicle",
+    "is_tank_anomaly",
+  ]);
+
+  const prompt = normalizedContextText(userPrompt);
+  const fieldText = normalizedContextText(`${field.id.replace(/_/g, " ")} ${field.label} ${field.description}`);
+  const tokens = fieldText.split(" ").filter((token) => token.length >= 3);
+
+  let score = 0;
+
+  if (tokens.some((token) => prompt.includes(token))) score += 100;
+
+  const baseByField: Record<string, number> = source.id === "fleet_fuel_refuels" || source.id === "fleet_fuel_alerts"
+    ? {
+        plate: 50,
+        driver_name: 45,
+        group_name: 40,
+        type_fuel: 30,
+        gas_station: 25,
+        brand: 15,
+        model: 10,
+        currency_code: 5,
+      }
+    : source.id === "fleet_gps_distance"
+      ? {
+          plate: 50,
+          driver_name: 45,
+          group_name: 40,
+          brand: 15,
+          model: 10,
+        }
+      : {
+          plate: 50,
+          group_name: 40,
+          brand: 15,
+          model: 10,
+        };
+
+  score += baseByField[field.id] ?? 0;
+
+  if (technical.has(field.id) && score < 100) return Number.NEGATIVE_INFINITY;
+
+  return score;
+}
+
+function contextualSelectFilters(source: VaiSource, userPrompt: string, limit = 4): VaiFilterSpec[] {
+  return source.fields
+    .map((field) => ({
+      field,
+      score: contextualFleetFilterScore(source, field, userPrompt),
+    }))
+    .filter((item) => Number.isFinite(item.score) && item.score > 0)
+    .sort((a, b) => b.score - a.score || a.field.label.localeCompare(b.field.label, "es"))
+    .slice(0, limit)
+    .map(({ field }) => ({
+      kind: "select" as const,
+      source: source.id,
+      field: field.id,
+      label: field.label,
+    }));
+}
+
 /**
  * Valida la salida del modelo contra el catálogo. Descarta de forma controlada
  * cada parte inválida y la reporta en `notes`; devuelve `spec: null` si no
@@ -2700,6 +2826,30 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = ""): Va
         from: month?.from ?? (preset ? null : "2026-01-01"),
         to: month?.to ?? (preset ? null : limaToday()),
       });
+    }
+  }
+
+  for (const sourceId of sources) {
+    if (filters.length >= VAI_MAX_FILTERS) break;
+
+    const source = VAI_SOURCE_MAP.get(sourceId);
+    if (!source) continue;
+
+    for (const filter of contextualSelectFilters(source, userPrompt)) {
+      if (filters.length >= VAI_MAX_FILTERS) break;
+
+      if (
+        filters.some(
+          (item) =>
+            item.kind === "select" &&
+            item.source === filter.source &&
+            item.field === filter.field,
+        )
+      ) {
+        continue;
+      }
+
+      filters.push(filter);
     }
   }
 
