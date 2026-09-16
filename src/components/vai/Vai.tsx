@@ -40,6 +40,7 @@ import {
   saveDashboard,
   sourceRequestPath,
   summarizeTable,
+  widgetDetailTable,
   vaiAreaLabel,
   vaiField,
   type VaiArea,
@@ -852,7 +853,7 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
       ? `${source.name} · por ${widget.bucket === "day" ? "día" : widget.bucket === "week" ? "semana" : "mes"} de ${vaiField(source, widget.dateField)?.label ?? widget.dateField}`
       : source.name;
 
-  if (result.kind === "table") return <TableWidget id={id} order={order} title={widget.title} subtitle={subtitle} data={result} />;
+  if (result.kind === "table") return <TableWidget id={id} order={order} title={widget.title} subtitle={subtitle} data={result} source={source} />;
   if (result.kind !== "series") return null;
 
   const first = result.series[0];
@@ -889,7 +890,39 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
       {!logAllowed ? <span title="La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal.">Lineal: incluye cero o negativos</span> : null}
     </label>
   ) : null;
-  const dataTable = <TableWidget title={`Cifras de ${widget.title}`} subtitle={subtitle} data={result.table} compact />;
+  const detailTable = widgetDetailTable(
+    widget,
+    source,
+    result.table,
+  );
+
+  const dataTable = (
+    <div
+      style={{
+        display: "grid",
+        gap: 18,
+      }}
+    >
+      <TableWidget
+        title={`Resumen exacto de ${widget.title}`}
+        subtitle={`${subtitle} · valores agregados que alimentan directamente el gráfico`}
+        data={result.table}
+        source={source}
+        compact
+      />
+
+      {detailTable ? (
+        <TableWidget
+          title="Detalle de respaldo"
+          subtitle={`${source.grain} · filas originales utilizadas en los grupos visibles del gráfico`}
+          data={detailTable}
+          source={source}
+          compact
+        />
+      ) : null}
+    </div>
+  );
+
   const wrap = (chart: React.ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }} controls={controls}>{chart}</VaiExportSection>;
   if (widget.type === "line" && isCombo) return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={comboScale} dataTable={dataTable} />);
   if (widget.type === "line") return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={series.length === 1} dataTable={dataTable} />);
@@ -926,7 +959,7 @@ function Widget({ id, order, widget, rows }: { id: string; order: number; widget
   );
 }
 
-function TableWidget({ id, order, title, subtitle, data, compact = false }: { id?: string; order?: number; title: string; subtitle: string; data: Extract<VaiWidgetData, { kind: "table" }>; compact?: boolean }) {
+function TableWidget({ id, order, title, subtitle, data, source, compact = false }: { id?: string; order?: number; title: string; subtitle: string; data: Extract<VaiWidgetData, { kind: "table" }>; source?: VaiSource; compact?: boolean }) {
   const excelColumns = useMemo<Array<ExcelColumnDef<(string | number | null)[]>>>(
     () =>
       data.columns.map((column, index) => ({
@@ -1001,14 +1034,96 @@ function TableWidget({ id, order, title, subtitle, data, compact = false }: { id
           <table>
             <thead>
               <tr>
-                {data.columns.map((column) => (
-                  <th key={column.id} data-num={column.format !== "text" && column.format !== "date"}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                      <span>{column.label}</span>
-                      <ExcelHeaderFilter {...excel.headerProps(column.id)} />
-                    </div>
-                  </th>
-                ))}
+                {data.columns.map((column) => {
+                  const field =
+                    source
+                      ? vaiField(
+                          source,
+                          column.id,
+                        )
+                      : null;
+
+                  const metric =
+                    source?.metrics.find(
+                      (item) =>
+                        item.id === column.id,
+                    );
+
+                  const sourceHint = source
+                    ? [
+                        `GET ${source.endpoint}`,
+                        source.sqlView
+                          ? `SQL: ${source.sqlView}`
+                          : "",
+                        field?.description ??
+                          metric?.description ??
+                          source.grain,
+                      ]
+                        .filter(Boolean)
+                        .join("\n")
+                    : "";
+
+                  return (
+                    <th
+                      key={column.id}
+                      data-num={
+                        column.format !== "text" &&
+                        column.format !== "date"
+                      }
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 6,
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            minWidth: 0,
+                          }}
+                        >
+                          <span>
+                            {column.label}
+                          </span>
+
+                          {sourceHint ? (
+                            <span
+                              title={sourceHint}
+                              aria-label={`Fuente de ${column.label}: ${source?.endpoint ?? ""}`}
+                              style={{
+                                display: "inline-grid",
+                                placeItems: "center",
+                                width: 14,
+                                height: 14,
+                                flex: "0 0 14px",
+                                borderRadius: "50%",
+                                border: "1px solid currentColor",
+                                fontSize: 9,
+                                fontWeight: 700,
+                                lineHeight: 1,
+                                opacity: 0.42,
+                                cursor: "help",
+                              }}
+                            >
+                              ?
+                            </span>
+                          ) : null}
+                        </span>
+
+                        <ExcelHeaderFilter
+                          {...excel.headerProps(
+                            column.id,
+                          )}
+                        />
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>

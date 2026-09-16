@@ -3416,7 +3416,24 @@ function summaryRule(widget: VaiWidgetSpec, column: string, metric?: VaiMetric, 
   const operation = requested === "auto" && !metric ? fallback : requested;
   if (!operation || (operation === "auto" && !metric)) return null;
   if (operation === "none") return null;
-  const labels: Record<string, string> = { sum: "Suma", count: "Total", count_distinct: "Únicos", avg: "Promedio", min: "Mínimo", max: "Máximo", ratio: "Razón global", diff_pct: "Variación global", pct_change: "Variación global", weighted_avg: "Promedio ponderado", avg_hours_diff: "Promedio", avg_days_diff: "Promedio" };
+  const labels: Record<string, string> = {
+    sum: "Suma",
+    sum_distinct: "Suma sin duplicar",
+    sum_per_distinct: "Promedio por único",
+    count: "Total",
+    count_distinct: "Únicos",
+    count_per_distinct: "Filas por único",
+    sum_diff: "Diferencia global",
+    avg: "Promedio",
+    min: "Mínimo",
+    max: "Máximo",
+    ratio: "Razón global",
+    diff_pct: "Variación global",
+    pct_change: "Variación global",
+    weighted_avg: "Promedio ponderado",
+    avg_hours_diff: "Promedio",
+    avg_days_diff: "Promedio",
+  };
   return { operation, label: labels[operation === "auto" ? metric!.agg : operation] ?? "Resumen", metric };
 }
 
@@ -3434,6 +3451,272 @@ export function summarizeTable(data: VaiTableData, visibleRows = data.rows): Vai
       : rule.operation === "max" ? (values.length ? values.reduce((a, b) => Math.max(a, b)) : null) : sum;
     return { label: rule.label, value };
   });
+}
+
+export function widgetDetailTable(
+  widget: VaiWidgetSpec,
+  source: VaiSource,
+  chartTable: VaiTableData,
+): VaiTableData | null {
+  const entries = chartTable.rowMembers.flatMap(
+    (members, groupIndex) => {
+      const group =
+        toText(chartTable.rows[groupIndex]?.[0]) ||
+        "Sin grupo";
+
+      return members.map((row) => ({
+        row,
+        group,
+      }));
+    },
+  );
+
+  if (!entries.length) {
+    return null;
+  }
+
+  const metrics = widget.metrics
+    .map((id) => vaiMetric(source, id))
+    .filter(
+      (metric): metric is VaiMetric =>
+        Boolean(metric),
+    );
+
+  if (!metrics.length) {
+    return null;
+  }
+
+  const fieldIds: string[] = [];
+
+  const addField = (
+    id: string | null | undefined,
+  ) => {
+    if (
+      id &&
+      vaiField(source, id) &&
+      !fieldIds.includes(id)
+    ) {
+      fieldIds.push(id);
+    }
+  };
+
+  addField(widget.dateField);
+  addField(widget.dimension);
+
+  source.fields
+    .filter(
+      (field) =>
+        field.role === "attribute",
+    )
+    .slice(0, 3)
+    .forEach((field) => addField(field.id));
+
+  metrics.forEach((metric) => {
+    addField(metric.field);
+    addField(metric.field2);
+    addField(metric.numerator);
+    addField(metric.denominator);
+    addField(metric.weight);
+    addField(metric.distinctField);
+
+    metric.where?.forEach(
+      (condition) =>
+        addField(condition.field),
+    );
+
+    metric.whereAny?.forEach(
+      (condition) =>
+        addField(condition.field),
+    );
+  });
+
+  const fields = fieldIds
+    .slice(0, 12)
+    .map((id) => vaiField(source, id))
+    .filter(
+      (
+        field,
+      ): field is NonNullable<
+        ReturnType<typeof vaiField>
+      > => Boolean(field),
+    );
+
+  if (!fields.length) {
+    return null;
+  }
+
+  const fieldColumns: VaiSeriesDef[] =
+    fields.map((field) => ({
+      id: field.id,
+      label: field.label,
+      format:
+        field.format ??
+        (
+          field.role === "date"
+            ? "date"
+            : field.type === "number"
+              ? "decimal"
+              : "text"
+        ),
+    }));
+
+  const hasConditionalMetrics =
+    metrics.some(
+      (metric) =>
+        Boolean(metric.where?.length) ||
+        Boolean(metric.whereAny?.length),
+    );
+
+  const groupColumn: VaiSeriesDef = {
+    id: "__group",
+    label: "Grupo gráfico",
+    format: "text",
+  };
+
+  const appliesColumn: VaiSeriesDef = {
+    id: "__applies",
+    label: "Aporta a",
+    format: "text",
+  };
+
+  const columns: VaiSeriesDef[] = [
+    groupColumn,
+    ...fieldColumns,
+    ...(hasConditionalMetrics
+      ? [appliesColumn]
+      : []),
+  ];
+
+  const contributes = (
+    metric: VaiMetric,
+    row: VaiRow,
+  ) =>
+    passes(row, metric.where) &&
+    (
+      !metric.whereAny?.length ||
+      metric.whereAny.some(
+        (condition) =>
+          matches(row, condition),
+      )
+    );
+
+  const detailRows: VaiTableRow[] =
+    entries.map(({ row, group }) => {
+      const values =
+        fieldColumns.map(
+          (column) =>
+            column.format === "text" ||
+            column.format === "date"
+              ? toText(row[column.id])
+              : toNumber(row[column.id]),
+        );
+
+      const applies =
+        hasConditionalMetrics
+          ? metrics
+              .filter((metric) =>
+                contributes(metric, row),
+              )
+              .map((metric) => metric.label)
+              .join(", ") || "—"
+          : null;
+
+      return [
+        group,
+        ...values,
+        ...(hasConditionalMetrics
+          ? [applies]
+          : []),
+      ];
+    });
+
+  const summarizableAggs =
+    new Set<VaiAgg>([
+      "sum",
+      "sum_distinct",
+      "sum_per_distinct",
+      "avg",
+      "min",
+      "max",
+      "weighted_avg",
+    ]);
+
+  const fieldSummaryRules:
+    VaiTableSummaryRule[] =
+    fields.map((field) => {
+      if (field.role !== "measure") {
+        return null;
+      }
+
+      const directMetric =
+        metrics.find(
+          (metric) =>
+            metric.field === field.id &&
+            summarizableAggs.has(
+              metric.agg,
+            ),
+        );
+
+      const candidates =
+        source.metrics.filter(
+          (metric) =>
+            metric.field === field.id &&
+            !metric.where?.length &&
+            !metric.whereAny?.length &&
+            summarizableAggs.has(
+              metric.agg,
+            ),
+        );
+
+      const column =
+        fieldColumns.find(
+          (item) =>
+            item.id === field.id,
+        );
+
+      const catalogueMetric =
+        candidates.find(
+          (metric) =>
+            metric.agg === "avg" &&
+            [
+              "percent",
+              "fraction",
+              "grade_oztc",
+              "grade_gt",
+            ].includes(
+              column?.format ?? "",
+            ),
+        ) ??
+        candidates.find(
+          (metric) =>
+            metric.agg === "sum",
+        ) ??
+        candidates[0];
+
+      return summaryRule(
+        widget,
+        field.id,
+        directMetric ??
+          catalogueMetric,
+      );
+    });
+
+  return {
+    kind: "table",
+    columns,
+    rows: detailRows,
+    total: detailRows.length,
+    summaryRules: [
+      null,
+      ...fieldSummaryRules,
+      ...(hasConditionalMetrics
+        ? [null]
+        : []),
+    ],
+    rowMembers: entries.map(
+      ({ row }) => [row],
+    ),
+  };
 }
 
 function groupRows(rows: VaiRow[], keyOf: (row: VaiRow) => string) {

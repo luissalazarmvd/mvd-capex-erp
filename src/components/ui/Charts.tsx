@@ -58,6 +58,15 @@ function formatNumber(value: unknown, digits = 2) {
   });
 }
 
+function formatMarkLabel(value: number, digits = 2, unit = "") {
+  const formatted =
+    Math.abs(value) >= 100000
+      ? compact.format(value)
+      : formatNumber(value, digits);
+
+  return `${formatted}${unit}`;
+}
+
 // Ref de callback: el plot puede montarse después del primer render (datos que
 // llegan tarde o un filtro que vacía y vuelve a llenar) y debe observarse igual.
 function useWidth() {
@@ -364,7 +373,7 @@ function ChartCard({
         <div className="trjk-chart-data">{panel}</div>
       ) : !empty && table ? (
         <details className="trjk-chart-data">
-          <summary>Ver cifras exactas</summary>
+          <summary>Ver cifras exactas y detalle</summary>
           <div className="trjk-table-scroll">{table}</div>
         </details>
       ) : null}
@@ -746,19 +755,36 @@ export function ColumnChart({
                     ),
                   )}
                   {capLabels &&
-                    row.values.map((v, j) =>
-                      v == null || v === 0 ? null : (
+                    row.values.map((v, j) => {
+                      if (v == null || v === 0) return null;
+
+                      const labelY =
+                        v >= 0
+                          ? yFor(j, v) - 4
+                          : yFor(j, v) + 11;
+
+                      if (
+                        labelY < pad.t + 9 ||
+                        labelY > pad.t + plotH - 4
+                      ) {
+                        return null;
+                      }
+
+                      return (
                         <text
                           key={`l${j}`}
                           className="trjk-mark-label"
                           x={x0 + j * (barW + 2) + barW / 2}
-                          y={v >= 0 ? yFor(j, v) - 4 : yFor(j, v) + 11}
+                          y={labelY}
                           textAnchor="middle"
                         >
-                          {formatNumber(v, series[j]?.digits ?? digits)}
+                          {formatMarkLabel(
+                            v,
+                            series[j]?.digits ?? digits,
+                          )}
                         </text>
-                      ),
-                    )}
+                      );
+                    })}
                   {labels.has(i) && (
                     <text className="trjk-axis" x={pad.l + band * i + band / 2} y={height - 8} textAnchor="middle">
                       <title>{row.label}</title>
@@ -808,19 +834,54 @@ export function ComboChart({
   const [hover, setHover] = useState<number | null>(null);
   const axes = assignSeriesAxes(rows, series);
   const hasRight = axes.includes("right");
-  const pad = { l: 46, r: hasRight ? 52 : 10, t: 18, b: 28 };
+  const pad = { l: 46, r: 64, t: 18, b: 28 };
   const plotW = Math.max(0, width - pad.l - pad.r);
   const plotH = height - pad.t - pad.b;
   const leftFinite = axisValues(rows, axes, "left");
   const rightFinite = axisValues(rows, axes, "right");
-  const log = scaleMode === "log" && canUseLogScale([...leftFinite, ...rightFinite]);
+
+  const leftHasBars = series.some(
+    (item, index) =>
+      axes[index] === "left" &&
+      item.seriesType !== "line",
+  );
+
+  const rightHasBars = series.some(
+    (item, index) =>
+      axes[index] === "right" &&
+      item.seriesType !== "line",
+  );
+
+  const log =
+    scaleMode === "log" &&
+    canUseLogScale([...leftFinite, ...rightFinite]);
+
   const leftLog = logarithmicScale(leftFinite);
   const rightLog = logarithmicScale(rightFinite);
-  const leftScale = log ? leftLog : niceScale(Math.min(...leftFinite, 0), Math.max(...leftFinite, 0));
-  const rightScale = log ? rightLog : niceScale(Math.min(...rightFinite, 0), Math.max(...rightFinite, 0));
+
+  const leftScale = log
+    ? leftLog
+    : adaptiveScale(leftFinite, leftHasBars);
+
+  const rightScale = log
+    ? rightLog
+    : adaptiveScale(rightFinite, rightHasBars);
+
   const yFor = (index: number, v: number) => {
-    const scale = axes[index] === "right" ? rightScale : leftScale;
-    const fraction = log ? (axes[index] === "right" ? rightLog : leftLog).fraction(v) : (v - scale.min) / (scale.max - scale.min);
+    const scale =
+      axes[index] === "right"
+        ? rightScale
+        : leftScale;
+
+    const fraction = log
+      ? (
+          axes[index] === "right"
+            ? rightLog
+            : leftLog
+        ).fraction(v)
+      : (v - scale.min) /
+        (scale.max - scale.min);
+
     return pad.t + plotH - fraction * plotH;
   };
   const leftAxisUnit = axisUnitLabel(series, axes, "left", unit);
@@ -869,13 +930,36 @@ export function ComboChart({
   });
 
   const endLabels: { j: number; i: number; v: number; y: number }[] = [];
+
   series.forEach((item, j) => {
     if (item.seriesType !== "line") return;
+
     for (let i = rows.length - 1; i >= 0; i--) {
       const v = rows[i].values[j];
       if (v == null) continue;
+
       const py = yFor(j, v);
-      if (!endLabels.some((e) => Math.abs(e.y - py) < 12)) endLabels.push({ j, i, v, y: py });
+
+      const collidesWithBar = rows[i].values.some(
+        (barValue, barIndex) =>
+          barValue != null &&
+          series[barIndex]?.seriesType !== "line" &&
+          Math.abs(yFor(barIndex, barValue) - py) < 18,
+      );
+
+      const collidesWithLine = endLabels.some(
+        (label) => Math.abs(label.y - py) < 18,
+      );
+
+      if (
+        py >= pad.t + 10 &&
+        py <= pad.t + plotH - 10 &&
+        !collidesWithBar &&
+        !collidesWithLine
+      ) {
+        endLabels.push({ j, i, v, y: py });
+      }
+
       break;
     }
   });
@@ -953,19 +1037,56 @@ export function ComboChart({
                     ),
                   )}
                   {capLabels &&
-                    row.values.map((v, j) =>
-                      v == null || v === 0 || !barSlots.has(j) ? null : (
+                    row.values.map((v, j) => {
+                      if (
+                        v == null ||
+                        v === 0 ||
+                        !barSlots.has(j)
+                      ) {
+                        return null;
+                      }
+
+                      const labelY =
+                        v >= 0
+                          ? yFor(j, v) - 4
+                          : yFor(j, v) + 11;
+
+                      const collidesWithLine = row.values.some(
+                        (lineValue, lineIndex) =>
+                          lineValue != null &&
+                          series[lineIndex]?.seriesType === "line" &&
+                          Math.abs(
+                            yFor(lineIndex, lineValue) - labelY,
+                          ) < 18,
+                      );
+
+                      if (
+                        labelY < pad.t + 9 ||
+                        labelY > pad.t + plotH - 4 ||
+                        collidesWithLine
+                      ) {
+                        return null;
+                      }
+
+                      return (
                         <text
                           key={`l${j}`}
                           className="trjk-mark-label"
-                          x={x0 + (barSlots.get(j) ?? 0) * (barW + 2) + barW / 2}
-                          y={v >= 0 ? yFor(j, v) - 4 : yFor(j, v) + 11}
+                          x={
+                            x0 +
+                            (barSlots.get(j) ?? 0) * (barW + 2) +
+                            barW / 2
+                          }
+                          y={labelY}
                           textAnchor="middle"
                         >
-                          {formatNumber(v, series[j]?.digits ?? digits)}
+                          {formatMarkLabel(
+                            v,
+                            series[j]?.digits ?? digits,
+                          )}
                         </text>
-                      ),
-                    )}
+                      );
+                    })}
                   {labels.has(i) && (
                     <text className="trjk-axis" x={pad.l + band * i + band / 2} y={height - 8} textAnchor="middle">
                       <title>{row.label}</title>
@@ -1000,6 +1121,7 @@ export function ComboChart({
             )}
             {endLabels.map((e) => {
               const placeLeft = hasRight || axes[e.j] === "right";
+
               return (
                 <text
                   key={e.j}
@@ -1008,8 +1130,11 @@ export function ComboChart({
                   y={e.y + 3.5}
                   textAnchor={placeLeft ? "end" : "start"}
                 >
-                  {formatNumber(e.v, series[e.j]?.digits ?? digits)}
-                  {series[e.j]?.unit ?? unit}
+                  {formatMarkLabel(
+                    e.v,
+                    series[e.j]?.digits ?? digits,
+                    series[e.j]?.unit ?? unit,
+                  )}
                 </text>
               );
             })}
@@ -1089,24 +1214,52 @@ export function LineChart({
 
   // Etiqueta del último punto por serie, salvo que se pise con la anterior.
   const endLabels: { j: number; i: number; v: number; y: number }[] = [];
+
   series.forEach((_, j) => {
     for (let i = rows.length - 1; i >= 0; i--) {
       const v = rows[i].values[j];
       if (v == null) continue;
+
       const py = yFor(j, v);
-      if (!endLabels.some((e) => Math.abs(e.y - py) < 12)) endLabels.push({ j, i, v, y: py });
+
+      if (
+        py >= pad.t + 10 &&
+        py <= pad.t + plotH - 10 &&
+        !endLabels.some(
+          (label) => Math.abs(label.y - py) < 18,
+        )
+      ) {
+        endLabels.push({ j, i, v, y: py });
+      }
+
       break;
     }
   });
 
   const areaPath = (() => {
     if (!area || !rows.length) return "";
-    const points = rows.map((r, i) => (r.values[0] == null ? null : `${x(i).toFixed(1)},${yFor(0, r.values[0]).toFixed(1)}`));
+
+    const points = rows.map((r, i) =>
+      r.values[0] == null
+        ? null
+        : `${x(i).toFixed(1)},${yFor(0, r.values[0]).toFixed(1)}`,
+    );
+
     const first = points.findIndex(Boolean);
     let last = points.length - 1;
-    while (last >= 0 && !points[last]) last--;
+
+    while (last >= 0 && !points[last]) {
+      last--;
+    }
+
     if (first < 0 || last <= first) return "";
-    return `M${x(first).toFixed(1)},${yFor(0, 0).toFixed(1)}L${points.slice(first, last + 1).filter(Boolean).join("L")}L${x(last).toFixed(1)},${yFor(0, 0).toFixed(1)}z`;
+
+    const baselineY = pad.t + plotH;
+
+    return `M${x(first).toFixed(1)},${baselineY.toFixed(1)}L${points
+      .slice(first, last + 1)
+      .filter(Boolean)
+      .join("L")}L${x(last).toFixed(1)},${baselineY.toFixed(1)}z`;
   })();
 
   const tip = hover == null ? null : rows[hover];
@@ -1199,6 +1352,7 @@ export function LineChart({
             )}
             {endLabels.map((e) => {
               const placeLeft = hasRight || axes[e.j] === "right";
+
               return (
                 <text
                   key={e.j}
@@ -1207,8 +1361,11 @@ export function LineChart({
                   y={e.y + 3.5}
                   textAnchor={placeLeft ? "end" : "start"}
                 >
-                  {formatNumber(e.v, series[e.j]?.digits ?? digits)}
-                  {series[e.j]?.unit ?? unit}
+                  {formatMarkLabel(
+                    e.v,
+                    series[e.j]?.digits ?? digits,
+                    series[e.j]?.unit ?? unit,
+                  )}
                 </text>
               );
             })}
