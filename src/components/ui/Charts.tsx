@@ -1411,6 +1411,16 @@ export function MatrixChart({ title, subtitle, columns, roots, totals, format, c
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
     const [page, setPage] = useState(1);
     useEffect(() => { setExpanded(new Set()); setPage(1); }, [roots]);
+    const matrixButtonStyle: CSSProperties = {
+        minHeight: 32,
+        padding: "6px 10px",
+        borderRadius: 8,
+        border: "1px solid rgba(219, 173, 65, .36)",
+        background: "rgba(7, 29, 41, .94)",
+        color: "#d9b35f",
+        fontWeight: 700,
+        cursor: "pointer",
+    };
     const visible = useMemo(() => {
         const result: import("../../lib/vai").VaiMatrixNode[] = [];
         const visit = (node: import("../../lib/vai").VaiMatrixNode) => {
@@ -1437,9 +1447,9 @@ export function MatrixChart({ title, subtitle, columns, roots, totals, format, c
     };
     return <ChartCard title={title} subtitle={subtitle} empty={!roots.length} controls={controls}>
       <div data-vai-export-ignore style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <button type="button" className="vai-chip" onClick={() => expandLevel(1)}>Contraer</button>
-        <button type="button" className="vai-chip" onClick={() => expandLevel(2)}>Segundo nivel</button>
-        <button type="button" className="vai-chip" onClick={() => expandLevel(6)}>Expandir todo</button>
+        <button type="button" style={matrixButtonStyle} onClick={() => expandLevel(1)}>Contraer</button>
+        <button type="button" style={matrixButtonStyle} onClick={() => expandLevel(2)}>Segundo nivel</button>
+        <button type="button" style={matrixButtonStyle} onClick={() => expandLevel(6)}>Expandir todo</button>
         <span className="muted">50 filas por página · subtotales por período, sin mezclar escenarios</span>
       </div>
       <div className="vai-table-scroll" style={{ maxHeight: 560, overflow: "auto" }}>
@@ -1448,37 +1458,42 @@ export function MatrixChart({ title, subtitle, columns, roots, totals, format, c
             <tr>
               <th style={{ position: "sticky", left: 0, zIndex: 5, background: "var(--s-1)", minWidth: 360 }}>Jerarquía</th>
               {columns.map((column) => <th key={column.id} data-num style={{ minWidth: 130, maxWidth: 170, whiteSpace: "normal" }}>{column.label}</th>)}
-              {onDetail ? <th>Detalle</th> : null}
             </tr>
           </thead>
           <tbody>
-            {pageRows.map((node) => <tr key={node.key}>
+            {pageRows.map((node) => <tr key={node.key} onClick={onDetail ? () => onDetail(node) : undefined} onKeyDown={onDetail ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onDetail(node);
+                }
+            } : undefined} role={onDetail ? "button" : undefined} tabIndex={onDetail ? 0 : undefined} style={onDetail ? { cursor: "pointer" } : undefined}>
               <td title={node.path.join(" → ")} style={{ position: "sticky", left: 0, zIndex: 2, background: "var(--s-1)", maxWidth: 480, paddingLeft: 10 + (node.path.length - 1) * 18, fontWeight: node.children.length ? 700 : 400, whiteSpace: "normal", overflowWrap: "anywhere" }}>
-                {node.children.length ? <button type="button" aria-expanded={expanded.has(node.key)} aria-label={`${expanded.has(node.key) ? "Contraer" : "Expandir"} ${node.label}`} onClick={() => setExpanded((previous) => {
-                    const next = new Set(previous);
-                    if (next.has(node.key)) next.delete(node.key); else next.add(node.key);
-                    return next;
-                })} style={{ width: 24, marginRight: 6 }}>{expanded.has(node.key) ? "−" : "+"}</button> : <span style={{ display: "inline-block", width: 30 }}/>}
+                {node.children.length ? <button type="button" aria-expanded={expanded.has(node.key)} aria-label={`${expanded.has(node.key) ? "Contraer" : "Expandir"} ${node.label}`} onClick={(event) => {
+                    event.stopPropagation();
+                    setExpanded((previous) => {
+                        const next = new Set(previous);
+                        if (next.has(node.key)) next.delete(node.key); else next.add(node.key);
+                        return next;
+                    });
+                }} style={{ ...matrixButtonStyle, minWidth: 26, minHeight: 26, width: 26, height: 26, padding: 0, marginRight: 6 }}>{expanded.has(node.key) ? "−" : "+"}</button> : <span style={{ display: "inline-block", width: 32 }}/>}
                 {node.label}
               </td>
               {columns.map((column) => <td key={column.id} data-num style={{ fontVariantNumeric: "tabular-nums", fontWeight: node.children.length ? 700 : 400, whiteSpace: "nowrap" }}>{format(node.values[column.id] ?? null)}</td>)}
-              {onDetail ? <td data-vai-export-ignore><button type="button" className="vai-chip" onClick={() => onDetail(node)}>Ver detalle</button></td> : null}
             </tr>)}
           </tbody>
           <tfoot style={{ position: "sticky", bottom: 0, zIndex: 3, background: "var(--s-1)", fontWeight: 700 }}>
             <tr>
               <td style={{ position: "sticky", left: 0, background: "var(--s-1)" }}>Total del filtro</td>
               {columns.map((column) => <td key={column.id} data-num>{format(totals[column.id] ?? null)}</td>)}
-              {onDetail ? <td/> : null}
             </tr>
           </tfoot>
         </table>
       </div>
       <div data-vai-export-ignore style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "flex-end", marginTop: 12 }}>
         <span className="muted">{visible.length.toLocaleString("es-PE")} filas desplegadas</span>
-        <button type="button" className="vai-chip" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Anterior</button>
+        <button type="button" style={matrixButtonStyle} disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Anterior</button>
         <span>{currentPage} / {pageCount}</span>
-        <button type="button" className="vai-chip" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Siguiente</button>
+        <button type="button" style={matrixButtonStyle} disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Siguiente</button>
       </div>
     </ChartCard>;
 }

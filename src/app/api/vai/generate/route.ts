@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server";
 import { sessionWithScope } from "@/src/lib/auth/session";
 import { VAI_AREAS, VAI_BREAKDOWN_CHART_LIMIT, VAI_BREAKDOWN_TABLE_LIMIT, VAI_BUCKETS, VAI_DATE_PRESETS, VAI_MAX_FILTERS, VAI_MAX_SOURCES, VAI_MAX_WIDGETS, VAI_PROMPT_MAX, VAI_SORT_MODES, VAI_SOURCES, VAI_STACK_MODES, VAI_SUMMARY_OPERATIONS, VAI_WIDGET_TYPES, VAI_VISUAL_CATALOG, resolveVisualRequests, coerceModelOutput, limaToday, promptRenderHints, validateModelOutput, type VaiArea, type VaiChartPreference, type VaiFocus, type VaiModelOutput, type VaiSource, type VaiValidation, } from "@/src/lib/vai";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
+
 const VAI_OPENAI_MODEL = process.env.VAI_OPENAI_MODEL?.trim() || "gpt-5.4";
 const VAI_REASONING = ["low", "medium", "high"].includes(process.env.VAI_OPENAI_REASONING ?? "")
     ? process.env.VAI_OPENAI_REASONING! : "medium";
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const OPENAI_TIMEOUT_MS = 155000;
 const MAX_CANDIDATES = 6;
+
 type VaiGenerateOptions = {
     area: VaiArea | "auto";
     focus: VaiFocus;
     charts: VaiChartPreference[];
 };
+
 const STOP = new Set([
     "de",
     "la",
@@ -54,6 +58,7 @@ const STOP = new Set([
     "resumen",
     "cada",
 ]);
+
 function tokens(text: string) {
     return text
         .toLowerCase()
@@ -63,60 +68,78 @@ function tokens(text: string) {
         .filter((token) => token.length > 2 &&
         !STOP.has(token));
 }
+
 function stem(token: string) {
     return token.replace(/(es|s)$/, "");
 }
+
 function sourceScore(source: VaiSource, promptTokens: string[]) {
     const bag = new Map<string, number>();
+
     const add = (text: string, weight: number) => {
         for (const token of tokens(text)) {
             const key = stem(token);
             bag.set(key, Math.max(bag.get(key) ?? 0, weight));
         }
     };
+
     add(source.name, 3);
     add(source.description, 2);
     add(source.keywords.join(" "), 3);
     add(source.grain, 1);
+
     for (const field of source.fields) {
         add(`${field.label} ${field.id.replace(/_/g, " ")}`, 1.5);
     }
+
     for (const metric of source.metrics) {
         add(`${metric.label} ${metric.description}`, 1.5);
     }
+
     let score = 0;
+
     for (const token of promptTokens) {
         score +=
             bag.get(stem(token)) ?? 0;
     }
+
     return score;
 }
+
 function selectCandidateSources(prompt: string, area: VaiArea | "auto") {
     const promptTokens = tokens(prompt);
     const promptTokenSet = new Set(promptTokens.map(stem));
+
     const explicitlyRequested = (source: VaiSource) => source.keywords.some((keyword) => {
         const required = tokens(keyword).map(stem);
+
         return (required.length > 0 &&
             required.every((token) => promptTokenSet.has(token)));
     });
+
     const enabled = VAI_SOURCES.filter((source) => source.enabled &&
         (!source.explicitOnly ||
             explicitlyRequested(source)));
+
     const pool = area === "auto"
         ? enabled
         : enabled.filter((source) => source.area === area);
+
     const scored = pool
         .map((source) => ({
         source,
         score: sourceScore(source, promptTokens),
     }))
         .sort((a, b) => b.score - a.score);
+
     const positive = scored.filter((item) => item.score > 0);
+
     const picked = (positive.length
         ? positive
         : scored)
         .slice(0, MAX_CANDIDATES)
         .map((item) => item.source);
+
     if (area !== "auto") {
         for (const source of pool) {
             if (!picked.includes(source) &&
@@ -126,8 +149,10 @@ function selectCandidateSources(prompt: string, area: VaiArea | "auto") {
             }
         }
     }
+
     return picked;
 }
+
 function sourceContext(source: VaiSource) {
     return {
         id: source.id,
@@ -212,6 +237,7 @@ function sourceContext(source: VaiSource) {
             []).map((relation) => `${relation.field} → ${relation.source}.${relation.targetField}: ${relation.description} (V-Ai v1 no cruza fuentes).`),
     };
 }
+
 const SYSTEM_PROMPT = `Eres V-Ai, el diseñador de dashboards del ERP de Veta Dorada (minería aurífera, Perú). Recibes la petición de un usuario en lenguaje natural y un catálogo de fuentes de datos con sus campos, dimensiones, fechas y métricas permitidas. Diseñas un dashboard como especificación JSON; un renderer fijo lo dibuja y consulta los datos reales por su cuenta.
 
 Reglas obligatorias:
@@ -231,8 +257,8 @@ Reglas obligatorias:
   · histogram = frecuencia por intervalos sobre el campo numérico directo de una métrica simple (sum/avg/min/max). metrics contiene UNA métrica con field numérico; dimension/dateField/breakdown null, bins 3 a 40 o null (automático). No es una suma por sede ni una distribución de ratios agregados.
   · waterfall = cascada de aportes positivos/negativos de UNA métrica aditiva por dimension/dateField. Parte de cero y añade total neto; no inventa saldo inicial, saldo final ni variaciones entre métricas.
   · table = detalle (columns) o agrupada (dimension o dateField + metrics); con breakdown es una tabla dinámica (pivot).
-  · matrix = matriz desplegable: UNA métrica de suma, columns como jerarquía de 1 a 5 campos, dateField/bucket para las columnas temporales y breakdown opcional para separar escenarios. No aplica el límite de series de los gráficos. No es una tabla plana.
-- "breakdown" (segunda dimensión, opcional) divide la PRIMERA métrica en una serie por categoría: "una línea por sede", "barras apiladas por tipo de combustible", "desglosado por conductor", "tabla de galones por sede y grifo". Solo en line, area, bar, heatmap, table y matrix; con breakdown usa una sola métrica y una dimensión distinta de "dimension". Se dibujan hasta ${VAI_BREAKDOWN_CHART_LIMIT} series (el resto sale como «Otros»); en tablas hasta ${VAI_BREAKDOWN_TABLE_LIMIT} columnas.
+  · matrix = matriz desplegable: UNA métrica de suma, columns como jerarquía ordenada de 1 a 5 campos en filas, matrixColumns como jerarquía ordenada de 0 a 3 dimensiones categóricas en columnas y dateField/bucket como dimensión temporal adicional de columnas cuando corresponda. No aplica el límite de series de los gráficos. No es una tabla plana.
+- "breakdown" (segunda dimensión, opcional) divide la PRIMERA métrica en una serie por categoría: "una línea por sede", "barras apiladas por tipo de combustible", "desglosado por conductor", "tabla de galones por sede y grifo". Solo en line, area, bar, heatmap y table; con breakdown usa una sola métrica y una dimensión distinta de "dimension". Se dibujan hasta ${VAI_BREAKDOWN_CHART_LIMIT} series (el resto sale como «Otros»); en tablas hasta ${VAI_BREAKDOWN_TABLE_LIMIT} columnas. En matrix usa matrixColumns, no breakdown, para definir columnas categóricas.
 - "sort" ordena las categorías del eje X: ${VAI_SORT_MODES.join(", ")} (value_desc es el predeterminado; "de menor a mayor" = value_asc; "orden alfabético" = label_asc). "sortMetric" es el id de la métrica que manda cuando no es la primera. En ejes temporales ambos van en null.
 - "cumulative": true acumula a lo largo del tiempo ("acumulado", "curva acumulada", "avance acumulado"); solo con dateField y métricas sumables; si no, null.
 - "bucket": ${VAI_BUCKETS.join("/")} según pidan diario, semanal, mensual, trimestral o anual; month si no dicen nada; null sin dateField.
@@ -241,13 +267,14 @@ Reglas obligatorias:
   · "eje secundario para Y" → seriesAxes asigna "right" a Y; no cambia su marca si pidió dos líneas o dos barras.
   · "apilado", "apiladas" → bar + stack "stack"; "apilado al 100 %", "porcentual", "participación apilada" → stack "percent".
   · "una línea/serie/barra por <dimensión>", "desglosado/segmentado/separado/dividido por <dimensión>", "por <eje> y <dimensión>" → breakdown = esa dimensión.
-  · "acumulado" → cumulative true. "torta/pastel/anillo/pie" → donut. "ranking/top N/barras horizontales" → rank. "dispersión/correlación/scatter" → scatter. "gráfico de área" → area. "tabla dinámica/pivot/matriz" → table + dimension + breakdown.
+  · "acumulado" → cumulative true. "torta/pastel/anillo/pie" → donut. "ranking/top N/barras horizontales" → rank. "dispersión/correlación/scatter" → scatter. "gráfico de área" → area. Si pide una matriz indicando filas, columnas y valores, usa type=matrix, columns exactamente en el orden pedido para las filas, matrixColumns exactamente en el orden pedido para las columnas categóricas y metrics con la medida pedida; si una columna es temporal usa dateField/bucket en vez de inventar una dimensión.
   · "orden alfabético" → sort label_asc; "de menor a mayor" → value_asc; "de mayor a menor" → value_desc; "ordenado por <métrica>" → sortMetric.
   · "trimestral" → bucket quarter; "anual/por año" → year; "semanal" → week; "diario/por día" → day.
 - El eje X categórico de un gráfico siempre se define mediante "dimension". Si el usuario pide explícitamente "eje X por placa", "eje X oficina", "por sede", "por proveedor", "por conductor", "por área", "por estado" o cualquier clasificación equivalente disponible en la fuente, usa ese id exacto como dimension. En ese caso dateField debe ser null salvo que el usuario haya pedido además explícitamente una evolución temporal separada.
 - Las dimensiones del eje X son genéricas para todas las áreas. No limites esta capacidad a Flota: cualquier field role="dimension" de la fuente puede ser el eje categórico cuando tenga sentido.
 - Si el usuario pide un gráfico por una clasificación no temporal, no sustituyas esa clasificación por una fecha solo porque la fuente tenga defaultDateField.
 - En line, area, bar y combo, "seriesTypes" indica cómo se dibuja cada métrica, alineado 1 a 1 con "metrics", con valores "line" o "bar"; en los demás tipos va null.
+- Resuelve la intención del usuario de forma semántica usando el nombre, descripción, reglas, campos y métricas de las fuentes. No exijas coincidencia literal entre las palabras del prompt y los ids o labels del catálogo: identifica qué medida representa el concepto pedido dentro del área, moneda, dimensiones y contexto disponibles antes de declarar que falta información.
 - Combina métricas en un mismo gráfico solo cuando la lectura sea clara. Considera siempre el format/unidad de cada métrica: tonelaje, leyes, porcentajes, moneda, horas, conteos, etc. El renderer usa eje Y secundario cuando hay dos unidades incompatibles o escalas muy distintas. No combines más de dos familias de escala incompatibles en un mismo gráfico; si hacen falta más, sepáralas en widgets distintos.
 - "seriesAxes": array alineado con metrics ("left", "right" o null), solo gráficos de series. Prioriza la asignación explícita de izquierda/derecha del usuario; si no indicó lados, agrupa por unidad. Nunca mezcles PEN con galones en un mismo eje.
 - "includeOthers": null por defecto, false para rankings salvo petición expresa. "limit": null para mostrar todas las sedes/categorías/períodos de un eje; NO agregues Top 12, Top 50 u Otros por rutina. Solo fija limit si pide Top N o un ranking. "bins" solo para histogram.
@@ -256,11 +283,11 @@ Reglas obligatorias:
 - No prometas capacidades no implementadas: bubble con tamaño, boxplot, treemap, Sankey, mapas geográficos, objetivos no catalogados y pronósticos sin datos/modelos NO se sustituyen silenciosamente por otro tipo. Informa la parte no disponible; no inventes funciones ni métricas.
 - Un dashboard completo mezcla formas: KPIs para los totales, un gráfico principal que responda exactamente a la instrucción visual del usuario, una tendencia temporal cuando la fuente es de eventos, una comparación categórica (bar, rank, donut o combo) y, si aporta, una tabla agrupada o de detalle. No repitas la misma métrica con la misma dimensión en dos gráficos, salvo que el usuario haya pedido esas dos vistas explícitamente.
 - Ejemplos de widgets bien formados (ids ilustrativos de Vales de combustible; usa siempre los ids de la fuente elegida):
-  · Sedes en eje X, galones en barras y PEN en línea → {"type":"combo","title":"Galones y costo PEN por sede","source":"fleet_fuel_refuels","metrics":["qty_total","cost_pen_known"],"seriesTypes":["bar","line"],"dimension":"group_name","dateField":null,"bucket":null,"limit":null,"columns":null,"summaries":[],"breakdown":null,"stack":null,"sort":null,"sortMetric":null,"cumulative":null}
-  · Galones mensuales apilados por tipo de combustible → {"type":"bar","title":"Galones por mes y tipo de combustible","source":"fleet_fuel_refuels","metrics":["qty_total"],"seriesTypes":null,"dimension":null,"dateField":"date_cons","bucket":"month","limit":null,"columns":null,"summaries":[],"breakdown":"type_fuel","stack":"stack","sort":null,"sortMetric":null,"cumulative":null}
-  · Costo PEN acumulado con una línea por sede → {"type":"line","title":"Costo PEN acumulado por sede","source":"fleet_fuel_refuels","metrics":["cost_pen_known"],"seriesTypes":null,"dimension":null,"dateField":"date_cons","bucket":"month","limit":null,"columns":null,"summaries":[],"breakdown":"group_name","stack":null,"sort":null,"sortMetric":null,"cumulative":true}
-  · Dispersión de recorrido vs galones por placa → {"type":"scatter","title":"Recorrido vs galones por placa","source":"fleet_performance","metrics":["distance_total","qty_total"],"seriesTypes":null,"dimension":"plate","dateField":null,"bucket":null,"limit":50,"columns":null,"summaries":[],"breakdown":null,"stack":null,"sort":null,"sortMetric":null,"cumulative":null}
-  · Sedes en orden alfabético con galones y abastecimientos → {"type":"bar","title":"Galones y abastecimientos por sede","source":"fleet_fuel_refuels","metrics":["qty_total","refuel_count"],"seriesTypes":["bar","bar"],"dimension":"group_name","dateField":null,"bucket":null,"limit":null,"columns":null,"summaries":[],"breakdown":null,"stack":null,"sort":"label_asc","sortMetric":null,"cumulative":null}
+  · Sedes en eje X, galones en barras y PEN en línea → {"type":"combo","title":"Galones y costo PEN por sede","source":"fleet_fuel_refuels","metrics":["qty_total","cost_pen_known"],"seriesTypes":["bar","line"],"dimension":"group_name","dateField":null,"bucket":null,"limit":null,"columns":null,"matrixColumns":null,"summaries":[],"breakdown":null,"stack":null,"sort":null,"sortMetric":null,"cumulative":null}
+  · Galones mensuales apilados por tipo de combustible → {"type":"bar","title":"Galones por mes y tipo de combustible","source":"fleet_fuel_refuels","metrics":["qty_total"],"seriesTypes":null,"dimension":null,"dateField":"date_cons","bucket":"month","limit":null,"columns":null,"matrixColumns":null,"summaries":[],"breakdown":"type_fuel","stack":"stack","sort":null,"sortMetric":null,"cumulative":null}
+  · Costo PEN acumulado con una línea por sede → {"type":"line","title":"Costo PEN acumulado por sede","source":"fleet_fuel_refuels","metrics":["cost_pen_known"],"seriesTypes":null,"dimension":null,"dateField":"date_cons","bucket":"month","limit":null,"columns":null,"matrixColumns":null,"summaries":[],"breakdown":"group_name","stack":null,"sort":null,"sortMetric":null,"cumulative":true}
+  · Dispersión de recorrido vs galones por placa → {"type":"scatter","title":"Recorrido vs galones por placa","source":"fleet_performance","metrics":["distance_total","qty_total"],"seriesTypes":null,"dimension":"plate","dateField":null,"bucket":null,"limit":50,"columns":null,"matrixColumns":null,"summaries":[],"breakdown":null,"stack":null,"sort":null,"sortMetric":null,"cumulative":null}
+  · Sedes en orden alfabético con galones y abastecimientos → {"type":"bar","title":"Galones y abastecimientos por sede","source":"fleet_fuel_refuels","metrics":["qty_total","refuel_count"],"seriesTypes":["bar","bar"],"dimension":"group_name","dateField":null,"bucket":null,"limit":null,"columns":null,"matrixColumns":null,"summaries":[],"breakdown":null,"stack":null,"sort":"label_asc","sortMetric":null,"cumulative":null}
 - Hay dos formas distintas de usar "table". Tabla de detalle: usa "columns" únicamente con ids de fields existentes; NUNCA pongas ids de metrics dentro de columns. En detalle deja metrics=[], dimension=null, dateField=null y bucket=null. Tabla agrupada: usa dimension o dateField junto con al menos una métrica válida en metrics y deja columns=null. Si quieres una tabla "por placa/sede/proveedor" con totales o ratios, eso es tabla agrupada, no tabla de detalle.
 - Para tablas usa limit=null por defecto para conservar todas las filas o categorías filtradas. Solo usa limit cuando el usuario pida explícitamente un Top N, primeras N filas o un límite concreto. Nunca uses 50 como límite automático de una tabla.
 - En una tabla de detalle, dateField NO significa ordenar por fecha. Si el usuario pide "detalle", "lista", "recientes", "últimos" o filas individuales, usa una tabla de detalle con columns. No conviertas una petición de ordenamiento en una tabla agrupada.
@@ -285,8 +312,9 @@ Reglas obligatorias:
 - En Finanzas, facturación, valorización y estado de pago por lote usan finance_mineral_purchases, con exactamente el universo de dw.v_traceability_get, sin lotes históricos adicionales ni exclusión de lotes sin factura. lot_usd_total suma lot_usd tal como sale de traceability_get, nunca otro importe ni una reconstrucción. La etiqueta visible de la referencia contable es CONCAR. Fecha principal entry_date; por pago de lotes usa pay_date (alias de payment_date de traceability_get) y por valorización valuation_date. invoice_reg_date e invoice_doc_date son atributos informativos, no filtros de fecha financieros. Para tablas por lote incluye siempre lot y entry_date juntos, una fila por lote, sin rows_count, __count ni métricas de conteo por lote. El pago efectivo usa exclusivamente finance_mineral_payments.payment_usd_total, con payment_date como fecha principal y su universo conta_payments intacto. Nunca unir estas fuentes por lot, RUC, documento u otra clave ni repartir el pago de un comprobante entre lotes. Puedes presentar tendencias por período en gráficos separados, sin saldo o conciliación cruzada. El renderer actual usa una fuente por widget; no inventes un widget con métricas mezcladas de fuentes distintas.
 - En Finanzas, finance_costs es la fuente oficial de costos y gastos de toda la empresa. Por defecto usa únicamente USD; PEN solo si lo solicitan explícitamente. PPTO no tiene PEN, no lo conviertas ni lo muestres como cero.
 - Estándar obligatorio de costos: filtros select period_label (REAL 2025, REAL 2026, PPTO 2026), month_label (01_ENE a 12_DIC) y gerencia_lima, además de los clasificadores solicitados. Enero-julio selecciona los mismos meses para cada period_label: no uses un date_range absoluto que elimine REAL 2025. Sin meses solicitados, conserva todos. Para valores pedidos explícitamente, usa values en el filtro select; en otro caso values=null.
-- Costos: tarjetas cost_real_2026_usd, cost_ppto_2026_usd y cost_real_2025_usd con importe acumulado; comparación gruesa con dimension=period_label y metrics=[cost_total_usd]. No sumes los tres escenarios/ejercicios en una tarjeta. Las variaciones real/presupuesto se calculan solo entre REAL 2026 y PPTO 2026 con los mismos meses y clasificadores.
-- En costos agrega matrix con metrics=[cost_total_usd], columns=[account_label,supplier_label,gloss], dateField=posting_date, bucket=month y breakdown=period_label. Puede anteponer cost_center_label o un clasificador solicitado. La jerarquía es cuenta con descripción → RUC/código de anexo con proveedor → glosa. La matriz muestra meses en columnas, expansión por fila y totales separados por period_label, sin sumar escenarios ni padres con hijos. Para PEN usa cost_total_pen y solo importes existentes.
+- Costos: tarjetas cost_real_2026_usd, cost_ppto_2026_usd y cost_real_2025_usd con importe acumulado. No generes por defecto un gráfico cuyo único eje categórico sea period_label para comparar REAL/PPTO; esas cifras ya están en las tarjetas. No sumes los tres escenarios/ejercicios en una tarjeta. Las variaciones real/presupuesto se calculan solo entre REAL 2026 y PPTO 2026 con los mismos meses y clasificadores.
+- En costos, por defecto agrega matrix con metrics=[cost_total_usd], columns=[account_label,supplier_label,gloss], matrixColumns=[period_label], dateField=posting_date y bucket=month. Si el usuario define explícitamente filas, columnas o valores de una matriz, respeta exactamente su orden y no agregues posting_date/meses ni otras columnas que no haya pedido. La matriz muestra expansión por fila y totales separados, sin sumar escenarios ni padres con hijos. Para PEN usa cost_total_pen y solo importes existentes.
+- En costos, todo gráfico de barras cuyo eje X sea un clasificador como gerencia, zona, sede, grupo, cuenta, CECO, proveedor u otra dimensión de negocio debe usar una sola métrica monetaria cost_total_usd o cost_total_pen y breakdown=period_label, stack=null: cada categoría del eje X debe mostrar columnas agrupadas separadas por REAL 2026, REAL 2025 y PPTO 2026 cuando existan. No mezcles esos períodos dentro de una sola barra.
 - Las tablas de costos incluyen period_label, cuenta completa, proveedor completo, glosa y monto de la moneda pedida. gerencia_lima corresponde al clasificador G_LIMA, no al macroproceso. Mantén los demás clasificadores: macro_process, site_group/site_type/site_name, zone_name, cost_nature, prod_admin, cost_group, dynacor_group/subgroup, fixed_variable, rrhh_nature/type, transversal, subledger y document_type. No inventes CAPEX o proyecto ni reconstruyas costos generales desde otras fuentes.
 - En Planta, plant_shifts es la fuente principal del balance; los costos por cuenta/CECO y USD/TMS usan plant_costs; los costos e insumos por guardia (reactivos y bolas) usan plant_consumables; las leyes de carbón en tanques usan plant_carbon_tanks; la conciliación planta vs Control de Mineral usa plant_cm_reconciliation. Los ratios kg/TMS y USD/TMS se calculan con las métricas declaradas (TMS contada una vez por guardia o mes), nunca sumando atributos repetidos.
 - En Refinería, el período es campaign_month; el costo por campaña, por gramo de Au o por kg de carbón está disponible en refinery_campaigns y por insumo/subproceso en refinery_consumption (real vs óptimo ML). Cada insumo conserva su unidad: cantidades y desviaciones de cantidad solo con un insumo filtrado o agrupado; los costos USD sí se consolidan.
@@ -305,6 +333,7 @@ Reglas obligatorias:
 - Si algo pedido puede construirse razonablemente con los campos o métricas existentes, constrúyelo y no lo pongas en "unavailable". Solo marca "partial" cuando realmente falta información en el catálogo. Si nada es posible, status "unavailable", dashboard null y explica en "message".
 - "message" se muestra al usuario: breve, en español, sin jerga técnica. Títulos en español, claros y cortos. Sin datos inventados.
 - Devuelve solo JSON válido según el esquema.`;
+
 const OUTPUT_SCHEMA = {
     type: "object",
     additionalProperties: false,
@@ -477,6 +506,17 @@ const OUTPUT_SCHEMA = {
                                             type: "string",
                                         },
                                     },
+                                    matrixColumns: {
+                                        type: [
+                                            "array",
+                                            "null",
+                                        ],
+                                        items: {
+                                            type: "string",
+                                        },
+                                        maxItems: 3,
+                                        description: "Solo matrix: dimensiones categóricas de columnas en el orden pedido; null fuera de matrix o cuando solo hay columnas temporales.",
+                                    },
                                     summaries: {
                                         type: "array",
                                         items: {
@@ -570,6 +610,7 @@ const OUTPUT_SCHEMA = {
                                     "bucket",
                                     "limit",
                                     "columns",
+                                    "matrixColumns",
                                     "summaries",
                                     "breakdown",
                                     "stack",
@@ -600,6 +641,7 @@ const OUTPUT_SCHEMA = {
         "dashboard",
     ],
 };
+
 const FOCUS_TEXT: Record<VaiFocus, string> = {
     auto: "Automático: elige la mezcla de widgets más útil.",
     kpis: "Prioriza KPIs y un resumen compacto (varios kpi y pocos gráficos).",
@@ -607,6 +649,7 @@ const FOCUS_TEXT: Record<VaiFocus, string> = {
     comparisons: "Prioriza comparaciones por dimensión (bar, combo, rank, donut, scatter o line categórico cuando el usuario lo pida).",
     detail: "Prioriza tablas de detalle o resumen (table).",
 };
+
 const CHART_PREFERENCE_TEXT: Record<VaiChartPreference, string> = {
     kpi: "kpi",
     line: "line (tendencias)",
@@ -621,19 +664,23 @@ const CHART_PREFERENCE_TEXT: Record<VaiChartPreference, string> = {
     histogram: "histogram (frecuencia por intervalos de registros)",
     waterfall: "waterfall (cascada de aportes y total neto)",
     table: "table",
-    matrix: "matrix (cuenta → proveedor → glosa, meses en columnas y escenarios separados)",
+    matrix: "matrix configurable (jerarquía de filas, jerarquía de columnas y una medida sumable)",
 };
+
 function visualInstructions(prompt: string) {
     const hints = promptRenderHints(prompt);
     const items: string[] = [];
+
     for (const hint of hints.renders) {
         items.push(`«${hint.term.join(" ")}» debe dibujarse como ${hint.render === "bar" ? "barras" : "línea"}`);
     }
+
     if (hints.mentionsBars &&
         hints.mentionsLines &&
         !hints.renders.length) {
         items.push("mezcla barras y líneas en un mismo gráfico (combo con seriesTypes)");
     }
+
     for (const family of hints.families) {
         if (family === "donut" ||
             family === "rank" ||
@@ -642,32 +689,40 @@ function visualInstructions(prompt: string) {
             items.push(`pide un gráfico de tipo ${family}`);
         }
     }
+
     for (const item of hints.stack) {
         items.push(item.value === "percent"
             ? `barras apiladas al 100 % (stack percent) en el gráfico de «${item.context.join(" ")}»`
             : `barras apiladas (stack) en el gráfico de «${item.context.join(" ")}»`);
     }
+
     for (const item of hints.cumulative) {
         items.push(`valores acumulados en el tiempo (cumulative true) en el gráfico de «${item.context.join(" ")}»`);
     }
+
     for (const item of hints.sort) {
         items.push(`orden ${item.value} en el gráfico de «${item.context.join(" ")}»`);
     }
+
     for (const item of hints.bucket) {
         items.push(`grano temporal ${item.value} en el gráfico de «${item.context.join(" ")}»`);
     }
+
     for (const item of hints.breakdown) {
         items.push(`una serie por «${item.value.join(" ")}» (breakdown con esa dimensión) en el gráfico de «${item.context.join(" ")}»`);
     }
+
     return items.length
         ? items
         : "ninguna instrucción visual explícita; elige la mezcla más útil";
 }
+
 class VaiGenerationError extends Error {
     constructor(message: string, readonly detail?: string) {
         super(message);
     }
 }
+
 async function generateDashboardSpec(prompt: string, options: VaiGenerateOptions): Promise<{
     output: VaiModelOutput;
     candidates: string[];
@@ -675,63 +730,127 @@ async function generateDashboardSpec(prompt: string, options: VaiGenerateOptions
     validation: VaiValidation;
 }> {
     const apiKey = process.env.API_OPEN_AI?.trim();
+
     if (!apiKey)
         throw new VaiGenerationError("V-Ai no está configurado en este entorno.", "missing API_OPEN_AI");
+
     const candidates = selectCandidateSources(prompt, options.area);
     const ids = candidates.map((source) => source.id);
     const compactGeneration = candidates.length <= 3 &&
         prompt.length <= 600 &&
         options.charts.length <= 2;
     const maxOutputTokens = compactGeneration ? 10000 : 20000;
+
     const context = {
-        currentDateLima: limaToday(), defaultHistoryStart: "2026-01-01",
+        currentDateLima: limaToday(),
+        defaultHistoryStart: "2026-01-01",
         catalogIndex: VAI_SOURCES.filter((source) => source.enabled && (options.area === "auto" || source.area === options.area))
-            .map((source) => ({ id: source.id, name: source.name, area: source.area,
-            description: source.description, explicitOnly: source.explicitOnly ?? false, detailed: candidates.includes(source) })),
+            .map((source) => ({
+            id: source.id,
+            name: source.name,
+            area: source.area,
+            description: source.description,
+            explicitOnly: source.explicitOnly ?? false,
+            detailed: candidates.includes(source),
+        })),
         sources: candidates.map(sourceContext),
         visualCatalog: VAI_VISUAL_CATALOG,
         visualInstructions: visualInstructions(prompt),
         explicitVisualRequests: resolveVisualRequests(prompt, ids),
-        preferences: { focus: FOCUS_TEXT[options.focus], preferredWidgets: options.charts.map((chart) => CHART_PREFERENCE_TEXT[chart]),
-            areaRestriction: options.area, generationMode: compactGeneration ? "compacto: prioriza 4 a 6 widgets útiles y evita redundancias" : "normal" },
+        preferences: {
+            focus: FOCUS_TEXT[options.focus],
+            preferredWidgets: options.charts.map((chart) => CHART_PREFERENCE_TEXT[chart]),
+            areaRestriction: options.area,
+            generationMode: compactGeneration ? "compacto: prioriza 4 a 6 widgets útiles y evita redundancias" : "normal",
+        },
         request: prompt,
     };
+
     const deadline = Date.now() + OPENAI_TIMEOUT_MS;
     let feedback: string[] = [];
     let previous: VaiModelOutput | null = null;
+
     for (let attempt = 0; attempt < 2; attempt += 1) {
         const remaining = deadline - Date.now();
+
         if (remaining < 8000)
             break;
+
         const reasoningEffort = compactGeneration && attempt === 0 ? "low" : VAI_REASONING;
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), Math.min(remaining, attempt === 0 ? 100000 : remaining));
         let payload: unknown;
+
         try {
             const response = await fetch(OPENAI_URL, {
-                method: "POST", cache: "no-store", signal: controller.signal,
-                headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+                method: "POST",
+                cache: "no-store",
+                signal: controller.signal,
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    "Content-Type": "application/json",
+                },
                 body: JSON.stringify({
-                    model: VAI_OPENAI_MODEL, store: false, max_output_tokens: maxOutputTokens,
+                    model: VAI_OPENAI_MODEL,
+                    store: false,
+                    max_output_tokens: maxOutputTokens,
                     ...(/^(?:gpt-[56]|o[134])/.test(VAI_OPENAI_MODEL) ? { reasoning: { effort: reasoningEffort } } : {}),
                     input: [
-                        { role: "system", content: [{ type: "input_text", text: SYSTEM_PROMPT }] },
-                        { role: "user", content: [{ type: "input_text", text: JSON.stringify({ ...context,
-                                        ...(attempt ? { repair: { instruction: "Repara el diseño completo. No basta cambiar títulos; corrige ids, tipos de serie y ejes. Solo datos del catálogo.",
-                                                problems: feedback, previousSpecification: previous } } : {}) }) }] },
+                        {
+                            role: "system",
+                            content: [
+                                {
+                                    type: "input_text",
+                                    text: SYSTEM_PROMPT,
+                                },
+                            ],
+                        },
+                        {
+                            role: "user",
+                            content: [
+                                {
+                                    type: "input_text",
+                                    text: JSON.stringify({
+                                        ...context,
+                                        ...(attempt
+                                            ? {
+                                                repair: {
+                                                    instruction: "Repara el diseño completo. No basta cambiar títulos; corrige ids, tipos de serie y ejes. Solo datos del catálogo.",
+                                                    problems: feedback,
+                                                    previousSpecification: previous,
+                                                },
+                                            }
+                                            : {}),
+                                    }),
+                                },
+                            ],
+                        },
                     ],
-                    text: { format: { type: "json_schema", name: "vai_dashboard", strict: true, schema: OUTPUT_SCHEMA } },
+                    text: {
+                        format: {
+                            type: "json_schema",
+                            name: "vai_dashboard",
+                            strict: true,
+                            schema: OUTPUT_SCHEMA,
+                        },
+                    },
                 }),
             });
+
             const bodyText = await response.text();
+
             if (!response.ok) {
                 const message = response.status === 401 || response.status === 403
                     ? "La API de IA rechazó las credenciales o el acceso al modelo. Revisa la configuración de V-Ai."
-                    : response.status === 429 ? "La API de IA alcanzó su límite de uso. Inténtalo nuevamente en unos minutos."
-                        : response.status === 404 ? "El modelo configurado no está disponible para esta API. Revisa VAI_OPENAI_MODEL."
+                    : response.status === 429
+                        ? "La API de IA alcanzó su límite de uso. Inténtalo nuevamente en unos minutos."
+                        : response.status === 404
+                            ? "El modelo configurado no está disponible para esta API. Revisa VAI_OPENAI_MODEL."
                             : "El servicio de IA devolvió un error. Inténtalo nuevamente.";
+
                 throw new VaiGenerationError(message, `openai status=${response.status} model=${VAI_OPENAI_MODEL}`);
             }
+
             try {
                 payload = JSON.parse(bodyText);
             }
@@ -742,17 +861,22 @@ async function generateDashboardSpec(prompt: string, options: VaiGenerateOptions
         catch (error) {
             if (error instanceof VaiGenerationError)
                 throw error;
+
             const aborted = controller.signal.aborted;
+
             if (aborted && attempt === 0 && deadline - Date.now() > 15000) {
                 feedback = ["La primera generación agotó su tiempo. Devuelve un diseño más compacto sin omitir el gráfico principal."];
                 continue;
             }
-            throw new VaiGenerationError(aborted ? "La generación agotó su tiempo. No se guardó un diseño incompleto."
+
+            throw new VaiGenerationError(aborted
+                ? "La generación agotó su tiempo. No se guardó un diseño incompleto."
                 : "No se pudo contactar al servicio de IA.");
         }
         finally {
             clearTimeout(timer);
         }
+
         const record = payload as {
             status?: string;
             incomplete_details?: {
@@ -760,60 +884,86 @@ async function generateDashboardSpec(prompt: string, options: VaiGenerateOptions
             };
             output?: unknown[];
         };
+
         if (record.status === "incomplete" || record.status === "failed") {
             feedback = [`Respuesta ${record.status}: ${record.incomplete_details?.reason ?? "sin diseño completo"}. Devuelve un diseño compacto válido.`];
             continue;
         }
+
         const text = extractOutputText(payload);
         let parsed: unknown = null;
+
         try {
             parsed = JSON.parse(text);
         }
         catch { }
+
         const output = coerceModelOutput(parsed);
+
         if (!output) {
             feedback = ["Falta una respuesta JSON completa conforme al esquema."];
             continue;
         }
+
         previous = output;
+
         const validation = validateModelOutput(output, prompt, ids);
+
         if (validation.issues?.length) {
             feedback = validation.issues;
             continue;
         }
-        return { output, candidates: ids, model: VAI_OPENAI_MODEL, validation };
+
+        return {
+            output,
+            candidates: ids,
+            model: VAI_OPENAI_MODEL,
+            validation,
+        };
     }
-    throw new VaiGenerationError(`No se pudo construir un diseño que respete la solicitud. ${feedback.slice(0, 2).join(" ")}`, `visual contract not satisfied model=${VAI_OPENAI_MODEL}`);
+
+    throw new VaiGenerationError(
+        `No se pudo construir un diseño que respete la solicitud. ${feedback.slice(0, 2).join(" ")}`,
+        `visual contract not satisfied model=${VAI_OPENAI_MODEL}`,
+    );
 }
+
 function extractOutputText(payload: unknown) {
     if (typeof payload !==
         "object" ||
         payload === null) {
         return "";
     }
+
     const record = payload as {
         output_text?: unknown;
         output?: unknown;
     };
+
     if (typeof record.output_text ===
         "string") {
         return record.output_text;
     }
+
     if (!Array.isArray(record.output)) {
         return "";
     }
+
     for (const block of record.output) {
         const content = (block as {
             content?: unknown;
         }).content;
+
         if (!Array.isArray(content)) {
             continue;
         }
+
         for (const part of content) {
             const item = part as {
                 type?: unknown;
                 text?: unknown;
             };
+
             if (item.type ===
                 "output_text" &&
                 typeof item.text ===
@@ -822,8 +972,10 @@ function extractOutputText(payload: unknown) {
             }
         }
     }
+
     return "";
 }
+
 const FOCUS: VaiFocus[] = [
     "auto",
     "kpis",
@@ -831,9 +983,12 @@ const FOCUS: VaiFocus[] = [
     "comparisons",
     "detail",
 ];
+
 const CHARTS: readonly VaiChartPreference[] = VAI_WIDGET_TYPES;
+
 export async function POST(req: Request) {
     const session = await sessionWithScope(req, "vai");
+
     if (!session) {
         return NextResponse.json({
             ok: false,
@@ -842,6 +997,7 @@ export async function POST(req: Request) {
             status: 401,
         });
     }
+
     const body = (await req
         .json()
         .catch(() => ({}))) as {
@@ -850,9 +1006,11 @@ export async function POST(req: Request) {
         focus?: unknown;
         charts?: unknown;
     };
+
     const prompt = String(body.prompt ?? "")
         .replace(/[ \t]+/g, " ")
         .trim();
+
     if (prompt.length < 8) {
         return NextResponse.json({
             ok: false,
@@ -861,6 +1019,7 @@ export async function POST(req: Request) {
             status: 400,
         });
     }
+
     if (prompt.length >
         VAI_PROMPT_MAX) {
         return NextResponse.json({
@@ -870,37 +1029,49 @@ export async function POST(req: Request) {
             status: 400,
         });
     }
+
     const areaRaw = String(body.area ??
         "auto");
+
     const area: VaiArea | "auto" = VAI_AREAS.some((item) => item.id === areaRaw)
         ? (areaRaw as VaiArea)
         : "auto";
+
     const focusRaw = String(body.focus ??
         "auto") as VaiFocus;
+
     const focus = FOCUS.includes(focusRaw)
         ? focusRaw
         : "auto";
+
     const charts = Array.isArray(body.charts)
         ? body.charts
             .map(String)
             .filter((c): c is VaiChartPreference => CHARTS.includes(c as VaiChartPreference))
         : [];
+
     const promptIntent = prompt
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-z0-9]+/g, " ")
         .trim();
+
     const mineralContext = /\b(?:mineral|minero|mineros|lote|lotes|acopio)\b/.test(promptIntent);
+
     const pendingMineralFlow = mineralContext &&
         /\b(?:sin|pendiente|pendientes|falta|faltan|no)\s+(?:de\s+)?(?:pago|pagos|pagar|pagado|pagados|factura|facturas|facturado|facturados|valorizacion|valorizar|valorizado|valorizados)\b/.test(promptIntent);
+
     const mineralFinanceIntent = mineralContext &&
         /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos|factura|facturas|facturado|facturados|compra|compras|comprado|comprados|contable|contabilidad|contabilizado|contabilizados|provision|provisiones|proveedor|proveedores|usd|tms)\b/.test(promptIntent);
+
     const domainSpecificCostIntent = /\b(?:combustible|combustibles|galon|galones|flota|vehiculo|vehiculos|refineria|reactivo|reactivos|planta|kardex|trjkar|logistica|almacen|stock|activo|activos|depreciacion)\b/.test(promptIntent);
+
     const corporateFinanceIntent = !domainSpecificCostIntent &&
         (/\b(?:costo|costos|gasto|gastos|presupuesto|ppto|opex|macroproceso|macroprocesos|ceco|cecos|dynacor|contabilidad|contable|finanzas)\b/.test(promptIntent) ||
             /\bcentros? de costo\b/.test(promptIntent) ||
             /\b(?:real|reales)\b.*\b(?:presupuesto|ppto)\b|\b(?:presupuesto|ppto)\b.*\b(?:real|reales)\b/.test(promptIntent));
+
     const generationArea: VaiArea | "auto" = area !== "auto"
         ? area
         : pendingMineralFlow
@@ -909,24 +1080,39 @@ export async function POST(req: Request) {
                 corporateFinanceIntent
                 ? "finance"
                 : "auto";
+
     const comparisonIntent = /\b(?:vs|versus|contra|comparar|compara|comparacion|diferencia|diferencias)\b/.test(promptIntent);
+
     const generationFocus: VaiFocus = focus === "auto" &&
         comparisonIntent
         ? "comparisons"
         : focus;
+
     const mineralPaymentByLotComparison = mineralContext &&
         /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos)\b/.test(promptIntent) &&
         /\b(?:lote|lotes)\b/.test(promptIntent);
+
     const generationPrompt = mineralPaymentByLotComparison
         ? `${prompt}\n\nReglas: por lote usa finance_mineral_purchases con el universo exacto de traceability_get y lot_usd sin recalcular. Referencia visible CONCAR. lot siempre junto a entry_date, sin contador de filas. entry_date es fecha principal; pay_date identifica pago del lote y valuation_date su valorización. Pago efectivo: finance_mineral_payments.payment_usd_total de conta_payments, con payment_date como fecha principal. Son universos separados, sin cruce por lote. doc_type y payment_document_type son filtros locales por widget de pagos.`
         : prompt;
+
     try {
-        const { output, candidates, model, validation, } = await generateDashboardSpec(generationPrompt, {
+        const {
+            output,
+            candidates,
+            model,
+            validation,
+        } = await generateDashboardSpec(generationPrompt, {
             area: generationArea,
             focus: generationFocus,
             charts,
         });
-        const { spec, notes, } = validation;
+
+        const {
+            spec,
+            notes,
+        } = validation;
+
         if (!spec) {
             const unavailable = [
                 ...new Set([
@@ -934,6 +1120,7 @@ export async function POST(req: Request) {
                     ...notes,
                 ]),
             ];
+
             return NextResponse.json({
                 ok: true,
                 status: "unavailable",
@@ -944,12 +1131,15 @@ export async function POST(req: Request) {
                 candidates,
             });
         }
+
         const unavailable = [
             ...new Set(notes),
         ];
+
         const status = unavailable.length
             ? "partial"
             : "ok";
+
         return NextResponse.json({
             ok: true,
             status,
@@ -967,6 +1157,7 @@ export async function POST(req: Request) {
             VaiGenerationError) {
             console.error("V-Ai generate:", error.detail ??
                 error.message);
+
             return NextResponse.json({
                 ok: false,
                 error: error.message,
@@ -974,7 +1165,9 @@ export async function POST(req: Request) {
                 status: 502,
             });
         }
+
         console.error("V-Ai generate:", error);
+
         return NextResponse.json({
             ok: false,
             error: "No se pudo generar el dashboard. Inténtalo de nuevo.",

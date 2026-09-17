@@ -1,9 +1,9 @@
 "use client";
-import { createContext, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode, } from "react";
+import { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode, } from "react";
 import { createPortal } from "react-dom";
 import { loadVaiSourceRows } from "../../lib/vai";
 import { canUseLogScale, prefersLogScale, type ChartScaleMode } from "../../lib/chartScale";
-import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, monthBounds, monthsInRange, validIsoDate, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, widgetDetailTable, vaiAreaLabel, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiRow, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
+import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, monthBounds, monthsInRange, validIsoDate, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, widgetDetailTable, vaiAreaLabel, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiRow, type VaiSortMode, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
 import { MatrixChart, CHART_COLORS, CHART_OTHER, ColumnChart, ComboChart, DonutChart, HeatmapChart, WaterfallChart, KpiTooltip, LineChart, RankChart, ScatterChart, type ChartRow, type ChartSeries, } from "../ui/Charts";
 import { Button } from "../ui/Button";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
@@ -635,6 +635,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
         }
         return next;
     }, [defaultFilters, filters]);
+    const deferredFilters = useDeferredValue(effectiveFilters);
     const filteredCache = useRef(new Map<string, {
         rows: VaiRow[];
         key: string;
@@ -645,27 +646,29 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
         for (const source of sources) {
             const rows = data[source.id]?.rows ?? EMPTY_VAI_ROWS;
             const relevant = spec.filters.filter((filter) => filter.source === source.id);
-            const key = JSON.stringify(relevant.map((filter) => [filter, effectiveFilters[filterKey(filter)]]));
+            const key = JSON.stringify(relevant.map((filter) => [filter, deferredFilters[filterKey(filter)]]));
             const previous = filteredCache.current.get(source.id);
             if (previous?.rows === rows && previous.key === key)
                 out[source.id] = previous.result;
             else {
-                const result = applyFilters(source, rows, relevant, effectiveFilters);
+                const result = applyFilters(source, rows, relevant, deferredFilters);
                 filteredCache.current.set(source.id, { rows, key, result });
                 out[source.id] = result;
             }
         }
         return out;
-    }, [sources, data, spec.filters, effectiveFilters]);
+    }, [sources, data, spec.filters, deferredFilters]);
     const filterOptionRows = useCallback((filter: VaiFilterSpec) => {
         const source = VAI_SOURCE_MAP.get(filter.source);
         if (!source)
             return [];
         if (source.id === "finance_costs")
             return data[source.id]?.rows ?? EMPTY_VAI_ROWS;
-        return applyFilters(source, data[filter.source]?.rows ?? [], spec.filters.filter((item) => filterKey(item) !== filterKey(filter)), effectiveFilters);
-    }, [data, spec.filters, effectiveFilters]);
+        return applyFilters(source, data[filter.source]?.rows ?? [], spec.filters.filter((item) => filterKey(item) !== filterKey(filter)), deferredFilters);
+    }, [data, spec.filters, deferredFilters]);
     const loading = sources.some((source) => data[source.id]?.loading ?? true);
+    const loadingSources = sources.filter((source) => data[source.id]?.loading ?? true);
+    const loadingText = loadingSources.map((source) => data[source.id]?.progress || `Consultando ${source.name}…`).join(" · ");
     const exportContext = spec.filters.map((filter) => {
         const value = effectiveFilters[filterKey(filter)] ?? {};
         if (filter.kind === "date_range") {
@@ -712,6 +715,14 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
             (value.to ?? defaults.to ?? "") !== (defaults.to ?? ""));
     });
     return (<div className="vai-board">
+      {loading ? (<div role="status" aria-live="polite" aria-busy="true" style={{ position: "fixed", inset: 0, zIndex: 30000, display: "grid", placeItems: "center", padding: 24, background: "rgba(3, 15, 22, .88)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", cursor: "wait" }}>
+          <style>{`@keyframes vaiLoadingFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.025)}}@keyframes vaiLoadingHalo{0%,100%{box-shadow:0 0 0 0 rgba(211,170,73,.1),0 20px 60px rgba(0,0,0,.35)}50%{box-shadow:0 0 0 16px rgba(211,170,73,.03),0 24px 72px rgba(0,0,0,.5)}}`}</style>
+          <div style={{ width: "min(520px, 94vw)", display: "grid", justifyItems: "center", gap: 16, padding: "28px 26px", textAlign: "center", border: "1px solid rgba(211,170,73,.35)", borderRadius: 18, background: "rgba(7, 26, 36, .96)", animation: "vaiLoadingHalo 1.8s ease-in-out infinite" }}>
+            <div style={{ animation: "vaiLoadingFloat 1.8s ease-in-out infinite" }}><VaiLogo size={92} title="V-Ai cargando datos"/></div>
+            <strong style={{ fontSize: 18, letterSpacing: ".02em" }}>Obteniendo datos de las fuentes</strong>
+            <span className="muted" style={{ maxWidth: 460, whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.5 }}>{loadingText || "Preparando consultas…"}</span>
+          </div>
+        </div>) : null}
       <VaiExportProvider title={spec.title} context={exportContext} disabled={loading || sources.some((source) => Boolean(data[source.id]?.error))}>
       {spec.description ? <p className="muted" style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip", maxHeight: "none" }}>{spec.description}</p> : null}
 
@@ -724,7 +735,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
                 </Button>) : null}
             </div>
           </div>
-          <div className="vai-filters" style={{ marginTop: 10 }}>
+          <div className="vai-filters" style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 10, alignItems: "start", width: "100%", minWidth: 0 }}>
             {spec.filters.map((filter) => (<FilterControl key={filterKey(filter)} filter={filter} rows={filter.kind === "date_range" ? EMPTY_VAI_ROWS : filterOptionRows(filter)} value={effectiveFilters[filterKey(filter)] ?? {}} onChange={(value) => setFilters((prev) => ({ ...prev, [filterKey(filter)]: value }))}/>))}
           </div>
         </section>) : null}
@@ -873,32 +884,32 @@ function CostMonthControl({ value, onChange }: { value: VaiFilterValue; onChange
         document.addEventListener("keydown", escape);
         return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
     }, []);
+    const allMonthsSelected = selected === undefined || selected.length === COST_MONTH_OPTIONS.length;
     const apply = () => {
-        onChange(selected === undefined ? {} : { values: [...selected].sort() });
+        onChange(selected === undefined || selected.length === COST_MONTH_OPTIONS.length ? {} : { values: [...selected].sort() });
         if (root.current) root.current.open = false;
     };
-    return <div style={{ display: "grid", gap: 7, minWidth: 240 }}>
+    return <div style={{ display: "grid", gap: 7, minWidth: 0, width: "100%", maxWidth: "100%" }}>
       <span className="vd-label">Meses comparables</span>
-      <details ref={root} style={{ position: "relative" }}>
-        <summary className="select" style={{ cursor: "pointer" }}>{value.values === undefined ? "Todos los meses" : value.values.length ? `${value.values.length} meses seleccionados` : "Ningún mes"}</summary>
-        <div className="trjk-card" style={{ position: "absolute", top: "100%", left: 0, width: 320, maxWidth: "85vw", zIndex: 500, background: "var(--s-1)", padding: 14, boxShadow: "0 14px 34px #0005" }}>
-          <small className="muted">El mismo recorte de meses para REAL 2025, REAL 2026 y PPTO 2026.</small>
-          <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
-            <select className="select" aria-label="Desde el mes" value={from} onChange={(event) => setFrom(Number(event.target.value))}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
-            <select className="select" aria-label="Hasta el mes" value={to} onChange={(event) => setTo(Number(event.target.value))}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
-            <button type="button" disabled={from > to} onClick={() => setSelected(COST_MONTH_OPTIONS.slice(from - 1, to))}>Marcar rango</button>
+      <details ref={root} style={{ position: "relative", minWidth: 0, maxWidth: "100%" }}>
+        <summary className="select" style={{ cursor: "pointer", minWidth: 0, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value.values === undefined ? "Todos los meses" : value.values.length ? `${value.values.length} meses seleccionados` : "Ningún mes"}</summary>
+        <div className="trjk-card" style={{ position: "absolute", top: "calc(100% + 5px)", left: 0, width: "min(320px, calc(100vw - 32px))", maxWidth: "calc(100vw - 32px)", boxSizing: "border-box", zIndex: 500, background: "var(--s-1)", padding: 14, boxShadow: "0 14px 34px #0005", overflow: "hidden" }}>
+          <small className="muted" style={{ whiteSpace: "normal" }}>El mismo recorte de meses para REAL 2025, REAL 2026 y PPTO 2026.</small>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "12px 0" }}>
+            <select className="select" aria-label="Desde el mes" value={from} onChange={(event) => setFrom(Number(event.target.value))} style={{ flex: "1 1 110px", minWidth: 0 }}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
+            <select className="select" aria-label="Hasta el mes" value={to} onChange={(event) => setTo(Number(event.target.value))} style={{ flex: "1 1 110px", minWidth: 0 }}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
+            <button type="button" disabled={from > to} onClick={() => setSelected(COST_MONTH_OPTIONS.slice(from - 1, to))} style={{ flex: "1 1 120px" }}>Marcar rango</button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 9 }}>
-            {COST_MONTH_OPTIONS.map((month) => <label key={month} style={{ display: "flex", gap: 5 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 9 }}>
+            {COST_MONTH_OPTIONS.map((month) => <label key={month} style={{ display: "flex", gap: 5, minWidth: 0 }}>
               <input type="checkbox" checked={selected === undefined || selected.includes(month)} onChange={() => setSelected((previous) => {
                   const next = previous ?? COST_MONTH_OPTIONS;
                   return next.includes(month) ? next.filter((item) => item !== month) : [...next, month];
-              })}/>{month}
+              })}/><span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{month}</span>
             </label>)}
           </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-            <button type="button" onClick={() => setSelected(undefined)}>Todos</button>
-            <button type="button" onClick={() => setSelected([])}>Ninguno</button>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
+            <button type="button" onClick={() => setSelected(allMonthsSelected ? [] : undefined)}>{allMonthsSelected ? "Deseleccionar todo" : "Seleccionar todo"}</button>
             <Button size="sm" onClick={apply}>Aplicar</Button>
           </div>
         </div>
@@ -1038,9 +1049,9 @@ function FilterControl({ filter, rows, value, onChange, }: {
             cursor: "pointer",
             fontWeight: 700,
         }}>
-            <input type="checkbox" checked={allSelected} onChange={() => onChange({})}/>
+            <input type="checkbox" checked={allSelected} onChange={() => onChange(allSelected ? { values: [] } : {})}/>
 
-            Seleccionar todos
+            {allSelected ? "Deseleccionar todo" : "Seleccionar todo"}
           </label>
 
           <div style={{
@@ -1140,8 +1151,12 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
     filterLabel?: string;
 }) {
     const [scaleChoice, setScaleChoice] = useState<"auto" | ChartScaleMode>("auto");
+    const [sortChoice, setSortChoice] = useState<VaiSortMode>(widget.sort ?? "value_desc");
     const source = VAI_SOURCE_MAP.get(widget.source);
-    const result = useMemo(() => source && widget.type !== "matrix" ? computeWidget(widget, source, rows) : null, [widget, source, rows]);
+    const hasSortableXAxis = Boolean(widget.dimension) && ["bar", "line", "area", "combo", "heatmap", "waterfall"].includes(widget.type);
+    useEffect(() => setSortChoice(widget.sort ?? "value_desc"), [widget]);
+    const effectiveWidget = useMemo(() => hasSortableXAxis ? { ...widget, sort: sortChoice } : widget, [widget, hasSortableXAxis, sortChoice]);
+    const result = useMemo(() => source && widget.type !== "matrix" ? computeWidget(effectiveWidget, source, rows) : null, [effectiveWidget, source, rows, widget.type]);
     const costSummary = useMemo(() => source?.id === "finance_costs" ? costSummaryText(rows, widget.metrics.some((id) => source.metrics.find((metric) => metric.id === id)?.format === "pen") ? "pen" : "usd") : "", [widget, source, rows]);
     if (source && widget.type === "matrix")
         return <MatrixWidget id={id} order={order} widget={widget} rows={rows} source={source} controls={localControls}/>;
@@ -1209,8 +1224,17 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
         <option value="log" disabled={!logAllowed}>Logarítmica</option>
       </select>
     </label>) : null;
-    const controls = localControls || scaleControls ? <>{localControls}{scaleControls}</> : undefined;
-    const dataTable = <WidgetDataTables widget={widget} source={source} table={result.table} subtitle={subtitle}/>;
+    const sortControls = hasSortableXAxis ? (<label className="vai-scale-control" style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }}>
+      <span>Orden X</span>
+      <select className="select" aria-label={`Orden del eje X de ${widget.title}`} value={sortChoice} onChange={(event) => setSortChoice(event.target.value as VaiSortMode)} style={{ width: 154, minWidth: 154, maxWidth: 154 }}>
+        <option value="value_desc">Mayor a menor</option>
+        <option value="value_asc">Menor a mayor</option>
+        <option value="label_asc">A → Z</option>
+        <option value="label_desc">Z → A</option>
+      </select>
+    </label>) : null;
+    const controls = localControls || scaleControls || sortControls ? <>{localControls}{sortControls}{scaleControls}</> : undefined;
+    const dataTable = <WidgetDataTables widget={effectiveWidget} source={source} table={result.table} subtitle={subtitle}/>;
     const wrap = (chart: ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }}>
     {chart}
     {result.notices?.length ? <p className="muted" style={{ fontSize: 11, margin: "7px 2px 0", whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.5 }}>{result.notices.join(" · ")}</p> : null}
@@ -1440,7 +1464,7 @@ function MatrixWidget({ id, order, widget, rows, source, controls }: {
     const summary = useMemo(() => source.id === "finance_costs" ? costSummaryText(matrix.records, currency) : "", [source.id, matrix.records, currency]);
     return <>
       <VaiExportSection id={id} order={order} title={widget.title} kind="table" getTable={getTable}>
-        <MatrixChart title={widget.title} subtitle={[matrix.hierarchy.map((field) => vaiField(source, field)?.label ?? field).join(" → "), summary, "Excel exporta el último nivel, sin duplicar subtotales"].filter(Boolean).join(" · ")} columns={matrix.columns} roots={matrix.roots} totals={matrix.totals} format={format} controls={<>{controls}<SourceHint source={source} columnId={widget.metrics[0]} columnLabel="Fuente de la matriz"/></>} onDetail={source.id === "finance_costs" ? (node) => setSelected({ matrix, node }) : undefined}/>
+        <MatrixChart title={widget.title} subtitle={[`Filas: ${matrix.hierarchy.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}`, widget.matrixColumns?.length ? `Columnas: ${widget.matrixColumns.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}${widget.dateField ? ` → ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : ""}` : widget.dateField ? `Columnas: ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : "", summary, "Excel exporta el último nivel, sin duplicar subtotales"].filter(Boolean).join(" · ")} columns={matrix.columns} roots={matrix.roots} totals={matrix.totals} format={format} controls={<>{controls}<SourceHint source={source} columnId={widget.metrics[0]} columnLabel="Fuente de la matriz"/></>} onDetail={source.id === "finance_costs" ? (node) => setSelected({ matrix, node }) : undefined}/>
       </VaiExportSection>
       {selected?.matrix === matrix && source.id === "finance_costs" ? <CostDetailPanel title={selected.node.path.join(" → ")} rows={detailRows} source={source} currency={currency} onClose={() => setSelected(null)}/> : null}
     </>;
@@ -1558,15 +1582,18 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
                       </div>
                     </th>);
             })}
-                {canDrill ? <th>Detalle</th> : null}
               </tr>
             </thead>
             <tbody>
-              {pageRows.map((row, i) => (<tr key={`${safePage}-${i}`}>
+              {pageRows.map((row, i) => (<tr key={`${safePage}-${i}`} role={canDrill ? "button" : undefined} tabIndex={canDrill ? 0 : undefined} aria-label={canDrill ? "Abrir detalle de la fila" : undefined} onClick={canDrill ? () => setSelectedRow(row) : undefined} onKeyDown={canDrill ? (event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedRow(row);
+                  }
+              } : undefined} style={canDrill ? { cursor: "pointer" } : undefined}>
                   {row.map((cell, j) => (<td key={j} data-num={data.columns[j].format !== "text" && data.columns[j].format !== "date"}>
                       {formatValue(cell, data.columns[j].format)}
                     </td>))}
-                  {canDrill ? <td><button type="button" className="vai-chip" onClick={() => setSelectedRow(row)}>Ver detalle</button></td> : null}
                 </tr>))}
             </tbody>
             <tfoot style={{ position: "sticky", bottom: 0, zIndex: 3 }}>
@@ -1601,7 +1628,6 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
                         </div>) : null}
                     </td>);
             })}
-                {canDrill ? <td/> : null}
               </tr>
             </tfoot>
           </table>
