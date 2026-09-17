@@ -3,8 +3,8 @@ import { createContext, memo, useCallback, useContext, useEffect, useId, useMemo
 import { createPortal } from "react-dom";
 import { apiGet } from "../../lib/apiClient";
 import { canUseLogScale, prefersLogScale, type ChartScaleMode } from "../../lib/chartScale";
-import { VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, monthBounds, monthsInRange, validIsoDate, validateSourceRows, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, widgetDetailTable, vaiAreaLabel, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiRow, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
-import { CHART_COLORS, CHART_OTHER, ColumnChart, ComboChart, DonutChart, HeatmapChart, WaterfallChart, KpiTooltip, LineChart, RankChart, ScatterChart, type ChartRow, type ChartSeries, } from "../ui/Charts";
+import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, monthBounds, monthsInRange, validIsoDate, validateSourceRows, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, widgetDetailTable, vaiAreaLabel, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiRow, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
+import { MatrixChart, CHART_COLORS, CHART_OTHER, ColumnChart, ComboChart, DonutChart, HeatmapChart, WaterfallChart, KpiTooltip, LineChart, RankChart, ScatterChart, type ChartRow, type ChartSeries, } from "../ui/Charts";
 import { Button } from "../ui/Button";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 import { Select } from "../ui/Select";
@@ -53,12 +53,13 @@ export function VaiExportProvider({ title, context, disabled, children }: {
       {children}
     </ExportContext.Provider>);
 }
-export function VaiExportSection({ id, order = 0, title, kind, table, children, controls }: {
+export function VaiExportSection({ id, order = 0, title, kind, table, getTable, children, controls }: {
     id?: string;
     order?: number;
     title: string;
     kind: VaiExportBlock["kind"];
     table?: VaiExportTable;
+    getTable?: () => VaiExportTable;
     children: ReactNode;
     controls?: ReactNode;
 }) {
@@ -68,14 +69,15 @@ export function VaiExportSection({ id, order = 0, title, kind, table, children, 
     useEffect(() => {
         if (!id || !register)
             return;
-        return register(id, order, () => ({ title, kind, table, element: ref.current }));
-    }, [id, register, order, title, kind, table]);
+        return register(id, order, () => ({ title, kind, table: table ?? getTable?.(), element: ref.current }));
+    }, [id, register, order, title, kind, table, getTable]);
     return (<div className="vai-export-section" style={kind === "chart" ? { height: "100%", minWidth: 0 } : { minWidth: 0 }}>
-      {controls || (kind === "table" && table) ? (<div className="vai-export-tools" data-vai-export-ignore>
+      {controls || (kind === "table" && (table || getTable)) ? (<div className="vai-export-tools" data-vai-export-ignore>
           {controls}
-          {kind === "table" && table ? (<button type="button" className="vai-icon-btn" disabled={!context || context.disabled || context.busy} aria-label={`Exportar ${title} a Excel`} title="Exportar a Excel" onClick={() => context?.run(async () => {
+          {kind === "table" && (table || getTable) ? (<button type="button" className="vai-icon-btn" disabled={!context || context.disabled || context.busy} aria-label={`Exportar ${title} a Excel`} title="Exportar a Excel" onClick={() => context?.run(async () => {
                     const { downloadTableExcel } = await import("../../lib/vai");
-                    await downloadTableExcel(title, table);
+                    const exportTable = table ?? getTable?.();
+                    if (exportTable) await downloadTableExcel(title, exportTable);
                 })} style={{
                     width: 28,
                     height: 28,
@@ -244,8 +246,8 @@ const CURATED_SOURCE_SUGGESTIONS: Record<string, string[]> = {
         "Detalle de pagos de mineral con provisión, documento, proveedor, fecha de pago e importe USD.",
     ],
     finance_costs: [
-        "Costo real vs presupuesto por macroproceso, con variación USD y avance porcentual.",
-        "Costos reales PEN y USD por sede y grupo de costos, con evolución mensual.",
+        "Compara REAL 2026, REAL 2025 y PPTO 2026 de enero a julio en USD, con tarjetas y matriz por cuenta, proveedor y glosa.",
+        "Costos en USD por Gerencia Lima y grupo de costos, con detalle mensual desplegable.",
     ],
 };
 function joinNatural(values: string[]) {
@@ -502,10 +504,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
     const effectiveFilters = useMemo<VaiFilterState>(() => {
         const next: VaiFilterState = { ...defaultFilters };
         for (const [key, value] of Object.entries(filters)) {
-            next[key] = {
-                ...(defaultFilters[key] ?? {}),
-                ...value,
-            };
+            next[key] = value;
         }
         return next;
     }, [defaultFilters, filters]);
@@ -535,6 +534,8 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
         const source = VAI_SOURCE_MAP.get(filter.source);
         if (!source)
             return [];
+        if (source.id === "finance_costs")
+            return data[source.id]?.rows ?? EMPTY_VAI_ROWS;
         return applyFilters(source, data[filter.source]?.rows ?? [], spec.filters.filter((item) => filterKey(item) !== filterKey(filter)), effectiveFilters);
     }, [data, spec.filters, effectiveFilters]);
     const loading = sources.some((source) => data[source.id]?.loading ?? true);
@@ -557,13 +558,13 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
     const others = spec.widgets.filter((widget) => widget.type !== "kpi");
     const widgetSpan = (index: number) => {
         const widget = others[index];
-        if (!widget || ["table", "combo", "heatmap", "waterfall", "pareto"].includes(widget.type))
+        if (!widget || ["matrix", "table", "combo", "heatmap", "waterfall", "pareto"].includes(widget.type))
             return "2";
         let runStart = index;
-        while (runStart > 0 && !["table", "combo", "heatmap", "waterfall", "pareto"].includes(others[runStart - 1]?.type))
+        while (runStart > 0 && !["matrix", "table", "combo", "heatmap", "waterfall", "pareto"].includes(others[runStart - 1]?.type))
             runStart -= 1;
         let runEnd = index;
-        while (runEnd + 1 < others.length && !["table", "combo", "heatmap", "waterfall", "pareto"].includes(others[runEnd + 1]?.type))
+        while (runEnd + 1 < others.length && !["matrix", "table", "combo", "heatmap", "waterfall", "pareto"].includes(others[runEnd + 1]?.type))
             runEnd += 1;
         const runLength = runEnd - runStart + 1;
         return index === runEnd && runLength % 2 === 1 ? "2" : "1";
@@ -623,7 +624,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
 
       {others.length ? (<div className="vai-widget-grid" style={{ alignItems: "stretch" }}>
           {others.map((widget, i) => (<div key={`${widget.type}-${widget.source}-${i}`} data-span={widgetSpan(i)} style={{ minWidth: 0, height: "100%", gridColumn: widgetSpan(i) === "2" ? "1 / -1" : undefined }}>
-              <ScopedWidget id={`widget-${i}`} order={kpis.length + i} widget={widget} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS}/>
+              {data[widget.source]?.loading ? <section className="trjk-card" role="status">Actualizando {widget.title}…</section> : data[widget.source]?.error ? null : <ScopedWidget id={`widget-${i}`} order={kpis.length + i} widget={widget} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS}/>}
             </div>))}
         </div>) : null}
       </VaiExportProvider>
@@ -729,6 +730,54 @@ function DateFilterControl({ filter, value, onChange }: {
       </div>
     </div>);
 }
+function CostMonthControl({ value, onChange }: { value: VaiFilterValue; onChange: (value: VaiFilterValue) => void }) {
+    const [selected, setSelected] = useState<string[] | undefined>(value.values);
+    const [from, setFrom] = useState(1);
+    const [to, setTo] = useState(12);
+    const root = useRef<HTMLDetailsElement>(null);
+    const signature = JSON.stringify(value.values);
+    useEffect(() => { setSelected(value.values); }, [signature]);
+    useEffect(() => {
+        const close = (event: PointerEvent) => {
+            if (root.current && !root.current.contains(event.target as Node)) root.current.open = false;
+        };
+        const escape = (event: KeyboardEvent) => { if (event.key === "Escape" && root.current) root.current.open = false; };
+        document.addEventListener("pointerdown", close);
+        document.addEventListener("keydown", escape);
+        return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
+    }, []);
+    const apply = () => {
+        onChange(selected === undefined ? {} : { values: [...selected].sort() });
+        if (root.current) root.current.open = false;
+    };
+    return <div style={{ display: "grid", gap: 7, minWidth: 240 }}>
+      <span className="vd-label">Meses comparables</span>
+      <details ref={root} style={{ position: "relative" }}>
+        <summary className="select" style={{ cursor: "pointer" }}>{value.values === undefined ? "Todos los meses" : value.values.length ? `${value.values.length} meses seleccionados` : "Ningún mes"}</summary>
+        <div className="trjk-card" style={{ position: "absolute", top: "100%", left: 0, width: 320, maxWidth: "85vw", zIndex: 500, background: "var(--s-1)", padding: 14, boxShadow: "0 14px 34px #0005" }}>
+          <small className="muted">El mismo recorte de meses para REAL 2025, REAL 2026 y PPTO 2026.</small>
+          <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
+            <select className="select" aria-label="Desde el mes" value={from} onChange={(event) => setFrom(Number(event.target.value))}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
+            <select className="select" aria-label="Hasta el mes" value={to} onChange={(event) => setTo(Number(event.target.value))}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
+            <button type="button" disabled={from > to} onClick={() => setSelected(COST_MONTH_OPTIONS.slice(from - 1, to))}>Marcar rango</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 9 }}>
+            {COST_MONTH_OPTIONS.map((month) => <label key={month} style={{ display: "flex", gap: 5 }}>
+              <input type="checkbox" checked={selected === undefined || selected.includes(month)} onChange={() => setSelected((previous) => {
+                  const next = previous ?? COST_MONTH_OPTIONS;
+                  return next.includes(month) ? next.filter((item) => item !== month) : [...next, month];
+              })}/>{month}
+            </label>)}
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button type="button" onClick={() => setSelected(undefined)}>Todos</button>
+            <button type="button" onClick={() => setSelected([])}>Ninguno</button>
+            <Button size="sm" onClick={apply}>Aplicar</Button>
+          </div>
+        </div>
+      </details>
+    </div>;
+}
 function FilterControl({ filter, rows, value, onChange, }: {
     filter: VaiFilterSpec;
     rows: VaiRow[];
@@ -736,7 +785,7 @@ function FilterControl({ filter, rows, value, onChange, }: {
     onChange: (value: VaiFilterValue) => void;
 }) {
     const options = useMemo(() => filter.kind === "select"
-        ? distinctValues(rows, filter.field)
+        ? distinctValues(rows, filter.field, filter.source === "finance_costs" ? Infinity : 200)
         : [], [filter, rows]);
     const [search, setSearch] = useState("");
     useEffect(() => {
@@ -789,6 +838,8 @@ function FilterControl({ filter, rows, value, onChange, }: {
     if (filter.kind === "date_range") {
         return <DateFilterControl filter={filter} value={value} onChange={onChange}/>;
     }
+    if (filter.source === "finance_costs" && filter.field === "month_label")
+        return <CostMonthControl value={value} onChange={onChange}/>;
     const selected = value.values ??
         (value.value
             ? [value.value]
@@ -938,7 +989,7 @@ function KpiCard({ id, order, widget, rows, loading, trendDateField, localContro
     const result = useMemo(() => (source ? computeWidget(widget, source, rows, { trendDateField }) : null), [widget, source, rows, trendDateField]);
     if (!result || result.kind !== "kpi")
         return null;
-    const waiting = loading && !rows.length;
+    const waiting = loading;
     return (<VaiExportSection id={id} order={order} title={widget.title} kind="kpi">
     {localControls ? <div className="trjk-card" data-vai-export-ignore>{localControls}</div> : null}
     <div className="vai-kpi" data-tip="true">
@@ -947,6 +998,7 @@ function KpiCard({ id, order, widget, rows, loading, trendDateField, localContro
       <small>
         {result.metric.label} · {rows.length.toLocaleString("es-PE")} {source?.id === "finance_mineral_purchases" ? "lotes" : "filas"} · {source?.name}{filterLabel ? ` · ${filterLabel}` : ""}
       </small>
+      <p className="muted" style={{ margin: "8px 0 0", fontSize: 11, lineHeight: 1.45, whiteSpace: "normal" }}>{source?.metrics.find((metric) => metric.id === result.metric.id)?.description}</p>
       <KpiTooltip label={widget.title} notes={result.notes} trend={result.trend} loading={waiting} footer={source?.metrics.find((metric) => metric.id === result.metric.id)?.description}/>
     </div>
     </VaiExportSection>);
@@ -962,7 +1014,10 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
 }) {
     const [scaleChoice, setScaleChoice] = useState<"auto" | ChartScaleMode>("auto");
     const source = VAI_SOURCE_MAP.get(widget.source);
-    const result = useMemo(() => source ? computeWidget(widget, source, rows) : null, [widget, source, rows]);
+    const result = useMemo(() => source && widget.type !== "matrix" ? computeWidget(widget, source, rows) : null, [widget, source, rows]);
+    const costSummary = useMemo(() => source?.id === "finance_costs" ? costSummaryText(rows, widget.metrics.some((id) => source.metrics.find((metric) => metric.id === id)?.format === "pen") ? "pen" : "usd") : "", [widget, source, rows]);
+    if (source && widget.type === "matrix")
+        return <MatrixWidget id={id} order={order} widget={widget} rows={rows} source={source} controls={localControls}/>;
     if (!source || !result)
         return <section className="trjk-card" role="alert">No se pudo resolver la fuente de este gráfico.</section>;
     if (result.kind === "unavailable")
@@ -979,7 +1034,7 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
         result.kind === "series" && result.stack === "percent" ? "apilado al 100 %" : result.kind === "series" && result.stack ? "apilado" : "",
         result.kind === "series" && result.cumulative ? "acumulado" : "",
     ].filter(Boolean);
-    const subtitle = [source.name, axisLabel, ...extras, filterLabel].filter(Boolean).join(" · ");
+    const subtitle = [source.name, axisLabel, ...extras, filterLabel, costSummary ? `Resumen del filtro completo: ${costSummary}` : ""].filter(Boolean).join(" · ");
     if (result.kind === "table")
         return <TableWidget id={id} order={order} title={widget.title} subtitle={subtitle} data={result} source={source} controls={localControls}/>;
     if (result.kind !== "series")
@@ -1224,6 +1279,45 @@ function SourceHint({ source, columnId, columnLabel, }: {
             : null}
     </>);
 }
+function CostDetailPanel({ title, rows, source, currency, onClose }: {
+    title: string;
+    rows: VaiRow[];
+    source: VaiSource;
+    currency: "usd" | "pen";
+    onClose: () => void;
+}) {
+    const detail = useMemo(() => computeWidget({
+        type: "table", title, source: source.id, metrics: [], seriesTypes: null,
+        dimension: null, dateField: null, bucket: null, limit: null,
+        columns: [...COST_DETAIL_COLUMNS, `amount_${currency}`],
+    }, source, rows), [title, rows, source, currency]);
+    return <section className="trjk-card" style={{ marginTop: 16, minWidth: 0 }}>
+      <div className="trjk-toolbar"><h3>{title}</h3><Button size="sm" variant="ghost" onClick={onClose}>Cerrar detalle</Button></div>
+      {detail?.kind === "table" ? <TableWidget title="Glosas y respaldo contable" subtitle="Registros originales del grupo seleccionado" data={detail} source={source} compact/> : null}
+    </section>;
+}
+function MatrixWidget({ id, order, widget, rows, source, controls }: {
+    id: string;
+    order: number;
+    widget: VaiWidgetSpec;
+    rows: VaiRow[];
+    source: VaiSource;
+    controls?: ReactNode;
+}) {
+    const matrix = useMemo(() => computeMatrix(widget, source, rows), [widget, source, rows]);
+    const [selected, setSelected] = useState<{ matrix: typeof matrix; node: VaiMatrixNode } | null>(null);
+    const detailRows = useMemo(() => selected?.matrix === matrix ? matrix.records.filter((row) => selected.node.path.every((value, index) => toText(row[matrix.hierarchy[index]]) === value)) : [], [matrix, selected]);
+    const getTable = useCallback(() => matrixExportTable(matrix, source), [matrix, source]);
+    const format = useCallback((value: number | null) => formatValue(value, matrix.format), [matrix.format]);
+    const currency = matrix.format === "pen" ? "pen" : "usd";
+    const summary = useMemo(() => source.id === "finance_costs" ? costSummaryText(matrix.records, currency) : "", [source.id, matrix.records, currency]);
+    return <>
+      <VaiExportSection id={id} order={order} title={widget.title} kind="table" getTable={getTable}>
+        <MatrixChart title={widget.title} subtitle={[matrix.hierarchy.map((field) => vaiField(source, field)?.label ?? field).join(" → "), summary, "Excel exporta el último nivel, sin duplicar subtotales"].filter(Boolean).join(" · ")} columns={matrix.columns} roots={matrix.roots} totals={matrix.totals} format={format} controls={<>{controls}<SourceHint source={source} columnId={widget.metrics[0]} columnLabel="Fuente de la matriz"/></>} onDetail={source.id === "finance_costs" ? (node) => setSelected({ matrix, node }) : undefined}/>
+      </VaiExportSection>
+      {selected?.matrix === matrix && source.id === "finance_costs" ? <CostDetailPanel title={selected.node.path.join(" → ")} rows={detailRows} source={source} currency={currency} onClose={() => setSelected(null)}/> : null}
+    </>;
+}
 function TableWidget({ id, order, title, subtitle, data, source, compact = false, controls }: {
     id?: string;
     order?: number;
@@ -1243,9 +1337,24 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
         value: (row) => row[index],
     })), [data.columns]);
     const excel = useExcelColumnFilters(data.rows, excelColumns);
-    const summaries = useMemo(() => summarizeTable(data, excel.rows), [data, excel.rows]);
-    const exportTable = useMemo(() => ({ data, rows: excel.rows }), [data, excel.rows]);
-    const [pageSize, setPageSize] = useState(100);
+    const memberMap = useMemo(() => new Map(data.rows.map((row, index) => [row, data.rowMembers[index] ?? []])), [data]);
+    const costMembers = useMemo(() => source?.id === "finance_costs" ? [...new Set(excel.rows.flatMap((row) => memberMap.get(row) ?? []))] : [], [source?.id, excel.rows, memberMap]);
+    const mixedPeriods = useMemo(() => new Set(costMembers.map((row) => toText(row.period_label))).size > 1, [costMembers]);
+    const safeData = useMemo(() => mixedPeriods ? {
+        ...data,
+        summaryRules: data.summaryRules.map((rule, index) => {
+            const column = data.columns[index];
+            const scoped = rule?.metric?.where?.some((condition) => ["period_label", "fiscal_year"].includes(condition.field));
+            return ["usd", "pen"].includes(column.format) && !scoped ? null : rule;
+        }),
+    } : data, [data, mixedPeriods]);
+    const summaries = useMemo(() => summarizeTable(safeData, excel.rows), [safeData, excel.rows]);
+    const exportTable = useMemo(() => ({ data: safeData, rows: excel.rows }), [safeData, excel.rows]);
+    const tableCurrency = data.columns.some((column) => column.format === "pen") ? "pen" : "usd";
+    const costSummary = useMemo(() => costMembers.length ? costSummaryText(costMembers, tableCurrency) : "", [costMembers, tableCurrency]);
+    const canDrill = source?.id === "finance_costs" && !compact;
+    const [selectedRow, setSelectedRow] = useState<(string | number | null)[] | null>(null);
+    const [pageSize, setPageSize] = useState(50);
     const [pagination, setPagination] = useState({ page: 1, count: excel.rows.length });
     const page = pagination.count === excel.rows.length ? pagination.page : 1;
     const setPage = (next: number) => setPagination({ page: next, count: excel.rows.length });
@@ -1271,6 +1380,7 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="muted">Filas</span>
             <select className="select" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} style={{ width: 92 }}>
+              <option value={50}>50</option>
               <option value={100}>100</option>
               <option value={250}>250</option>
               <option value={500}>500</option>
@@ -1321,6 +1431,7 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
                       </div>
                     </th>);
             })}
+                {canDrill ? <th>Detalle</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -1328,6 +1439,7 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
                   {row.map((cell, j) => (<td key={j} data-num={data.columns[j].format !== "text" && data.columns[j].format !== "date"}>
                       {formatValue(cell, data.columns[j].format)}
                     </td>))}
+                  {canDrill ? <td><button type="button" className="vai-chip" onClick={() => setSelectedRow(row)}>Ver detalle</button></td> : null}
                 </tr>))}
             </tbody>
             <tfoot style={{ position: "sticky", bottom: 0, zIndex: 3 }}>
@@ -1362,10 +1474,13 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
                         </div>) : null}
                     </td>);
             })}
+                {canDrill ? <td/> : null}
               </tr>
             </tfoot>
           </table>
         </div>) : (<div className="trjk-empty">Sin datos para los filtros seleccionados.</div>)}
+      {costSummary ? <p className="muted" style={{ whiteSpace: "normal", lineHeight: 1.5 }}>Resumen de las filas filtradas, por período: {costSummary}</p> : null}
+      {canDrill && source && selectedRow && memberMap.has(selectedRow) ? <CostDetailPanel title="Detalle de la fila seleccionada" rows={memberMap.get(selectedRow)!} source={source} currency={tableCurrency} onClose={() => setSelectedRow(null)}/> : null}
     </section>
     </VaiExportSection>);
 }

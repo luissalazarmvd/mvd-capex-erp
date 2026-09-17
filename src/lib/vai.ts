@@ -922,9 +922,16 @@ export const VAI_SOURCES: VaiSource[] = [
         endpoint: "/api/vai/finance/costs",
         sqlView: "dw.v_dti_vai_finanzas_costos",
         grain: "Una fila por línea de dw.v_costs_main: asiento contable REAL (subdiario + comprobante + línea) o línea mensual del presupuesto PPTO.",
-        query: q(["posting_date", "document_date"], ["period_label", "scenario", "account_code", "account_group", "cost_group", "fixed_variable", "dynacor_group", "transversal", "cost_center_code", "macro_process", "site_group", "site_type", "site_name", "zone_name", "cost_nature", "prod_admin", "lima_area", "supplier_name", "annex_code", "subledger", "document_type", "debit_credit"]),
+        query: q(["posting_date", "document_date"], ["month_label", "gerencia_lima", "account_label", "supplier_label", "cost_center_label", "period_label", "scenario", "account_code", "account_group", "cost_group", "fixed_variable", "dynacor_group", "transversal", "cost_center_code", "macro_process", "site_group", "site_type", "site_name", "zone_name", "cost_nature", "prod_admin", "lima_area", "supplier_name", "annex_code", "subledger", "document_type", "debit_credit"]),
         fields: [
-            f("posting_date", "Fecha contable", "date", "Fecha del comprobante (REAL) o mes del presupuesto (PPTO); define el período y es la fecha predeterminada.", "date", "date", ["costo", "costos", "gasto", "gastos", "contable", "contabilizado", "asiento", "comprobante", "período", "periodo"]),
+            f("month_number", "Número de mes", "attribute", "Mes de posting_date, de 1 a 12, independiente del ejercicio.", "number", "integer"),
+            f("month_label", "Meses comparables", "dimension", "01_ENE, 02_FEB, 03_MAR, 04_ABR, 05_MAY, 06_JUN, 07_JUL, 08_AGO, 09_SEP, 10_OCT, 11_NOV y 12_DIC. Seleccionar enero-julio aplica esos mismos meses a cada period_label, sin excluir 2025."),
+            f("gerencia_lima", "Gerencia Lima", "dimension", "Clasificador G_LIMA de dw.v_costs_main; es la misma clasificación publicada como lima_area, no el macroproceso."),
+            f("account_label", "Cuenta y descripción", "dimension", "Código de cuenta concatenado con su descripción. Usar en filtros, tablas y jerarquías."),
+            f("supplier_label", "RUC / anexo y proveedor", "dimension", "Código de anexo concatenado con el proveedor o concepto. No todos los anexos son RUC."),
+            f("cost_center_label", "CECO y descripción", "dimension", "Centro de costo concatenado con su descripción."),
+            f("gloss", "Glosa", "attribute", "Glosa de línea; cuando falta, glosa del comprobante. Conserva además line_gloss y voucher_gloss para auditoría."),
+            f("posting_date", "Fecha contable", "date", "Fecha original del comprobante; para comparar años, filtrar meses con month_label y escenarios con period_label.", "date", "date"),
             f("document_date", "Fecha de documento", "date", "Fecha del documento del proveedor; puede faltar y no existe en PPTO.", "date", "date", ["fecha de documento", "fecha del documento", "emitido"]),
             f("fiscal_year", "Ejercicio", "dimension", "Año de la fecha contable (2025, 2026)."),
             f("period_label", "Período (escenario)", "dimension", "Clasificador de la fila: REAL 2025, REAL 2026 o PPTO 2026 (presupuesto). Escenarios distintos nunca se suman."),
@@ -967,14 +974,15 @@ export const VAI_SOURCES: VaiSource[] = [
             f("budget_usd", "Presupuesto USD", "measure", "Importe USD de las filas PPTO (0 en REAL).", "number", "usd"),
         ],
         metrics: [
+            ...costPeriodMetrics(),
             m("lines_count", "Líneas", "Número de filas (asientos REAL o líneas PPTO según el filtro).", "count", "integer"),
             m("vouchers_count", "Comprobantes", "Asientos REAL distintos (subdiario + comprobante).", "count_distinct", "integer", { field: "voucher_key" }),
             m("real_cost_usd", "Costo real USD", "Suma neta de importes USD de las filas REAL.", "sum", "usd", { field: "real_usd" }),
             m("real_cost_pen", "Costo real PEN", "Suma neta de importes PEN de las filas REAL.", "sum", "pen", { field: "real_pen" }),
             m("budget_cost_usd", "Presupuesto USD", "Suma de importes USD de las filas PPTO.", "sum", "usd", { field: "budget_usd" }),
-            m("variance_usd", "Variación real − presupuesto USD", "Σ real USD − Σ presupuesto USD del mismo recorte.", "sum_diff", "usd", { field: "real_usd", field2: "budget_usd" }),
-            m("variance_pct", "Variación % vs presupuesto", "(Σ real USD − Σ presupuesto USD) / Σ presupuesto USD × 100.", "pct_change", "percent", { numerator: "real_usd", denominator: "budget_usd" }),
-            m("budget_execution_pct", "Avance % del presupuesto", "Σ real USD / Σ presupuesto USD × 100.", "ratio", "percent", { numerator: "real_usd", denominator: "budget_usd", multiplier: 100 }),
+            m("variance_usd", "Variación real − presupuesto USD", "REAL 2026 − PPTO 2026 de los mismos meses y clasificadores.", "sum_diff", "usd", { field: "real_usd", field2: "budget_usd", where: [{ field: "fiscal_year", op: "eq", value: 2026 }] }),
+            m("variance_pct", "Variación % vs presupuesto", "(Σ real USD − Σ presupuesto USD) / Σ presupuesto USD × 100.", "pct_change", "percent", { numerator: "real_usd", denominator: "budget_usd", where: [{ field: "fiscal_year", op: "eq", value: 2026 }] }),
+            m("budget_execution_pct", "Avance % del presupuesto", "Σ real USD / Σ presupuesto USD × 100.", "ratio", "percent", { numerator: "real_usd", denominator: "budget_usd", where: [{ field: "fiscal_year", op: "eq", value: 2026 }], multiplier: 100 }),
             m("real_cost_usd_ex_mineral", "Costo real USD sin mineral", "Costo real USD excluyendo el consumo de mineral (cost_group CONSUMO DE MINERAL), que se compra por lote en finance_mineral_purchases.", "sum", "usd", { field: "real_usd", where: [{ field: "cost_group", op: "ne", value: "CONSUMO DE MINERAL" }] }),
             m("real_cost_pen_ex_mineral", "Costo real PEN sin mineral", "Costo real PEN excluyendo el consumo de mineral (cost_group CONSUMO DE MINERAL).", "sum", "pen", { field: "real_pen", where: [{ field: "cost_group", op: "ne", value: "CONSUMO DE MINERAL" }] }),
             m("avg_real_cost_usd_per_voucher", "USD real promedio por comprobante", "Σ real USD / asientos REAL distintos.", "sum_per_distinct", "usd", { field: "real_usd", distinctField: "voucher_key" }),
@@ -983,17 +991,18 @@ export const VAI_SOURCES: VaiSource[] = [
             m("suppliers_count", "Proveedores / anexos", "Anexos distintos (solo REAL).", "count_distinct", "integer", { field: "annex_code" }),
         ],
         rules: [
-            "Fuente oficial de costos de la empresa (contabilidad Concar clasificada por dw.v_costs_main, proyecto COS-001): usarla para costos por período, gerencia/macroproceso, área, sede, zona, CECO, cuenta, proveedor y cualquier clasificación disponible, y para real vs presupuesto. No reconstruir costos desde otras fuentes.",
-            "period_label (REAL 2025, REAL 2026, PPTO 2026) y scenario (REAL / PPTO) separan asientos reales y presupuesto: nunca sumar escenarios distintos. Los KPIs usan real_cost_* y budget_cost_usd, que ya reparten el importe por escenario; amount_usd / amount_pen solo con period_label o scenario filtrado o como breakdown por period_label.",
-            "Comparar real contra presupuesto: variance_usd, variance_pct y budget_execution_pct sobre el mismo recorte (período, sede, cuenta…), o real_cost_usd y budget_cost_usd lado a lado; el presupuesto solo existe en USD y para 2026.",
-            "Los importes ya tienen signo contable: sumar directamente da el costo neto. PEN y USD son la misma línea en cada moneda (Concar), van en widgets separados y no se convierten.",
-            "Fecha principal posting_date (fecha del comprobante en REAL, mes en PPTO). document_date es secundaria, puede faltar y no existe en PPTO. Los datos empiezan en 2025-01-01: comparar años o meses con posting_date y bucket year/month y un date_range que cubra ambos períodos.",
-            "Clasificadores disponibles como dimensión y filtro: macro_process (macroproceso / área funcional del CECO), lima_area (áreas administrativas de Lima), site_group → site_type → site_name (ubicación y sede) y zone_name, cost_nature (costo de producción / gasto / concesión), prod_admin, cost_group, dynacor_group / dynacor_subgroup, fixed_variable, rrhh_nature / rrhh_type, transversal, account_desc, cost_center_desc, supplier_name, subledger y document_type. Elegir la que nombre el usuario; ninguna tiene prioridad.",
-            "El costo de un valor concreto de una dimensión (una gerencia, una sede, un CECO, una cuenta, un proveedor) se resuelve agrupando por esa dimensión (rank, bar o table) para que la categoría pedida aparezca, más un filtro select sobre la misma dimensión.",
-            "El consumo de mineral (cost_group CONSUMO DE MINERAL, cuenta 612209) está incluido y suele dominar el total: real_cost_*_ex_mineral lo excluye. La compra de mineral por lote es finance_mineral_purchases; no sumar ambas fuentes.",
-            "supplier_name mezcla nombres de anexo con conceptos normalizados (PERSONAL, PROVEEDOR MINERO, GASTO FINANCIERO, DIF DE CAMBIO, OEFA, IR, ITF, CONSUMIBLES DIVERSOS): agrupar por él para «principales proveedores/conceptos».",
-            "No existe dimensión de proyecto ni código CAPEX; la clasificación más fina es cuenta + CECO (+ glosas como atributos de detalle).",
-            "Para costo por TMS de planta usar plant_costs (mismo origen contable REAL, solo CECOs de planta, con TMS del mes); esta fuente no trae tonelaje.",
+            "Fuente oficial de costos y gastos de dw.v_costs_main. Mantener su universo, clasificadores, signos, nulos y glosas. No reconstruir costos desde compras de lotes, pagos, planta u otras fuentes.",
+            "USD por defecto. PEN solo cuando lo pide explícitamente el usuario; en widgets separados cuando solicita ambas monedas. PPTO no tiene PEN: no convertirlo ni presentarlo como cero.",
+            "period_label es un filtro obligatorio: REAL 2025, REAL 2026 y PPTO 2026 son series distintas. Nunca mostrar un total que sume esos períodos entre sí.",
+            "month_label es el filtro de meses comparables independiente del año. Enero-julio significa ENE-JUL en cada period_label. No usar un rango absoluto 2026-01-01 a 2026-07-31 que elimine REAL 2025. Sin período solicitado se mantienen todos los meses.",
+            "Cabecera estándar: tarjetas REAL 2026, PPTO 2026 y REAL 2025 con importe acumulado y explicación, comparación gruesa por period_label y matriz desplegable. En PEN solo existen las tarjetas REAL.",
+            "Usar cost_total_usd/cost_total_pen únicamente con period_label en el agrupador o desglose. Para un KPI usar cost_real_2026_usd, cost_real_2025_usd o cost_ppto_2026_usd; no sumar varios años REAL en una sola tarjeta.",
+            "variance_usd, variance_pct y budget_execution_pct comparan exclusivamente REAL 2026 y PPTO 2026 de los mismos meses y clasificadores. No comparar REAL 2025 contra el presupuesto 2026 ni sumar 2025+2026 contra PPTO 2026.",
+            "Matriz: type=matrix, una métrica de suma, columns como jerarquía [account_label, supplier_label, gloss], dateField=posting_date, bucket=month, breakdown=period_label. Puede anteponer cost_center_label u otro clasificador solicitado. Sus totales se separan por escenario/ejercicio; no suman subtotales y descendientes.",
+            "En tablas y filtros mostrar cuenta con descripción y RUC/código de anexo con proveedor. Incluir gloss, y permitir revisar line_gloss, voucher_gloss, comprobante, documento y CECO en el detalle.",
+            "Filtros de clasificación: gerencia_lima (G_LIMA, alias de lima_area), zone_name, site_name, cost_group, account_label, cost_center_label, supplier_label y subledger, además de macro_process, cost_nature, prod_admin, dynacor_group/subgroup, fixed_variable, rrhh_nature/type y transversal cuando correspondan.",
+            "Para tendencias comparables, month_label en X y period_label como desglose; para importes acumulados, period_label en X sin granularidad diaria. La matriz sí muestra meses y permite bajar a cuenta, proveedor y glosa.",
+            "Los importes ya tienen signo contable: sumar directamente, incluyendo negativos. No convertir USD/PEN. No inventar CAPEX o proyecto. El consumo de mineral pertenece al universo y solo se excluye cuando lo pide el usuario.",
         ],
         defaultDateField: "posting_date",
         relations: [{ field: "cost_center_code", source: "plant_costs", targetField: "cost_center_code", description: "Costos generales → detalle de planta con TMS del mes." }],
@@ -2149,14 +2158,71 @@ export function presetRange(preset: VaiDatePreset, today = limaToday()): VaiDate
     const from = addDays(today, -weekday - (preset === "previous_week" ? 7 : 0));
     return { from, to: preset === "previous_week" ? addDays(from, 6) : today };
 }
+export const COST_MONTH_OPTIONS = ["01_ENE", "02_FEB", "03_MAR", "04_ABR", "05_MAY", "06_JUN", "07_JUL", "08_AGO", "09_SEP", "10_OCT", "11_NOV", "12_DIC"];
+export const COST_DETAIL_COLUMNS = ["period_label", "posting_date", "account_label", "supplier_label", "cost_center_label", "gloss", "subledger", "voucher_number", "document_type", "document_number", "line_gloss", "voucher_gloss"];
+function costPeriodMetrics(): VaiMetric[] {
+    const periods = ["REAL 2026", "PPTO 2026", "REAL 2025"];
+    return [
+        ...(["usd", "pen"] as const).flatMap((currency) => [
+            m(`cost_total_${currency}`, `Importe ${currency.toUpperCase()} por período`, "Suma del importe original, siempre separada por period_label; no es un total combinado de escenarios o ejercicios.", "sum", currency, { field: `amount_${currency}` }),
+            ...periods.filter((period) => currency === "usd" || !period.startsWith("PPTO")).map((period) => m(
+                `cost_${period.toLowerCase().replace(" ", "_")}_${currency}`,
+                `${period} ${currency.toUpperCase()}`,
+                `Importe neto de ${period}, acumulado en los meses y clasificadores seleccionados. No incluye otros ejercicios ni escenarios.`,
+                "sum", currency,
+                { field: `amount_${currency}`, where: [{ field: "period_label", op: "eq", value: period }] },
+            )),
+        ]),
+    ];
+}
+export function costSummaryText(rows: VaiRow[], currency: "usd" | "pen" = "usd") {
+    const totals = new Map<string, { cents: number; values: number }>();
+    for (const row of rows) {
+        const label = toText(row.period_label) || "Sin período";
+        const total = totals.get(label) ?? { cents: 0, values: 0 };
+        const value = toNumber(row[`amount_${currency}`]);
+        if (value !== null) {
+            total.cents += Math.round(value * 100);
+            total.values += 1;
+        }
+        totals.set(label, total);
+    }
+    return [...totals].sort(([a], [b]) => b.localeCompare(a, "es")).map(([label, total]) => `${label}: ${total.values ? formatValue(total.cents / 100, currency) : "Sin importe " + currency.toUpperCase()}`).join(" · ");
+}
+function requestedCostMonths(prompt: string, filters: VaiRawFilter[]): string[] | null {
+    const text = normalizePromptText(prompt.replace(/([a-záéíóú])\s*[-–]\s*([a-záéíóú])/gi, "$1 a $2"));
+    const names = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const matches = [...text.matchAll(/\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|setiembre|septiembre|octubre|noviembre|diciembre)\b/g)];
+    const indexes = matches.map((match) => names.indexOf(match[1] === "setiembre" ? "septiembre" : match[1]));
+    if (indexes.length) {
+        if (indexes.length === 2) {
+            const between = text.slice((matches[0].index ?? 0) + matches[0][0].length, matches[1].index);
+            if (/\b(a|al|hasta)\b/.test(between) || /\bentre\b/.test(text)) {
+                const end = indexes[1] < indexes[0] ? indexes[1] + 12 : indexes[1];
+                return Array.from({ length: end - indexes[0] + 1 }, (_, index) => COST_MONTH_OPTIONS[(indexes[0] + index) % 12]);
+            }
+        }
+        return [...new Set(indexes)].sort((a, b) => a - b).map((index) => COST_MONTH_OPTIONS[index]);
+    }
+    const supplied = filters.find((filter) => filter.source === "finance_costs" && filter.field === "month_label" && filter.values != null)?.values;
+    if (supplied != null)
+        return [...new Set(supplied)].filter((value) => COST_MONTH_OPTIONS.includes(value));
+    if (/\b(ano completo|todo el ano|todos los meses|historico completo)\b/.test(text))
+        return null;
+    const preset = requestedPresetFromPrompt(prompt);
+    const range = preset ? presetRange(preset) : filters.find((filter) => filter.source === "finance_costs" && filter.kind === "date_range" && filter.from && filter.to);
+    if (range?.from && range.to && (preset || /\b(desde|hasta|entre|trimestre|semestre)\b/.test(text) || /20\d{2}-\d{2}/.test(prompt)))
+        return [...new Set(monthsInRange(range.from, range.to).map((month) => COST_MONTH_OPTIONS[Number(month.slice(5, 7)) - 1]))].sort();
+    return null;
+}
 export const VAI_SPEC_VERSION = 1;
 export const VAI_PROMPT_MAX = 1200;
 export const VAI_MAX_SOURCES = 3;
 export const VAI_MAX_WIDGETS = 10;
-export const VAI_MAX_FILTERS = 12;
+export const VAI_MAX_FILTERS = 20;
 export const VAI_MAX_LIMIT = 50;
 export const VAI_MAX_TABLE_LIMIT = 50000;
-export const VAI_WIDGET_TYPES = ["kpi", "line", "area", "bar", "combo", "rank", "donut", "scatter", "pareto", "heatmap", "histogram", "waterfall", "table"] as const;
+export const VAI_WIDGET_TYPES = ["kpi", "line", "area", "bar", "combo", "rank", "donut", "scatter", "pareto", "heatmap", "histogram", "waterfall", "table", "matrix"] as const;
 export const VAI_VISUAL_CATALOG = [
     { type: "kpi", label: "Indicador", use: "Una métrica; total, razón ponderada o conteo según catálogo." },
     { type: "bar", label: "Barras", use: "Comparación categórica/temporal, agrupada, apilada o 100 %." },
@@ -2171,6 +2237,7 @@ export const VAI_VISUAL_CATALOG = [
     { type: "histogram", label: "Histograma", use: "Frecuencia por intervalos de un campo numérico directo, a nivel de registro; bins 3–40." },
     { type: "waterfall", label: "Cascada", use: "Una métrica aditiva de variaciones por categoría/fecha; parte de cero y añade el total neto. No concilia saldos inicial/final por sí sola." },
     { type: "table", label: "Tabla", use: "Detalle, resumen agrupado o tabla dinámica con breakdown." },
+    { type: "matrix", label: "Matriz desplegable", use: "Una métrica sumable; columns define la jerarquía de filas, dateField/bucket los períodos de columnas y breakdown separa escenarios. En costos: cuenta completa → proveedor completo → glosa; subtotales separados por period_label." },
 ] as const;
 export type VaiWidgetType = (typeof VAI_WIDGET_TYPES)[number];
 export type VaiSeriesRender = "line" | "bar";
@@ -2202,6 +2269,8 @@ const WIDGET_TYPE_ALIASES: Record<string, VaiWidgetType> = {
     waterfall_chart: "waterfall",
     xy: "scatter",
     pivot: "table",
+    matriz: "matrix",
+    matrix_table: "matrix",
     grid: "table",
     card: "kpi",
     metric: "kpi",
@@ -2239,6 +2308,7 @@ export type VaiFilterSpec = {
     source: string;
     field: string;
     label: string;
+    values?: string[] | null;
 };
 export type VaiWidgetSpec = {
     type: VaiWidgetType;
@@ -2276,6 +2346,7 @@ export type VaiDashboardSpec = {
     widgets: VaiWidgetSpec[];
 };
 export type VaiRawFilter = {
+    values?: string[] | null;
     kind: string;
     source: string;
     field: string;
@@ -2428,6 +2499,7 @@ export function coerceModelOutput(raw: unknown): VaiModelOutput | null {
                     source: clean(item.source, 60),
                     field: clean(item.field, 60),
                     label: clean(item.label, 60),
+                    values: Array.isArray(item.values) ? [...new Set(item.values.map((value) => clean(value, 255)))].slice(0, 200) : null,
                     preset: item.preset == null ? null : clean(item.preset, 30),
                     from: item.from == null ? null : clean(item.from, 30),
                     to: item.to == null ? null : clean(item.to, 30),
@@ -2528,6 +2600,26 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     const source = resolveSource(raw.source, notes, label);
     if (!source)
         return null;
+    if (type === "matrix") {
+        const metric = vaiMetric(source, raw.metrics[0] ?? "");
+        const hierarchy = [...new Set(raw.columns ?? [])].filter((id) => {
+            const field = vaiField(source, id);
+            return field && ["dimension", "attribute", "date"].includes(field.role) && field.type !== "number";
+        }).slice(0, 5);
+        if (!metric || metric.agg !== "sum" || !metric.field || !hierarchy.length) {
+            notes.push(`${label}: la matriz requiere una métrica de suma y una jerarquía válida en columns.`);
+            return null;
+        }
+        const dateField = vaiField(source, raw.dateField ?? "")?.role === "date" ? raw.dateField : null;
+        const breakdown = vaiField(source, raw.breakdown ?? "")?.role === "dimension" ? raw.breakdown : null;
+        return {
+            type, title: concarLabel(raw.title || source.name), source: source.id,
+            metrics: [metric.id], columns: hierarchy, dateField,
+            bucket: dateField ? (VAI_BUCKETS.includes(raw.bucket as VaiBucket) ? raw.bucket as VaiBucket : "month") : null,
+            dimension: null, breakdown, seriesTypes: null, limit: null, summaries: [],
+            stack: null, sort: "label_asc", sortMetric: null, cumulative: null,
+        };
+    }
     const rawStack = normalizeStack(raw.stack) ?? (/^stacked/.test(String(raw.type).trim().toLowerCase()) ? "stack" : null);
     const metrics: string[] = [];
     for (const id of raw.metrics) {
@@ -2931,6 +3023,7 @@ function validateFilter(raw: VaiRawFilter, sources: Set<string>, notes: string[]
         source: source.id,
         field: field.id,
         label: concarLabel(raw.label || field.label),
+        values: raw.values ?? null,
     };
 }
 function normalizedContextText(value: string) {
@@ -3030,7 +3123,7 @@ function contextualFilterScore(source: VaiSource, field: VaiField, userPrompt: s
     return score;
 }
 function contextualSelectFilters(source: VaiSource, userPrompt: string, limit = 4): VaiFilterSpec[] {
-    return source.fields
+    return source.fields.filter((field) => source.id !== "finance_costs" || !["lima_area", "account_desc", "supplier_name", "cost_center_desc", "scenario", "fiscal_year"].includes(field.id))
         .map((field) => ({
         field,
         score: contextualFilterScore(source, field, userPrompt),
@@ -3614,10 +3707,84 @@ export function visualContractIssues(spec: VaiDashboardSpec | null, prompt: stri
     }
     return [...new Set(issues)];
 }
+function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"]>, prompt: string): NonNullable<VaiModelOutput["dashboard"]> {
+    if (!dashboard.widgets.some((widget) => widget.source === "finance_costs"))
+        return dashboard;
+    const text = normalizePromptText(prompt);
+    const wantsPen = /\b(pen|soles)\b/.test(text) || /s\s*\//i.test(prompt);
+    const wantsUsd = /\b(usd|dolares|dolar)\b/.test(text);
+    const currencies: ("usd" | "pen")[] = wantsPen ? (wantsUsd ? ["usd", "pen"] : ["pen"]) : ["usd"];
+    const aliases: Record<string, string> = { lima_area: "gerencia_lima", account_code: "account_label", account_desc: "account_label", annex_code: "supplier_label", supplier_name: "supplier_label", cost_center_code: "cost_center_label", cost_center_desc: "cost_center_label" };
+    const field = (id: string | null | undefined) => id ? aliases[id] ?? id : null;
+    const incoming = dashboard.filters.map((filter) => filter.source === "finance_costs" && filter.kind === "select" && (!filter.values?.length || filter.field === "lima_area") ? { ...filter, field: field(filter.field)! } : filter);
+    const explicitPeriods = [...text.matchAll(/\b(real|ppto|presupuesto)\s+(2025|2026)\b/g)].map((match) => `${match[1] === "real" ? "REAL" : "PPTO"} ${match[2]}`);
+    const months = requestedCostMonths(prompt, incoming);
+    const required = ["period_label", "month_label", "gerencia_lima", "zone_name", "site_name", "cost_group", "account_label", "cost_center_label", "supplier_label", "subledger"];
+    const filters: VaiRawFilter[] = required.map((id) => {
+        const existing = incoming.find((filter) => filter.source === "finance_costs" && filter.kind === "select" && field(filter.field) === id);
+        const values = id === "month_label" ? months : id === "period_label" ? existing?.values ?? (explicitPeriods.length ? [...new Set(explicitPeriods)] : null) : existing?.values ?? null;
+        return { kind: "select", source: "finance_costs", field: existing?.field ?? id, label: vaiField(VAI_SOURCE_MAP.get("finance_costs")!, id)?.label ?? id, preset: null, from: null, to: null, values };
+    });
+    for (const filter of incoming) {
+        if (filter.source === "finance_costs" && (filter.kind === "date_range" || ["scenario", "fiscal_year"].includes(filter.field)))
+            continue;
+        if (!filters.some((item) => item.source === filter.source && item.field === filter.field))
+            filters.push(filter);
+    }
+    const make = (type: string, title: string, metrics: string[], extra: Partial<VaiRawWidget> = {}): VaiRawWidget => ({
+        type, title, source: "finance_costs", metrics, seriesTypes: null,
+        dimension: null, dateField: null, bucket: null, limit: null, columns: null,
+        summaries: [], breakdown: null, stack: null, sort: null, sortMetric: null, cumulative: null, ...extra,
+    });
+    const remapMetric = (id: string) => {
+        const currencyId = !wantsPen ? id.replace(/_pen(?=_|$)/g, "_usd") : wantsPen && !wantsUsd ? id.replace(/_usd(?=_|$)/g, "_pen") : id;
+        const aliases: Record<string, string> = {
+            real_cost_usd: explicitPeriods.includes("REAL 2025") && !explicitPeriods.includes("REAL 2026") ? "cost_real_2025_usd" : "cost_real_2026_usd",
+            real_cost_pen: explicitPeriods.includes("REAL 2025") && !explicitPeriods.includes("REAL 2026") ? "cost_real_2025_pen" : "cost_real_2026_pen",
+            budget_cost_usd: "cost_ppto_2026_usd",
+        };
+        return aliases[currencyId] ?? currencyId;
+    };
+    const costWidgets = dashboard.widgets.filter((widget) => widget.source === "finance_costs").map((widget) => {
+        const currency = wantsPen && (!wantsUsd || widget.metrics.some((id) => id.endsWith("_pen"))) ? "pen" : "usd";
+        const next: VaiRawWidget = { ...widget, dimension: field(widget.dimension), breakdown: field(widget.breakdown), columns: widget.columns?.map((id) => field(id)!) ?? null, metrics: widget.metrics.map(remapMetric) };
+        if (next.type === "matrix") {
+            return { ...next, metrics: [`cost_total_${currency}`], columns: next.columns?.length ? next.columns : ["account_label", "supplier_label", "gloss"], dimension: null, dateField: "posting_date", bucket: "month", breakdown: "period_label", limit: null };
+        }
+        if (next.type === "table" && next.columns?.length) {
+            return { ...next, columns: [...new Set([...COST_DETAIL_COLUMNS.slice(0, 6), `amount_${currency}`, ...next.columns.filter((id) => !["amount_usd", "amount_pen", "real_usd", "real_pen", "budget_usd"].includes(id))])].slice(0, 12), metrics: [], dimension: null, dateField: null, breakdown: null, limit: null };
+        }
+        if (next.dateField === "posting_date" && next.type !== "kpi" && (!next.bucket || next.bucket === "month")) {
+            next.dimension = "month_label";
+            next.dateField = null;
+            next.bucket = null;
+            next.sort = "label_asc";
+        }
+        if (next.dimension === "period_label" || next.breakdown === "period_label") {
+            next.metrics = [`cost_total_${currency}`];
+            next.seriesTypes = next.type === "line" || next.type === "area" ? ["line"] : ["bar"];
+        }
+        if (["bar", "line", "area", "table"].includes(next.type) && next.metrics.length === 1 && /^cost_total_/.test(next.metrics[0]) && next.dimension !== "period_label")
+            next.breakdown = "period_label";
+        return next;
+    });
+    const fixed = currencies.flatMap((currency) => {
+        const periods = currency === "usd" ? ["REAL 2026", "PPTO 2026", "REAL 2025"] : ["REAL 2026", "REAL 2025"];
+        const kpis = periods.map((period) => make("kpi", `${period} · ${currency.toUpperCase()}`, [`cost_${period.toLowerCase().replace(" ", "_")}_${currency}`]));
+        const comparison = make("bar", `Comparación acumulada · ${currency.toUpperCase()}`, [`cost_total_${currency}`], { dimension: "period_label", seriesTypes: ["bar"], sort: "label_desc" });
+        const existing = costWidgets.find((widget) => widget.type === "matrix" && widget.metrics[0] === `cost_total_${currency}`);
+        const matrix = existing ?? make("matrix", `Cuenta → proveedor → glosa · ${currency.toUpperCase()}`, [`cost_total_${currency}`], { columns: ["account_label", "supplier_label", "gloss"], dateField: "posting_date", bucket: "month", breakdown: "period_label" });
+        return [...kpis, comparison, matrix];
+    });
+    const extras = costWidgets.filter((widget) => widget.type !== "matrix" && !(widget.type === "kpi" && /^(cost_(real|ppto|total)_|real_cost_|budget_cost_)/.test(widget.metrics[0] ?? "")) && !(widget.type === "bar" && widget.dimension === "period_label"));
+    const otherSources = dashboard.widgets.filter((widget) => widget.source !== "finance_costs");
+    return { ...dashboard, filters: filters.slice(0, VAI_MAX_FILTERS), widgets: [...fixed, ...otherSources, ...extras].slice(0, VAI_MAX_WIDGETS) };
+}
 export function validateModelOutput(output: VaiModelOutput, userPrompt = "", allowedSourceIds?: string[]): VaiValidation {
     const notes: string[] = output.unavailable.map(concarLabel);
     if (!output.dashboard)
         return { spec: null, notes, issues: visualContractIssues(null, userPrompt, allowedSourceIds) };
+    output.dashboard = prepareCostsDashboard(output.dashboard, userPrompt);
     const promptText = normalizedContextText(userPrompt);
     const asksFuelConsumption = /\b(combustible|combustibles|galon|galones|abastecimiento|abastecimientos|tanqueo|tanqueos|grifo|grifos|diesel|gasolina|costo pen|costo usd)\b/.test(promptText);
     const asksFleetPerformance = /\b(rendimiento|eficiencia|recorrido|recorridos|gps|kilometro|kilometros|km gal|l 100|autonomia|costo por km)\b/.test(promptText);
@@ -3683,7 +3850,7 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = "", all
             const source = VAI_SOURCE_MAP.get(sourceId);
             const selected = source ? dateFieldForPrompt(source, userPrompt) : null;
             const field = selected?.field;
-            if (!source || (source.temporalMode === "snapshot" && !selected?.explicit) || !field || field.role !== "date")
+            if (!source || source.id === "finance_costs" || (source.temporalMode === "snapshot" && !selected?.explicit) || !field || field.role !== "date")
                 continue;
             if (filters.some((filter) => filter.kind === "date_range" && filter.source === sourceId))
                 continue;
@@ -3775,6 +3942,19 @@ export type VaiFilterValue = {
 export type VaiFilterState = Record<string, VaiFilterValue>;
 export const filterKey = (filter: Pick<VaiFilterSpec, "source" | "field">) => `${filter.source}:${filter.field}`;
 export function sourceRequestPath(source: VaiSource, filters: VaiFilterSpec[], state: VaiFilterState) {
+    if (source.id === "finance_costs") {
+        const filter = filters.find((item) => item.source === source.id && item.kind === "select" && item.field === "month_label");
+        if (filter?.kind === "select") {
+            const value = state[filterKey(filter)];
+            const selected = value !== undefined ? value.values : filter.values;
+            if (selected != null) {
+                const months = [...new Set(selected.filter((item) => COST_MONTH_OPTIONS.includes(item)).map((item) => Number(item.slice(0, 2))))].sort((a, b) => a - b);
+                const params = new URLSearchParams({ months: months.length ? months.join(",") : "none" });
+                return `${source.endpoint}?${params.toString()}`;
+            }
+        }
+        return source.endpoint;
+    }
     for (const filter of filters) {
         if (filter.kind !== "date_range" || filter.source !== source.id || !source.query?.dateFields.includes(filter.field))
             continue;
@@ -3795,8 +3975,11 @@ export function sourceRequestPath(source: VaiSource, filters: VaiFilterSpec[], s
 export function defaultFilterValues(filters: VaiFilterSpec[], _sources: ReadonlyMap<string, VaiSource>, _data: Record<string, VaiRow[]>): VaiFilterState {
     const defaults: VaiFilterState = {};
     for (const filter of filters) {
-        if (filter.kind !== "date_range")
+        if (filter.kind === "select") {
+            if (filter.values != null)
+                defaults[filterKey(filter)] = { values: [...filter.values] };
             continue;
+        }
         const range = filter.from || filter.to ? { from: filter.from ?? "", to: filter.to ?? "" } : filter.preset ? presetRange(filter.preset) : { from: "", to: "" };
         defaults[filterKey(filter)] = { ...range, mode: filter.mode ?? "range" };
     }
@@ -4116,6 +4299,13 @@ function metricSubset(metric: VaiMetric, rows: VaiRow[]) {
 }
 export function aggregate(metric: VaiMetric, rows: VaiRow[]): number | null {
     const subset = metricSubset(metric, rows);
+    if (["variance_usd", "variance_pct", "budget_execution_pct"].includes(metric.id) &&
+        (!subset.some((row) => row.period_label === "REAL 2026") || !subset.some((row) => row.period_label === "PPTO 2026")))
+        return null;
+    if (metric.agg === "sum" && /^cost_(total_(usd|pen)|real_\d{4}_(usd|pen)|ppto_\d{4}_(usd|pen))(?::|$)/.test(metric.id)) {
+        const values = subset.map((row) => toNumber(row[metric.field ?? ""])).filter((value): value is number => value !== null);
+        return values.length ? values.reduce((sum, value) => sum + Math.round(value * 100), 0) / 100 : null;
+    }
     const values = (field: string | undefined) => field ? subset.map((row) => toNumber(row[field])).filter((v): v is number => v != null) : [];
     switch (metric.agg) {
         case "count":
@@ -4490,6 +4680,12 @@ export function summarizeTable(data: VaiTableData, visibleRows = data.rows): Vai
     });
 }
 export function widgetDetailTable(widget: VaiWidgetSpec, source: VaiSource, chartTable: VaiTableData): VaiTableData | null {
+    if (source.id === "finance_costs") {
+        const currency = widget.metrics.some((id) => vaiMetric(source, id)?.format === "pen") ? "pen" : "usd";
+        const rows = [...new Set(chartTable.rowMembers.flat())];
+        const result = computeWidget({ ...widget, type: "table", metrics: [], columns: [...COST_DETAIL_COLUMNS, `amount_${currency}`], dimension: null, dateField: null, breakdown: null, limit: null }, source, rows);
+        return result?.kind === "table" ? result : null;
+    }
     const entries = chartTable.rowMembers.flatMap((members, groupIndex) => {
         const group = toText(chartTable.rows[groupIndex]?.[0]) ||
             "Sin grupo";
@@ -4686,6 +4882,107 @@ function computeHistogram(widget: VaiWidgetSpec, source: VaiSource, rows: VaiRow
         total: grouped.length, summaryRules: [null, null, { operation: "sum", label: "Registros" }], rowMembers: values.length ? members : [] };
     return { kind: "series", series, rows: grouped, temporal: false, table, breakdown: null, stack: null, cumulative: false,
         notices: [`Distribución de ${values.length.toLocaleString("es-PE")} registros de «${field.label}»; ${subset.length - values.length} valores vacíos/no numéricos excluidos. Intervalos de igual ancho.`] };
+}
+export type VaiMatrixNode = {
+    key: string;
+    label: string;
+    path: string[];
+    values: Record<string, number>;
+    children: VaiMatrixNode[];
+};
+export type VaiMatrixData = {
+    columns: VaiSeriesDef[];
+    roots: VaiMatrixNode[];
+    totals: Record<string, number>;
+    hierarchy: string[];
+    records: VaiRow[];
+    format: VaiFormat;
+};
+export function computeMatrix(widget: VaiWidgetSpec, source: VaiSource, rows: VaiRow[]): VaiMatrixData {
+    const metric = vaiMetric(source, widget.metrics[0]);
+    if (!metric || metric.agg !== "sum" || !metric.field)
+        throw new Error("La matriz necesita una métrica de suma válida.");
+    const hierarchy = widget.columns ?? [];
+    const records = metricSubset(metric, rows);
+    const bucket = widget.bucket ?? "month";
+    const groupOf = (row: VaiRow) => widget.breakdown ? toText(row[widget.breakdown]) || "Sin período" : metric.label;
+    const timeOf = (row: VaiRow) => {
+        const iso = widget.dateField ? toIsoDate(row[widget.dateField]) : "";
+        return iso ? periodKey(iso, bucket) : "__missing__";
+    };
+    const idOf = (group: string, period: string) => JSON.stringify([group, period]);
+    const groups = new Map<string, Set<string>>();
+    for (const row of records) {
+        const group = groupOf(row);
+        if (!groups.has(group)) groups.set(group, new Set());
+        if (widget.dateField) groups.get(group)!.add(timeOf(row));
+    }
+    const columns: VaiSeriesDef[] = [];
+    const priority = ["REAL 2026", "PPTO 2026", "REAL 2025"];
+    const groupOrder = [...groups.keys()].sort((a, b) => {
+        const pa = priority.includes(a) ? priority.indexOf(a) : 99;
+        const pb = priority.includes(b) ? priority.indexOf(b) : 99;
+        return pa - pb || a.localeCompare(b, "es", { numeric: true });
+    });
+    for (const group of groupOrder) {
+        for (const period of [...groups.get(group)!].sort())
+            columns.push({ id: idOf(group, period), label: `${group} · ${period === "__missing__" ? "Sin fecha" : formatDateLabel(period, bucket)}`, format: metric.format });
+        columns.push({ id: idOf(group, "__total__"), label: `${group} · Total`, format: metric.format });
+    }
+    type Node = VaiMatrixNode & { lookup: Map<string, Node> };
+    const make = (path: string[]): Node => ({ key: JSON.stringify(path), label: path[path.length - 1] || "Sin dato", path, values: {}, children: [], lookup: new Map() });
+    const root = make([]);
+    const scale = metric.format === "usd" || metric.format === "pen" ? 100 : 1;
+    const add = (node: Node, keys: string[], value: number | null) => {
+        if (value === null) return;
+        const amount = scale === 100 ? Math.round(value * 100) : value;
+        for (const key of keys) node.values[key] = (node.values[key] ?? 0) + amount;
+    };
+    for (const row of records) {
+        const group = groupOf(row);
+        const keys = [idOf(group, "__total__")];
+        if (widget.dateField) keys.push(idOf(group, timeOf(row)));
+        const value = toNumber(row[metric.field]);
+        add(root, keys, value);
+        let parent = root;
+        for (const field of hierarchy) {
+            const text = toText(row[field]);
+            let node = parent.lookup.get(text);
+            if (!node) {
+                node = make([...parent.path, text]);
+                parent.lookup.set(text, node);
+                parent.children.push(node);
+            }
+            add(node, keys, value);
+            parent = node;
+        }
+    }
+    const finish = (node: Node) => {
+        for (const key of Object.keys(node.values)) node.values[key] /= scale;
+        node.children.sort((a, b) => a.label.localeCompare(b.label, "es", { numeric: true }));
+        for (const child of node.children) finish(child as Node);
+        node.lookup.clear();
+    };
+    finish(root);
+    return { columns, roots: root.children, totals: root.values, hierarchy, records, format: metric.format };
+}
+export function matrixExportTable(matrix: VaiMatrixData, source: VaiSource): VaiExportTable {
+    const columns: VaiSeriesDef[] = [
+        ...matrix.hierarchy.map((id) => ({ id, label: vaiField(source, id)?.label ?? id, format: "text" as const })),
+        ...matrix.columns,
+    ];
+    const rows: VaiTableRow[] = [];
+    const visit = (node: VaiMatrixNode) => {
+        if (node.children.length) node.children.forEach(visit);
+        else rows.push([...node.path, ...matrix.columns.map((column) => node.values[column.id] ?? null)]);
+    };
+    matrix.roots.forEach(visit);
+    const data: VaiTableData = {
+        kind: "table", columns, rows, total: rows.length,
+        summaryRules: columns.map((_, index) => index < matrix.hierarchy.length ? null : { operation: "sum", label: "Total" }),
+        rowMembers: rows.map(() => []),
+    };
+    return { data, rows };
 }
 export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: VaiRow[], options: VaiComputeOptions = {}): VaiWidgetData | null {
     const metrics = widget.metrics.map((id) => vaiMetric(source, id)).filter((metric): metric is VaiMetric => Boolean(metric));
