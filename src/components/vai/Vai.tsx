@@ -908,7 +908,12 @@ function CostMonthControl({ value, onChange }: { value: VaiFilterValue; onChange
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "12px 0" }}>
             <select className="select" aria-label="Desde el mes" value={from} onChange={(event) => setFrom(Number(event.target.value))} style={{ flex: "1 1 110px", minWidth: 0 }}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
             <select className="select" aria-label="Hasta el mes" value={to} onChange={(event) => setTo(Number(event.target.value))} style={{ flex: "1 1 110px", minWidth: 0 }}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
-            <button type="button" disabled={from > to} onClick={() => setSelected(COST_MONTH_OPTIONS.slice(from - 1, to))} style={{ flex: "1 1 120px" }}>Marcar rango</button>
+            <button type="button" disabled={from > to} onClick={() => setSelected(COST_MONTH_OPTIONS.slice(from - 1, to))} style={{ flex: "1 1 110px" }}>Usar rango</button>
+            <button type="button" disabled={from > to} onClick={() => setSelected((previous) => previous === undefined ? undefined : [...new Set([...previous, ...COST_MONTH_OPTIONS.slice(from - 1, to)])])} style={{ flex: "1 1 120px" }}>Agregar rango</button>
+            <button type="button" disabled={from > to} onClick={() => {
+                const remove = new Set(COST_MONTH_OPTIONS.slice(from - 1, to));
+                setSelected((previous) => (previous ?? COST_MONTH_OPTIONS).filter((month) => !remove.has(month)));
+            }} style={{ flex: "1 1 120px" }}>Quitar rango</button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 9 }}>
             {COST_MONTH_OPTIONS.map((month) => <label key={month} style={{ display: "flex", gap: 5, minWidth: 0 }}>
@@ -936,15 +941,22 @@ function FilterControl({ filter, rows, value, onChange, }: {
         ? distinctValues(rows, filter.field, filter.source === "finance_costs" ? Infinity : 200)
         : [], [filter, rows]);
     const [search, setSearch] = useState("");
+    const appliedSelected = value.values ??
+        (value.value
+            ? [value.value]
+            : undefined);
+    const appliedSignature = JSON.stringify(appliedSelected);
+    const [draftSelected, setDraftSelected] = useState<string[] | undefined>(appliedSelected);
     useEffect(() => {
         setSearch("");
-    }, [filter.source, filter.field]);
+        setDraftSelected(appliedSelected);
+    }, [filter.source, filter.field, appliedSignature]);
     const normalizedSearch = search
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .trim();
-    const visibleOptions = useMemo(() => {
+    const matchedOptions = useMemo(() => {
         if (!normalizedSearch)
             return options;
         return options.filter((option) => option
@@ -953,6 +965,7 @@ function FilterControl({ filter, rows, value, onChange, }: {
             .replace(/[\u0300-\u036f]/g, "")
             .includes(normalizedSearch));
     }, [options, normalizedSearch]);
+    const visibleOptions = matchedOptions.slice(0, 250);
     const sourceName = VAI_SOURCE_MAP.get(filter.source)
         ?.name ??
         filter.source;
@@ -988,48 +1001,63 @@ function FilterControl({ filter, rows, value, onChange, }: {
     }
     if (filter.source === "finance_costs" && filter.field === "month_label")
         return <CostMonthControl value={value} onChange={onChange}/>;
-    const selected = value.values ??
-        (value.value
-            ? [value.value]
-            : undefined);
-    const allSelected = selected === undefined;
-    const selectedSet = new Set(selected ?? []);
-    const selectedLabel = allSelected
+    const allSelected = draftSelected === undefined;
+    const selectedSet = new Set(draftSelected ?? []);
+    const appliedSet = new Set(appliedSelected ?? []);
+    const selectedLabel = appliedSelected === undefined
         ? "Todos"
-        : selectedSet.size === 0
+        : appliedSet.size === 0
             ? "Ninguno"
-            : selectedSet.size === 1
-                ? [...selectedSet][0]
-                : `${selectedSet.size} seleccionados`;
+            : appliedSet.size === 1
+                ? [...appliedSet][0]
+                : `${appliedSet.size} seleccionados`;
+    const normalizeDraft = (next: string[]) => {
+        const unique = [...new Set(next)];
+        setDraftSelected(options.length > 0 && unique.length === options.length ? undefined : unique);
+    };
     const toggleOption = (option: string) => {
         const next = allSelected
             ? options.filter((item) => item !== option)
             : selectedSet.has(option)
                 ? [...selectedSet].filter((item) => item !== option)
                 : [...selectedSet, option];
-        if (options.length > 0 &&
-            next.length === options.length) {
-            onChange({});
-            return;
-        }
-        onChange({
-            values: next,
-        });
+        normalizeDraft(next);
     };
-    return (<label title={sourceName}>
-      <span>{filter.label}</span>
+    const addMatched = () => {
+        if (allSelected)
+            return;
+        normalizeDraft([...selectedSet, ...matchedOptions]);
+    };
+    const removeMatched = () => {
+        const base = allSelected ? options : [...selectedSet];
+        const remove = new Set(matchedOptions);
+        normalizeDraft(base.filter((item) => !remove.has(item)));
+    };
+    const applyDraft = () => {
+        if (draftSelected === undefined || (options.length > 0 && draftSelected.length === options.length))
+            onChange({});
+        else
+            onChange({ values: [...draftSelected] });
+        if (selectRootRef.current)
+            selectRootRef.current.open = false;
+    };
+    return (<div title={sourceName} style={{ display: "grid", gap: 5, minWidth: 0, width: "100%" }}>
+      <span className="vd-label">{filter.label}</span>
 
       <details ref={selectRootRef} style={{
             position: "relative",
             minWidth: 0,
+            width: "100%",
         }}>
-        <summary className="select" style={{
+        <summary className="select" title={selectedLabel} style={{
             listStyle: "none",
             cursor: "pointer",
             userSelect: "none",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
+            width: "100%",
+            minWidth: 0,
         }}>
           {selectedLabel}
         </summary>
@@ -1039,44 +1067,38 @@ function FilterControl({ filter, rows, value, onChange, }: {
             zIndex: 500,
             top: "calc(100% + 5px)",
             left: 0,
-            width: "max(100%, 240px)",
-            maxWidth: 360,
-            maxHeight: 300,
+            width: "min(360px, calc(100vw - 32px))",
+            maxWidth: "calc(100vw - 32px)",
+            maxHeight: 420,
             overflow: "auto",
-            padding: 8,
+            padding: 10,
             display: "grid",
-            gap: 3,
+            gap: 6,
             background: "var(--s-1, #071a24)",
             border: "1px solid var(--line, rgba(255,255,255,.16))",
             borderRadius: 8,
             boxShadow: "0 14px 34px rgba(0,0,0,.35)",
         }}>
-          <label style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "6px 7px",
-            cursor: "pointer",
-            fontWeight: 700,
-        }}>
-            <input type="checkbox" checked={allSelected} onChange={() => onChange(allSelected ? { values: [] } : {})}/>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <Button size="sm" variant="ghost" onClick={() => setDraftSelected(allSelected ? [] : undefined)}>
+              {allSelected ? "Deseleccionar todo" : "Seleccionar todo"}
+            </Button>
 
-            {allSelected ? "Deseleccionar todo" : "Seleccionar todo"}
-          </label>
-
-          <div style={{
-            height: 1,
-            background: "var(--line, rgba(255,255,255,.12))",
-            margin: "2px 0 4px",
-        }}/>
+            {normalizedSearch ? <>
+              <Button size="sm" variant="ghost" onClick={addMatched} disabled={!matchedOptions.length || allSelected}>Agregar a selección</Button>
+              <Button size="sm" variant="ghost" onClick={removeMatched} disabled={!matchedOptions.length}>Quitar de selección</Button>
+            </> : null}
+          </div>
 
           <input className="input" type="search" value={search} placeholder="Buscar valores..." autoComplete="off" onChange={(event) => setSearch(event.target.value)} style={{
             width: "100%",
             minWidth: 0,
-            marginBottom: 3,
         }}/>
 
-          {visibleOptions.map((option) => (<label key={option} style={{
+          {matchedOptions.length > visibleOptions.length ? <small className="muted">Mostrando 250 de {matchedOptions.length.toLocaleString("es-PE")} coincidencias. Usa la búsqueda para acotar.</small> : null}
+
+          <div style={{ display: "grid", gap: 2 }}>
+            {visibleOptions.map((option) => (<label key={option} style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
@@ -1095,9 +1117,21 @@ function FilterControl({ filter, rows, value, onChange, }: {
                 {option}
               </span>
             </label>))}
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
+            <Button size="sm" variant="ghost" onClick={() => {
+                setDraftSelected(undefined);
+                onChange({});
+                if (selectRootRef.current)
+                    selectRootRef.current.open = false;
+            }}>Limpiar</Button>
+
+            <Button size="sm" onClick={applyDraft}>Aplicar</Button>
+          </div>
         </div>
       </details>
-    </label>);
+    </div>);
 }
 function ScopedWidget({ id, order, widget, rows, loading = false, trendDateField = null }: {
     id: string;
@@ -1116,7 +1150,7 @@ function ScopedWidget({ id, order, widget, rows, loading = false, trendDateField
         const values = state[filterKey(filter)]?.values;
         return `${filter.label}: ${values === undefined ? "Todos" : values.length ? values.join(", ") : "Ninguno"}`;
     }).join(" · ");
-    const localControls = definitions.length ? (<div className="vai-filters" data-vai-export-ignore aria-label={`Filtros de ${widget.title}`} style={{ display: "flex", flexWrap: "wrap", gap: 12, width: "100%" }}>
+    const localControls = definitions.length ? (<div className="vai-filters" data-vai-export-ignore aria-label={`Filtros de ${widget.title}`} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))", gap: 8, width: "100%", minWidth: 0, gridColumn: "1 / -1" }}>
       {definitions.map((filter) => <FilterControl key={filterKey(filter)} filter={filter} rows={rows} value={state[filterKey(filter)] ?? {}} onChange={(value) => setState((previous) => ({ ...previous, [filterKey(filter)]: value }))}/>)}
     </div>) : undefined;
     return widget.type === "kpi"
@@ -1257,35 +1291,37 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
     const hasLineSeries = series.some((item) => item.seriesType === "line");
     const isCombo = widget.type === "pareto" || (["bar", "combo", "line", "area"].includes(widget.type) && hasBarSeries && hasLineSeries);
     const comboScale: ChartScaleMode = logAllowed && scaleChoice === "log" ? "log" : "linear";
-    const scaleControls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "combo" || lineLike) && hasBarSeries && !result.stack) ? (<label className="vai-scale-control" style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }} title={!logAllowed ? "La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal." : undefined}>
+    const chartControlStyle: CSSProperties = { display: "grid", gap: 4, minWidth: 0, width: "100%", alignContent: "end" };
+    const chartControlSelectStyle: CSSProperties = { width: "100%", minWidth: 0, maxWidth: "none", height: 32 };
+    const scaleControls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "combo" || lineLike) && hasBarSeries && !result.stack) ? (<label className="vai-scale-control" style={chartControlStyle} title={!logAllowed ? "La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal." : undefined}>
       <span>Escala</span>
-      <select className="select" aria-label={`Escala de ${widget.title}`} value={scaleChoice} onChange={(event) => setScaleChoice(event.target.value as "auto" | ChartScaleMode)} style={{ width: 128, minWidth: 128, maxWidth: 128 }}>
+      <select className="select" aria-label={`Escala de ${widget.title}`} value={scaleChoice} onChange={(event) => setScaleChoice(event.target.value as "auto" | ChartScaleMode)} style={chartControlSelectStyle}>
         <option value="auto">Automática</option>
         <option value="linear">Lineal</option>
         <option value="log" disabled={!logAllowed}>Logarítmica</option>
       </select>
     </label>) : null;
-    const axisControls = hasAxisPicker ? (<label className="vai-scale-control" style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }}>
+    const axisControls = hasAxisPicker ? (<label className="vai-scale-control" style={chartControlStyle}>
       <span>Eje X</span>
-      <select className="select" aria-label={`Campo del eje X de ${widget.title}`} value={activeDimension ?? ""} onChange={(event) => {
+      <select className="select" title={vaiField(source, activeDimension ?? "")?.label ?? activeDimension ?? ""} aria-label={`Campo del eje X de ${widget.title}`} value={activeDimension ?? ""} onChange={(event) => {
             const next = event.target.value || null;
             setDimensionChoice(next);
             if (next && breakdownChoice === next)
                 setBreakdownChoice(null);
-        }} style={{ width: 170, minWidth: 170, maxWidth: 170 }}>
+        }} style={chartControlSelectStyle}>
         {dimensionOptions.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
       </select>
     </label>) : null;
-    const breakdownControls = hasBreakdownPicker ? (<label className="vai-scale-control" style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }}>
+    const breakdownControls = hasBreakdownPicker ? (<label className="vai-scale-control" style={chartControlStyle}>
       <span>Segregar</span>
-      <select className="select" aria-label={`Segregación de ${widget.title}`} value={activeBreakdown ?? ""} onChange={(event) => setBreakdownChoice(event.target.value || null)} style={{ width: 170, minWidth: 170, maxWidth: 170 }}>
+      <select className="select" title={activeBreakdown ? vaiField(source, activeBreakdown)?.label ?? activeBreakdown : "Sin desglose"} aria-label={`Segregación de ${widget.title}`} value={activeBreakdown ?? ""} onChange={(event) => setBreakdownChoice(event.target.value || null)} style={chartControlSelectStyle}>
         <option value="">Sin desglose</option>
         {dimensionOptions.filter((field) => field.id !== activeDimension).map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
       </select>
     </label>) : null;
-    const sortControls = hasSortableXAxis ? (<label className="vai-scale-control" style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }}>
+    const sortControls = hasSortableXAxis ? (<label className="vai-scale-control" style={chartControlStyle}>
       <span>Orden X</span>
-      <select className="select" aria-label={`Orden del eje X de ${widget.title}`} value={sortChoice} onChange={(event) => setSortChoice(event.target.value as VaiSortMode)} style={{ width: 154, minWidth: 154, maxWidth: 154 }}>
+      <select className="select" aria-label={`Orden del eje X de ${widget.title}`} value={sortChoice} onChange={(event) => setSortChoice(event.target.value as VaiSortMode)} style={chartControlSelectStyle}>
         <option value="value_desc">Mayor a menor</option>
         <option value="value_asc">Menor a mayor</option>
         <option value="label_asc">A → Z</option>

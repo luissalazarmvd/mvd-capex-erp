@@ -2993,7 +2993,8 @@ function validateFilter(raw: VaiRawFilter, sources: Set<string>, notes: string[]
         !snapshotDateWasExplicitlyRequested(source, field, userPrompt)) {
         return null;
     }
-    if (raw.kind === "select" && field.role !== "dimension") {
+    if (raw.kind === "select" && field.role !== "dimension" &&
+        !(source.id === "finance_costs" && field.id === "gloss")) {
         notes.push(`${label}: «${field.label}» no es una dimensión filtrable.`);
         return null;
     }
@@ -3727,7 +3728,7 @@ function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"
     const incoming = dashboard.filters.map((filter) => filter.source === "finance_costs" && filter.kind === "select" && (!filter.values?.length || filter.field === "lima_area") ? { ...filter, field: field(filter.field)! } : filter);
     const explicitPeriods = [...text.matchAll(/\b(real|ppto|presupuesto)\s+(2025|2026)\b/g)].map((match) => `${match[1] === "real" ? "REAL" : "PPTO"} ${match[2]}`);
     const months = requestedCostMonths(prompt, incoming);
-    const required = ["period_label", "month_label", "gerencia_lima", "zone_name", "site_name", "cost_group", "account_label", "cost_center_label", "supplier_label", "subledger"];
+    const required = ["period_label", "month_label", "gerencia_lima", "zone_name", "site_name", "cost_group", "account_label", "cost_center_label", "supplier_label", "gloss", "subledger"];
     const filters: VaiRawFilter[] = required.map((id) => {
         const existing = incoming.find((filter) => filter.source === "finance_costs" && filter.kind === "select" && field(filter.field) === id);
         const values = id === "month_label" ? months : id === "period_label" ? existing?.values ?? (explicitPeriods.length ? [...new Set(explicitPeriods)] : null) : existing?.values ?? null;

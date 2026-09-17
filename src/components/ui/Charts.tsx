@@ -280,33 +280,29 @@ function ChartCard({ title, subtitle, series, kind, empty, table, panel, control
     const hasLegend = Boolean(series && series.length > 1);
     return (<section className="trjk-card trjk-chart" style={{ height: "100%", minWidth: 0 }}>
       <div className="trjk-chart-head" style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+        <div style={{ minWidth: 0, flex: "1 1 320px" }}>
           <h3 style={{ whiteSpace: "normal", overflow: "visible", textOverflow: "clip", overflowWrap: "anywhere", lineHeight: 1.4 }}>{title}</h3>
           <p className="trjk-chart-sub" style={{ whiteSpace: "normal", overflow: "visible", textOverflow: "clip", overflowWrap: "anywhere", lineHeight: 1.5 }}>{subtitle}</p>
         </div>
-        {hasLegend || controls ? (<div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-end",
-                gap: 10,
-                flexWrap: "wrap",
-                minWidth: 0,
-                maxWidth: "100%",
-                flex: "1 1 260px",
-            }}>
-            {hasLegend ? (<div className="trjk-legend" style={{ display: "flex", flexWrap: "wrap", gap: "7px 14px", whiteSpace: "normal" }}>
-                {series!.map((s) => (<span key={s.label}>
-                    <i data-kind={s.seriesType ?? kind} style={{ background: s.color,
-                        display: "inline-block", width: (s.seriesType ?? kind) === "line" ? 18 : 9,
-                        height: (s.seriesType ?? kind) === "line" ? 3 : 9, borderRadius: 2, marginRight: 5 }}/>
-                    {s.label}
-                  </span>))}
-              </div>) : null}
-            {controls ? (<div data-vai-export-ignore style={{ flex: "0 0 auto", minWidth: 0 }}>
-                {controls}
-              </div>) : null}
+        {hasLegend ? (<div className="trjk-legend" style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "7px 14px", whiteSpace: "normal", minWidth: 0, maxWidth: "100%", flex: "0 1 auto" }}>
+            {series!.map((s) => (<span key={s.label}>
+                <i data-kind={s.seriesType ?? kind} style={{ background: s.color,
+                    display: "inline-block", width: (s.seriesType ?? kind) === "line" ? 18 : 9,
+                    height: (s.seriesType ?? kind) === "line" ? 3 : 9, borderRadius: 2, marginRight: 5 }}/>
+                {s.label}
+              </span>))}
           </div>) : null}
       </div>
+      {controls ? (<div data-vai-export-ignore style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))",
+            gap: 8,
+            width: "100%",
+            minWidth: 0,
+            alignItems: "end",
+        }}>
+          {controls}
+        </div>) : null}
       {empty ? (<div className="trjk-empty">Sin datos para los filtros seleccionados.</div>) : (children)}
       {!empty && panel ? (<div className="trjk-chart-data">{panel}</div>) : !empty && table ? (<details className="trjk-chart-data" onToggle={(event) => setDataOpen(event.currentTarget.open)}>
           <summary>Ver cifras exactas y detalle</summary>
