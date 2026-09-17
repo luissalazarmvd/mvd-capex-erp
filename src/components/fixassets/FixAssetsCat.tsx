@@ -1539,17 +1539,9 @@ export default function FixAssetsCat() {
     setIsError(false);
 
     try {
-      const [softPoResponse, vetaResponse] = await Promise.all([
-        apiGet("/api/actfij/soft-po"),
-        apiGet("/api/actfij/veta"),
-      ]);
-
+      const softPoResponse = await apiGet("/api/actfij/soft-po");
       const softPoRows = Array.isArray(softPoResponse?.rows)
         ? softPoResponse.rows as SoftPoRow[]
-        : [];
-
-      const vetaRows = Array.isArray(vetaResponse?.rows)
-        ? vetaResponse.rows as VetaSourceRow[]
         : [];
 
       const poBySource = new Map<string, SoftPoRow>();
@@ -1562,31 +1554,28 @@ export default function FixAssetsCat() {
         }
       });
 
-      const vetaBySource = new Map<string, VetaSourceRow>();
+      type CapexExportRow = {
+        assetCode: string;
+        row: CatalogueDisplayRow;
+        draft: Draft;
+        poNum: string;
+      };
 
-      vetaRows.forEach((row) => {
-        const key = accountingSourceIdentity(row);
-
-        if (key && !vetaBySource.has(key)) {
-          vetaBySource.set(key, row);
-        }
-      });
-
-      const grouped = new Map<
-        string,
-        Map<string, CatalogueDisplayRow[]>
-      >();
+      // Una lista de activos por CAPEX, sin subgrupos por O.S.
+      const grouped = new Map<string, CapexExportRow[]>();
 
       rows.forEach((row) => {
+        // Este filtro solo afecta al reporte CAPEX.
+        const accountCode = text(row.origin_account_code).trim();
+        if (!/^(338|339)/.test(accountCode)) return;
+
         const assetCode = text(row.asset_code).trim();
         const draft = drafts[assetCode] || toDraft(row);
         const capexCode = draft.capex_code
           .trim()
           .toLocaleUpperCase("es");
 
-        if (!capexCode) {
-          return;
-        }
+        if (!capexCode) return;
 
         const balanceUsd = text(row.asset_balance_usd).trim()
           ? numericAmount(row.asset_balance_usd)
@@ -1596,6 +1585,7 @@ export default function FixAssetsCat() {
           ? numericAmount(row.asset_balance_pen)
           : assetMovementAmount(row, "pen");
 
+        // Se conserva la exclusión existente de saldos cercanos a cero.
         if (
           Math.abs(Math.round(balanceUsd * 100)) <= 1
           && Math.abs(Math.round(balancePen * 100)) <= 1
@@ -1617,204 +1607,136 @@ export default function FixAssetsCat() {
           || text(poBySource.get(poKey)?.po_num).trim()
           || "SIN MAPEO";
 
-        let byPo = grouped.get(capexCode);
-
-        if (!byPo) {
-          byPo = new Map<string, CatalogueDisplayRow[]>();
-          grouped.set(capexCode, byPo);
-        }
-
-        const currentRows = byPo.get(poNum) || [];
-        currentRows.push(row);
-        byPo.set(poNum, currentRows);
+        const assetRows = grouped.get(capexCode) || [];
+        assetRows.push({ assetCode, row, draft, poNum });
+        grouped.set(capexCode, assetRows);
       });
 
       if (!grouped.size) {
         setIsError(true);
-        setMessage("No hay códigos CAPEX para exportar.");
+        setMessage(
+          "No hay activos CAPEX para exportar con cuenta 338/339 y saldo distinto de cero según la tolerancia actual."
+        );
         return;
       }
 
+      const headers = [
+        "Código activo",
+        "Fecha documento",
+        "Subdiario",
+        "Comprobante",
+        "RUC",
+        "Proveedor",
+        "Nro. documento",
+        "Descripción activo",
+        "Valor final USD",
+        "Valor final PEN",
+        "O.S.",
+      ];
+
       const workbook = XLSX.utils.book_new();
       const usedSheetNames = new Set<string>();
+      let exportedAssets = 0;
 
       const capexEntries = Array.from(grouped.entries())
         .sort(([left], [right]) =>
-          left.localeCompare(
-            right,
+          left.localeCompare(right, undefined, { numeric: true })
+        );
+
+      capexEntries.forEach(([capexCode, assetRows]) => {
+        // Orden continuo por fecha exportada, documento y código de activo.
+        const sortedRows = assetRows.slice().sort((left, right) => (
+          dateOnly(left.draft.acquisition_date)
+            .localeCompare(dateOnly(right.draft.acquisition_date))
+          || left.draft.document_number.trim().localeCompare(
+            right.draft.document_number.trim(),
             undefined,
             { numeric: true }
           )
-        );
-
-      capexEntries.forEach(([capexCode, byPo]) => {
-        const sheetRows: Array<Array<string | number | Date>> = [];
-        const osHeaderRows: number[] = [];
-        const dataRows: number[] = [];
-
-        Array.from(byPo.entries())
-          .sort(([left], [right]) =>
-            left.localeCompare(
-              right,
-              undefined,
-              { numeric: true }
-            )
+          || left.assetCode.localeCompare(
+            right.assetCode,
+            undefined,
+            { numeric: true }
           )
-          .forEach(([poNum, assetRows]) => {
-            osHeaderRows.push(sheetRows.length);
+        ));
 
-            sheetRows.push([
-              `O.S.${poNum}`,
-            ]);
+        const sheetRows: Array<Array<string | number>> = [headers];
 
-            sheetRows.push([
-              "Fecha documento",
-              "Subdiario",
-              "Comprobante",
-              "RUC",
-              "Proveedor",
-              "Nro. documento",
-              "Descripción activo",
-              "Valor final USD",
-              "Valor final PEN",
-            ]);
-
-            assetRows
-              .slice()
-              .sort((left, right) => {
-                const leftSource =
-                  vetaBySource.get(
-                    accountingSourceIdentity(left)
-                  );
-
-                const rightSource =
-                  vetaBySource.get(
-                    accountingSourceIdentity(right)
-                  );
-
-                return (
-                  dateOnly(leftSource?.document_date)
-                    .localeCompare(
-                      dateOnly(rightSource?.document_date)
-                    )
-                  || text(left.document_number)
-                    .localeCompare(
-                      text(right.document_number),
-                      undefined,
-                      { numeric: true }
-                    )
-                );
-              })
-              .forEach((row) => {
-                const assetCode =
-                  text(row.asset_code).trim();
-
-                const draft =
-                  drafts[assetCode] || toDraft(row);
-
-                const documentDate =
-                  excelDateValue(draft.acquisition_date);
-
-                sheetRows.push([
-                  documentDate,
-                  draft.subjournal_code.trim(),
-                  draft.voucher_number.trim(),
-                  draft.annex_code.trim(),
-                  draft.annex_description.trim(),
-                  draft.document_number.trim(),
-                  draft.asset_description.trim(),
-                  assetMovementAmount(row, "usd"),
-                  assetMovementAmount(row, "pen"),
-                ]);
-
-                dataRows.push(
-                  sheetRows.length - 1
-                );
-              });
-
-            sheetRows.push([]);
-          });
-
-        const worksheet = XLSX.utils.aoa_to_sheet(
-          sheetRows,
-          {
-            cellDates: false,
-            dateNF: "dd/mm/yyyy",
-          }
-        );
-
-        worksheet["!cols"] = [
-          { wch: 16 },
-          { wch: 12 },
-          { wch: 16 },
-          { wch: 16 },
-          { wch: 34 },
-          { wch: 20 },
-          { wch: 46 },
-          { wch: 18 },
-          { wch: 18 },
-        ];
-
-        worksheet["!merges"] = osHeaderRows.map(
-          (rowIndex) => ({
-            s: {
-              r: rowIndex,
-              c: 0,
-            },
-            e: {
-              r: rowIndex,
-              c: 8,
-            },
-          })
-        );
-
-        dataRows.forEach((rowIndex) => {
-          const excelRow = rowIndex + 1;
-          const dateCell = worksheet[`A${excelRow}`];
-
-          if (dateCell) {
-            dateCell.z = "dd/mm/yyyy";
-          }
-
-          ["H", "I"].forEach((column) => {
-            const cell =
-              worksheet[`${column}${excelRow}`];
-
-            if (cell?.t === "n") {
-              cell.z = "#,##0.00";
-            }
-          });
+        sortedRows.forEach(({ assetCode, row, draft, poNum }) => {
+          sheetRows.push([
+            assetCode,
+            excelDateValue(draft.acquisition_date),
+            draft.subjournal_code.trim(),
+            draft.voucher_number.trim(),
+            draft.annex_code.trim(),
+            draft.annex_description.trim(),
+            draft.document_number.trim(),
+            draft.asset_description.trim(),
+            assetMovementAmount(row, "usd"),
+            assetMovementAmount(row, "pen"),
+            poNum,
+          ]);
         });
 
-        const cleanedBaseName =
-          capexCode
-            .replace(/[\\/?*\[\]:]/g, "-")
-            .trim()
-            .slice(0, 31)
+        const worksheet = XLSX.utils.aoa_to_sheet(sheetRows, {
+          cellDates: false,
+          dateNF: "dd/mm/yyyy",
+        });
+
+        worksheet["!cols"] = [
+          { wch: 18 }, // A: Código activo
+          { wch: 18 }, // B: Fecha documento
+          { wch: 12 }, // C: Subdiario
+          { wch: 16 }, // D: Comprobante
+          { wch: 16 }, // E: RUC
+          { wch: 34 }, // F: Proveedor
+          { wch: 20 }, // G: Nro. documento
+          { wch: 46 }, // H: Descripción activo
+          { wch: 18 }, // I: Valor final USD
+          { wch: 18 }, // J: Valor final PEN
+          { wch: 20 }, // K: O.S.
+        ];
+
+        // Un solo rango filtrable, sin cabeceras O.S., merges ni separadores.
+        worksheet["!autofilter"] = {
+          ref: `A1:K${sheetRows.length}`,
+        };
+
+        for (let excelRow = 2; excelRow <= sheetRows.length; excelRow += 1) {
+          const dateCell = worksheet[`B${excelRow}`];
+          if (dateCell?.t === "n") dateCell.z = "dd/mm/yyyy";
+
+          ["I", "J"].forEach((column) => {
+            const cell = worksheet[`${column}${excelRow}`];
+            if (cell?.t === "n") cell.z = "#,##0.00";
+          });
+
+          ["A", "C", "D", "E", "G", "K"].forEach((column) => {
+            const cell = worksheet[`${column}${excelRow}`];
+            if (cell) cell.z = "@";
+          });
+        }
+
+        const cleanedBaseName = capexCode
+          .replace(/[\\/?*\[\]:]/g, "-")
+          .replace(/^'+|'+$/g, "")
+          .trim()
+          .slice(0, 31)
+          .replace(/^'+|'+$/g, "")
           || "CAPEX";
 
         let sheetName = cleanedBaseName;
         let suffix = 2;
 
-        while (usedSheetNames.has(sheetName)) {
+        while (usedSheetNames.has(sheetName.toLocaleUpperCase("es"))) {
           const tail = `_${suffix}`;
-
-          sheetName =
-            `${cleanedBaseName.slice(
-              0,
-              31 - tail.length
-            )}${tail}`;
-
+          sheetName = `${cleanedBaseName.slice(0, 31 - tail.length)}${tail}`;
           suffix += 1;
         }
 
-        usedSheetNames.add(sheetName);
-
-        XLSX.utils.book_append_sheet(
-          workbook,
-          worksheet,
-          sheetName
-        );
+        usedSheetNames.add(sheetName.toLocaleUpperCase("es"));
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+        exportedAssets += sortedRows.length;
       });
 
       XLSX.writeFile(
@@ -1823,7 +1745,7 @@ export default function FixAssetsCat() {
       );
 
       setMessage(
-        `Reporte CAPEX exportado: ${grouped.size} hoja${grouped.size === 1 ? "" : "s"}.`
+        `Reporte CAPEX exportado: ${grouped.size} hoja${grouped.size === 1 ? "" : "s"}, ${exportedAssets} activo${exportedAssets === 1 ? "" : "s"}. Solo cuentas 338/339.`
       );
     } catch (error) {
       setIsError(true);
@@ -2513,7 +2435,27 @@ export default function FixAssetsCat() {
           <Button size="sm" onClick={() => exportExcel("PEN")} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar PEN ({visibleRows.length})</Button>
           <Button size="sm" onClick={() => exportExcel("USD")} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar USD ({visibleRows.length})</Button>
           <Button size="sm" onClick={() => exportExcel("ALL")} disabled={loading || saving || reclassifying || disposing || !visibleRows.length}>Exportar Todo ({visibleRows.length})</Button>
-          <Button size="sm" onClick={() => void exportCapexReport()} disabled={loading || saving || reclassifying || disposing || capexExporting || !rows.some((row) => text(row.capex_code).trim())}>{capexExporting ? "Exportando CAPEX..." : "Exportar Reporte CAPEX"}</Button>
+          <Button
+            size="sm"
+            onClick={() => void exportCapexReport()}
+            disabled={
+              loading
+              || saving
+              || reclassifying
+              || disposing
+              || capexExporting
+              || !rows.some((row) => {
+                const assetCode = text(row.asset_code).trim();
+                const draft = drafts[assetCode] || toDraft(row);
+                const accountCode = text(row.origin_account_code).trim();
+
+                return /^(338|339)/.test(accountCode)
+                  && Boolean(draft.capex_code.trim());
+              })
+            }
+          >
+            {capexExporting ? "Exportando CAPEX..." : "Exportar Reporte CAPEX"}
+          </Button>
           <Button size="sm" onClick={() => { setColumnFilters({}); setExcelSort(null); setShowReadyOnly(false); setPage(1); }} disabled={loading || saving || reclassifying || disposing}>Limpiar filtros</Button>
           <Button size="sm" onClick={() => void load()} disabled={loading || saving || reclassifying || disposing}>{loading ? "Cargando..." : "Refrescar"}</Button>
           <Button
