@@ -668,7 +668,17 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
     }, [data, spec.filters, deferredFilters]);
     const loading = sources.some((source) => data[source.id]?.loading ?? true);
     const loadingSources = sources.filter((source) => data[source.id]?.loading ?? true);
-    const loadingText = loadingSources.map((source) => data[source.id]?.progress || `Consultando ${source.name}…`).join(" · ");
+    const loadingText = loadingSources.map((source) => `Consultando ${source.name}…`).join(" · ");
+    const loadingRowsHelper = sources.map((source) => {
+        const state = data[source.id];
+        if (!state)
+            return null;
+        if (state.loading && state.progress && /filas/i.test(state.progress))
+            return `${source.name}: ${state.progress.replace(/…$/, "")}`;
+        if (!state.loading && !state.error && state.loadedAt != null)
+            return `${source.name}: ${state.rows.length.toLocaleString("es-PE")} filas cargadas`;
+        return null;
+    }).filter(Boolean).join(" · ");
     const exportContext = spec.filters.map((filter) => {
         const value = effectiveFilters[filterKey(filter)] ?? {};
         if (filter.kind === "date_range") {
@@ -720,6 +730,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
             <div className="vai-data-loading-logo"><VaiLogo size={118} title="V-Ai cargando datos"/></div>
             <strong>Obteniendo datos de las fuentes</strong>
             <span className="muted">{loadingText || "Preparando consultas…"}</span>
+            {loadingRowsHelper ? <small className="muted" style={{ fontSize: 11, lineHeight: 1.5, textAlign: "center", maxWidth: 460, whiteSpace: "normal", overflowWrap: "anywhere" }}>{loadingRowsHelper}</small> : null}
           </div>
         </div>) : null}
       <VaiExportProvider title={spec.title} context={exportContext} disabled={loading || sources.some((source) => Boolean(data[source.id]?.error))}>
