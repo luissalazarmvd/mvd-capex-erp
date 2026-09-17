@@ -404,6 +404,21 @@ const FOCUS_OPTIONS: Array<{ value: VaiFocus; label: string }> = [
 
 const CHART_OPTIONS: Array<{ value: VaiChartPreference; label: string }> = VAI_VISUAL_CATALOG.map((item) => ({ value: item.type, label: item.label }));
 
+const CURATED_SOURCE_SUGGESTIONS: Record<string, string[]> = {
+  finance_mineral_purchases: [
+    "Mineral facturado por lote y proveedor, con importe USD y fechas de factura y pago.",
+    "Compras de mineral por oficina: importe USD, TMS contables y USD/TMS, con evolución mensual.",
+  ],
+  finance_mineral_payments: [
+    "Pagos de mineral por proveedor y oficina, con total USD y evolución mensual.",
+    "Detalle de pagos de mineral con provisión, documento, proveedor, fecha de pago e importe USD.",
+  ],
+  finance_costs: [
+    "Costo real vs presupuesto por macroproceso, con variación USD y avance porcentual.",
+    "Costos reales PEN y USD por sede y grupo de costos, con evolución mensual.",
+  ],
+};
+
 function joinNatural(values: string[]) {
   const clean = values.map((value) => value.trim()).filter(Boolean);
 
@@ -432,7 +447,7 @@ function sourceSuggestions(source: VaiSource) {
   const dimension2 = dimensions[1] ?? dimension1;
   const date1 = dates[0];
 
-  const suggestions: string[] = [];
+  const suggestions: string[] = [...(CURATED_SOURCE_SUGGESTIONS[source.id] ?? [])];
 
   if (metric1) {
     suggestions.push(

@@ -1191,6 +1191,84 @@ export async function POST(
           )
       : [];
 
+  const promptIntent =
+    prompt
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+  const mineralContext =
+    /\b(?:mineral|minero|mineros|lote|lotes|acopio)\b/.test(
+      promptIntent,
+    );
+
+  const pendingMineralFlow =
+    mineralContext &&
+    /\b(?:sin|pendiente|pendientes|falta|faltan|no)\s+(?:de\s+)?(?:pago|pagos|pagar|pagado|pagados|factura|facturas|facturado|facturados|valorizacion|valorizar|valorizado|valorizados)\b/.test(
+      promptIntent,
+    );
+
+  const mineralFinanceIntent =
+    mineralContext &&
+    /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos|factura|facturas|facturado|facturados|compra|compras|comprado|comprados|contable|contabilidad|contabilizado|contabilizados|provision|provisiones|proveedor|proveedores|usd|tms)\b/.test(
+      promptIntent,
+    );
+
+  const domainSpecificCostIntent =
+    /\b(?:combustible|combustibles|galon|galones|flota|vehiculo|vehiculos|refineria|reactivo|reactivos|planta|kardex|trjkar|logistica|almacen|stock|activo|activos|depreciacion)\b/.test(
+      promptIntent,
+    );
+
+  const corporateFinanceIntent =
+    !domainSpecificCostIntent &&
+    (
+      /\b(?:costo|costos|gasto|gastos|presupuesto|ppto|opex|macroproceso|macroprocesos|ceco|cecos|dynacor|contabilidad|contable|finanzas)\b/.test(
+        promptIntent,
+      ) ||
+      /\bcentros? de costo\b/.test(
+        promptIntent,
+      ) ||
+      /\b(?:real|reales)\b.*\b(?:presupuesto|ppto)\b|\b(?:presupuesto|ppto)\b.*\b(?:real|reales)\b/.test(
+        promptIntent,
+      )
+    );
+
+  const generationArea:
+    VaiArea | "auto" =
+      area !== "auto"
+        ? area
+        : pendingMineralFlow
+          ? "traceability"
+          : mineralFinanceIntent ||
+              corporateFinanceIntent
+            ? "finance"
+            : "auto";
+
+  const comparisonIntent =
+    /\b(?:vs|versus|contra|comparar|compara|comparacion|diferencia|diferencias)\b/.test(
+      promptIntent,
+    );
+
+  const generationFocus:
+    VaiFocus =
+      focus === "auto" &&
+      comparisonIntent
+        ? "comparisons"
+        : focus;
+
+  const mineralPaymentByLotComparison =
+    mineralContext &&
+    /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos)\b/.test(promptIntent) &&
+    /\b(?:factura|facturas|facturado|facturados|compra|compras|contabilizado|contabilizados)\b/.test(promptIntent) &&
+    /\b(?:lote|lotes)\b/.test(promptIntent);
+
+  const generationPrompt =
+    mineralPaymentByLotComparison
+      ? `${prompt}\n\nRegla de negocio para este diseño: el importe facturado o contabilizado por lote usa finance_mineral_purchases y lot_usd_purchase_docs agrupado por lot. El pago efectivo usa finance_mineral_payments y payment_usd_total, pero no puede atribuirse ni conciliarse por lote porque un asiento puede cubrir varios lotes. Si el usuario pide compararlos, muéstralos en widgets separados y explica brevemente esta limitación en message; no inventes un pago efectivo por lote.`
+      : prompt;
+
   try {
     const {
       output,
@@ -1199,10 +1277,10 @@ export async function POST(
       validation,
     } =
       await generateDashboardSpec(
-        prompt,
+        generationPrompt,
         {
-          area,
-          focus,
+          area: generationArea,
+          focus: generationFocus,
           charts,
         },
       );

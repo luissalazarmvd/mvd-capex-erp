@@ -3086,17 +3086,8 @@ function normalizedContextText(value: string) {
     .trim();
 }
 
-function contextualFleetFilterScore(source: VaiSource, field: VaiField, userPrompt: string) {
+function contextualFilterScore(source: VaiSource, field: VaiField, userPrompt: string) {
   if (field.role !== "dimension") return Number.NEGATIVE_INFINITY;
-
-  const supported = new Set([
-    "fleet_fuel_refuels",
-    "fleet_fuel_alerts",
-    "fleet_gps_distance",
-    "fleet_performance",
-  ]);
-
-  if (!supported.has(source.id)) return Number.NEGATIVE_INFINITY;
 
   const technical = new Set([
     "has_gps",
@@ -3110,40 +3101,82 @@ function contextualFleetFilterScore(source: VaiSource, field: VaiField, userProm
   }
 
   const prompt = normalizedContextText(userPrompt);
+  const promptTokens = new Set(prompt.split(" ").filter((token) => token.length >= 3));
   const fieldText = normalizedContextText(`${field.id.replace(/_/g, " ")} ${field.label} ${field.description}`);
   const tokens = fieldText.split(" ").filter((token) => token.length >= 3);
 
   let score = 0;
 
-  if (tokens.some((token) => prompt.includes(token))) score += 100;
+  if (tokens.some((token) => promptTokens.has(token))) score += 100;
 
-  const baseByField: Record<string, number> = source.id === "fleet_fuel_refuels" || source.id === "fleet_fuel_alerts"
-    ? {
-        plate: 60,
-        driver_name: 55,
-        group_name: 50,
-        type_fuel: 45,
-        gas_station: 30,
-        brand: 20,
-        model: 15,
-        currency_code: 5,
-      }
-    : source.id === "fleet_gps_distance"
-      ? {
-          plate: 60,
-          driver_name: 55,
-          group_name: 50,
-          brand: 20,
-          model: 15,
-        }
-      : {
-          plate: 60,
-          group_name: 50,
-          brand: 20,
-          model: 15,
-        };
+  const priorities: Record<string, Record<string, number>> = {
+    fleet_fuel_refuels: {
+      plate: 60,
+      driver_name: 55,
+      group_name: 50,
+      type_fuel: 45,
+      gas_station: 30,
+      brand: 20,
+      model: 15,
+      currency_code: 5,
+    },
+    fleet_fuel_alerts: {
+      plate: 60,
+      driver_name: 55,
+      group_name: 50,
+      type_fuel: 45,
+      gas_station: 30,
+      brand: 20,
+      model: 15,
+      currency_code: 5,
+    },
+    fleet_gps_distance: {
+      plate: 60,
+      driver_name: 55,
+      group_name: 50,
+      brand: 20,
+      model: 15,
+    },
+    fleet_performance: {
+      plate: 60,
+      group_name: 50,
+      brand: 20,
+      model: 15,
+    },
+    finance_mineral_purchases: {
+      lot: 90,
+      supplier: 70,
+      office_name: 60,
+      doc_type: 50,
+      program_class: 40,
+      sede: 30,
+    },
+    finance_mineral_payments: {
+      supplier: 70,
+      office_name: 60,
+      document_type: 50,
+      provision_currency_code: 40,
+      account_code: 30,
+      sede: 20,
+    },
+    finance_costs: {
+      macro_process: 80,
+      lima_area: 70,
+      site_name: 65,
+      cost_group: 60,
+      cost_nature: 55,
+      prod_admin: 50,
+      cost_center_desc: 45,
+      supplier_name: 40,
+      fixed_variable: 35,
+      dynacor_group: 30,
+      transversal: 25,
+      period_label: 20,
+      scenario: 15,
+    },
+  };
 
-  score += baseByField[field.id] ?? 0;
+  score += priorities[source.id]?.[field.id] ?? 0;
 
   return score;
 }
@@ -3152,7 +3185,7 @@ function contextualSelectFilters(source: VaiSource, userPrompt: string, limit = 
   return source.fields
     .map((field) => ({
       field,
-      score: contextualFleetFilterScore(source, field, userPrompt),
+      score: contextualFilterScore(source, field, userPrompt),
     }))
     .filter((item) => Number.isFinite(item.score) && item.score > 0)
     .sort((a, b) => b.score - a.score || a.field.label.localeCompare(b.field.label, "es"))
@@ -3722,6 +3755,17 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = "", all
   const asksFleetPerformance =
     /\b(rendimiento|eficiencia|recorrido|recorridos|gps|kilometro|kilometros|km gal|l 100|autonomia|costo por km)\b/.test(promptText);
   const preferFuelRefuels = asksFuelConsumption && !asksFleetPerformance;
+  const asksMineralPaymentByLot =
+    /\b(?:mineral|lote|lotes)\b/.test(promptText) &&
+    /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos)\b/.test(promptText) &&
+    /\b(?:factura|facturas|facturado|facturados|compra|compras|contabilizado|contabilizados)\b/.test(promptText) &&
+    /\b(?:lote|lotes)\b/.test(promptText);
+
+  if (asksMineralPaymentByLot) {
+    notes.push(
+      "El pago efectivo de mineral se registra por asiento contable y puede cubrir varios lotes; no se atribuye ni se concilia por lote. El importe facturado/contabilizado por lote sí está disponible.",
+    );
+  }
 
   const prepared = enforceVisualRequests(output.dashboard.widgets, userPrompt, allowedSourceIds);
   const validated: VaiWidgetSpec[] = [];
@@ -3792,7 +3836,7 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = "", all
     const source = VAI_SOURCE_MAP.get(sourceId);
     if (!source) continue;
 
-    for (const filter of contextualSelectFilters(source, userPrompt)) {
+    for (const filter of contextualSelectFilters(source, userPrompt, sources.length > 1 ? 2 : 4)) {
       if (filters.length >= VAI_MAX_FILTERS) break;
 
       if (
