@@ -715,12 +715,11 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
             (value.to ?? defaults.to ?? "") !== (defaults.to ?? ""));
     });
     return (<div className="vai-board">
-      {loading ? (<div role="status" aria-live="polite" aria-busy="true" style={{ position: "fixed", inset: 0, zIndex: 30000, display: "grid", placeItems: "center", padding: 24, background: "rgba(3, 15, 22, .88)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", cursor: "wait" }}>
-          <style>{`@keyframes vaiLoadingFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.025)}}@keyframes vaiLoadingHalo{0%,100%{box-shadow:0 0 0 0 rgba(211,170,73,.1),0 20px 60px rgba(0,0,0,.35)}50%{box-shadow:0 0 0 16px rgba(211,170,73,.03),0 24px 72px rgba(0,0,0,.5)}}`}</style>
-          <div style={{ width: "min(520px, 94vw)", display: "grid", justifyItems: "center", gap: 16, padding: "28px 26px", textAlign: "center", border: "1px solid rgba(211,170,73,.35)", borderRadius: 18, background: "rgba(7, 26, 36, .96)", animation: "vaiLoadingHalo 1.8s ease-in-out infinite" }}>
-            <div style={{ animation: "vaiLoadingFloat 1.8s ease-in-out infinite" }}><VaiLogo size={92} title="V-Ai cargando datos"/></div>
-            <strong style={{ fontSize: 18, letterSpacing: ".02em" }}>Obteniendo datos de las fuentes</strong>
-            <span className="muted" style={{ maxWidth: 460, whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.5 }}>{loadingText || "Preparando consultas…"}</span>
+      {loading ? (<div className="vai-data-loading" role="status" aria-live="polite" aria-busy="true">
+          <div className="vai-data-loading-card">
+            <div className="vai-data-loading-logo"><VaiLogo size={118} title="V-Ai cargando datos"/></div>
+            <strong>Obteniendo datos de las fuentes</strong>
+            <span className="muted">{loadingText || "Preparando consultas…"}</span>
           </div>
         </div>) : null}
       <VaiExportProvider title={spec.title} context={exportContext} disabled={loading || sources.some((source) => Boolean(data[source.id]?.error))}>
@@ -1152,10 +1151,32 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
 }) {
     const [scaleChoice, setScaleChoice] = useState<"auto" | ChartScaleMode>("auto");
     const [sortChoice, setSortChoice] = useState<VaiSortMode>(widget.sort ?? "value_desc");
+    const [dimensionChoice, setDimensionChoice] = useState<string | null>(widget.dimension);
+    const [breakdownChoice, setBreakdownChoice] = useState<string | null>(widget.breakdown ?? null);
     const source = VAI_SOURCE_MAP.get(widget.source);
-    const hasSortableXAxis = Boolean(widget.dimension) && ["bar", "line", "area", "combo", "heatmap", "waterfall"].includes(widget.type);
-    useEffect(() => setSortChoice(widget.sort ?? "value_desc"), [widget]);
-    const effectiveWidget = useMemo(() => hasSortableXAxis ? { ...widget, sort: sortChoice } : widget, [widget, hasSortableXAxis, sortChoice]);
+    const dimensionOptions = useMemo(() => source
+        ? source.fields
+            .filter((field) => field.role === "dimension" && !/^(?:is_|has_)/.test(field.id))
+            .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }))
+        : [], [source]);
+    const hasAxisPicker = Boolean(widget.dimension) && ["bar", "line", "area", "combo"].includes(widget.type) && dimensionOptions.length > 1;
+    const hasBreakdownPicker = Boolean(widget.dimension) && ["bar", "line", "area", "combo"].includes(widget.type) && dimensionOptions.length > 1;
+    const activeDimension = hasAxisPicker ? dimensionChoice ?? widget.dimension : widget.dimension;
+    const activeBreakdown = hasBreakdownPicker
+        ? breakdownChoice === activeDimension ? null : breakdownChoice
+        : widget.breakdown ?? null;
+    const hasSortableXAxis = Boolean(activeDimension) && ["bar", "line", "area", "combo", "heatmap", "waterfall"].includes(widget.type);
+    useEffect(() => {
+        setSortChoice(widget.sort ?? "value_desc");
+        setDimensionChoice(widget.dimension);
+        setBreakdownChoice(widget.breakdown ?? null);
+    }, [widget.sort, widget.dimension, widget.breakdown]);
+    const effectiveWidget = useMemo(() => ({
+        ...widget,
+        dimension: activeDimension,
+        breakdown: activeBreakdown,
+        sort: hasSortableXAxis ? sortChoice : widget.sort,
+    }), [widget, activeDimension, activeBreakdown, hasSortableXAxis, sortChoice]);
     const result = useMemo(() => source && widget.type !== "matrix" ? computeWidget(effectiveWidget, source, rows) : null, [effectiveWidget, source, rows, widget.type]);
     const costSummary = useMemo(() => source?.id === "finance_costs" ? costSummaryText(rows, widget.metrics.some((id) => source.metrics.find((metric) => metric.id === id)?.format === "pen") ? "pen" : "usd") : "", [widget, source, rows]);
     if (source && widget.type === "matrix")
@@ -1164,12 +1185,12 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
         return <section className="trjk-card" role="alert">No se pudo resolver la fuente de este gráfico.</section>;
     if (result.kind === "unavailable")
         return <section className="trjk-card" role="status"><h3>{widget.title}</h3>{localControls ? <div data-vai-export-ignore style={{ marginBottom: 12 }}>{localControls}</div> : null}<p className="muted">{result.message}</p></section>;
-    const lineLike = widget.type === "line" || widget.type === "area";
-    const temporalAxis = Boolean(widget.dateField) && (lineLike || !widget.dimension);
+    const lineLike = effectiveWidget.type === "line" || effectiveWidget.type === "area";
+    const temporalAxis = Boolean(effectiveWidget.dateField) && (lineLike || !effectiveWidget.dimension);
     const axisLabel = temporalAxis
-        ? `por ${BUCKET_LABEL[widget.bucket ?? "month"]} de ${vaiField(source, widget.dateField ?? "")?.label ?? widget.dateField}`
-        : widget.dimension
-            ? `por ${vaiField(source, widget.dimension)?.label ?? widget.dimension}`
+        ? `por ${BUCKET_LABEL[effectiveWidget.bucket ?? "month"]} de ${vaiField(source, effectiveWidget.dateField ?? "")?.label ?? effectiveWidget.dateField}`
+        : effectiveWidget.dimension
+            ? `por ${vaiField(source, effectiveWidget.dimension)?.label ?? effectiveWidget.dimension}`
             : "";
     const extras = [
         result.kind === "series" && result.breakdown ? `una serie por ${result.breakdown.toLowerCase()}` : "",
@@ -1187,22 +1208,31 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
     const baseRender = lineLike ? "line" : "bar";
     const unitGroups = [...new Set(result.series.map((item) => chartAxisGroup(item.format)))];
     const explicitByUnit = new Map<string, "left" | "right">();
-    result.series.forEach((item, j) => {
-        const side = widget.seriesAxes?.[j];
-        if (side && !result.breakdown)
-            explicitByUnit.set(chartAxisGroup(item.format), side);
+    effectiveWidget.metrics.forEach((metricId, index) => {
+        const metric = source.metrics.find((item) => item.id === metricId);
+        const side = effectiveWidget.seriesAxes?.[index];
+        if (metric && side)
+            explicitByUnit.set(chartAxisGroup(metric.format), side);
     });
     const firstSide = explicitByUnit.get(unitGroups[0]) ?? (explicitByUnit.get(unitGroups[1]) === "left" ? "right" : "left");
-    const series: ChartSeries[] = result.series.map((item, j) => ({
-        label: item.label,
-        color: item.other ? CHART_OTHER : CHART_COLORS[j % CHART_COLORS.length],
-        digits: formats[j].digits,
-        unit: formats[j].unit,
-        axisKey: chartAxisGroup(item.format),
-        seriesType: widget.type === "pareto" ? (j === 0 ? "bar" : "line") : result.breakdown ? baseRender : widget.seriesTypes?.[j] ?? baseRender,
-        axisSide: widget.type === "pareto" ? (j === 0 ? "left" : "right") : (!result.breakdown ? widget.seriesAxes?.[j] : null) ?? (unitGroups.length === 1 && widget.seriesAxes?.some(Boolean) ? "left" : undefined) ?? explicitByUnit.get(chartAxisGroup(item.format)) ?? (chartAxisGroup(item.format) === unitGroups[0] ? firstSide : firstSide === "left" ? "right" : "left"),
-        axisRange: widget.type === "pareto" && j === 1 ? [0, 100] : undefined,
-    }));
+    const metricIndexForSeries = (seriesId: string) => {
+        const metricId = seriesId.split(":")[0];
+        const index = effectiveWidget.metrics.indexOf(metricId);
+        return index >= 0 ? index : 0;
+    };
+    const series: ChartSeries[] = result.series.map((item, j) => {
+        const metricIndex = metricIndexForSeries(item.id);
+        return {
+            label: item.label,
+            color: item.other ? CHART_OTHER : CHART_COLORS[j % CHART_COLORS.length],
+            digits: formats[j].digits,
+            unit: formats[j].unit,
+            axisKey: chartAxisGroup(item.format),
+            seriesType: effectiveWidget.type === "pareto" ? (j === 0 ? "bar" : "line") : effectiveWidget.seriesTypes?.[metricIndex] ?? baseRender,
+            axisSide: effectiveWidget.type === "pareto" ? (j === 0 ? "left" : "right") : effectiveWidget.seriesAxes?.[metricIndex] ?? (unitGroups.length === 1 && effectiveWidget.seriesAxes?.some(Boolean) ? "left" : undefined) ?? explicitByUnit.get(chartAxisGroup(item.format)) ?? (chartAxisGroup(item.format) === unitGroups[0] ? firstSide : firstSide === "left" ? "right" : "left"),
+            axisRange: effectiveWidget.type === "pareto" && j === 1 ? [0, 100] : undefined,
+        };
+    });
     const chartRows: ChartRow[] = result.rows.map((row) => ({
         key: row.key,
         label: row.label,
@@ -1224,6 +1254,24 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
         <option value="log" disabled={!logAllowed}>Logarítmica</option>
       </select>
     </label>) : null;
+    const axisControls = hasAxisPicker ? (<label className="vai-scale-control" style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }}>
+      <span>Eje X</span>
+      <select className="select" aria-label={`Campo del eje X de ${widget.title}`} value={activeDimension ?? ""} onChange={(event) => {
+            const next = event.target.value || null;
+            setDimensionChoice(next);
+            if (next && breakdownChoice === next)
+                setBreakdownChoice(null);
+        }} style={{ width: 170, minWidth: 170, maxWidth: 170 }}>
+        {dimensionOptions.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
+      </select>
+    </label>) : null;
+    const breakdownControls = hasBreakdownPicker ? (<label className="vai-scale-control" style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }}>
+      <span>Segregar</span>
+      <select className="select" aria-label={`Segregación de ${widget.title}`} value={activeBreakdown ?? ""} onChange={(event) => setBreakdownChoice(event.target.value || null)} style={{ width: 170, minWidth: 170, maxWidth: 170 }}>
+        <option value="">Sin desglose</option>
+        {dimensionOptions.filter((field) => field.id !== activeDimension).map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
+      </select>
+    </label>) : null;
     const sortControls = hasSortableXAxis ? (<label className="vai-scale-control" style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", minWidth: 0 }}>
       <span>Orden X</span>
       <select className="select" aria-label={`Orden del eje X de ${widget.title}`} value={sortChoice} onChange={(event) => setSortChoice(event.target.value as VaiSortMode)} style={{ width: 154, minWidth: 154, maxWidth: 154 }}>
@@ -1233,7 +1281,7 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
         <option value="label_desc">Z → A</option>
       </select>
     </label>) : null;
-    const controls = localControls || scaleControls || sortControls ? <>{localControls}{sortControls}{scaleControls}</> : undefined;
+    const controls = localControls || axisControls || breakdownControls || scaleControls || sortControls ? <>{localControls}{axisControls}{breakdownControls}{sortControls}{scaleControls}</> : undefined;
     const dataTable = <WidgetDataTables widget={effectiveWidget} source={source} table={result.table} subtitle={subtitle}/>;
     const wrap = (chart: ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }}>
     {chart}

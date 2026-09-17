@@ -2226,7 +2226,7 @@ export const VAI_WIDGET_TYPES = ["kpi", "line", "area", "bar", "combo", "rank", 
 export const VAI_VISUAL_CATALOG = [
     { type: "kpi", label: "Indicador", use: "Una métrica; total, razón ponderada o conteo según catálogo." },
     { type: "bar", label: "Barras", use: "Comparación categórica/temporal, agrupada, apilada o 100 %." },
-    { type: "combo", label: "Barras + líneas", use: "2–3 métricas, seriesTypes por métrica y hasta dos unidades/ejes Y." },
+    { type: "combo", label: "Barras + líneas", use: "2–3 métricas, seriesTypes por métrica y hasta dos unidades/ejes Y; con breakdown cada métrica se repite por categoría conservando su tipo de serie y eje." },
     { type: "line", label: "Líneas", use: "Tendencia temporal o eje X categórico; múltiples series y acumulado válido." },
     { type: "area", label: "Área", use: "Tendencia con relleno, sin inventar pronósticos." },
     { type: "rank", label: "Ranking", use: "Top N horizontal; no añade Otros salvo petición expresa." },
@@ -2842,7 +2842,7 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
         notes.push(`${label}: tiene más de dos unidades incompatibles; solicita gráficos separados.`);
         return null;
     }
-    const seriesAxes = SERIES_TYPES.has(type) && !breakdown
+    const seriesAxes = SERIES_TYPES.has(type)
         ? metrics.map((id) => raw.seriesAxes?.[raw.metrics.indexOf(id)] ?? null) : null;
     if (seriesAxes?.some(Boolean)) {
         for (const side of ["left", "right"] as const) {
@@ -2904,7 +2904,7 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     let stack: VaiStackMode | null = null;
     if (type === "bar" && rawStack) {
         const additive = metrics.every((id) => STACKABLE_AGGS.has(aggOf(id)));
-        const sameUnit = Boolean(breakdown) || (metrics.length >= 2 && new Set(metrics.map((id) => chartAxisGroup(vaiMetric(source, id)?.format ?? "decimal"))).size === 1);
+        const sameUnit = (Boolean(breakdown) && metrics.length === 1) || (metrics.length >= 2 && new Set(metrics.map((id) => chartAxisGroup(vaiMetric(source, id)?.format ?? "decimal"))).size === 1);
         if (!additive)
             notes.push(`${label}: solo se apilan métricas sumables (sumas o conteos); se muestran agrupadas.`);
         else if (!sameUnit)
@@ -3544,7 +3544,7 @@ export function resolveVisualRequests(prompt: string, allowedSourceIds?: string[
             const stackBy = text.match(/\bapilad[oa]s?\b[^,;.]*?\bpor\s+([^,;.]+)/)?.[1];
             const bd = hints.breakdown.map((h) => matchingField(h.value.join(" "), source)).find((f) => f && f.id !== dimension)
                 ?? (stackBy ? matchingField(stackBy, source) : null);
-            breakdown = type !== "combo" && bd && bd.id !== dimension ? bd.id : null;
+            breakdown = bd && bd.id !== dimension ? bd.id : null;
             if (type === "rank" && !dimension) {
                 const topTerm = text.match(/\btop\s*\d+\s+([^,;.]+)/)?.[1]?.split(/\bpor\b/)[0];
                 dimension = topTerm ? matchingField(topTerm, source)?.id ?? null : null;
@@ -3639,7 +3639,7 @@ function enforceVisualRequests(input: VaiRawWidget[], prompt: string, allowedSou
             seriesAxes: request.seriesAxes ?? (mixed && new Set(metrics.map((id) => chartAxisGroup(vaiMetric(source, id)?.format ?? "decimal"))).size === 2
                 ? metrics.map((id) => chartAxisGroup(vaiMetric(source, id)?.format ?? "decimal") === chartAxisGroup(vaiMetric(source, metrics[0])?.format ?? "decimal") ? "left" : "right") : null),
             dimension, dateField, bucket: dateField ? request.bucket ?? existing?.bucket ?? "month" : null,
-            breakdown: type === "combo" || type === "scatter" ? null : request.breakdown ?? existing?.breakdown ?? null,
+            breakdown: type === "scatter" ? null : request.breakdown ?? existing?.breakdown ?? null,
             stack: type === "bar" ? request.stack ?? existing?.stack ?? null : null,
             sort: request.sort ?? existing?.sort ?? null, sortMetric: request.sortMetric ?? existing?.sortMetric ?? null,
             cumulative: request.cumulative ?? existing?.cumulative ?? null,
@@ -3770,18 +3770,28 @@ function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"
             next.bucket = null;
             next.sort = "label_asc";
         }
-        if (next.dimension === "period_label" || next.breakdown === "period_label") {
+        if (next.dimension === "period_label") {
             next.metrics = [`cost_total_${currency}`];
             next.seriesTypes = next.type === "line" || next.type === "area" ? ["line"] : ["bar"];
         }
         const isCostAmount = next.metrics.some((id) => /^(?:cost_(?:total|real_\d{4}|ppto_\d{4})_|real_cost_|budget_cost_)/.test(id));
-        if (next.type === "bar" && next.dimension && next.dimension !== "period_label" && isCostAmount) {
+        if (next.type === "combo" && next.dimension && next.dimension !== "period_label" && wantsUsd && wantsPen) {
+            const renderFor = (suffix: "usd" | "pen", fallback: "bar" | "line") => {
+                const index = next.metrics.findIndex((id) => id.endsWith(`_${suffix}`));
+                return index >= 0 ? next.seriesTypes?.[index] ?? fallback : fallback;
+            };
+            next.metrics = ["cost_total_usd", "cost_total_pen"];
+            next.seriesTypes = [renderFor("usd", "bar"), renderFor("pen", "line")];
+            next.breakdown = "period_label";
+            next.stack = null;
+        }
+        else if (next.type === "bar" && next.dimension && next.dimension !== "period_label" && isCostAmount) {
             next.metrics = [`cost_total_${currency}`];
             next.breakdown = "period_label";
             next.seriesTypes = ["bar"];
             next.stack = null;
         }
-        else if (["bar", "line", "area", "table"].includes(next.type) && next.metrics.length === 1 && /^cost_total_/.test(next.metrics[0]) && next.dimension !== "period_label")
+        else if (["bar", "line", "area", "combo", "table"].includes(next.type) && next.metrics.length === 1 && /^cost_total_/.test(next.metrics[0]) && next.dimension !== "period_label")
             next.breakdown = "period_label";
         return next;
     });
@@ -5521,15 +5531,31 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
         if (rest > 0)
             notices.push(`${vaiField(source, breakdown)?.label ?? breakdown}: ${drawn.length} categorías y Otros (${rest}); los valores se recalculan sobre sus filas.`);
         const condition = (key: string): VaiCondition => (key === "Sin dato" ? { field: breakdown, op: "empty" } : { field: breakdown, op: "eq", value: key });
-        seriesMetrics = drawn.map((key) => ({ ...primary, id: `${primary.id}:${key}`, label: key, where: [...(primary.where ?? []), condition(key)] }));
-        series = drawn.map((key) => ({ id: `${primary.id}:${key}`, label: key, format: primary.format }));
-        if (rest > 0) {
-            const others: VaiCondition[] = drawn.includes("Sin dato")
-                ? [{ field: breakdown, op: "not_empty" }, { field: breakdown, op: "not_in", value: drawn.filter((key) => key !== "Sin dato") }]
-                : [{ field: breakdown, op: "not_in", value: drawn }];
-            seriesMetrics.push({ ...primary, id: `${primary.id}:__others`, label: `Otros (${rest})`, where: [...(primary.where ?? []), ...others] });
-            series.push({ id: `${primary.id}:__others`, label: `Otros (${rest})`, format: primary.format, other: true });
+        const others: VaiCondition[] = drawn.includes("Sin dato")
+            ? [{ field: breakdown, op: "not_empty" }, { field: breakdown, op: "not_in", value: drawn.filter((key) => key !== "Sin dato") }]
+            : [{ field: breakdown, op: "not_in", value: drawn }];
+        seriesMetrics = [];
+        series = [];
+        for (const metric of metrics) {
+            for (const key of drawn) {
+                const subset = byCategory.get(key) ?? [];
+                if (aggregate(metric, subset) == null)
+                    continue;
+                const id = `${metric.id}:${key}`;
+                const label = metrics.length > 1 ? `${metric.label} · ${key}` : key;
+                seriesMetrics.push({ ...metric, id, label, where: [...(metric.where ?? []), condition(key)] });
+                series.push({ id, label, format: metric.format });
+            }
+            if (rest > 0) {
+                const otherMetric: VaiMetric = { ...metric, id: `${metric.id}:__others`, label: `Otros (${rest})`, where: [...(metric.where ?? []), ...others] };
+                if (aggregate(otherMetric, base) != null) {
+                    seriesMetrics.push(otherMetric);
+                    series.push({ id: otherMetric.id, label: metrics.length > 1 ? `${metric.label} · Otros (${rest})` : `Otros (${rest})`, format: metric.format, other: true });
+                }
+            }
         }
+        if (!seriesMetrics.length)
+            return { kind: "unavailable", message: `No hay valores para desglosar por ${breakdownField?.label ?? breakdown}.` };
     }
     type Group = VaiGroupRow & {
         members: VaiRow[];
@@ -5707,7 +5733,7 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
         columns: [first, ...entryColumn, ...series, ...(showCount ? [{ id: "__count", label: "Filas", format: "integer" as const }] : [])],
         rows: grouped.map((row) => [row.label, ...(lotGrain ? [toText(row.members[0]?.entry_date)] : []), ...row.values, ...(showCount ? [row.count] : [])]),
         total: groupedTotal,
-        summaryRules: [null, ...entryColumn.map(() => null), ...seriesMetrics.map((metric) => (stack === "percent" ? null : summaryRule(widget, breakdown ? primary.id : metric.id, metric))),
+        summaryRules: [null, ...entryColumn.map(() => null), ...seriesMetrics.map((metric) => (stack === "percent" ? null : summaryRule(widget, breakdown ? metric.id.split(":")[0] : metric.id, metric))),
             ...(widget.type === "pareto" ? [{ operation: "max" as const, label: "Acumulado visible" }] : []), ...(showCount ? [{ operation: "sum" as const, label: "Total" }] : [])],
         rowMembers: grouped.map((row) => row.members),
     };

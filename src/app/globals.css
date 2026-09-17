@@ -301,6 +301,21 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-logo-stem-reveal { transform: translateY(35px); animation: vai-logo-stem var(--vai-logo-duration) var(--vai-logo-fall-ease) var(--vai-logo-delay) both; }
 .vai-logo-dust { fill: var(--brand-gold-light); opacity: 0; filter: drop-shadow(0 0 1px var(--brand-gold-light)); animation: vai-logo-dust var(--vai-logo-duration) var(--vai-logo-fall-ease) calc(var(--vai-logo-delay) + var(--vai-dust-delay)) both; }
 .vai-logo-dust:nth-child(even) { fill: var(--brand-gold); }
+.vai-data-loading { position: fixed; inset: 0; z-index: 30000; display: grid; place-items: center; padding: 24px; background: rgba(3, 15, 22, .92); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); cursor: wait; }
+.vai-data-loading-card { width: min(520px, 94vw); display: grid; justify-items: center; gap: 14px; padding: 30px 26px 26px; text-align: center; border: 1px solid rgba(255, 216, 130, .24); border-radius: var(--r-3); background: radial-gradient(circle at 50% 28%, rgba(27, 147, 227, .12), transparent 45%), var(--s-1); box-shadow: 0 28px 80px rgba(0, 0, 0, .5); }
+.vai-data-loading-logo { min-height: 118px; display: grid; place-items: center; }
+.vai-data-loading-logo .vai-logo { --vai-logo-delay: 0s; }
+.vai-data-loading-logo .vai-logo-foundation,
+.vai-data-loading-logo .vai-logo-a-leg,
+.vai-data-loading-logo .vai-logo-a-bar,
+.vai-data-loading-logo .vai-logo-star,
+.vai-data-loading-logo .vai-logo-spark,
+.vai-data-loading-logo .vai-logo-trail,
+.vai-data-loading-logo .vai-logo-launch,
+.vai-data-loading-logo .vai-logo-stem-reveal,
+.vai-data-loading-logo .vai-logo-dust { animation-iteration-count: infinite; }
+.vai-data-loading-card > strong { font-size: 18px; letter-spacing: .02em; }
+.vai-data-loading-card > span { max-width: 460px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
 @keyframes vai-logo-foundation {
   0% { opacity: 0; transform: translateY(3px); }
   12%, 100% { opacity: 1; transform: translateY(0); }
