@@ -1,398 +1,217 @@
 import { NextResponse } from "next/server";
 import { sessionWithScope } from "@/src/lib/auth/session";
-import {
-  VAI_AREAS,
-  VAI_BREAKDOWN_CHART_LIMIT,
-  VAI_BREAKDOWN_TABLE_LIMIT,
-  VAI_BUCKETS,
-  VAI_DATE_PRESETS,
-  VAI_MAX_FILTERS,
-  VAI_MAX_SOURCES,
-  VAI_MAX_WIDGETS,
-  VAI_PROMPT_MAX,
-  VAI_SORT_MODES,
-  VAI_SOURCES,
-  VAI_STACK_MODES,
-  VAI_SUMMARY_OPERATIONS,
-  VAI_WIDGET_TYPES,
-  VAI_VISUAL_CATALOG,
-  resolveVisualRequests,
-  coerceModelOutput,
-  limaToday,
-  promptRenderHints,
-  validateModelOutput,
-  type VaiArea,
-  type VaiChartPreference,
-  type VaiFocus,
-  type VaiModelOutput,
-  type VaiSource,
-  type VaiValidation,
-} from "@/src/lib/vai";
-
+import { VAI_AREAS, VAI_BREAKDOWN_CHART_LIMIT, VAI_BREAKDOWN_TABLE_LIMIT, VAI_BUCKETS, VAI_DATE_PRESETS, VAI_MAX_FILTERS, VAI_MAX_SOURCES, VAI_MAX_WIDGETS, VAI_PROMPT_MAX, VAI_SORT_MODES, VAI_SOURCES, VAI_STACK_MODES, VAI_SUMMARY_OPERATIONS, VAI_WIDGET_TYPES, VAI_VISUAL_CATALOG, resolveVisualRequests, coerceModelOutput, limaToday, promptRenderHints, validateModelOutput, type VaiArea, type VaiChartPreference, type VaiFocus, type VaiModelOutput, type VaiSource, type VaiValidation, } from "@/src/lib/vai";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
-
-// Configuración exclusivamente server-side; API_OPEN_AI no cambia.
 const VAI_OPENAI_MODEL = process.env.VAI_OPENAI_MODEL?.trim() || "gpt-5.4";
 const VAI_REASONING = ["low", "medium", "high"].includes(process.env.VAI_OPENAI_REASONING ?? "")
-  ? process.env.VAI_OPENAI_REASONING! : "medium";
+    ? process.env.VAI_OPENAI_REASONING! : "medium";
 const OPENAI_URL = "https://api.openai.com/v1/responses";
-const OPENAI_TIMEOUT_MS = 155_000;
+const OPENAI_TIMEOUT_MS = 155000;
 const MAX_CANDIDATES = 6;
-
 type VaiGenerateOptions = {
-  area: VaiArea | "auto";
-  focus: VaiFocus;
-  charts: VaiChartPreference[];
+    area: VaiArea | "auto";
+    focus: VaiFocus;
+    charts: VaiChartPreference[];
 };
-
 const STOP = new Set([
-  "de",
-  "la",
-  "el",
-  "los",
-  "las",
-  "y",
-  "o",
-  "un",
-  "una",
-  "por",
-  "para",
-  "con",
-  "del",
-  "en",
-  "que",
-  "quiero",
-  "ver",
-  "dashboard",
-  "me",
-  "su",
-  "sus",
-  "al",
-  "a",
-  "se",
-  "es",
-  "como",
-  "más",
-  "mas",
-  "mes",
-  "mensual",
-  "total",
-  "totales",
-  "evolución",
-  "evolucion",
-  "tendencia",
-  "resumen",
-  "cada",
+    "de",
+    "la",
+    "el",
+    "los",
+    "las",
+    "y",
+    "o",
+    "un",
+    "una",
+    "por",
+    "para",
+    "con",
+    "del",
+    "en",
+    "que",
+    "quiero",
+    "ver",
+    "dashboard",
+    "me",
+    "su",
+    "sus",
+    "al",
+    "a",
+    "se",
+    "es",
+    "como",
+    "más",
+    "mas",
+    "mes",
+    "mensual",
+    "total",
+    "totales",
+    "evolución",
+    "evolucion",
+    "tendencia",
+    "resumen",
+    "cada",
 ]);
-
 function tokens(text: string) {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .split(/[^a-z0-9]+/)
-    .filter(
-      (token) =>
-        token.length > 2 &&
-        !STOP.has(token),
-    );
+    return text
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .split(/[^a-z0-9]+/)
+        .filter((token) => token.length > 2 &&
+        !STOP.has(token));
 }
-
 function stem(token: string) {
-  return token.replace(/(es|s)$/, "");
+    return token.replace(/(es|s)$/, "");
 }
-
-function sourceScore(
-  source: VaiSource,
-  promptTokens: string[],
-) {
-  const bag =
-    new Map<string, number>();
-
-  const add = (
-    text: string,
-    weight: number,
-  ) => {
-    for (const token of tokens(text)) {
-      const key = stem(token);
-
-      bag.set(
-        key,
-        Math.max(
-          bag.get(key) ?? 0,
-          weight,
-        ),
-      );
+function sourceScore(source: VaiSource, promptTokens: string[]) {
+    const bag = new Map<string, number>();
+    const add = (text: string, weight: number) => {
+        for (const token of tokens(text)) {
+            const key = stem(token);
+            bag.set(key, Math.max(bag.get(key) ?? 0, weight));
+        }
+    };
+    add(source.name, 3);
+    add(source.description, 2);
+    add(source.keywords.join(" "), 3);
+    add(source.grain, 1);
+    for (const field of source.fields) {
+        add(`${field.label} ${field.id.replace(/_/g, " ")}`, 1.5);
     }
-  };
-
-  add(source.name, 3);
-  add(source.description, 2);
-  add(source.keywords.join(" "), 3);
-  add(source.grain, 1);
-
-  for (const field of source.fields) {
-    add(
-      `${field.label} ${field.id.replace(/_/g, " ")}`,
-      1.5,
-    );
-  }
-
-  for (const metric of source.metrics) {
-    add(
-      `${metric.label} ${metric.description}`,
-      1.5,
-    );
-  }
-
-  let score = 0;
-
-  for (const token of promptTokens) {
-    score +=
-      bag.get(stem(token)) ?? 0;
-  }
-
-  return score;
+    for (const metric of source.metrics) {
+        add(`${metric.label} ${metric.description}`, 1.5);
+    }
+    let score = 0;
+    for (const token of promptTokens) {
+        score +=
+            bag.get(stem(token)) ?? 0;
+    }
+    return score;
 }
-
-function selectCandidateSources(
-  prompt: string,
-  area: VaiArea | "auto",
-) {
-  const promptTokens =
-    tokens(prompt);
-
-  const promptTokenSet =
-    new Set(
-      promptTokens.map(stem),
-    );
-
-  const explicitlyRequested = (
-    source: VaiSource,
-  ) =>
-    source.keywords.some(
-      (keyword) => {
-        const required =
-          tokens(keyword).map(stem);
-
-        return (
-          required.length > 0 &&
-          required.every(
-            (token) =>
-              promptTokenSet.has(token),
-          )
-        );
-      },
-    );
-
-  const enabled =
-    VAI_SOURCES.filter(
-      (source) =>
-        source.enabled &&
-        (
-          !source.explicitOnly ||
-          explicitlyRequested(source)
-        ),
-    );
-
-  const pool =
-    area === "auto"
-      ? enabled
-      : enabled.filter(
-          (source) =>
-            source.area === area,
-        );
-
-  const scored = pool
-    .map((source) => ({
-      source,
-      score: sourceScore(
+function selectCandidateSources(prompt: string, area: VaiArea | "auto") {
+    const promptTokens = tokens(prompt);
+    const promptTokenSet = new Set(promptTokens.map(stem));
+    const explicitlyRequested = (source: VaiSource) => source.keywords.some((keyword) => {
+        const required = tokens(keyword).map(stem);
+        return (required.length > 0 &&
+            required.every((token) => promptTokenSet.has(token)));
+    });
+    const enabled = VAI_SOURCES.filter((source) => source.enabled &&
+        (!source.explicitOnly ||
+            explicitlyRequested(source)));
+    const pool = area === "auto"
+        ? enabled
+        : enabled.filter((source) => source.area === area);
+    const scored = pool
+        .map((source) => ({
         source,
-        promptTokens,
-      ),
+        score: sourceScore(source, promptTokens),
     }))
-    .sort(
-      (a, b) =>
-        b.score - a.score,
-    );
-
-  const positive =
-    scored.filter(
-      (item) => item.score > 0,
-    );
-
-  const picked =
-    (
-      positive.length
+        .sort((a, b) => b.score - a.score);
+    const positive = scored.filter((item) => item.score > 0);
+    const picked = (positive.length
         ? positive
-        : scored
-    )
-      .slice(
-        0,
-        MAX_CANDIDATES,
-      )
-      .map(
-        (item) => item.source,
-      );
-
-  if (area !== "auto") {
-    for (const source of pool) {
-      if (
-        !picked.includes(source) &&
-        picked.length <
-          MAX_CANDIDATES
-      ) {
-        picked.push(source);
-      }
+        : scored)
+        .slice(0, MAX_CANDIDATES)
+        .map((item) => item.source);
+    if (area !== "auto") {
+        for (const source of pool) {
+            if (!picked.includes(source) &&
+                picked.length <
+                    MAX_CANDIDATES) {
+                picked.push(source);
+            }
+        }
     }
-  }
-
-  return picked;
+    return picked;
 }
-
-function sourceContext(
-  source: VaiSource,
-) {
-  return {
-    id: source.id,
-    name: source.name,
-    area:
-      VAI_AREAS.find(
-        (item) =>
-          item.id === source.area,
-      )?.label ??
-      source.area,
-    description:
-      source.description,
-    grain: source.grain,
-    temporalMode:
-      source.temporalMode ??
-      "event",
-    defaultDateField:
-      source.defaultDateField ??
-      null,
-    serverFilters:
-      source.query
-        ? {
-            dateFields:
-              source.query
-                .dateFields,
-            dimensions:
-              source.query
-                .dimensions,
-            note:
-              "from/to del date_range se resuelven en SQL sobre estos campos; el resto se calcula en el navegador.",
-          }
-        : null,
-    rules: [
-      ...source.rules,
-      ...(
-        source.exclusions ??
-        []
-      ).map(
-        (c) =>
-          `Exclusión fija: ${c.field} ${c.op} ${JSON.stringify(c.value ?? "")}.`,
-      ),
-    ],
-    businessTerms:
-      source.keywords,
-    dateFields:
-      source.fields
-        .filter(
-          (field) =>
-            field.role === "date",
-        )
-        .map((field) => ({
-          id: field.id,
-          label: field.label,
-          description:
-            field.description,
-          filterKeywords:
-            field.dateFilterKeywords ??
-            [],
+function sourceContext(source: VaiSource) {
+    return {
+        id: source.id,
+        name: source.name,
+        area: VAI_AREAS.find((item) => item.id === source.area)?.label ??
+            source.area,
+        description: source.description,
+        grain: source.grain,
+        temporalMode: source.temporalMode ??
+            "event",
+        defaultDateField: source.defaultDateField ??
+            null,
+        serverFilters: source.query
+            ? {
+                dateFields: source.query
+                    .dateFields,
+                dimensions: source.query
+                    .dimensions,
+                note: "from/to del date_range se resuelven en SQL sobre estos campos; el resto se calcula en el navegador.",
+            }
+            : null,
+        rules: [
+            ...source.rules,
+            ...(source.exclusions ??
+                []).map((c) => `Exclusión fija: ${c.field} ${c.op} ${JSON.stringify(c.value ?? "")}.`),
+        ],
+        businessTerms: source.keywords,
+        dateFields: source.fields
+            .filter((field) => field.role === "date")
+            .map((field) => ({
+            id: field.id,
+            label: field.label,
+            description: field.description,
+            filterKeywords: field.dateFilterKeywords ??
+                [],
         })),
-    dimensions:
-      source.fields
-        .filter(
-          (field) =>
-            field.role ===
-            "dimension",
-        )
-        .map((field) => ({
-          id: field.id,
-          label: field.label,
-          description:
-            field.description,
+        dimensions: source.fields
+            .filter((field) => field.role ===
+            "dimension")
+            .map((field) => ({
+            id: field.id,
+            label: field.label,
+            description: field.description,
         })),
-    attributes:
-      source.fields
-        .filter(
-          (field) =>
+        attributes: source.fields
+            .filter((field) => field.role ===
+            "attribute" ||
             field.role ===
-              "attribute" ||
-            field.role ===
-              "measure",
-        )
-        .map((field) => ({
-          id: field.id,
-          label: field.label,
-          format:
-            field.format ??
-            "text",
-          description:
-            field.description,
-          tableOnly: true,
+                "measure")
+            .map((field) => ({
+            id: field.id,
+            label: field.label,
+            format: field.format ??
+                "text",
+            description: field.description,
+            tableOnly: true,
         })),
-    metrics:
-      source.metrics.map(
-        (metric) => ({
-          id: metric.id,
-          label: metric.label,
-          description:
-            metric.description,
-          agg: metric.agg,
-          format:
-            metric.format,
-          field:
-            metric.field ??
-            null,
-          field2:
-            metric.field2 ??
-            null,
-          distinctField:
-            metric.distinctField ??
-            null,
-          numerator:
-            metric.numerator ??
-            null,
-          denominator:
-            metric.denominator ??
-            null,
-          multiplier:
-            metric.multiplier ??
-            null,
-          weight:
-            metric.weight ??
-            null,
-          where:
-            metric.where ?? [],
-          whereAny:
-            metric.whereAny ?? [],
-        }),
-      ),
-    relations:
-      (
-        source.relations ??
-        []
-      ).map(
-        (relation) =>
-          `${relation.field} → ${relation.source}.${relation.targetField}: ${relation.description} (V-Ai v1 no cruza fuentes).`,
-      ),
-  };
+        metrics: source.metrics.map((metric) => ({
+            id: metric.id,
+            label: metric.label,
+            description: metric.description,
+            agg: metric.agg,
+            format: metric.format,
+            field: metric.field ??
+                null,
+            field2: metric.field2 ??
+                null,
+            distinctField: metric.distinctField ??
+                null,
+            numerator: metric.numerator ??
+                null,
+            denominator: metric.denominator ??
+                null,
+            multiplier: metric.multiplier ??
+                null,
+            weight: metric.weight ??
+                null,
+            where: metric.where ?? [],
+            whereAny: metric.whereAny ?? [],
+        })),
+        relations: (source.relations ??
+            []).map((relation) => `${relation.field} → ${relation.source}.${relation.targetField}: ${relation.description} (V-Ai v1 no cruza fuentes).`),
+    };
 }
-
 const SYSTEM_PROMPT = `Eres V-Ai, el diseñador de dashboards del ERP de Veta Dorada (minería aurífera, Perú). Recibes la petición de un usuario en lenguaje natural y un catálogo de fuentes de datos con sus campos, dimensiones, fechas y métricas permitidas. Diseñas un dashboard como especificación JSON; un renderer fijo lo dibuja y consulta los datos reales por su cuenta.
 
 Reglas obligatorias:
@@ -451,6 +270,9 @@ Reglas obligatorias:
 - Si una fuente snapshot ya expone una métrica o campo YTD, úsalo directamente. YTD de una métrica no significa "filtrar todas las fuentes del dashboard desde enero".
 - Prefiere una sola fuente cuando esa fuente ya contiene todos los conceptos pedidos. No agregues otra fuente solo porque existe una versión histórica/mensual del mismo concepto.
 - Todo filtro date_range debe incluir preset. Usa null si el usuario no pidió un período relativo. Valores permitidos: ${VAI_DATE_PRESETS.join(", ")}.
+- Los filtros financieros disponibles de lotes son entry_date, pay_date y valuation_date. Activa un rango solo para el evento pedido; los otros quedan sin límites y no excluyen nulos. Si el usuario no pide un evento, usa entry_date. No actives simultáneamente tres rangos por rutina.
+- Si pide por períodos, meses, mensual o YY_MMM, usa dateField válido y bucket="month"; el motor conserva claves YYYY-MM para ordenar y muestra YY_MMM. El selector permite períodos múltiples, incluso no contiguos. No sustituyas una agrupación mensual por un listado de fechas diarias.
+- finance_mineral_payments.doc_type (document_type de conta_payments) y payment_document_type son filtros locales de cada widget; el renderer los agrega automáticamente. Nunca los incluyas en dashboard.filters, nunca apliques esos filtros a los lotes ni a otros gráficos.
 - Todo filtro incluye from y to (YYYY-MM-DD o null). Para períodos absolutos guarda sus límites inclusivos y preset=null: "setiembre de 2026" o "septiembre de 2026" es from="2026-09-01", to="2026-09-30". Nunca sustituyas un mes solicitado por todo el año ni lo dejes solo en el título. Usa currentDateLima como referencia para fechas relativas, nunca supongas la fecha actual.
 - Si el usuario no indica período, usa desde 2026-01-01 hasta currentDateLima sobre defaultDateField de cada fuente de eventos. Si pide todo el histórico de forma explícita, no agregues rango. No apliques esta regla a fuentes snapshot.
 - serverFilters indica qué campos de fecha resuelve el backend en SQL: el date_range de una fuente debe usar preferentemente uno de esos dateFields para que la consulta descargue solo el período pedido.
@@ -458,8 +280,8 @@ Reglas obligatorias:
 - En Flota, usa Vales de combustible (fleet_fuel_refuels) como fuente principal para peticiones de consumo de combustible, galones, costo PEN, precio PEN por galón, abastecimientos, placas, conductores, sedes, grifos, tipo de combustible y tendencias temporales de consumo o costo. Usa Recorridos GPS diarios (fleet_gps_distance) cuando la petición esté centrada en kilómetros, distancia o actividad GPS. Usa Rendimiento de flota (fleet_performance) únicamente cuando sea necesario cruzar recorrido con combustible: rendimiento, eficiencia, km/gal, l/100 km, autonomía, consumo vs referencia o costo PEN por km. No uses fleet_performance para consumo o costo simple solo porque la petición mencione combustible.
 - Para un dashboard de combustible sin una petición explícita de rendimiento, construye los KPIs, gráficos, rankings y tablas con fleet_fuel_refuels. Prioriza galones abastecidos, costo PEN, costo promedio PEN por galón, consumo promedio por vehículo, cantidad de placas y tendencias temporales. En combustible de Flota no existe costo USD disponible para V-Ai: nunca generes widgets, métricas, ejes, títulos ni comparaciones de costo USD, precio USD por galón, exceso USD o costo USD por km. Ofrece filtros interactivos de negocio según los campos disponibles, priorizando Placa, Conductor, Sede y Tipo de combustible, y opcionalmente Grifo. Nunca uses Tiene combustible, Vehículo con ficha útil, has_fuel, has_gps, is_vehicle, is_tank_anomaly ni ninguna otra dimensión booleana como filtro interactivo.
 - Para una petición simple de Kardex, toma como referencia los KPIs actuales de KardexSum: guías, TMH enviadas, lotes por guía, USD facturado, USD Concar y diferencia; acompáñalos cuando corresponda con merma, tiempo de tránsito, tarifa media y TMH por guía. El importe oficial facturado es amount_usd de facturas; Concar es solo contraste contable.
-- En Trazabilidad, "ingresados", "procesados", "valorizados", "facturados" y "pagados" corresponden respectivamente a entry_date, process_date, valuation_date, doc_date y payment_date. Por lote, doc_date, doc_number, payment_date y lot_usd siguen la verdad VETA de dw.v_traceability_get: payment_date solo indica que el lote figura pagado y lot_usd es el monto facturado/valorizado, nunca el efectivo pagado. Para un dashboard típico prioriza lotes, proveedores, lotes sin valorización, lotes sin pago, USD/TMS promedio simple y leyes Au/Ag ponderadas por TMS. "Por sede/oficina" usa office_name (o zone_name para Sur/Norte/Sur Aqp); "programa" y "adicional" usan program_class. traceability_lots es la fuente operativa del lote; el pago efectivo está únicamente en finance_mineral_payments y no se atribuye por lote.
-- En Finanzas, facturación y estado de pago por lote usan finance_mineral_purchases: una fila por lote construida desde VETA con la misma lógica de dw.v_traceability_get, más los lotes 2025 pagados desde 2026; no usa conta_get para construir los valores del lote. invoice_reg_date es el registro VETA, "facturado" usa invoice_doc_date, "valorizado" valuation_date y "pagado" payment_date. lot_usd_total es el monto facturado/valorizado y tms_conta_total usa la misma TMS de traceability_get; lot_usd_purchase_docs y tms_conta_purchase_docs son solo alias compatibles. payment_date identifica el estado pagado, pero lot_usd y lot_usd_paid nunca son efectivo pagado. lot es alta cardinalidad: "por lote" usa table agrupada o de detalle y filtro select, nunca lot como eje X de gráficos. "Cuánto hemos pagado realmente por mineral" usa exclusivamente finance_mineral_payments.payment_usd_total, proveniente de conta_payments; es por asiento contable, neto de detracciones, puede cubrir varios lotes y nunca se atribuye a un lote.
+- En Trazabilidad, "ingresados", "procesados", "valorizados", "facturados" y "pagados" corresponden respectivamente a entry_date, process_date, valuation_date, doc_date y payment_date. Por lote, doc_date, doc_number, payment_date y lot_usd siguen la verdad CONCAR de dw.v_traceability_get: payment_date solo indica que el lote figura pagado y lot_usd es el monto facturado/valorizado, nunca el efectivo pagado. Para un dashboard típico prioriza lotes, proveedores, lotes sin valorización, lotes sin pago, USD/TMS promedio simple y leyes Au/Ag ponderadas por TMS. "Por sede/oficina" usa office_name (o zone_name para Sur/Norte/Sur Aqp); "programa" y "adicional" usan program_class. traceability_lots es la fuente operativa del lote; el pago efectivo está únicamente en finance_mineral_payments y no se atribuye por lote.
+- En Finanzas, facturación, valorización y estado de pago por lote usan finance_mineral_purchases, con exactamente el universo de dw.v_traceability_get, sin lotes históricos adicionales ni exclusión de lotes sin factura. lot_usd_total suma lot_usd tal como sale de traceability_get, nunca otro importe ni una reconstrucción. La etiqueta visible de la referencia contable es CONCAR. Fecha principal entry_date; por pago de lotes usa pay_date (alias de payment_date de traceability_get) y por valorización valuation_date. invoice_reg_date e invoice_doc_date son atributos informativos, no filtros de fecha financieros. Para tablas por lote incluye siempre lot y entry_date juntos, una fila por lote, sin rows_count, __count ni métricas de conteo por lote. El pago efectivo usa exclusivamente finance_mineral_payments.payment_usd_total, con payment_date como fecha principal y su universo conta_payments intacto. Nunca unir estas fuentes por lot, RUC, documento u otra clave ni repartir el pago de un comprobante entre lotes. Puedes presentar tendencias por período en gráficos separados, sin saldo o conciliación cruzada. El renderer actual usa una fuente por widget; no inventes un widget con métricas mezcladas de fuentes distintas.
 - En Finanzas, finance_costs es la fuente de costos y gastos de toda la empresa (contabilidad COS-001): cada fila lleva period_label (REAL 2025, REAL 2026 o PPTO 2026) y scenario (REAL/PPTO); nunca sumes escenarios distintos. Costo real = real_cost_usd / real_cost_pen (widgets separados por moneda); presupuesto = budget_cost_usd; real vs presupuesto = variance_usd, variance_pct o budget_execution_pct sobre el mismo recorte, o real y presupuesto lado a lado; amount_usd/amount_pen solo con period_label o scenario filtrado o desglosado por period_label. Las dimensiones disponibles (macro_process, lima_area, site_group/site_type/site_name, zone_name, cost_nature, prod_admin, cost_group, dynacor_group, fixed_variable, rrhh_nature/rrhh_type, transversal, account_desc, cost_center_desc, supplier_name, subledger, document_type, period_label) son equivalentes: usa la que nombre el usuario, sin preferir ninguna. "Costos de <un valor concreto>" = rank, bar o table por esa dimensión + filtro select sobre ella. Los importes ya tienen signo contable (sumar directo); no existe proyecto ni CAPEX; los datos empiezan en 2025-01-01, así que comparar años o meses usa posting_date con bucket year/month y un date_range que cubra ambos. real_cost_*_ex_mineral excluye el consumo de mineral. Usa plant_costs solo para USD/TMS de planta; no reconstruyas costos generales desde fuentes de otras áreas.
 - En Planta, plant_shifts es la fuente principal del balance; los costos por cuenta/CECO y USD/TMS usan plant_costs; los costos e insumos por guardia (reactivos y bolas) usan plant_consumables; las leyes de carbón en tanques usan plant_carbon_tanks; la conciliación planta vs Control de Mineral usa plant_cm_reconciliation. Los ratios kg/TMS y USD/TMS se calculan con las métricas declaradas (TMS contada una vez por guardia o mes), nunca sumando atributos repetidos.
 - En Refinería, el período es campaign_month; el costo por campaña, por gramo de Au o por kg de carbón está disponible en refinery_campaigns y por insumo/subproceso en refinery_consumption (real vs óptimo ML). Cada insumo conserva su unidad: cantidades y desviaciones de cantidad solo con un insumo filtrado o agrupado; los costos USD sí se consolidan.
@@ -478,907 +300,674 @@ Reglas obligatorias:
 - Si algo pedido puede construirse razonablemente con los campos o métricas existentes, constrúyelo y no lo pongas en "unavailable". Solo marca "partial" cuando realmente falta información en el catálogo. Si nada es posible, status "unavailable", dashboard null y explica en "message".
 - "message" se muestra al usuario: breve, en español, sin jerga técnica. Títulos en español, claros y cortos. Sin datos inventados.
 - Devuelve solo JSON válido según el esquema.`;
-
 const OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    status: {
-      type: "string",
-      enum: [
-        "ok",
-        "partial",
+    type: "object",
+    additionalProperties: false,
+    properties: {
+        status: {
+            type: "string",
+            enum: [
+                "ok",
+                "partial",
+                "unavailable",
+            ],
+        },
+        message: {
+            type: "string",
+        },
+        unavailable: {
+            type: "array",
+            items: {
+                type: "string",
+            },
+        },
+        dashboard: {
+            anyOf: [
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        title: {
+                            type: "string",
+                        },
+                        description: {
+                            type: "string",
+                        },
+                        filters: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                additionalProperties: false,
+                                properties: {
+                                    kind: {
+                                        type: "string",
+                                        enum: [
+                                            "date_range",
+                                            "select",
+                                        ],
+                                    },
+                                    source: {
+                                        type: "string",
+                                    },
+                                    field: {
+                                        type: "string",
+                                    },
+                                    label: {
+                                        type: "string",
+                                    },
+                                    preset: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                        enum: [
+                                            null,
+                                            ...VAI_DATE_PRESETS,
+                                        ],
+                                    },
+                                    from: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                        description: "Fecha inicial inclusiva YYYY-MM-DD para períodos absolutos; null para presets.",
+                                    },
+                                    to: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                        description: "Fecha final inclusiva YYYY-MM-DD para períodos absolutos; null para presets.",
+                                    },
+                                },
+                                required: [
+                                    "kind",
+                                    "source",
+                                    "field",
+                                    "label",
+                                    "preset",
+                                    "from",
+                                    "to",
+                                ],
+                            },
+                        },
+                        widgets: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                additionalProperties: false,
+                                properties: {
+                                    type: {
+                                        type: "string",
+                                        enum: [
+                                            ...VAI_WIDGET_TYPES,
+                                        ],
+                                    },
+                                    title: {
+                                        type: "string",
+                                    },
+                                    source: {
+                                        type: "string",
+                                    },
+                                    metrics: {
+                                        type: "array",
+                                        items: {
+                                            type: "string",
+                                        },
+                                    },
+                                    seriesTypes: {
+                                        type: [
+                                            "array",
+                                            "null",
+                                        ],
+                                        items: {
+                                            type: "string",
+                                            enum: [
+                                                "line",
+                                                "bar",
+                                            ],
+                                        },
+                                    },
+                                    dimension: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                    },
+                                    dateField: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                    },
+                                    bucket: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                        enum: [
+                                            null,
+                                            ...VAI_BUCKETS,
+                                        ],
+                                        description: `Grano temporal cuando hay dateField: ${VAI_BUCKETS.join(", ")}`,
+                                    },
+                                    limit: {
+                                        type: [
+                                            "integer",
+                                            "null",
+                                        ],
+                                    },
+                                    columns: {
+                                        type: [
+                                            "array",
+                                            "null",
+                                        ],
+                                        items: {
+                                            type: "string",
+                                        },
+                                    },
+                                    summaries: {
+                                        type: "array",
+                                        items: {
+                                            type: "object",
+                                            additionalProperties: false,
+                                            properties: {
+                                                column: {
+                                                    type: "string",
+                                                },
+                                                operation: {
+                                                    type: "string",
+                                                    enum: [
+                                                        ...VAI_SUMMARY_OPERATIONS,
+                                                    ],
+                                                },
+                                            },
+                                            required: [
+                                                "column",
+                                                "operation",
+                                            ],
+                                        },
+                                    },
+                                    breakdown: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                        description: "Segunda dimensión que divide la primera métrica en una serie por categoría (line, area, bar, table); null si no se pide.",
+                                    },
+                                    stack: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                        enum: [
+                                            null,
+                                            ...VAI_STACK_MODES,
+                                        ],
+                                        description: "Solo bar: stack = barras apiladas, percent = apiladas al 100 %; null = agrupadas.",
+                                    },
+                                    sort: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                        enum: [
+                                            null,
+                                            ...VAI_SORT_MODES,
+                                        ],
+                                        description: "Orden de las categorías del eje X; null = de mayor a menor por la primera métrica.",
+                                    },
+                                    sortMetric: {
+                                        type: [
+                                            "string",
+                                            "null",
+                                        ],
+                                        description: "Id de la métrica que decide el orden cuando no es la primera; null en caso contrario.",
+                                    },
+                                    seriesAxes: {
+                                        type: ["array", "null"],
+                                        items: { type: ["string", "null"], enum: [null, "left", "right"] },
+                                        description: "Lados Y alineados con metrics; null = automático por unidad.",
+                                    },
+                                    includeOthers: {
+                                        type: ["boolean", "null"],
+                                        description: "Añadir Otros al Top N solo si se solicita; null = solo anillo por defecto.",
+                                    },
+                                    bins: {
+                                        type: ["integer", "null"],
+                                        description: "Solo histogram: entre 3 y 40 intervalos de igual ancho, null = automático.",
+                                    },
+                                    cumulative: {
+                                        type: [
+                                            "boolean",
+                                            "null",
+                                        ],
+                                        description: "true acumula la serie a lo largo del eje temporal; null en caso contrario.",
+                                    },
+                                },
+                                required: [
+                                    "type",
+                                    "title",
+                                    "source",
+                                    "metrics",
+                                    "seriesTypes",
+                                    "seriesAxes",
+                                    "includeOthers",
+                                    "bins",
+                                    "dimension",
+                                    "dateField",
+                                    "bucket",
+                                    "limit",
+                                    "columns",
+                                    "summaries",
+                                    "breakdown",
+                                    "stack",
+                                    "sort",
+                                    "sortMetric",
+                                    "cumulative",
+                                ],
+                            },
+                        },
+                    },
+                    required: [
+                        "title",
+                        "description",
+                        "filters",
+                        "widgets",
+                    ],
+                },
+                {
+                    type: "null",
+                },
+            ],
+        },
+    },
+    required: [
+        "status",
+        "message",
         "unavailable",
-      ],
-    },
-    message: {
-      type: "string",
-    },
-    unavailable: {
-      type: "array",
-      items: {
-        type: "string",
-      },
-    },
-    dashboard: {
-      anyOf: [
-        {
-          type: "object",
-          additionalProperties:
-            false,
-          properties: {
-            title: {
-              type: "string",
-            },
-            description: {
-              type: "string",
-            },
-            filters: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties:
-                  false,
-                properties: {
-                  kind: {
-                    type: "string",
-                    enum: [
-                      "date_range",
-                      "select",
-                    ],
-                  },
-                  source: {
-                    type: "string",
-                  },
-                  field: {
-                    type: "string",
-                  },
-                  label: {
-                    type: "string",
-                  },
-                  preset: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                    enum: [
-                      null,
-                      ...VAI_DATE_PRESETS,
-                    ],
-                  },
-                  from: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                    description:
-                      "Fecha inicial inclusiva YYYY-MM-DD para períodos absolutos; null para presets.",
-                  },
-                  to: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                    description:
-                      "Fecha final inclusiva YYYY-MM-DD para períodos absolutos; null para presets.",
-                  },
-                },
-                required: [
-                  "kind",
-                  "source",
-                  "field",
-                  "label",
-                  "preset",
-                  "from",
-                  "to",
-                ],
-              },
-            },
-            widgets: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties:
-                  false,
-                properties: {
-                  type: {
-                    type: "string",
-                    enum: [
-                      ...VAI_WIDGET_TYPES,
-                    ],
-                  },
-                  title: {
-                    type: "string",
-                  },
-                  source: {
-                    type: "string",
-                  },
-                  metrics: {
-                    type: "array",
-                    items: {
-                      type: "string",
-                    },
-                  },
-                  seriesTypes: {
-                    type: [
-                      "array",
-                      "null",
-                    ],
-                    items: {
-                      type: "string",
-                      enum: [
-                        "line",
-                        "bar",
-                      ],
-                    },
-                  },
-                  dimension: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                  },
-                  dateField: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                  },
-                  bucket: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                    enum: [
-                      null,
-                      ...VAI_BUCKETS,
-                    ],
-                    description:
-                      `Grano temporal cuando hay dateField: ${VAI_BUCKETS.join(", ")}`,
-                  },
-                  limit: {
-                    type: [
-                      "integer",
-                      "null",
-                    ],
-                  },
-                  columns: {
-                    type: [
-                      "array",
-                      "null",
-                    ],
-                    items: {
-                      type: "string",
-                    },
-                  },
-                  summaries: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      additionalProperties:
-                        false,
-                      properties: {
-                        column: {
-                          type: "string",
-                        },
-                        operation: {
-                          type: "string",
-                          enum: [
-                            ...VAI_SUMMARY_OPERATIONS,
-                          ],
-                        },
-                      },
-                      required: [
-                        "column",
-                        "operation",
-                      ],
-                    },
-                  },
-                  breakdown: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                    description:
-                      "Segunda dimensión que divide la primera métrica en una serie por categoría (line, area, bar, table); null si no se pide.",
-                  },
-                  stack: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                    enum: [
-                      null,
-                      ...VAI_STACK_MODES,
-                    ],
-                    description:
-                      "Solo bar: stack = barras apiladas, percent = apiladas al 100 %; null = agrupadas.",
-                  },
-                  sort: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                    enum: [
-                      null,
-                      ...VAI_SORT_MODES,
-                    ],
-                    description:
-                      "Orden de las categorías del eje X; null = de mayor a menor por la primera métrica.",
-                  },
-                  sortMetric: {
-                    type: [
-                      "string",
-                      "null",
-                    ],
-                    description:
-                      "Id de la métrica que decide el orden cuando no es la primera; null en caso contrario.",
-                  },
-                  seriesAxes: {
-                    type: ["array", "null"],
-                    items: { type: ["string", "null"], enum: [null, "left", "right"] },
-                    description: "Lados Y alineados con metrics; null = automático por unidad.",
-                  },
-                  includeOthers: {
-                    type: ["boolean", "null"],
-                    description: "Añadir Otros al Top N solo si se solicita; null = solo anillo por defecto.",
-                  },
-                  bins: {
-                    type: ["integer", "null"],
-                    description: "Solo histogram: entre 3 y 40 intervalos de igual ancho, null = automático.",
-                  },
-                  cumulative: {
-                    type: [
-                      "boolean",
-                      "null",
-                    ],
-                    description:
-                      "true acumula la serie a lo largo del eje temporal; null en caso contrario.",
-                  },
-                },
-                required: [
-                  "type",
-                  "title",
-                  "source",
-                  "metrics",
-                  "seriesTypes",
-                  "seriesAxes",
-                  "includeOthers",
-                  "bins",
-                  "dimension",
-                  "dateField",
-                  "bucket",
-                  "limit",
-                  "columns",
-                  "summaries",
-                  "breakdown",
-                  "stack",
-                  "sort",
-                  "sortMetric",
-                  "cumulative",
-                ],
-              },
-            },
-          },
-          required: [
-            "title",
-            "description",
-            "filters",
-            "widgets",
-          ],
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-  },
-  required: [
-    "status",
-    "message",
-    "unavailable",
-    "dashboard",
-  ],
+        "dashboard",
+    ],
 };
-
-const FOCUS_TEXT: Record<
-  VaiFocus,
-  string
-> = {
-  auto:
-    "Automático: elige la mezcla de widgets más útil.",
-  kpis:
-    "Prioriza KPIs y un resumen compacto (varios kpi y pocos gráficos).",
-  trends:
-    "Prioriza tendencias temporales (line con bucket adecuado).",
-  comparisons:
-    "Prioriza comparaciones por dimensión (bar, combo, rank, donut, scatter o line categórico cuando el usuario lo pida).",
-  detail:
-    "Prioriza tablas de detalle o resumen (table).",
+const FOCUS_TEXT: Record<VaiFocus, string> = {
+    auto: "Automático: elige la mezcla de widgets más útil.",
+    kpis: "Prioriza KPIs y un resumen compacto (varios kpi y pocos gráficos).",
+    trends: "Prioriza tendencias temporales (line con bucket adecuado).",
+    comparisons: "Prioriza comparaciones por dimensión (bar, combo, rank, donut, scatter o line categórico cuando el usuario lo pida).",
+    detail: "Prioriza tablas de detalle o resumen (table).",
 };
-
 const CHART_PREFERENCE_TEXT: Record<VaiChartPreference, string> = {
-  kpi: "kpi",
-  line: "line (tendencias)",
-  area: "area (línea con relleno)",
-  bar: "bar (barras agrupadas o apiladas)",
-  combo: "combo (barras + líneas en un gráfico)",
-  rank: "rank (Top N horizontal)",
-  donut: "donut (distribución)",
-  scatter: "scatter (dispersión de dos métricas)",
-  pareto: "pareto (barras + porcentaje acumulado)",
-  heatmap: "heatmap (mapa de calor)",
-  histogram: "histogram (frecuencia por intervalos de registros)",
-  waterfall: "waterfall (cascada de aportes y total neto)",
-  table: "table",
+    kpi: "kpi",
+    line: "line (tendencias)",
+    area: "area (línea con relleno)",
+    bar: "bar (barras agrupadas o apiladas)",
+    combo: "combo (barras + líneas en un gráfico)",
+    rank: "rank (Top N horizontal)",
+    donut: "donut (distribución)",
+    scatter: "scatter (dispersión de dos métricas)",
+    pareto: "pareto (barras + porcentaje acumulado)",
+    heatmap: "heatmap (mapa de calor)",
+    histogram: "histogram (frecuencia por intervalos de registros)",
+    waterfall: "waterfall (cascada de aportes y total neto)",
+    table: "table",
 };
-
-/** Resumen legible de lo que el usuario pidió visualmente, para el contexto del modelo. */
-function visualInstructions(
-  prompt: string,
-) {
-  const hints =
-    promptRenderHints(prompt);
-
-  const items: string[] = [];
-
-  for (const hint of hints.renders) {
-    items.push(
-      `«${hint.term.join(" ")}» debe dibujarse como ${hint.render === "bar" ? "barras" : "línea"}`,
-    );
-  }
-
-  if (
-    hints.mentionsBars &&
-    hints.mentionsLines &&
-    !hints.renders.length
-  ) {
-    items.push(
-      "mezcla barras y líneas en un mismo gráfico (combo con seriesTypes)",
-    );
-  }
-
-  for (const family of hints.families) {
-    if (
-      family === "donut" ||
-      family === "rank" ||
-      family === "scatter" ||
-      family === "area"
-    ) {
-      items.push(
-        `pide un gráfico de tipo ${family}`,
-      );
+function visualInstructions(prompt: string) {
+    const hints = promptRenderHints(prompt);
+    const items: string[] = [];
+    for (const hint of hints.renders) {
+        items.push(`«${hint.term.join(" ")}» debe dibujarse como ${hint.render === "bar" ? "barras" : "línea"}`);
     }
-  }
-
-  for (const item of hints.stack) {
-    items.push(
-      item.value === "percent"
-        ? `barras apiladas al 100 % (stack percent) en el gráfico de «${item.context.join(" ")}»`
-        : `barras apiladas (stack) en el gráfico de «${item.context.join(" ")}»`,
-    );
-  }
-
-  for (const item of hints.cumulative) {
-    items.push(
-      `valores acumulados en el tiempo (cumulative true) en el gráfico de «${item.context.join(" ")}»`,
-    );
-  }
-
-  for (const item of hints.sort) {
-    items.push(
-      `orden ${item.value} en el gráfico de «${item.context.join(" ")}»`,
-    );
-  }
-
-  for (const item of hints.bucket) {
-    items.push(
-      `grano temporal ${item.value} en el gráfico de «${item.context.join(" ")}»`,
-    );
-  }
-
-  for (const item of hints.breakdown) {
-    items.push(
-      `una serie por «${item.value.join(" ")}» (breakdown con esa dimensión) en el gráfico de «${item.context.join(" ")}»`,
-    );
-  }
-
-  return items.length
-    ? items
-    : "ninguna instrucción visual explícita; elige la mezcla más útil";
-}
-
-class VaiGenerationError extends Error {
-  constructor(
-    message: string,
-    readonly detail?: string,
-  ) {
-    super(message);
-  }
-}
-
-async function generateDashboardSpec(
-  prompt: string,
-  options: VaiGenerateOptions,
-): Promise<{ output: VaiModelOutput; candidates: string[]; model: string; validation: VaiValidation }> {
-  const apiKey = process.env.API_OPEN_AI?.trim();
-  if (!apiKey) throw new VaiGenerationError("V-Ai no está configurado en este entorno.", "missing API_OPEN_AI");
-  const candidates = selectCandidateSources(prompt, options.area);
-  const ids = candidates.map((source) => source.id);
-  const compactGeneration =
-    candidates.length <= 3 &&
-    prompt.length <= 600 &&
-    options.charts.length <= 2;
-  const maxOutputTokens = compactGeneration ? 10000 : 20000;
-  const context = {
-    currentDateLima: limaToday(), defaultHistoryStart: "2026-01-01",
-    catalogIndex: VAI_SOURCES.filter((source) => source.enabled && (options.area === "auto" || source.area === options.area))
-      .map((source) => ({ id: source.id, name: source.name, area: source.area,
-        description: source.description, explicitOnly: source.explicitOnly ?? false, detailed: candidates.includes(source) })),
-    sources: candidates.map(sourceContext),
-    visualCatalog: VAI_VISUAL_CATALOG,
-    visualInstructions: visualInstructions(prompt),
-    explicitVisualRequests: resolveVisualRequests(prompt, ids),
-    preferences: { focus: FOCUS_TEXT[options.focus], preferredWidgets: options.charts.map((chart) => CHART_PREFERENCE_TEXT[chart]),
-      areaRestriction: options.area, generationMode: compactGeneration ? "compacto: prioriza 4 a 6 widgets útiles y evita redundancias" : "normal" },
-    request: prompt,
-  };
-  const deadline = Date.now() + OPENAI_TIMEOUT_MS;
-  let feedback: string[] = [];
-  let previous: VaiModelOutput | null = null;
-  // A lo sumo dos llamadas. La segunda solo repara un contrato incumplido.
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const remaining = deadline - Date.now();
-    if (remaining < 8_000) break;
-    const reasoningEffort = compactGeneration && attempt === 0 ? "low" : VAI_REASONING;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Math.min(remaining, attempt === 0 ? 100_000 : remaining));
-    let payload: unknown;
-    try {
-      const response = await fetch(OPENAI_URL, {
-        method: "POST", cache: "no-store", signal: controller.signal,
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: VAI_OPENAI_MODEL, store: false, max_output_tokens: maxOutputTokens,
-          ...(/^(?:gpt-[56]|o[134])/.test(VAI_OPENAI_MODEL) ? { reasoning: { effort: reasoningEffort } } : {}),
-          input: [
-            { role: "system", content: [{ type: "input_text", text: SYSTEM_PROMPT }] },
-            { role: "user", content: [{ type: "input_text", text: JSON.stringify({ ...context,
-              ...(attempt ? { repair: { instruction: "Repara el diseño completo. No basta cambiar títulos; corrige ids, tipos de serie y ejes. Solo datos del catálogo.",
-                problems: feedback, previousSpecification: previous } } : {}) }) }] },
-          ],
-          text: { format: { type: "json_schema", name: "vai_dashboard", strict: true, schema: OUTPUT_SCHEMA } },
-        }),
-      });
-      // El timeout cubre también la descarga y el parseo, no solo las cabeceras.
-      const bodyText = await response.text();
-      if (!response.ok) {
-        const message = response.status === 401 || response.status === 403
-          ? "La API de IA rechazó las credenciales o el acceso al modelo. Revisa la configuración de V-Ai."
-          : response.status === 429 ? "La API de IA alcanzó su límite de uso. Inténtalo nuevamente en unos minutos."
-          : response.status === 404 ? "El modelo configurado no está disponible para esta API. Revisa VAI_OPENAI_MODEL."
-          : "El servicio de IA devolvió un error. Inténtalo nuevamente.";
-        throw new VaiGenerationError(message, `openai status=${response.status} model=${VAI_OPENAI_MODEL}`);
-      }
-      try { payload = JSON.parse(bodyText); }
-      catch { throw new VaiGenerationError("La API de IA devolvió una respuesta que no es JSON."); }
-    } catch (error) {
-      if (error instanceof VaiGenerationError) throw error;
-      const aborted = controller.signal.aborted;
-      if (aborted && attempt === 0 && deadline - Date.now() > 15_000) {
-        feedback = ["La primera generación agotó su tiempo. Devuelve un diseño más compacto sin omitir el gráfico principal."];
-        continue;
-      }
-      throw new VaiGenerationError(aborted ? "La generación agotó su tiempo. No se guardó un diseño incompleto."
-        : "No se pudo contactar al servicio de IA.");
-    } finally { clearTimeout(timer); }
-    const record = payload as { status?: string; incomplete_details?: { reason?: string }; output?: unknown[] };
-    if (record.status === "incomplete" || record.status === "failed") {
-      feedback = [`Respuesta ${record.status}: ${record.incomplete_details?.reason ?? "sin diseño completo"}. Devuelve un diseño compacto válido.`];
-      continue;
+    if (hints.mentionsBars &&
+        hints.mentionsLines &&
+        !hints.renders.length) {
+        items.push("mezcla barras y líneas en un mismo gráfico (combo con seriesTypes)");
     }
-    const text = extractOutputText(payload);
-    let parsed: unknown = null;
-    try { parsed = JSON.parse(text); } catch { /* se repara una sola vez */ }
-    const output = coerceModelOutput(parsed);
-    if (!output) { feedback = ["Falta una respuesta JSON completa conforme al esquema."]; continue; }
-    previous = output;
-    const validation = validateModelOutput(output, prompt, ids);
-    if (validation.issues?.length) { feedback = validation.issues; continue; }
-    return { output, candidates: ids, model: VAI_OPENAI_MODEL, validation };
-  }
-  throw new VaiGenerationError(
-    `No se pudo construir un diseño que respete la solicitud. ${feedback.slice(0, 2).join(" ")}`,
-    `visual contract not satisfied model=${VAI_OPENAI_MODEL}`,
-  );
-}
-
-function extractOutputText(
-  payload: unknown,
-) {
-  if (
-    typeof payload !==
-      "object" ||
-    payload === null
-  ) {
-    return "";
-  }
-
-  const record =
-    payload as {
-      output_text?: unknown;
-      output?: unknown;
-    };
-
-  if (
-    typeof record.output_text ===
-    "string"
-  ) {
-    return record.output_text;
-  }
-
-  if (
-    !Array.isArray(
-      record.output,
-    )
-  ) {
-    return "";
-  }
-
-  for (
-    const block of
-    record.output
-  ) {
-    const content =
-      (
-        block as {
-          content?: unknown;
+    for (const family of hints.families) {
+        if (family === "donut" ||
+            family === "rank" ||
+            family === "scatter" ||
+            family === "area") {
+            items.push(`pide un gráfico de tipo ${family}`);
         }
-      ).content;
-
-    if (
-      !Array.isArray(
-        content,
-      )
-    ) {
-      continue;
     }
-
-    for (
-      const part of content
-    ) {
-      const item =
-        part as {
-          type?: unknown;
-          text?: unknown;
-        };
-
-      if (
-        item.type ===
-          "output_text" &&
-        typeof item.text ===
-          "string"
-      ) {
-        return item.text;
-      }
+    for (const item of hints.stack) {
+        items.push(item.value === "percent"
+            ? `barras apiladas al 100 % (stack percent) en el gráfico de «${item.context.join(" ")}»`
+            : `barras apiladas (stack) en el gráfico de «${item.context.join(" ")}»`);
     }
-  }
-
-  return "";
+    for (const item of hints.cumulative) {
+        items.push(`valores acumulados en el tiempo (cumulative true) en el gráfico de «${item.context.join(" ")}»`);
+    }
+    for (const item of hints.sort) {
+        items.push(`orden ${item.value} en el gráfico de «${item.context.join(" ")}»`);
+    }
+    for (const item of hints.bucket) {
+        items.push(`grano temporal ${item.value} en el gráfico de «${item.context.join(" ")}»`);
+    }
+    for (const item of hints.breakdown) {
+        items.push(`una serie por «${item.value.join(" ")}» (breakdown con esa dimensión) en el gráfico de «${item.context.join(" ")}»`);
+    }
+    return items.length
+        ? items
+        : "ninguna instrucción visual explícita; elige la mezcla más útil";
 }
-
-const FOCUS: VaiFocus[] = [
-  "auto",
-  "kpis",
-  "trends",
-  "comparisons",
-  "detail",
-];
-
-const CHARTS: readonly VaiChartPreference[] = VAI_WIDGET_TYPES;
-
-export async function POST(
-  req: Request,
-) {
-  const session =
-    await sessionWithScope(
-      req,
-      "vai",
-    );
-
-  if (!session) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "No autorizado",
-      },
-      {
-        status: 401,
-      },
-    );
-  }
-
-  const body =
-    (
-      await req
-        .json()
-        .catch(
-          () => ({}),
-        )
-    ) as {
-      prompt?: unknown;
-      area?: unknown;
-      focus?: unknown;
-      charts?: unknown;
+class VaiGenerationError extends Error {
+    constructor(message: string, readonly detail?: string) {
+        super(message);
+    }
+}
+async function generateDashboardSpec(prompt: string, options: VaiGenerateOptions): Promise<{
+    output: VaiModelOutput;
+    candidates: string[];
+    model: string;
+    validation: VaiValidation;
+}> {
+    const apiKey = process.env.API_OPEN_AI?.trim();
+    if (!apiKey)
+        throw new VaiGenerationError("V-Ai no está configurado en este entorno.", "missing API_OPEN_AI");
+    const candidates = selectCandidateSources(prompt, options.area);
+    const ids = candidates.map((source) => source.id);
+    const compactGeneration = candidates.length <= 3 &&
+        prompt.length <= 600 &&
+        options.charts.length <= 2;
+    const maxOutputTokens = compactGeneration ? 10000 : 20000;
+    const context = {
+        currentDateLima: limaToday(), defaultHistoryStart: "2026-01-01",
+        catalogIndex: VAI_SOURCES.filter((source) => source.enabled && (options.area === "auto" || source.area === options.area))
+            .map((source) => ({ id: source.id, name: source.name, area: source.area,
+            description: source.description, explicitOnly: source.explicitOnly ?? false, detailed: candidates.includes(source) })),
+        sources: candidates.map(sourceContext),
+        visualCatalog: VAI_VISUAL_CATALOG,
+        visualInstructions: visualInstructions(prompt),
+        explicitVisualRequests: resolveVisualRequests(prompt, ids),
+        preferences: { focus: FOCUS_TEXT[options.focus], preferredWidgets: options.charts.map((chart) => CHART_PREFERENCE_TEXT[chart]),
+            areaRestriction: options.area, generationMode: compactGeneration ? "compacto: prioriza 4 a 6 widgets útiles y evita redundancias" : "normal" },
+        request: prompt,
     };
-
-  const prompt =
-    String(
-      body.prompt ?? "",
-    )
-      .replace(/[ \t]+/g, " ")
-      .trim();
-
-  if (
-    prompt.length < 8
-  ) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "Describe con más detalle el dashboard que quieres.",
-      },
-      {
-        status: 400,
-      },
-    );
-  }
-
-  if (
-    prompt.length >
-    VAI_PROMPT_MAX
-  ) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          `El prompt supera los ${VAI_PROMPT_MAX} caracteres.`,
-      },
-      {
-        status: 400,
-      },
-    );
-  }
-
-  const areaRaw =
-    String(
-      body.area ??
-        "auto",
-    );
-
-  const area:
-    VaiArea | "auto" =
-      VAI_AREAS.some(
-        (item) =>
-          item.id === areaRaw,
-      )
-        ? (
-            areaRaw as VaiArea
-          )
+    const deadline = Date.now() + OPENAI_TIMEOUT_MS;
+    let feedback: string[] = [];
+    let previous: VaiModelOutput | null = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const remaining = deadline - Date.now();
+        if (remaining < 8000)
+            break;
+        const reasoningEffort = compactGeneration && attempt === 0 ? "low" : VAI_REASONING;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), Math.min(remaining, attempt === 0 ? 100000 : remaining));
+        let payload: unknown;
+        try {
+            const response = await fetch(OPENAI_URL, {
+                method: "POST", cache: "no-store", signal: controller.signal,
+                headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: VAI_OPENAI_MODEL, store: false, max_output_tokens: maxOutputTokens,
+                    ...(/^(?:gpt-[56]|o[134])/.test(VAI_OPENAI_MODEL) ? { reasoning: { effort: reasoningEffort } } : {}),
+                    input: [
+                        { role: "system", content: [{ type: "input_text", text: SYSTEM_PROMPT }] },
+                        { role: "user", content: [{ type: "input_text", text: JSON.stringify({ ...context,
+                                        ...(attempt ? { repair: { instruction: "Repara el diseño completo. No basta cambiar títulos; corrige ids, tipos de serie y ejes. Solo datos del catálogo.",
+                                                problems: feedback, previousSpecification: previous } } : {}) }) }] },
+                    ],
+                    text: { format: { type: "json_schema", name: "vai_dashboard", strict: true, schema: OUTPUT_SCHEMA } },
+                }),
+            });
+            const bodyText = await response.text();
+            if (!response.ok) {
+                const message = response.status === 401 || response.status === 403
+                    ? "La API de IA rechazó las credenciales o el acceso al modelo. Revisa la configuración de V-Ai."
+                    : response.status === 429 ? "La API de IA alcanzó su límite de uso. Inténtalo nuevamente en unos minutos."
+                        : response.status === 404 ? "El modelo configurado no está disponible para esta API. Revisa VAI_OPENAI_MODEL."
+                            : "El servicio de IA devolvió un error. Inténtalo nuevamente.";
+                throw new VaiGenerationError(message, `openai status=${response.status} model=${VAI_OPENAI_MODEL}`);
+            }
+            try {
+                payload = JSON.parse(bodyText);
+            }
+            catch {
+                throw new VaiGenerationError("La API de IA devolvió una respuesta que no es JSON.");
+            }
+        }
+        catch (error) {
+            if (error instanceof VaiGenerationError)
+                throw error;
+            const aborted = controller.signal.aborted;
+            if (aborted && attempt === 0 && deadline - Date.now() > 15000) {
+                feedback = ["La primera generación agotó su tiempo. Devuelve un diseño más compacto sin omitir el gráfico principal."];
+                continue;
+            }
+            throw new VaiGenerationError(aborted ? "La generación agotó su tiempo. No se guardó un diseño incompleto."
+                : "No se pudo contactar al servicio de IA.");
+        }
+        finally {
+            clearTimeout(timer);
+        }
+        const record = payload as {
+            status?: string;
+            incomplete_details?: {
+                reason?: string;
+            };
+            output?: unknown[];
+        };
+        if (record.status === "incomplete" || record.status === "failed") {
+            feedback = [`Respuesta ${record.status}: ${record.incomplete_details?.reason ?? "sin diseño completo"}. Devuelve un diseño compacto válido.`];
+            continue;
+        }
+        const text = extractOutputText(payload);
+        let parsed: unknown = null;
+        try {
+            parsed = JSON.parse(text);
+        }
+        catch { }
+        const output = coerceModelOutput(parsed);
+        if (!output) {
+            feedback = ["Falta una respuesta JSON completa conforme al esquema."];
+            continue;
+        }
+        previous = output;
+        const validation = validateModelOutput(output, prompt, ids);
+        if (validation.issues?.length) {
+            feedback = validation.issues;
+            continue;
+        }
+        return { output, candidates: ids, model: VAI_OPENAI_MODEL, validation };
+    }
+    throw new VaiGenerationError(`No se pudo construir un diseño que respete la solicitud. ${feedback.slice(0, 2).join(" ")}`, `visual contract not satisfied model=${VAI_OPENAI_MODEL}`);
+}
+function extractOutputText(payload: unknown) {
+    if (typeof payload !==
+        "object" ||
+        payload === null) {
+        return "";
+    }
+    const record = payload as {
+        output_text?: unknown;
+        output?: unknown;
+    };
+    if (typeof record.output_text ===
+        "string") {
+        return record.output_text;
+    }
+    if (!Array.isArray(record.output)) {
+        return "";
+    }
+    for (const block of record.output) {
+        const content = (block as {
+            content?: unknown;
+        }).content;
+        if (!Array.isArray(content)) {
+            continue;
+        }
+        for (const part of content) {
+            const item = part as {
+                type?: unknown;
+                text?: unknown;
+            };
+            if (item.type ===
+                "output_text" &&
+                typeof item.text ===
+                    "string") {
+                return item.text;
+            }
+        }
+    }
+    return "";
+}
+const FOCUS: VaiFocus[] = [
+    "auto",
+    "kpis",
+    "trends",
+    "comparisons",
+    "detail",
+];
+const CHARTS: readonly VaiChartPreference[] = VAI_WIDGET_TYPES;
+export async function POST(req: Request) {
+    const session = await sessionWithScope(req, "vai");
+    if (!session) {
+        return NextResponse.json({
+            ok: false,
+            error: "No autorizado",
+        }, {
+            status: 401,
+        });
+    }
+    const body = (await req
+        .json()
+        .catch(() => ({}))) as {
+        prompt?: unknown;
+        area?: unknown;
+        focus?: unknown;
+        charts?: unknown;
+    };
+    const prompt = String(body.prompt ?? "")
+        .replace(/[ \t]+/g, " ")
+        .trim();
+    if (prompt.length < 8) {
+        return NextResponse.json({
+            ok: false,
+            error: "Describe con más detalle el dashboard que quieres.",
+        }, {
+            status: 400,
+        });
+    }
+    if (prompt.length >
+        VAI_PROMPT_MAX) {
+        return NextResponse.json({
+            ok: false,
+            error: `El prompt supera los ${VAI_PROMPT_MAX} caracteres.`,
+        }, {
+            status: 400,
+        });
+    }
+    const areaRaw = String(body.area ??
+        "auto");
+    const area: VaiArea | "auto" = VAI_AREAS.some((item) => item.id === areaRaw)
+        ? (areaRaw as VaiArea)
         : "auto";
-
-  const focusRaw =
-    String(
-      body.focus ??
-        "auto",
-    ) as VaiFocus;
-
-  const focus =
-    FOCUS.includes(
-      focusRaw,
-    )
-      ? focusRaw
-      : "auto";
-
-  const charts =
-    Array.isArray(
-      body.charts,
-    )
-      ? body.charts
-          .map(String)
-          .filter(
-            (
-              c,
-            ): c is VaiChartPreference =>
-              CHARTS.includes(
-                c as VaiChartPreference,
-              ),
-          )
-      : [];
-
-  const promptIntent =
-    prompt
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
-
-  const mineralContext =
-    /\b(?:mineral|minero|mineros|lote|lotes|acopio)\b/.test(
-      promptIntent,
-    );
-
-  const pendingMineralFlow =
-    mineralContext &&
-    /\b(?:sin|pendiente|pendientes|falta|faltan|no)\s+(?:de\s+)?(?:pago|pagos|pagar|pagado|pagados|factura|facturas|facturado|facturados|valorizacion|valorizar|valorizado|valorizados)\b/.test(
-      promptIntent,
-    );
-
-  const mineralFinanceIntent =
-    mineralContext &&
-    /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos|factura|facturas|facturado|facturados|compra|compras|comprado|comprados|contable|contabilidad|contabilizado|contabilizados|provision|provisiones|proveedor|proveedores|usd|tms)\b/.test(
-      promptIntent,
-    );
-
-  const domainSpecificCostIntent =
-    /\b(?:combustible|combustibles|galon|galones|flota|vehiculo|vehiculos|refineria|reactivo|reactivos|planta|kardex|trjkar|logistica|almacen|stock|activo|activos|depreciacion)\b/.test(
-      promptIntent,
-    );
-
-  const corporateFinanceIntent =
-    !domainSpecificCostIntent &&
-    (
-      /\b(?:costo|costos|gasto|gastos|presupuesto|ppto|opex|macroproceso|macroprocesos|ceco|cecos|dynacor|contabilidad|contable|finanzas)\b/.test(
-        promptIntent,
-      ) ||
-      /\bcentros? de costo\b/.test(
-        promptIntent,
-      ) ||
-      /\b(?:real|reales)\b.*\b(?:presupuesto|ppto)\b|\b(?:presupuesto|ppto)\b.*\b(?:real|reales)\b/.test(
-        promptIntent,
-      )
-    );
-
-  const generationArea:
-    VaiArea | "auto" =
-      area !== "auto"
+    const focusRaw = String(body.focus ??
+        "auto") as VaiFocus;
+    const focus = FOCUS.includes(focusRaw)
+        ? focusRaw
+        : "auto";
+    const charts = Array.isArray(body.charts)
+        ? body.charts
+            .map(String)
+            .filter((c): c is VaiChartPreference => CHARTS.includes(c as VaiChartPreference))
+        : [];
+    const promptIntent = prompt
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    const mineralContext = /\b(?:mineral|minero|mineros|lote|lotes|acopio)\b/.test(promptIntent);
+    const pendingMineralFlow = mineralContext &&
+        /\b(?:sin|pendiente|pendientes|falta|faltan|no)\s+(?:de\s+)?(?:pago|pagos|pagar|pagado|pagados|factura|facturas|facturado|facturados|valorizacion|valorizar|valorizado|valorizados)\b/.test(promptIntent);
+    const mineralFinanceIntent = mineralContext &&
+        /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos|factura|facturas|facturado|facturados|compra|compras|comprado|comprados|contable|contabilidad|contabilizado|contabilizados|provision|provisiones|proveedor|proveedores|usd|tms)\b/.test(promptIntent);
+    const domainSpecificCostIntent = /\b(?:combustible|combustibles|galon|galones|flota|vehiculo|vehiculos|refineria|reactivo|reactivos|planta|kardex|trjkar|logistica|almacen|stock|activo|activos|depreciacion)\b/.test(promptIntent);
+    const corporateFinanceIntent = !domainSpecificCostIntent &&
+        (/\b(?:costo|costos|gasto|gastos|presupuesto|ppto|opex|macroproceso|macroprocesos|ceco|cecos|dynacor|contabilidad|contable|finanzas)\b/.test(promptIntent) ||
+            /\bcentros? de costo\b/.test(promptIntent) ||
+            /\b(?:real|reales)\b.*\b(?:presupuesto|ppto)\b|\b(?:presupuesto|ppto)\b.*\b(?:real|reales)\b/.test(promptIntent));
+    const generationArea: VaiArea | "auto" = area !== "auto"
         ? area
         : pendingMineralFlow
-          ? "traceability"
-          : mineralFinanceIntent ||
-              corporateFinanceIntent
-            ? "finance"
-            : "auto";
-
-  const comparisonIntent =
-    /\b(?:vs|versus|contra|comparar|compara|comparacion|diferencia|diferencias)\b/.test(
-      promptIntent,
-    );
-
-  const generationFocus:
-    VaiFocus =
-      focus === "auto" &&
-      comparisonIntent
+            ? "traceability"
+            : mineralFinanceIntent ||
+                corporateFinanceIntent
+                ? "finance"
+                : "auto";
+    const comparisonIntent = /\b(?:vs|versus|contra|comparar|compara|comparacion|diferencia|diferencias)\b/.test(promptIntent);
+    const generationFocus: VaiFocus = focus === "auto" &&
+        comparisonIntent
         ? "comparisons"
         : focus;
-
-  const mineralPaymentByLotComparison =
-    mineralContext &&
-    /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos)\b/.test(promptIntent) &&
-    /\b(?:lote|lotes)\b/.test(promptIntent);
-
-  const generationPrompt =
-    mineralPaymentByLotComparison
-      ? `${prompt}\n\nReglas: por lote, la fuente de verdad es VETA con la misma lógica de traceability_get. En Finanzas usa finance_mineral_purchases: payment_date identifica que el lote figura pagado y lot_usd_total es el monto facturado/valorizado del lote; nunca presentes lot_usd ni lot_usd_paid como pago efectivo. El pago efectivo usa únicamente finance_mineral_payments.payment_usd_total, proviene de conta_payments y no se atribuye a lotes. Mantén ambos conceptos separados.`
-      : prompt;
-
-  try {
-    const {
-      output,
-      candidates,
-      model,
-      validation,
-    } =
-      await generateDashboardSpec(
-        generationPrompt,
-        {
-          area: generationArea,
-          focus: generationFocus,
-          charts,
-        },
-      );
-
-    const {
-      spec,
-      notes,
-    } =
-      validation;
-
-    if (!spec) {
-      const unavailable =
-        [
-          ...new Set([
-            ...output.unavailable,
-            ...notes,
-          ]),
+    const mineralPaymentByLotComparison = mineralContext &&
+        /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos)\b/.test(promptIntent) &&
+        /\b(?:lote|lotes)\b/.test(promptIntent);
+    const generationPrompt = mineralPaymentByLotComparison
+        ? `${prompt}\n\nReglas: por lote usa finance_mineral_purchases con el universo exacto de traceability_get y lot_usd sin recalcular. Referencia visible CONCAR. lot siempre junto a entry_date, sin contador de filas. entry_date es fecha principal; pay_date identifica pago del lote y valuation_date su valorización. Pago efectivo: finance_mineral_payments.payment_usd_total de conta_payments, con payment_date como fecha principal. Son universos separados, sin cruce por lote. doc_type y payment_document_type son filtros locales por widget de pagos.`
+        : prompt;
+    try {
+        const { output, candidates, model, validation, } = await generateDashboardSpec(generationPrompt, {
+            area: generationArea,
+            focus: generationFocus,
+            charts,
+        });
+        const { spec, notes, } = validation;
+        if (!spec) {
+            const unavailable = [
+                ...new Set([
+                    ...output.unavailable,
+                    ...notes,
+                ]),
+            ];
+            return NextResponse.json({
+                ok: true,
+                status: "unavailable",
+                message: output.message ||
+                    "Actualmente no existe información disponible en V-Ai para construir ese dashboard.",
+                unavailable,
+                spec: null,
+                candidates,
+            });
+        }
+        const unavailable = [
+            ...new Set(notes),
         ];
-
-      return NextResponse.json({
-        ok: true,
-        status:
-          "unavailable",
-        message:
-          output.message ||
-          "Actualmente no existe información disponible en V-Ai para construir ese dashboard.",
-        unavailable,
-        spec: null,
-        candidates,
-      });
+        const status = unavailable.length
+            ? "partial"
+            : "ok";
+        return NextResponse.json({
+            ok: true,
+            status,
+            message: unavailable.length
+                ? output.message
+                : "",
+            unavailable,
+            spec,
+            candidates,
+            model,
+        });
     }
-
-    const unavailable =
-      [
-        ...new Set(
-          notes,
-        ),
-      ];
-
-    const status =
-      unavailable.length
-        ? "partial"
-        : "ok";
-
-    return NextResponse.json({
-      ok: true,
-      status,
-      message:
-        unavailable.length
-          ? output.message
-          : "",
-      unavailable,
-      spec,
-      candidates,
-      model,
-    });
-  } catch (error) {
-    if (
-      error instanceof
-      VaiGenerationError
-    ) {
-      console.error(
-        "V-Ai generate:",
-        error.detail ??
-          error.message,
-      );
-
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            error.message,
-        },
-        {
-          status: 502,
-        },
-      );
+    catch (error) {
+        if (error instanceof
+            VaiGenerationError) {
+            console.error("V-Ai generate:", error.detail ??
+                error.message);
+            return NextResponse.json({
+                ok: false,
+                error: error.message,
+            }, {
+                status: 502,
+            });
+        }
+        console.error("V-Ai generate:", error);
+        return NextResponse.json({
+            ok: false,
+            error: "No se pudo generar el dashboard. Inténtalo de nuevo.",
+        }, {
+            status: 500,
+        });
     }
-
-    console.error(
-      "V-Ai generate:",
-      error,
-    );
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "No se pudo generar el dashboard. Inténtalo de nuevo.",
-      },
-      {
-        status: 500,
-      },
-    );
-  }
 }
