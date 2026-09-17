@@ -770,7 +770,7 @@ export const VAI_SOURCES: VaiSource[] = [
       m("lots_pending_invoice", "Lotes sin factura", "Lotes sin número de factura.", "count", "integer", { where: [{ field: "doc_number", op: "empty" }] }),
       m("lots_pending_payment", "Lotes sin pago", "Lotes sin fecha de pago.", "count", "integer", { where: [{ field: "payment_date", op: "empty" }] }),
       m("lots_paid", "Lotes pagados", "Lotes con fecha de pago.", "count", "integer", { where: [{ field: "payment_date", op: "not_empty" }] }),
-      m("lot_usd_paid", "USD pagado", "Monto valorizado de lotes con fecha de pago.", "sum", "usd", { field: "lot_usd", where: [{ field: "payment_date", op: "not_empty" }] }),
+      m("lot_usd_paid", "Facturado USD de lotes pagados", "Monto facturado/valorizado de los lotes que tienen payment_date. No es el pago efectivo transferido al proveedor.", "sum", "usd", { field: "lot_usd", where: [{ field: "payment_date", op: "not_empty" }] }),
       m("avg_days_entry_to_valuation", "Días ingreso → valorización", "Promedio de días calendario entre ingreso y valorización.", "avg_days_diff", "days", { field: "entry_date", field2: "valuation_date" }),
       m("avg_days_valuation_to_payment", "Días valorización → pago", "Promedio de días calendario entre valorización y pago.", "avg_days_diff", "days", { field: "valuation_date", field2: "payment_date" }),
       m("avg_days_entry_to_payment", "Días ingreso → pago", "Promedio de días calendario entre ingreso y pago.", "avg_days_diff", "days", { field: "entry_date", field2: "payment_date" }),
@@ -783,7 +783,7 @@ export const VAI_SOURCES: VaiSource[] = [
       "Los precios (PIO, PIP), descuentos, maquila y ratios (USD/TMS) no se suman.",
       "Por sede u oficina agrupar por office_name (zone_name para Sur/Norte/Sur Aqp); zone_1/zone_2 son la clasificación comercial de la valorización.",
       "Para ingreso real a planta de lotes TRJ usar plant_entry_date; entry_date es el ingreso a TRJ.",
-      "Es la fuente operativa del lote. Importes contabilizados por lote, documentos, fechas contables, pagos y TMS contables son de finance_mineral_purchases (Finanzas); aquí doc_number/payment_date/lot_usd solo indican el avance del flujo.",
+      "doc_date, doc_number, payment_date y lot_usd son la referencia VETA por lote. payment_date solo identifica que el lote figura pagado; lot_usd sigue siendo el monto facturado/valorizado del lote y nunca el pago efectivo. El pago efectivo en USD solo se toma de finance_mineral_payments y no se atribuye a lotes.",
     ],
     defaultDateField: "entry_date",
     relations: [
@@ -942,72 +942,71 @@ export const VAI_SOURCES: VaiSource[] = [
   // manda en importes, monedas, documentos, fechas y TMS contables.
   {
     id: "finance_mineral_purchases",
-    name: "Compras de mineral (contable)",
+    name: "Facturación y estado de pago por lote (Veta)",
     area: "finance",
     description:
-      "Compra de mineral según contabilidad: cada lote con su documento (factura/VR/NC/ND/RL), proveedor, oficina, fechas contables (registro de la factura, documento, valorización y pago), moneda del pago, importe de compra contabilizado en USD, TMS contables y clasificación programa/adicional.",
+      "Fuente única por lote para facturación y estado de pago. Usa la misma lógica VETA de dw.v_traceability_get para los lotes actuales y agrega los lotes 2025 pagados en 2026. lot_usd es el monto facturado/valorizado del lote; payment_date solo marca que el lote figura pagado. El pago efectivo se consulta únicamente en finance_mineral_payments.",
     endpoint: "/api/vai/finance/mineral-purchases",
     sqlView: "dw.v_dti_vai_finanzas_compra_mineral",
-    grain: "Una fila por lote y documento contable de compra (doc_type + doc_number + ruc).",
+    grain: "Una fila por lote.",
     query: q(["invoice_reg_date", "invoice_doc_date", "payment_date", "valuation_date"], ["office_name", "sede", "ruc", "supplier", "doc_type", "program_class", "lot"]),
     fields: [
       f("lot", "Lote", "dimension", "Código del lote (normalizado como en Trazabilidad). Es una dimensión de alta cardinalidad: úsala para filtros y tablas de detalle/agrupadas, no como eje X de gráficos."),
       f("doc_type", "Tipo de documento", "dimension", "FT factura, VR vale, NC nota de crédito, ND nota de débito, RL recibo/liquidación."),
       f("doc_number", "Documento", "attribute", "Número del documento del proveedor."),
-      f("supplier", "Proveedor", "dimension", "Proveedor del mineral según contabilidad (anexo)."),
-      f("ruc", "RUC", "attribute", "RUC del proveedor."),
-      f("office_name", "Oficina", "dimension", "Oficina de acopio normalizada desde la sede contable (JULIACA se reporta como PEDREGAL)."),
-      f("sede", "Sede contable", "dimension", "Sede tal como la deriva contabilidad del subdiario de provisión."),
-      f("invoice_subledger", "Subdiario de provisión", "attribute", "Subdiario del comprobante de provisión de la factura."),
-      f("invoice_voucher_number", "Comprobante de provisión", "attribute", "Número del comprobante que registró la compra."),
-      f("invoice_reg_date", "Fecha contable de compra", "date", "Fecha del comprobante de provisión de la factura: período contable de la compra; fecha predeterminada.", "date", "date", ["registrado", "registrada", "registradas", "registro", "contabilizado", "contabilizados", "contabilizada", "contabilizadas", "comprado", "comprados", "comprada", "compradas", "compra", "compras"]),
-      f("invoice_doc_date", "Fecha de documento", "date", "Fecha de emisión del documento del proveedor.", "date", "date", ["facturado", "facturados", "facturada", "facturadas", "factura", "facturas", "facturación", "facturacion", "documento", "emitido", "emitidas"]),
-      f("valuation_date", "Fecha de valorización", "date", "Fecha de valorización web del lote o, si falta, fecha de documento menos 5 días.", "date", "date", ["valorizado", "valorizados", "valorizada", "valorizadas", "valorización", "valorizacion"]),
-      f("payment_subledger", "Subdiario de pago", "attribute", "Subdiario del comprobante de pago (203 bancos, 198 VR)."),
-      f("payment_voucher_number", "Comprobante de pago", "attribute", "Número del comprobante de pago."),
-      f("payment_date", "Fecha de pago", "date", "Fecha del comprobante de pago; siempre presente porque la fuente parte del pago.", "date", "date", ["pagado", "pagados", "pagada", "pagadas", "pago", "pagos", "desembolso"]),
-      f("payment_currency", "Moneda de pago (Concar)", "attribute", "Código Concar del comprobante de pago; informativo, los pagos de mineral son siempre en USD."),
+      f("supplier", "Proveedor", "dimension", "Proveedor del mineral según VETA."),
+      f("ruc", "RUC", "attribute", "RUC del proveedor según VETA."),
+      f("office_name", "Oficina", "dimension", "Oficina de acopio del lote; usa el mapeo operativo cuando existe y la sede VETA como respaldo."),
+      f("sede", "Sede VETA", "dimension", "Sede informada en VETA para el lote."),
+      f("invoice_subledger", "Subdiario VETA", "attribute", "Subdiario registrado en VETA para el documento del lote."),
+      f("invoice_voucher_number", "Comprobante VETA", "attribute", "Comprobante registrado en VETA para el documento del lote."),
+      f("invoice_reg_date", "Fecha de registro VETA", "date", "Fecha de registro del documento en VETA; fecha predeterminada de la fuente.", "date", "date", ["registrado", "registrada", "registradas", "registro", "contabilizado", "contabilizados", "contabilizada", "contabilizadas", "comprado", "comprados", "comprada", "compradas", "compra", "compras"]),
+      f("invoice_doc_date", "Fecha de factura", "date", "Fecha del documento del proveedor según VETA/traceability_get.", "date", "date", ["facturado", "facturados", "facturada", "facturadas", "factura", "facturas", "facturación", "facturacion", "documento", "emitido", "emitidas"]),
+      f("valuation_date", "Fecha de valorización", "date", "Fecha de valorización del lote con la misma lógica de traceability_get.", "date", "date", ["valorizado", "valorizados", "valorizada", "valorizadas", "valorización", "valorizacion"]),
+      f("payment_date", "Fecha de pago del lote", "date", "Fecha de pago informada por VETA. Identifica el estado pagado del lote, pero no representa ni permite atribuir el importe efectivo del pago.", "date", "date", ["pagado", "pagados", "pagada", "pagadas", "pago", "pagos", "desembolso"]),
       f("program_class", "Programa / adicional", "dimension", "PROGRAMA o ADICIONAL según Control de Mineral o ley Au ≤ 0.2 oz/TC; vacío sin ley."),
-      f("tms_conta", "TMS contables", "measure", "Toneladas secas escritas en la glosa contable de la compra; no es la medición operativa definitiva.", "number", "tms"),
-      f("lot_usd", "Importe de compra USD", "measure", "Importe de compra contabilizado del lote en USD (línea 60x del comprobante de provisión).", "number", "usd"),
+      f("tms_conta", "TMS", "measure", "TMS del lote con la misma prioridad de traceability_get: TMS web y, si falta, TMS de VETA. El id se conserva por compatibilidad y no proviene de conta_get.", "number", "tms"),
+      f("lot_usd", "Facturado/valorizado USD", "measure", "Monto facturado/valorizado del lote según VETA/traceability_get. No es el pago efectivo.", "number", "usd"),
     ],
     metrics: [
-      m("rows_count", "Documentos-lote", "Número de filas lote-documento.", "count", "integer"),
-      m("lots_count", "Lotes", "Lotes distintos con documento contable.", "count_distinct", "integer", { field: "lot" }),
-      m("documents_count", "Documentos", "Documentos distintos.", "count_distinct", "integer", { field: "doc_number" }),
+      m("rows_count", "Filas de lote", "Número de filas; la fuente tiene una fila por lote.", "count", "integer"),
+      m("lots_count", "Lotes facturados", "Lotes distintos con registro VETA de factura/valorización.", "count_distinct", "integer", { field: "lot" }),
+      m("documents_count", "Documentos", "Documentos distintos informados por VETA.", "count_distinct", "integer", { field: "doc_number" }),
       m("suppliers_count", "Proveedores", "Proveedores distintos.", "count_distinct", "integer", { field: "ruc" }),
       m("offices_count", "Oficinas", "Oficinas distintas.", "count_distinct", "integer", { field: "office_name" }),
-      m("lot_usd_total", "Importe de compra USD", "Suma del importe de compra contabilizado.", "sum", "usd", { field: "lot_usd" }),
-      m("tms_conta_total", "TMS contables", "Suma de TMS contables.", "sum", "tms", { field: "tms_conta" }),
-      m("tms_conta_purchase_docs", "TMS contables de compra", "TMS de documentos FT y VR obtenidas de las glosas de Concar; excluye NC, ND y RL para acompañar el importe facturado/contabilizado de compra.", "sum", "tms", { field: "tms_conta", where: [{ field: "doc_type", op: "in", value: ["FT", "VR"] }] }),
-      m("usd_per_tms_conta", "USD/TMS contable", "Σ importe de compra / Σ TMS contables de filas con ambos valores positivos.", "ratio", "usd", { numerator: "lot_usd", denominator: "tms_conta", where: [{ field: "lot_usd", op: "gt", value: 0 }, { field: "tms_conta", op: "gt", value: 0 }] }),
-      m("avg_lot_usd", "Importe promedio por documento-lote", "Promedio simple del importe de compra por fila.", "avg", "usd", { field: "lot_usd" }),
-      m("lot_usd_invoices", "Importe USD en facturas", "Importe de compra de documentos FT.", "sum", "usd", { field: "lot_usd", where: [{ field: "doc_type", op: "eq", value: "FT" }] }),
-      m("lot_usd_purchase_docs", "Importe USD de documentos de compra", "Importe de compra de documentos FT y VR (excluye NC, ND y RL, que repiten el lot_usd del lote).", "sum", "usd", { field: "lot_usd", where: [{ field: "doc_type", op: "in", value: ["FT", "VR"] }] }),
-      m("lot_usd_program", "Importe USD programa", "Importe de compra de lotes PROGRAMA.", "sum", "usd", { field: "lot_usd", where: [{ field: "program_class", op: "eq", value: "PROGRAMA" }] }),
-      m("lot_usd_additional", "Importe USD adicional", "Importe de compra de lotes ADICIONAL.", "sum", "usd", { field: "lot_usd", where: [{ field: "program_class", op: "eq", value: "ADICIONAL" }] }),
-      m("tms_conta_program", "TMS contables programa", "TMS contables de lotes PROGRAMA.", "sum", "tms", { field: "tms_conta", where: [{ field: "program_class", op: "eq", value: "PROGRAMA" }] }),
-      m("tms_conta_additional", "TMS contables adicional", "TMS contables de lotes ADICIONAL.", "sum", "tms", { field: "tms_conta", where: [{ field: "program_class", op: "eq", value: "ADICIONAL" }] }),
-      m("rows_without_tms", "Documentos-lote sin TMS contable", "Filas cuya glosa contable no trae tonelaje.", "count", "integer", { where: [{ field: "tms_conta", op: "empty" }] }),
-      m("avg_days_document_to_payment", "Días documento → pago", "Promedio de días calendario entre fecha de documento y pago.", "avg_days_diff", "days", { field: "invoice_doc_date", field2: "payment_date" }),
-      m("avg_days_registration_to_payment", "Días registro → pago", "Promedio de días calendario entre registro contable y pago.", "avg_days_diff", "days", { field: "invoice_reg_date", field2: "payment_date" }),
-      m("avg_days_valuation_to_payment", "Días valorización → pago", "Promedio de días calendario entre valorización y pago.", "avg_days_diff", "days", { field: "valuation_date", field2: "payment_date" }),
+      m("lot_usd_total", "Facturado/valorizado USD", "Suma del monto facturado/valorizado por lote según VETA/traceability_get.", "sum", "usd", { field: "lot_usd" }),
+      m("tms_conta_total", "TMS", "Suma de TMS de los lotes con la misma lógica de traceability_get.", "sum", "tms", { field: "tms_conta" }),
+      m("tms_conta_purchase_docs", "TMS facturados", "Alias compatible de tms_conta_total; la fuente ya tiene una sola fila por lote y no vuelve a filtrar por tipo de documento.", "sum", "tms", { field: "tms_conta" }),
+      m("usd_per_tms_conta", "USD/TMS", "Σ facturado/valorizado USD / Σ TMS de filas con ambos valores positivos.", "ratio", "usd", { numerator: "lot_usd", denominator: "tms_conta", where: [{ field: "lot_usd", op: "gt", value: 0 }, { field: "tms_conta", op: "gt", value: 0 }] }),
+      m("avg_lot_usd", "Facturado promedio por lote", "Promedio simple del monto facturado/valorizado por lote.", "avg", "usd", { field: "lot_usd" }),
+      m("lot_usd_invoices", "Facturado USD en FT", "Monto facturado/valorizado de los lotes cuyo registro VETA vigente es FT.", "sum", "usd", { field: "lot_usd", where: [{ field: "doc_type", op: "eq", value: "FT" }] }),
+      m("lot_usd_purchase_docs", "Facturado/valorizado USD", "Alias compatible de lot_usd_total; la fuente ya está consolidada a una fila por lote.", "sum", "usd", { field: "lot_usd" }),
+      m("lot_usd_program", "Facturado USD programa", "Monto facturado/valorizado de lotes PROGRAMA.", "sum", "usd", { field: "lot_usd", where: [{ field: "program_class", op: "eq", value: "PROGRAMA" }] }),
+      m("lot_usd_additional", "Facturado USD adicional", "Monto facturado/valorizado de lotes ADICIONAL.", "sum", "usd", { field: "lot_usd", where: [{ field: "program_class", op: "eq", value: "ADICIONAL" }] }),
+      m("tms_conta_program", "TMS programa", "TMS de lotes PROGRAMA.", "sum", "tms", { field: "tms_conta", where: [{ field: "program_class", op: "eq", value: "PROGRAMA" }] }),
+      m("tms_conta_additional", "TMS adicional", "TMS de lotes ADICIONAL.", "sum", "tms", { field: "tms_conta", where: [{ field: "program_class", op: "eq", value: "ADICIONAL" }] }),
+      m("rows_without_tms", "Lotes sin TMS", "Lotes cuya fuente VETA/traceability no trae TMS.", "count", "integer", { where: [{ field: "tms_conta", op: "empty" }] }),
+      m("lots_paid", "Lotes pagados", "Lotes con payment_date informada por VETA.", "count", "integer", { where: [{ field: "payment_date", op: "not_empty" }] }),
+      m("lots_pending_payment", "Lotes pendientes de pago", "Lotes sin payment_date en VETA.", "count", "integer", { where: [{ field: "payment_date", op: "empty" }] }),
+      m("lot_usd_paid", "Facturado USD de lotes pagados", "Suma del monto facturado/valorizado de lotes con payment_date. No es el pago efectivo.", "sum", "usd", { field: "lot_usd", where: [{ field: "payment_date", op: "not_empty" }] }),
+      m("avg_days_document_to_payment", "Días factura → pago", "Promedio de días calendario entre fecha de factura y payment_date VETA.", "avg_days_diff", "days", { field: "invoice_doc_date", field2: "payment_date" }),
+      m("avg_days_registration_to_payment", "Días registro → pago", "Promedio de días calendario entre registro VETA y payment_date VETA.", "avg_days_diff", "days", { field: "invoice_reg_date", field2: "payment_date" }),
+      m("avg_days_valuation_to_payment", "Días valorización → pago", "Promedio de días calendario entre valorización y payment_date VETA.", "avg_days_diff", "days", { field: "valuation_date", field2: "payment_date" }),
     ],
     rules: [
-      "Fuente contable Concar (stg.traceability_veta_conta, la misma de Trazabilidad > Contabilidad) anclada al comprobante de pago: toda fila tiene payment_date. No permite identificar facturas pendientes de pago; los lotes sin registro contable están en traceability_status y traceability_lots.",
-      "Universo: lotes con correlativo 2026 más lotes 2025 pagados en 2026.",
-      "lot_usd es el importe de compra contabilizado del lote (línea 60x): es el «importe valorizado» contable, lo facturado por lote. No es el pago efectivo: los pagos se hacen en paquetes de varios lotes, netos de detracciones, y viven en finance_mineral_payments por asiento contable; no se concilian con esta fuente.",
-      "tms_conta son TMS según la fuente contable de compra (tonelaje escrito en la glosa de Concar); no es el tonelaje operacional definitivo y puede faltar (rows_without_tms).",
-      "Para acompañar el importe facturado/contabilizado de compra usa tms_conta_purchase_docs: suma TMS solo de FT y VR, igual que lot_usd_purchase_docs evita duplicar NC, ND y RL.",
+      "Fuente única de verdad por lote para factura y estado de pago: VETA con la misma lógica de dw.v_traceability_get. No usa stg.traceability_veta_conta ni dw.v_traceability_conta_get para construir estos valores.",
+      "Universo: los lotes actuales de dw.v_traceability_get más los lotes con correlativo 2025 que tienen payment_date desde 2026-01-01.",
+      "La fuente está consolidada a una fila por lote, igual que la salida VETA usada por traceability_get; no vuelvas a sumar documentos del mismo lote.",
+      "lot_usd es el monto facturado/valorizado del lote según VETA. Nunca representa el efectivo pagado al proveedor.",
+      "payment_date solo identifica que el lote figura pagado en VETA. lot_usd_paid es el facturado/valorizado de esos lotes, no el pago real.",
+      "El único importe de pago efectivo es finance_mineral_payments.payment_usd_total, proveniente de conta_payments; no se atribuye ni se concilia por lote.",
+      "tms_conta conserva el id por compatibilidad, pero usa la misma TMS de traceability_get: TMS web y, si falta, TMS de VETA. No proviene de conta_get.",
+      "lot_usd_purchase_docs y tms_conta_purchase_docs se conservan como alias compatibles de lot_usd_total y tms_conta_total; no aplican un segundo filtro FT/VR porque la vista ya está consolidada por lote.",
       "lot es una dimensión de alta cardinalidad: si el usuario pide información por lote, usa una tabla agrupada o de detalle. Nunca uses lot como eje X de bar, line, area, combo, scatter, donut, pareto, rank o waterfall.",
-      "Fecha principal invoice_reg_date (fecha contable de la compra). «Facturado» usa invoice_doc_date, «valorizado» valuation_date y «pagado» payment_date.",
-      "USD/TMS solo con usd_per_tms_conta (Σ USD / Σ TMS de filas con ambos valores); nunca promediar cocientes por fila.",
-      "Un lote puede tener más de un documento: FT o VR es la compra; NC, ND y RL asociados al mismo lote repiten su lot_usd. lots_count cuenta lotes distintos; para no duplicar importes usar lot_usd_purchase_docs (FT + VR) o agrupar por lot y revisar doc_type.",
-      "«Facturas/documentos de un lote» o «valorización por lote»: tabla de detalle o agrupada por lot con doc_type, doc_number, invoice_doc_date, payment_date, lot_usd y tms_conta, más un filtro select por Lote.",
-      "«Documentos pendientes de pago» no existe en esta fuente (todo está pagado): decirlo y ofrecer, si aplica, los lotes sin registro contable de traceability_lots (lots_pending_payment) o traceability_status.",
-      "Comparar períodos (mes contra mes, 2025 vs 2026): un solo widget con dateField invoice_reg_date y bucket month/year; el date_range debe cubrir ambos períodos.",
-      "Todos los importes son USD: lot_usd siempre, y los pagos a proveedores de mineral se registran siempre en USD.",
-      "Por oficina agrupar por office_name (normalizada); las metas mensuales están en traceability_targets y se muestran en widgets separados (v1 no cruza fuentes).",
+      "Fecha principal invoice_reg_date (registro VETA). «Facturado» usa invoice_doc_date, «valorizado» valuation_date y «pagado» payment_date.",
+      "USD/TMS solo con usd_per_tms_conta (Σ lot_usd / Σ TMS de filas con ambos valores positivos); nunca promediar cocientes por fila.",
+      "«Lotes pendientes de pago» se identifican por payment_date vacía. «Lotes pagados» se identifican por payment_date informada. En ambos casos lot_usd sigue siendo facturado/valorizado.",
+      "Por oficina agrupar por office_name; las metas mensuales están en traceability_targets y se muestran en widgets separados (v1 no cruza fuentes).",
     ],
     defaultDateField: "invoice_reg_date",
     relations: [
@@ -3779,14 +3778,12 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = "", all
     /\b(rendimiento|eficiencia|recorrido|recorridos|gps|kilometro|kilometros|km gal|l 100|autonomia|costo por km)\b/.test(promptText);
   const preferFuelRefuels = asksFuelConsumption && !asksFleetPerformance;
   const asksMineralPaymentByLot =
-    /\b(?:mineral|lote|lotes)\b/.test(promptText) &&
-    /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos)\b/.test(promptText) &&
-    /\b(?:factura|facturas|facturado|facturados|compra|compras|contabilizado|contabilizados)\b/.test(promptText) &&
-    /\b(?:lote|lotes)\b/.test(promptText);
+    /\b(?:lote|lotes)\b/.test(promptText) &&
+    /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos)\b/.test(promptText);
 
   if (asksMineralPaymentByLot) {
     notes.push(
-      "El pago efectivo de mineral se registra por asiento contable y puede cubrir varios lotes; no se atribuye ni se concilia por lote. El importe facturado/contabilizado por lote sí está disponible.",
+      "Por lote, payment_date solo identifica que el lote figura pagado en VETA y lot_usd sigue siendo el monto facturado/valorizado. El pago efectivo en USD sale únicamente de conta_payments y no se atribuye a lotes.",
     );
   }
 
@@ -3828,7 +3825,7 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = "", all
 
   if (usesMineralPurchaseTms) {
     notes.push(
-      "Las TMS contables mostradas para compras de mineral provienen del tonelaje obtenido de las glosas de Concar; pueden faltar y no representan una medición operativa de balanza o planta.",
+      "Las TMS de los lotes facturados/pagados usan la misma lógica de dw.v_traceability_get: TMS web y, si falta, TMS de VETA; no provienen de conta_get.",
     );
   }
 
@@ -5218,14 +5215,12 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
     });
     if (purchaseTmsMetric && !cumulative) {
       const hasTms = row.members.some(
-        (member) =>
-          ["FT", "VR"].includes(toText(member.doc_type).toUpperCase()) &&
-          toNumber(member.tms_conta) != null,
+        (member) => toNumber(member.tms_conta) != null,
       );
 
       if (hasTms) {
         notes.push([
-          "TMS contables · glosa Concar",
+          "TMS del lote · VETA/traceability",
           formatValue(aggregate(purchaseTmsMetric, row.members), "tms"),
         ]);
       }
