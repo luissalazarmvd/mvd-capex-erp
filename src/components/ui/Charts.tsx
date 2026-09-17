@@ -1503,7 +1503,16 @@ export function LineChart({
               ),
             )}
             {endLabels.map((e) => {
-              const placeLeft = hasRight || axes[e.j] === "right";
+              const text = formatMarkLabel(
+                e.v,
+                series[e.j]?.digits ?? digits,
+                series[e.j]?.unit ?? unit,
+              );
+              const estimatedWidth = Math.max(24, text.length * 6.2);
+              const placeLeft =
+                hasRight ||
+                axes[e.j] === "right" ||
+                x(e.i) + 9 + estimatedWidth > width - 6;
 
               return (
                 <text
@@ -1513,11 +1522,7 @@ export function LineChart({
                   y={e.y + 3.5}
                   textAnchor={placeLeft ? "end" : "start"}
                 >
-                  {formatMarkLabel(
-                    e.v,
-                    series[e.j]?.digits ?? digits,
-                    series[e.j]?.unit ?? unit,
-                  )}
+                  {text}
                 </text>
               );
             })}

@@ -951,7 +951,7 @@ export const VAI_SOURCES: VaiSource[] = [
     grain: "Una fila por lote y documento contable de compra (doc_type + doc_number + ruc).",
     query: q(["invoice_reg_date", "invoice_doc_date", "payment_date", "valuation_date"], ["office_name", "sede", "ruc", "supplier", "doc_type", "program_class", "lot"]),
     fields: [
-      f("lot", "Lote", "dimension", "Código del lote (normalizado como en Trazabilidad); agrupable para ver los documentos o el importe de un lote."),
+      f("lot", "Lote", "dimension", "Código del lote (normalizado como en Trazabilidad). Es una dimensión de alta cardinalidad: úsala para filtros y tablas de detalle/agrupadas, no como eje X de gráficos."),
       f("doc_type", "Tipo de documento", "dimension", "FT factura, VR vale, NC nota de crédito, ND nota de débito, RL recibo/liquidación."),
       f("doc_number", "Documento", "attribute", "Número del documento del proveedor."),
       f("supplier", "Proveedor", "dimension", "Proveedor del mineral según contabilidad (anexo)."),
@@ -979,6 +979,7 @@ export const VAI_SOURCES: VaiSource[] = [
       m("offices_count", "Oficinas", "Oficinas distintas.", "count_distinct", "integer", { field: "office_name" }),
       m("lot_usd_total", "Importe de compra USD", "Suma del importe de compra contabilizado.", "sum", "usd", { field: "lot_usd" }),
       m("tms_conta_total", "TMS contables", "Suma de TMS contables.", "sum", "tms", { field: "tms_conta" }),
+      m("tms_conta_purchase_docs", "TMS contables de compra", "TMS de documentos FT y VR obtenidas de las glosas de Concar; excluye NC, ND y RL para acompañar el importe facturado/contabilizado de compra.", "sum", "tms", { field: "tms_conta", where: [{ field: "doc_type", op: "in", value: ["FT", "VR"] }] }),
       m("usd_per_tms_conta", "USD/TMS contable", "Σ importe de compra / Σ TMS contables de filas con ambos valores positivos.", "ratio", "usd", { numerator: "lot_usd", denominator: "tms_conta", where: [{ field: "lot_usd", op: "gt", value: 0 }, { field: "tms_conta", op: "gt", value: 0 }] }),
       m("avg_lot_usd", "Importe promedio por documento-lote", "Promedio simple del importe de compra por fila.", "avg", "usd", { field: "lot_usd" }),
       m("lot_usd_invoices", "Importe USD en facturas", "Importe de compra de documentos FT.", "sum", "usd", { field: "lot_usd", where: [{ field: "doc_type", op: "eq", value: "FT" }] }),
@@ -996,7 +997,9 @@ export const VAI_SOURCES: VaiSource[] = [
       "Fuente contable Concar (stg.traceability_veta_conta, la misma de Trazabilidad > Contabilidad) anclada al comprobante de pago: toda fila tiene payment_date. No permite identificar facturas pendientes de pago; los lotes sin registro contable están en traceability_status y traceability_lots.",
       "Universo: lotes con correlativo 2026 más lotes 2025 pagados en 2026.",
       "lot_usd es el importe de compra contabilizado del lote (línea 60x): es el «importe valorizado» contable, lo facturado por lote. No es el pago efectivo: los pagos se hacen en paquetes de varios lotes, netos de detracciones, y viven en finance_mineral_payments por asiento contable; no se concilian con esta fuente.",
-      "tms_conta son TMS según la fuente contable de compra (tonelaje escrito en la glosa); no es el tonelaje operacional definitivo y puede faltar (rows_without_tms).",
+      "tms_conta son TMS según la fuente contable de compra (tonelaje escrito en la glosa de Concar); no es el tonelaje operacional definitivo y puede faltar (rows_without_tms).",
+      "Para acompañar el importe facturado/contabilizado de compra usa tms_conta_purchase_docs: suma TMS solo de FT y VR, igual que lot_usd_purchase_docs evita duplicar NC, ND y RL.",
+      "lot es una dimensión de alta cardinalidad: si el usuario pide información por lote, usa una tabla agrupada o de detalle. Nunca uses lot como eje X de bar, line, area, combo, scatter, donut, pareto, rank o waterfall.",
       "Fecha principal invoice_reg_date (fecha contable de la compra). «Facturado» usa invoice_doc_date, «valorizado» valuation_date y «pagado» payment_date.",
       "USD/TMS solo con usd_per_tms_conta (Σ USD / Σ TMS de filas con ambos valores); nunca promediar cocientes por fila.",
       "Un lote puede tener más de un documento: FT o VR es la compra; NC, ND y RL asociados al mismo lote repiten su lot_usd. lots_count cuenta lotes distintos; para no duplicar importes usar lot_usd_purchase_docs (FT + VR) o agrupar por lot y revisar doc_type.",
@@ -2732,6 +2735,26 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
     limit = Math.min(maxLimit, Math.max(1, Math.round(raw.limit)));
   }
 
+  if (
+    source.id === "finance_mineral_purchases" &&
+    dimension === "lot" &&
+    type !== "table" &&
+    type !== "kpi"
+  ) {
+    notes.push(`${label}: Lote tiene alta cardinalidad; se cambió el eje categórico por una tabla agrupada por lote.`);
+    type = "table";
+    if (
+      metrics.includes("lot_usd_purchase_docs") &&
+      !metrics.includes("tms_conta_purchase_docs") &&
+      vaiMetric(source, "tms_conta_purchase_docs")
+    ) {
+      metrics.push("tms_conta_purchase_docs");
+    }
+    dateField = null;
+    breakdown = null;
+    limit = null;
+  }
+
   let columns: string[] | null = null;
   const metricColumns: string[] = [];
   let hasMetricOnlyColumn = false;
@@ -3786,6 +3809,28 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = "", all
 
   // Las instrucciones se aplicaron por solicitud, ANTES de validar/truncar métricas.
   const widgets = validated;
+
+  const usesMineralPurchaseTms = widgets.some(
+    (widget) =>
+      widget.source === "finance_mineral_purchases" &&
+      (
+        widget.metrics.some((id) =>
+          [
+            "lot_usd_purchase_docs",
+            "tms_conta_total",
+            "tms_conta_purchase_docs",
+            "usd_per_tms_conta",
+          ].includes(id),
+        ) ||
+        Boolean(widget.columns?.includes("tms_conta"))
+      ),
+  );
+
+  if (usesMineralPurchaseTms) {
+    notes.push(
+      "Las TMS contables mostradas para compras de mineral provienen del tonelaje obtenido de las glosas de Concar; pueden faltar y no representan una medición operativa de balanza o planta.",
+    );
+  }
 
   // Fuentes en orden de aparición, con tope; los widgets de fuentes sobrantes se descartan.
   const sources: string[] = [];
@@ -5147,6 +5192,12 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
   // (se muestran bajo esa serie); posición y filas van al bloque general. El
   // anillo ya muestra la participación.
   const dimensionLabel = (vaiField(source, widget.dimension ?? "")?.label ?? "categoría").toLowerCase();
+  const purchaseTmsMetric =
+    source.id === "finance_mineral_purchases" &&
+    widget.metrics.includes("lot_usd_purchase_docs")
+      ? vaiMetric(source, "tms_conta_purchase_docs")
+      : null;
+
   grouped.forEach((row, i) => {
     const notes: VaiNote[] = [];
     const other = !temporal && row.key === "__vai_other__";
@@ -5165,6 +5216,20 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
       const change = temporal || other || stack === "percent" ? null : relative(v, references[j]);
       if (change != null) notes.push([RATE_AGGS.has(metric.agg) ? "vs global" : `vs promedio por ${dimensionLabel}`, signedPct(change), j]);
     });
+    if (purchaseTmsMetric && !cumulative) {
+      const hasTms = row.members.some(
+        (member) =>
+          ["FT", "VR"].includes(toText(member.doc_type).toUpperCase()) &&
+          toNumber(member.tms_conta) != null,
+      );
+
+      if (hasTms) {
+        notes.push([
+          "TMS contables · glosa Concar",
+          formatValue(aggregate(purchaseTmsMetric, row.members), "tms"),
+        ]);
+      }
+    }
     if (stack === "stack") notes.push(["Total apilado", formatValue(sumOf(row.values.filter((v): v is number => v != null)), primary.format)]);
     notes.push(["Filas", num(row.count, 0)]);
     row.notes = notes;

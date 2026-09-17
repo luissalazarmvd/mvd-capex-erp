@@ -952,6 +952,30 @@ function FilterControl({
     [filter, rows],
   );
 
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    setSearch("");
+  }, [filter.source, filter.field]);
+
+  const normalizedSearch = search
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  const visibleOptions = useMemo(() => {
+    if (!normalizedSearch) return options;
+
+    return options.filter((option) =>
+      option
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .includes(normalizedSearch),
+    );
+  }, [options, normalizedSearch]);
+
   const sourceName =
     VAI_SOURCE_MAP.get(filter.source)
       ?.name ??
@@ -1172,7 +1196,23 @@ function FilterControl({
             }}
           />
 
-          {options.map((option) => (
+          <input
+            className="input"
+            type="search"
+            value={search}
+            placeholder="Buscar valores..."
+            autoComplete="off"
+            onChange={(event) =>
+              setSearch(event.target.value)
+            }
+            style={{
+              width: "100%",
+              minWidth: 0,
+              marginBottom: 3,
+            }}
+          />
+
+          {visibleOptions.map((option) => (
             <label
               key={option}
               style={{

@@ -459,7 +459,7 @@ Reglas obligatorias:
 - Para un dashboard de combustible sin una petición explícita de rendimiento, construye los KPIs, gráficos, rankings y tablas con fleet_fuel_refuels. Prioriza galones abastecidos, costo PEN, costo promedio PEN por galón, consumo promedio por vehículo, cantidad de placas y tendencias temporales. En combustible de Flota no existe costo USD disponible para V-Ai: nunca generes widgets, métricas, ejes, títulos ni comparaciones de costo USD, precio USD por galón, exceso USD o costo USD por km. Ofrece filtros interactivos de negocio según los campos disponibles, priorizando Placa, Conductor, Sede y Tipo de combustible, y opcionalmente Grifo. Nunca uses Tiene combustible, Vehículo con ficha útil, has_fuel, has_gps, is_vehicle, is_tank_anomaly ni ninguna otra dimensión booleana como filtro interactivo.
 - Para una petición simple de Kardex, toma como referencia los KPIs actuales de KardexSum: guías, TMH enviadas, lotes por guía, USD facturado, USD Concar y diferencia; acompáñalos cuando corresponda con merma, tiempo de tránsito, tarifa media y TMH por guía. El importe oficial facturado es amount_usd de facturas; Concar es solo contraste contable.
 - En Trazabilidad, "ingresados", "procesados", "valorizados", "facturados" y "pagados" corresponden respectivamente a entry_date, process_date, valuation_date, doc_date y payment_date. Para un dashboard típico prioriza lotes, proveedores, lotes sin valorización, lotes sin pago, USD/TMS promedio simple, leyes Au/Ag ponderadas por TMS, monto valorizado y monto pagado. "Por sede/oficina" usa office_name (o zone_name para Sur/Norte/Sur Aqp); "programa" y "adicional" usan program_class. traceability_lots es la fuente operativa del lote; el stock de mineral en cancha está en traceability_stock.
-- En Finanzas, la compra de mineral según contabilidad es finance_mineral_purchases (una fila por lote y documento; fecha principal invoice_reg_date = fecha contable de la compra; "facturado" invoice_doc_date, "valorizado" valuation_date, "pagado" payment_date; importe de compra lot_usd_total en USD; TMS contables tms_conta_total y USD/TMS solo con usd_per_tms_conta; programa/adicional con program_class; "por lote" agrupa o filtra por lot; toda fila tiene pago: si piden facturas o documentos pendientes de pago, dilo en message y ofrece los lotes sin registro contable de traceability_lots). El cumplimiento de metas por oficina se muestra con traceability_targets y finance_mineral_purchases en widgets separados (no se cruzan fuentes). "Cuánto hemos pagado por mineral" es finance_mineral_payments: pagos por asiento contable (provisión + pago), siempre USD (payment_usd_total), netos de detracciones y en paquetes de uno o más lotes; no es por lote ni se concilia con lot_usd de finance_mineral_purchases (provisionado con provision_usd_total / provision_pen_total según su moneda, contado una vez por documento).
+- En Finanzas, la compra de mineral según contabilidad es finance_mineral_purchases (una fila por lote y documento; fecha principal invoice_reg_date = fecha contable de la compra; "facturado" invoice_doc_date, "valorizado" valuation_date, "pagado" payment_date; para facturado/contabilizado de compra prioriza lot_usd_purchase_docs y acompáñalo con tms_conta_purchase_docs cuando aporte contexto; las TMS provienen de glosas de Concar, pueden faltar y no son medición operativa; USD/TMS solo con usd_per_tms_conta; programa/adicional con program_class; lot es alta cardinalidad: "por lote" usa table agrupada o de detalle y filtro select, nunca lot como eje X de gráficos). Toda fila contable presente tiene pago: si piden facturas o documentos pendientes de pago, dilo en message y ofrece los lotes sin registro contable de traceability_lots. El cumplimiento de metas por oficina se muestra con traceability_targets y finance_mineral_purchases en widgets separados (no se cruzan fuentes). "Cuánto hemos pagado por mineral" es finance_mineral_payments: pagos por asiento contable (provisión + pago), siempre USD (payment_usd_total), netos de detracciones y en paquetes de uno o más lotes; no es por lote ni se concilia con lot_usd de finance_mineral_purchases (provisionado con provision_usd_total / provision_pen_total según su moneda, contado una vez por documento).
 - En Finanzas, finance_costs es la fuente de costos y gastos de toda la empresa (contabilidad COS-001): cada fila lleva period_label (REAL 2025, REAL 2026 o PPTO 2026) y scenario (REAL/PPTO); nunca sumes escenarios distintos. Costo real = real_cost_usd / real_cost_pen (widgets separados por moneda); presupuesto = budget_cost_usd; real vs presupuesto = variance_usd, variance_pct o budget_execution_pct sobre el mismo recorte, o real y presupuesto lado a lado; amount_usd/amount_pen solo con period_label o scenario filtrado o desglosado por period_label. Las dimensiones disponibles (macro_process, lima_area, site_group/site_type/site_name, zone_name, cost_nature, prod_admin, cost_group, dynacor_group, fixed_variable, rrhh_nature/rrhh_type, transversal, account_desc, cost_center_desc, supplier_name, subledger, document_type, period_label) son equivalentes: usa la que nombre el usuario, sin preferir ninguna. "Costos de <un valor concreto>" = rank, bar o table por esa dimensión + filtro select sobre ella. Los importes ya tienen signo contable (sumar directo); no existe proyecto ni CAPEX; los datos empiezan en 2025-01-01, así que comparar años o meses usa posting_date con bucket year/month y un date_range que cubra ambos. real_cost_*_ex_mineral excluye el consumo de mineral. Usa plant_costs solo para USD/TMS de planta; no reconstruyas costos generales desde fuentes de otras áreas.
 - En Planta, plant_shifts es la fuente principal del balance; los costos por cuenta/CECO y USD/TMS usan plant_costs; los costos e insumos por guardia (reactivos y bolas) usan plant_consumables; las leyes de carbón en tanques usan plant_carbon_tanks; la conciliación planta vs Control de Mineral usa plant_cm_reconciliation. Los ratios kg/TMS y USD/TMS se calculan con las métricas declaradas (TMS contada una vez por guardia o mes), nunca sumando atributos repetidos.
 - En Refinería, el período es campaign_month; el costo por campaña, por gramo de Au o por kg de carbón está disponible en refinery_campaigns y por insumo/subproceso en refinery_consumption (real vs óptimo ML). Cada insumo conserva su unidad: cantidades y desviaciones de cantidad solo con un insumo filtrado o agrupado; los costos USD sí se consolidan.
@@ -905,6 +905,11 @@ async function generateDashboardSpec(
   if (!apiKey) throw new VaiGenerationError("V-Ai no está configurado en este entorno.", "missing API_OPEN_AI");
   const candidates = selectCandidateSources(prompt, options.area);
   const ids = candidates.map((source) => source.id);
+  const compactGeneration =
+    candidates.length <= 3 &&
+    prompt.length <= 600 &&
+    options.charts.length <= 2;
+  const maxOutputTokens = compactGeneration ? 10000 : 20000;
   const context = {
     currentDateLima: limaToday(), defaultHistoryStart: "2026-01-01",
     catalogIndex: VAI_SOURCES.filter((source) => source.enabled && (options.area === "auto" || source.area === options.area))
@@ -915,7 +920,7 @@ async function generateDashboardSpec(
     visualInstructions: visualInstructions(prompt),
     explicitVisualRequests: resolveVisualRequests(prompt, ids),
     preferences: { focus: FOCUS_TEXT[options.focus], preferredWidgets: options.charts.map((chart) => CHART_PREFERENCE_TEXT[chart]),
-      areaRestriction: options.area },
+      areaRestriction: options.area, generationMode: compactGeneration ? "compacto: prioriza 4 a 6 widgets útiles y evita redundancias" : "normal" },
     request: prompt,
   };
   const deadline = Date.now() + OPENAI_TIMEOUT_MS;
@@ -925,6 +930,7 @@ async function generateDashboardSpec(
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const remaining = deadline - Date.now();
     if (remaining < 8_000) break;
+    const reasoningEffort = compactGeneration && attempt === 0 ? "low" : VAI_REASONING;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.min(remaining, attempt === 0 ? 100_000 : remaining));
     let payload: unknown;
@@ -933,8 +939,8 @@ async function generateDashboardSpec(
         method: "POST", cache: "no-store", signal: controller.signal,
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: VAI_OPENAI_MODEL, store: false, max_output_tokens: 20000,
-          ...(/^(?:gpt-[56]|o[134])/.test(VAI_OPENAI_MODEL) ? { reasoning: { effort: VAI_REASONING } } : {}),
+          model: VAI_OPENAI_MODEL, store: false, max_output_tokens: maxOutputTokens,
+          ...(/^(?:gpt-[56]|o[134])/.test(VAI_OPENAI_MODEL) ? { reasoning: { effort: reasoningEffort } } : {}),
           input: [
             { role: "system", content: [{ type: "input_text", text: SYSTEM_PROMPT }] },
             { role: "user", content: [{ type: "input_text", text: JSON.stringify({ ...context,
@@ -1266,7 +1272,7 @@ export async function POST(
 
   const generationPrompt =
     mineralPaymentByLotComparison
-      ? `${prompt}\n\nRegla de negocio para este diseño: el importe facturado o contabilizado por lote usa finance_mineral_purchases y lot_usd_purchase_docs agrupado por lot. El pago efectivo usa finance_mineral_payments y payment_usd_total, pero no puede atribuirse ni conciliarse por lote porque un asiento puede cubrir varios lotes. Si el usuario pide compararlos, muéstralos en widgets separados y explica brevemente esta limitación en message; no inventes un pago efectivo por lote.`
+      ? `${prompt}\n\nReglas: facturado/contabilizado usa finance_mineral_purchases.lot_usd_purchase_docs; pago efectivo usa finance_mineral_payments.payment_usd_total y nunca se atribuye por lote. Lote es alta cardinalidad: si piden por lote, usa una tabla agrupada o de detalle, nunca lot como eje X. Incluye una visual separada de TMS por mes u oficina con finance_mineral_purchases.tms_conta_purchase_docs. Las TMS provienen de glosas de Concar y no son una medición operativa. Mantén facturación y pagos en widgets separados.`
       : prompt;
 
   try {
