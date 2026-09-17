@@ -3941,6 +3941,420 @@ export type VaiFilterValue = {
 };
 export type VaiFilterState = Record<string, VaiFilterValue>;
 export const filterKey = (filter: Pick<VaiFilterSpec, "source" | "field">) => `${filter.source}:${filter.field}`;
+export async function loadVaiSourceRows(
+    source: VaiSource,
+    path: string,
+    options: {
+        signal?: AbortSignal;
+        fresh?: boolean;
+        onProgress?: (message: string) => void;
+    } = {},
+): Promise<VaiRow[]> {
+    const { signal, onProgress } = options;
+
+    const check = () => {
+        if (signal?.aborted) {
+            throw new DOMException(
+                "Carga cancelada",
+                "AbortError"
+            );
+        }
+    };
+
+    function wait<T>(
+        task: Promise<T>,
+        milliseconds = 45_000,
+    ): Promise<T> {
+        check();
+
+        return new Promise<T>((resolve, reject) => {
+            const cleanup = () => {
+                clearTimeout(timer);
+                signal?.removeEventListener(
+                    "abort",
+                    abort
+                );
+            };
+
+            const abort = () => {
+                cleanup();
+
+                reject(
+                    new DOMException(
+                        "Carga cancelada",
+                        "AbortError"
+                    )
+                );
+            };
+
+            const timer = setTimeout(() => {
+                cleanup();
+
+                reject(
+                    new Error(
+                        "La petición de datos no respondió. Revisa la conexión con la API."
+                    )
+                );
+            }, milliseconds);
+
+            signal?.addEventListener(
+                "abort",
+                abort,
+                { once: true }
+            );
+
+            task.then(
+                (value) => {
+                    cleanup();
+                    resolve(value);
+                },
+                (error) => {
+                    cleanup();
+                    reject(error);
+                },
+            );
+        });
+    }
+
+    const pause = (ms: number) =>
+        wait(
+            new Promise<void>((resolve) =>
+                setTimeout(resolve, ms)
+            )
+        );
+
+    async function get(url: string) {
+        for (let attempt = 0; ; attempt += 1) {
+            check();
+
+            try {
+                const result = await wait(
+                    apiGet(url)
+                );
+
+                check();
+
+                if (result?.ok === false) {
+                    throw new Error(
+                        result.error ||
+                        "Error al consultar la fuente"
+                    );
+                }
+
+                return result;
+            } catch (error) {
+                check();
+
+                const status = Number(
+                    (
+                        error as {
+                            status?: number;
+                        }
+                    )?.status
+                );
+
+                if (
+                    attempt >= 1 ||
+                    [400, 401, 403, 404, 410]
+                        .includes(status)
+                ) {
+                    throw error;
+                }
+
+                await pause(1000);
+            }
+        }
+    }
+
+    // Las demás fuentes conservan su contrato actual.
+    if (source.id !== "finance_costs") {
+        const result = await apiGet(path);
+
+        check();
+
+        if (result?.ok === false) {
+            throw new Error(
+                result.error ||
+                "Error al consultar la fuente"
+            );
+        }
+
+        if (!Array.isArray(result?.rows)) {
+            throw new Error(
+                "La fuente no devolvió un dataset válido"
+            );
+        }
+
+        return validateSourceRows(
+            source,
+            result.rows as VaiRow[]
+        );
+    }
+
+    const join = (
+        base: string,
+        values: Record<string, string>,
+    ) => {
+        const [
+            pathname,
+            query = "",
+        ] = base.split("?");
+
+        const params = new URLSearchParams(
+            query
+        );
+
+        for (
+            const [key, value] of
+            Object.entries(values)
+        ) {
+            params.set(key, value);
+        }
+
+        return `${pathname}?${params.toString()}`;
+    };
+
+    const started = Date.now();
+
+    onProgress?.("Preparando costos…");
+
+    const initialPath = join(path, {
+        transport: "pages-v1",
+        ...(options.fresh
+            ? { fresh: "1" }
+            : {}),
+    });
+
+    let manifest = await get(
+        initialPath
+    );
+
+    while (manifest.status === "busy") {
+        if (
+            Date.now() - started >
+            210_000
+        ) {
+            throw new Error(
+                "El servicio de costos está ocupado. Reintenta la carga."
+            );
+        }
+
+        onProgress?.(
+            "Esperando un turno de consulta de costos…"
+        );
+
+        await pause(3000);
+
+        manifest = await get(
+            initialPath
+        );
+    }
+
+    const snapshot = manifest?.snapshot;
+
+    if (
+        manifest?.format !== "costs-rows-v1" ||
+        typeof snapshot !== "string"
+    ) {
+        throw new Error(
+            "Actualiza el endpoint de costos en server.js y reinicia la API."
+        );
+    }
+
+    const base = join(source.endpoint, {
+        transport: "pages-v1",
+        snapshot,
+    });
+
+    while (manifest.status === "loading") {
+        if (
+            Date.now() - started >
+            210_000
+        ) {
+            throw new Error(
+                "Costos sigue en preparación. Revisa tiempos y bloqueos en SQL Server."
+            );
+        }
+
+        onProgress?.(
+            `Preparando costos: ${
+                Number(
+                    manifest.rows_read || 0
+                ).toLocaleString("es-PE")
+            } filas leídas…`
+        );
+
+        await pause(1000);
+
+        manifest = await get(base);
+
+        if (
+            manifest.snapshot !== snapshot ||
+            manifest.format !== "costs-rows-v1"
+        ) {
+            throw new Error(
+                "Cambió la consulta durante la carga. Actualiza los datos."
+            );
+        }
+    }
+
+    const total = manifest.total;
+    const pages = manifest.pages;
+    const columns: unknown =
+        manifest.columns;
+
+    const known = new Set(
+        source.fields.map(
+            (field) => field.id
+        )
+    );
+
+    if (
+        manifest.status !== "ready" ||
+        !Number.isSafeInteger(total) ||
+        total < 0 ||
+        !Number.isSafeInteger(pages) ||
+        pages < 0 ||
+        (
+            total === 0
+                ? pages !== 0
+                : pages < 1 ||
+                  pages > total
+        ) ||
+        !Array.isArray(columns) ||
+        columns.length !== known.size ||
+        !columns.length ||
+        columns.some(
+            (field) =>
+                typeof field !== "string" ||
+                !known.has(field)
+        ) ||
+        new Set(columns).size !==
+            columns.length
+    ) {
+        throw new Error(
+            "El manifiesto de costos no es válido; no se calcularon totales."
+        );
+    }
+
+    const fields = columns as string[];
+    const rows: VaiRow[] = [];
+    const downloadStarted = Date.now();
+
+    // Máximo dos páginas simultáneas.
+    for (
+        let first = 0;
+        first < pages;
+        first += 2
+    ) {
+        check();
+
+        const indices =
+            first + 1 < pages
+                ? [first, first + 1]
+                : [first];
+
+        const batch = await Promise.all(
+            indices.map((page) =>
+                get(
+                    join(base, {
+                        page: String(page),
+                    })
+                )
+            )
+        );
+
+        for (
+            let index = 0;
+            index < batch.length;
+            index += 1
+        ) {
+            const part = batch[index];
+
+            if (
+                part.format !==
+                    "costs-rows-v1" ||
+                part.snapshot !==
+                    snapshot ||
+                part.page !==
+                    indices[index] ||
+                !Array.isArray(part.data) ||
+                part.count !==
+                    part.data.length
+            ) {
+                throw new Error(
+                    "Página de costos incompleta o de otra consulta. Actualiza los datos."
+                );
+            }
+
+            for (const tuple of part.data) {
+                if (
+                    !Array.isArray(tuple) ||
+                    tuple.length !==
+                        fields.length
+                ) {
+                    throw new Error(
+                        "Una fila de costos no cumple el contrato."
+                    );
+                }
+
+                const row: VaiRow = {};
+
+                for (
+                    let column = 0;
+                    column < fields.length;
+                    column += 1
+                ) {
+                    row[fields[column]] =
+                        tuple[column];
+                }
+
+                rows.push(row);
+            }
+        }
+
+        if (rows.length > total) {
+            throw new Error(
+                "La descarga contiene más filas de las declaradas."
+            );
+        }
+
+        onProgress?.(
+            `Descargando costos: ${
+                rows.length.toLocaleString("es-PE")
+            } de ${
+                total.toLocaleString("es-PE")
+            } filas…`
+        );
+
+        // Ceder el hilo entre lotes.
+        // No publicar totales parciales.
+        await pause(0);
+    }
+
+    check();
+
+    if (rows.length !== total) {
+        throw new Error(
+            "Faltan filas de costos. No se mostraron totales parciales."
+        );
+    }
+
+    console.info("[V-Ai costos]", {
+        snapshot,
+        rows: total,
+        pages,
+        prepare_ms: manifest.prepare_ms,
+        gzip_bytes: manifest.gzip_bytes,
+        download_ms:
+            Date.now() - downloadStarted,
+    });
+
+    return validateSourceRows(
+        source,
+        rows
+    );
+}
 export function sourceRequestPath(source: VaiSource, filters: VaiFilterSpec[], state: VaiFilterState) {
     if (source.id === "finance_costs") {
         const filter = filters.find((item) => item.source === source.id && item.kind === "select" && item.field === "month_label");
@@ -4343,11 +4757,21 @@ export function aggregate(metric: VaiMetric, rows: VaiRow[]): number | null {
         }
         case "min": {
             const list = values(metric.field);
-            return list.length ? Math.min(...list) : null;
+            return list.length
+    ? list.reduce(
+        (a, b) => Math.min(a, b),
+        Infinity
+    )
+    : null;
         }
         case "max": {
             const list = values(metric.field);
-            return list.length ? Math.max(...list) : null;
+            return list.length
+    ? list.reduce(
+        (a, b) => Math.max(a, b),
+        -Infinity
+    )
+    : null;
         }
         case "ratio":
         case "diff_pct":
@@ -4898,6 +5322,10 @@ export type VaiMatrixData = {
     records: VaiRow[];
     format: VaiFormat;
 };
+const VAI_MATRIX_COLLATOR =
+    new Intl.Collator("es", {
+        numeric: true,
+    });
 export function computeMatrix(widget: VaiWidgetSpec, source: VaiSource, rows: VaiRow[]): VaiMatrixData {
     const metric = vaiMetric(source, widget.metrics[0]);
     if (!metric || metric.agg !== "sum" || !metric.field)
@@ -4959,7 +5387,13 @@ export function computeMatrix(widget: VaiWidgetSpec, source: VaiSource, rows: Va
     }
     const finish = (node: Node) => {
         for (const key of Object.keys(node.values)) node.values[key] /= scale;
-        node.children.sort((a, b) => a.label.localeCompare(b.label, "es", { numeric: true }));
+        node.children.sort(
+    (a, b) =>
+        VAI_MATRIX_COLLATOR.compare(
+            a.label,
+            b.label
+        )
+);
         for (const child of node.children) finish(child as Node);
         node.lookup.clear();
     };

@@ -1,9 +1,9 @@
 "use client";
 import { createContext, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode, } from "react";
 import { createPortal } from "react-dom";
-import { apiGet } from "../../lib/apiClient";
+import { loadVaiSourceRows } from "../../lib/vai";
 import { canUseLogScale, prefersLogScale, type ChartScaleMode } from "../../lib/chartScale";
-import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, monthBounds, monthsInRange, validIsoDate, validateSourceRows, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, widgetDetailTable, vaiAreaLabel, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiRow, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
+import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, monthBounds, monthsInRange, validIsoDate, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, widgetDetailTable, vaiAreaLabel, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiRow, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
 import { MatrixChart, CHART_COLORS, CHART_OTHER, ColumnChart, ComboChart, DonutChart, HeatmapChart, WaterfallChart, KpiTooltip, LineChart, RankChart, ScatterChart, type ChartRow, type ChartSeries, } from "../ui/Charts";
 import { Button } from "../ui/Button";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
@@ -420,6 +420,7 @@ type SourceState = {
     loading: boolean;
     error: string | null;
     loadedAt: number | null;
+    progress?: string;
 };
 type VaiDashboardProps = {
     spec: VaiDashboardSpec;
@@ -435,71 +436,197 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
         refresh: number;
         state: SourceState;
     }>());
-    const pending = useRef(new Map<string, Promise<VaiRow[]>>());
     useEffect(() => {
         setFilters({});
     }, [spec.filters]);
     useEffect(() => {
-        let current = true;
-        const paths = JSON.parse(requestKey) as Record<string, string>;
-        const changed = sources.filter((source) => {
-            const entry = cache.current.get(source.id);
-            return !entry || entry.path !== paths[source.id] || entry.refresh !== refreshToken;
-        });
+        const controller =
+            new AbortController();
+
+        const paths = JSON.parse(
+            requestKey
+        ) as Record<string, string>;
+
+        const changed = sources.filter(
+            (source) => {
+                const entry =
+                    cache.current.get(
+                        source.id
+                    );
+
+                return (
+                    !entry ||
+                    entry.path !==
+                        paths[source.id] ||
+                    entry.refresh !==
+                        refreshToken
+                );
+            }
+        );
+
         setData((previous) => {
-            const next = { ...previous };
+            const next = {
+                ...previous,
+            };
+
             for (const source of sources) {
-                const entry = cache.current.get(source.id);
-                next[source.id] = entry && entry.path === paths[source.id] && entry.refresh === refreshToken
-                    ? entry.state
-                    : { rows: previous[source.id]?.rows ?? EMPTY_VAI_ROWS, loading: true, error: null, loadedAt: previous[source.id]?.loadedAt ?? null };
+                const entry =
+                    cache.current.get(
+                        source.id
+                    );
+
+                next[source.id] =
+                    entry &&
+                    entry.path ===
+                        paths[source.id] &&
+                    entry.refresh ===
+                        refreshToken
+                        ? entry.state
+                        : {
+                            rows:
+                                EMPTY_VAI_ROWS,
+                            loading: true,
+                            error: null,
+                            loadedAt: null,
+                            progress:
+                                "Preparando consulta…",
+                        };
             }
-            return sources.every((source) => next[source.id] === previous[source.id]) ? previous : next;
+
+            return sources.every(
+                (source) =>
+                    next[source.id] ===
+                    previous[source.id]
+            )
+                ? previous
+                : next;
         });
-        if (!changed.length)
-            return;
-        void Promise.all(changed.map(async (source) => {
-            const path = paths[source.id] ?? source.endpoint;
-            const key = `${refreshToken}:${path}`;
-            try {
-                let task = pending.current.get(key);
-                if (!task) {
-                    task = apiGet(path).then((result) => {
-                        if (result?.ok === false || !Array.isArray(result?.rows))
-                            throw new Error(result?.error || "La fuente no devolvió un dataset válido");
-                        return validateSourceRows(source, result.rows as VaiRow[]);
-                    });
-                    pending.current.set(key, task);
-                }
-                let rows: VaiRow[];
-                try {
-                    rows = await task;
-                }
-                finally {
-                    if (pending.current.get(key) === task)
-                        pending.current.delete(key);
-                }
-                return { source, path, state: { rows, loading: false, error: null, loadedAt: Date.now() } as SourceState };
+
+        // Evita iniciar otra consulta por cada
+        // clic rápido del multiselect.
+        const timer = window.setTimeout(() => {
+            for (const source of changed) {
+                const path =
+                    paths[source.id] ??
+                    source.endpoint;
+
+                const fresh =
+                    refreshToken > 0 &&
+                    cache.current.get(
+                        source.id
+                    )?.refresh !==
+                        refreshToken;
+
+                void loadVaiSourceRows(
+                    source,
+                    path,
+                    {
+                        signal:
+                            controller.signal,
+                        fresh,
+                        onProgress: (
+                            progress
+                        ) => {
+                            if (
+                                controller
+                                    .signal
+                                    .aborted
+                            ) {
+                                return;
+                            }
+
+                            setData(
+                                (previous) => ({
+                                    ...previous,
+                                    [source.id]: {
+                                        ...previous[
+                                            source.id
+                                        ],
+                                        progress,
+                                    },
+                                })
+                            );
+                        },
+                    }
+                )
+                    .then((rows) => {
+                        if (
+                            controller
+                                .signal
+                                .aborted
+                        ) {
+                            return;
+                        }
+
+                        const state: SourceState = {
+                            rows,
+                            loading: false,
+                            error: null,
+                            loadedAt:
+                                Date.now(),
+                        };
+
+                        cache.current.set(
+                            source.id,
+                            {
+                                path,
+                                refresh:
+                                    refreshToken,
+                                state,
+                            }
+                        );
+
+                        // Publicar esta fuente
+                        // sin esperar las demás.
+                        setData(
+                            (previous) => ({
+                                ...previous,
+                                [source.id]:
+                                    state,
+                            })
+                        );
+                    })
+                    .catch(
+                        (error: unknown) => {
+                            if (
+                                controller
+                                    .signal
+                                    .aborted
+                            ) {
+                                return;
+                            }
+
+                            setData(
+                                (previous) => ({
+                                    ...previous,
+                                    [source.id]: {
+                                        rows:
+                                            EMPTY_VAI_ROWS,
+                                        loading:
+                                            false,
+                                        loadedAt:
+                                            null,
+                                        error:
+                                            error instanceof Error
+                                                ? error.message
+                                                : "Error al consultar la fuente",
+                                    },
+                                })
+                            );
+                        }
+                    );
             }
-            catch (error) {
-                return { source, path, state: { rows: [], loading: false, error: error instanceof Error ? error.message : "Error al consultar la fuente", loadedAt: null } as SourceState };
-            }
-        })).then((results) => {
-            if (!current)
-                return;
-            for (const { source, path, state } of results) {
-                if (!state.error)
-                    cache.current.set(source.id, { path, refresh: refreshToken, state });
-            }
-            setData((previous) => {
-                const next = { ...previous };
-                for (const { source, state } of results)
-                    next[source.id] = state;
-                return next;
-            });
-        });
-        return () => { current = false; };
-    }, [sources, requestKey, refreshToken]);
+        }, 250);
+
+        return () => {
+            window.clearTimeout(timer);
+            controller.abort();
+        };
+    }, [
+        sources,
+        requestKey,
+        refreshToken,
+    ]);
     const defaultFilters = useMemo(() => defaultFilterValues(spec.filters, VAI_SOURCE_MAP, {}), [spec.filters]);
     const effectiveFilters = useMemo<VaiFilterState>(() => {
         const next: VaiFilterState = { ...defaultFilters };
@@ -607,7 +734,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
             const state = data[source.id];
             return (<span key={source.id} title={`${source.endpoint} · ${source.grain}`}>
               {vaiAreaLabel(source.area)} · {source.name}:{" "}
-              {state?.loading ? "cargando…" : state?.error ? <span style={{ color: "var(--bad)" }}>error</span> : `${(filtered[source.id] ?? []).length.toLocaleString("es-PE")} de ${(state?.rows ?? []).length.toLocaleString("es-PE")} filas`}
+              {state?.loading ? (state.progress || "cargando…") : state?.error ? <span style={{ color: "var(--bad)" }}>error</span> : `${(filtered[source.id] ?? []).length.toLocaleString("es-PE")} de ${(state?.rows ?? []).length.toLocaleString("es-PE")} filas`}
             </span>);
         })}
       </div>
@@ -617,7 +744,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
           </div>) : null)}
 
       {kpis.length ? (<div className="vai-kpi-grid">
-          {kpis.map((widget, i) => (<ScopedWidget key={`${widget.source}-${widget.metrics[0]}-${i}`} id={`kpi-${i}`} order={i} widget={widget} rows={filtered[widget.source] ?? []} loading={loading} trendDateField={spec.filters.find((filter): filter is Extract<VaiFilterSpec, {
+          {kpis.filter((widget) => !data[widget.source]?.error).map((widget, i) => (<ScopedWidget key={`${widget.source}-${widget.metrics[0]}-${i}`} id={`kpi-${i}`} order={i} widget={widget} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS} loading={data[widget.source]?.loading ?? true} trendDateField={spec.filters.find((filter): filter is Extract<VaiFilterSpec, {
                 kind: "date_range";
             }> => filter.kind === "date_range" && filter.source === widget.source)?.field ?? null}/>))}
         </div>) : null}
