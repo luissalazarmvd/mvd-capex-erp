@@ -2447,7 +2447,9 @@ export default function FixAssetsCat() {
           asset_code: code,
           source_name: text(row?.source_name).trim().toUpperCase() || "WEB",
           location_name: upperOrNull(draft.location_name),
-          capex_code: upperOrNull(draft.capex_code),
+          ...(draft.capex_code !== originals[code]?.capex_code
+            ? { capex_code: upperOrNull(draft.capex_code) }
+            : {}),
           po_num: upperOrNull(draft.po_num),
           subjournal_code: upperOrNull(draft.subjournal_code),
           voucher_number: upperOrNull(draft.voucher_number),
