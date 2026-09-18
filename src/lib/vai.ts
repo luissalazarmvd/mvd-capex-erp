@@ -98,7 +98,7 @@ const m = (id: string, label: string, description: string, agg: VaiAgg, format: 
 const q = (dateFields: string[], dimensions: string[] = []): VaiQuery => ({ dateFields, dimensions });
 const OPERATIONAL_MOVE: VaiCondition = { field: "movement_type", op: "eq", value: "OPERATIVO" };
 const fleetFuelFields = (): VaiField[] => [
-    f("operation_number", "Operación", "attribute", "Número de operación del vale."),
+    f("operation_number", "Vale de consumo / operación", "attribute", "Número de operación que identifica el vale de consumo."),
     f("item", "Ítem", "attribute", "Número de ítem del vale cuando la operación es numérica.", "number", "integer"),
     f("petro_plus_unique_number", "Identificador Petroperú", "attribute", "Identificador único entregado por la fuente Petroperú."),
     f("dispatch_note", "Nota de despacho", "attribute", "Nota de despacho del abastecimiento."),
@@ -992,7 +992,7 @@ export const VAI_SOURCES: VaiSource[] = [
         ],
         rules: [
             "Fuente oficial de costos y gastos de dw.v_costs_main. Mantener su universo, clasificadores, signos, nulos y glosas. No reconstruir costos desde compras de lotes, pagos, planta u otras fuentes.",
-            "USD por defecto. PEN solo cuando lo pide explícitamente el usuario; en widgets separados cuando solicita ambas monedas. PPTO no tiene PEN: no convertirlo ni presentarlo como cero.",
+            "USD por defecto. PEN solo cuando lo pide explícitamente el usuario; para métricas de costos que existen en ambas monedas la interfaz permite alternar USD/PEN en el mismo visual. PPTO no tiene PEN: no convertirlo ni presentarlo como cero.",
             "period_label es un filtro obligatorio: REAL 2025, REAL 2026 y PPTO 2026 son series distintas. Nunca mostrar un total que sume esos períodos entre sí.",
             "month_label es el filtro de meses comparables independiente del año. Enero-julio significa ENE-JUL en cada period_label. No usar un rango absoluto 2026-01-01 a 2026-07-31 que elimine REAL 2025. Sin período solicitado se mantienen todos los meses.",
             "Cabecera estándar: tarjetas REAL 2026, PPTO 2026 y REAL 2025 con importe acumulado y explicación, más una matriz desplegable. No agregar por defecto un gráfico cuyo único eje categórico sea period_label. En PEN solo existen las tarjetas REAL.",
@@ -3474,7 +3474,7 @@ function positiveVisualText(value: string) {
         .replace(/eje\s+vertical/g, "eje y");
 }
 function visualRequestSegments(prompt: string) {
-    const parts = positiveVisualText(prompt).split(/[;\n]+|\.(?!\d)|\b(?:ademas|tambien|luego|y)\s+(?:(?:quiero|muestra|agrega|incluye)\s+)?(?:otro|otra|un|una)\s+(?=grafico|grafica|anillo|torta|ranking|pareto|histograma|mapa|cascada|tabla|dispersion)/g).map((part) => part.trim()).filter(Boolean);
+    const parts = positiveVisualText(prompt).split(/[;\n]+|\.(?!\d)|\b(?:ademas|tambien|luego|y)\s+(?:(?:quiero|muestra|agrega|incluye)\s+)?(?:otro|otra|un|una)\s+(?=grafico|grafica|anillo|torta|ranking|pareto|histograma|mapa|cascada|tabla|matriz|matrix|dispersion)/g).map((part) => part.trim()).filter(Boolean);
     const result: string[] = [];
     for (const part of parts) {
         if (result.length && !requestedFamily(part) && /\beje\s*(?:x|y|derecho|izquierdo|primario|secundario)\b/.test(part))
@@ -3496,7 +3496,9 @@ function requestedFamily(text: string): VaiWidgetType | null {
         return "waterfall";
     if (/\b(?:dispersion|correlacion|scatter|nube de puntos)\b/.test(text))
         return "scatter";
-    if (/\b(?:tabla dinamica|pivot|matriz)\b/.test(text))
+    if (/\b(?:matriz|matrix)\b/.test(text))
+        return "matrix";
+    if (/\b(?:tabla dinamica|pivot)\b/.test(text))
         return "table";
     const hints = promptRenderHints(text);
     if (hints.mentionsBars && hints.mentionsLines && !/\b(?:por separado|graficos separados)\b/.test(text))
@@ -3515,6 +3517,106 @@ function requestedFamily(text: string): VaiWidgetType | null {
         return "bar";
     return null;
 }
+type VaiMatrixRequestLayout = {
+    columns: string[];
+    matrixColumns: string[];
+    dateField: string | null;
+    bucket: VaiBucket | null;
+    metric: string | null;
+    matchedTerms: number;
+    unresolvedRows: string[];
+    unresolvedColumns: string[];
+};
+function matrixPromptText(value: string) {
+    return String(value ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/s\s*\//g, " pen ")
+        .replace(/us\s*\$/g, " usd ")
+        .replace(/[^a-z0-9,;:.()/>→ -]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function matrixClause(text: string, names: string, stops: string) {
+    const match = text.match(new RegExp(`\\b(?:${names})\\b\\s*(?:(?:que|con|tenga|tengan|sean|son|como|de|en|has|have|with|are|as|avec|sont)\\s+|[:=]\\s*)*([\\s\\S]+?)(?=\\b(?:${stops})\\b|[.;]|$)`, "i"));
+    return match?.[1]?.replace(/\b(?:y|e|and|et)\s+(?:en|in|dans)\s*$/i, "").trim() || "";
+}
+function matrixTerms(value: string) {
+    const cleaned = value
+        .replace(/^[\s:=-]+|[\s:=-]+$/g, "")
+        .replace(/^(?:que|con|tenga|tengan|sean|son|como|de|en|with|are|as|avec|sont)\s+/i, "");
+    const commaParts = cleaned.split(/\s*(?:,|>|→|\/)\s*/).filter(Boolean);
+    const out: string[] = [];
+    for (const part of commaParts) {
+        const pieces = part.split(/\s+(?:y|e|and|et)\s+/).map((item) => item.trim()).filter(Boolean);
+        out.push(...pieces);
+    }
+    return out;
+}
+function matrixBucket(term: string): VaiBucket | null {
+    const text = normalizePromptText(term);
+    if (/\b(?:dia|dias|day|days|jour|jours)\b/.test(text))
+        return "day";
+    if (/\b(?:semana|semanas|week|weeks|semaine|semaines)\b/.test(text))
+        return "week";
+    if (/\b(?:mes|meses|month|months|mois)\b/.test(text))
+        return "month";
+    if (/\b(?:trimestre|trimestres|quarter|quarters)\b/.test(text))
+        return "quarter";
+    if (/\b(?:ano|anos|year|years|annee|annees)\b/.test(text))
+        return "year";
+    return null;
+}
+function matrixPromptLayout(prompt: string, source: VaiSource): VaiMatrixRequestLayout {
+    const text = matrixPromptText(prompt);
+    const rowsText = matrixClause(text, "filas?|rows?|lignes?", "columnas?|columns?|colonnes?|valores?|values?|valeurs?|medidas?|measures?|mesures?");
+    const columnsText = matrixClause(text, "columnas?|columns?|colonnes?", "valores?|values?|valeurs?|medidas?|measures?|mesures?|filas?|rows?|lignes?");
+    const valuesText = matrixClause(text, "valores?|values?|valeurs?|medidas?|measures?|mesures?", "filas?|rows?|lignes?|columnas?|columns?|colonnes?");
+    const rowTerms = matrixTerms(rowsText);
+    const columnTerms = matrixTerms(columnsText);
+    const columns: string[] = [];
+    const matrixColumns: string[] = [];
+    const unresolvedRows: string[] = [];
+    const unresolvedColumns: string[] = [];
+    let dateField: string | null = null;
+    let bucket: VaiBucket | null = null;
+    for (const term of rowTerms) {
+        const field = matchingField(term, source, ["dimension", "attribute", "date"]);
+        if (field && !columns.includes(field.id))
+            columns.push(field.id);
+        else if (!field)
+            unresolvedRows.push(term);
+    }
+    for (const term of columnTerms) {
+        const temporalBucket = matrixBucket(term);
+        const normalized = normalizePromptText(term);
+        const scenarioLike = /\b(?:escenario|scenario|scenario|periodo escenario|period scenario)\b/.test(normalized);
+        if (temporalBucket && !scenarioLike) {
+            dateField = source.defaultDateField ?? source.fields.find((field) => field.role === "date")?.id ?? null;
+            bucket = temporalBucket;
+            if (!dateField)
+                unresolvedColumns.push(term);
+            continue;
+        }
+        const field = matchingField(term, source, ["dimension", "attribute"]);
+        if (field && !columns.includes(field.id) && !matrixColumns.includes(field.id))
+            matrixColumns.push(field.id);
+        else if (!field)
+            unresolvedColumns.push(term);
+    }
+    const valueMetric = valuesText ? requestMetric(requestWords(valuesText), source) : null;
+    return {
+        columns: columns.slice(0, 5),
+        matrixColumns: matrixColumns.slice(0, 3),
+        dateField,
+        bucket,
+        metric: valueMetric?.agg === "sum" ? valueMetric.id : null,
+        matchedTerms: columns.length + matrixColumns.length + (dateField ? 1 : 0) + (valueMetric ? 1 : 0),
+        unresolvedRows,
+        unresolvedColumns,
+    };
+}
 function matchingField(term: string, source: VaiSource, roles: VaiFieldRole[] = ["dimension"]) {
     const words = requestWords(term);
     const candidates = source.fields.filter((f) => roles.includes(f.role) && !/^(?:is_|has_)/.test(f.id));
@@ -3522,7 +3624,8 @@ function matchingField(term: string, source: VaiSource, roles: VaiFieldRole[] = 
         const label = hintWords(field.label);
         const hits = label.filter((word) => wordHits([word], new Set(words)) > 0).length;
         const exactId = normalizePromptText(term).includes(normalizePromptText(field.id));
-        const enough = hits === label.length || (label.length > 2 && hits >= 2);
+        const directToken = words.length === 1 && label.some((word) => wordHits(words, new Set([word])) > 0);
+        const enough = hits === label.length || (label.length > 2 && hits >= 2) || directToken;
         return { field, score: exactId ? 100 : enough && hits ? wordHits(words, dimensionTerms(field)) + hits * 4 : 0 };
     }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
     return ranked[0]?.field ?? null;
@@ -3574,6 +3677,8 @@ export type VaiVisualRequest = {
     seriesAxes: ("left" | "right" | null)[] | null;
     dimension: string | null;
     dateField: string | null;
+    columns: string[];
+    matrixColumns: string[];
     breakdown: string | null;
     bucket: VaiBucket | null;
     stack: VaiStackMode | null;
@@ -3600,10 +3705,11 @@ export function resolveVisualRequests(prompt: string, allowedSourceIds?: string[
         const ranked = pool.map((source) => {
             const bindings = hints.renders.map((hint) => requestMetric(hint.term, source));
             const axis = axisTerm ? matchingField(axisTerm, source, ["dimension", "date"]) : null;
+            const matrixLayout = type === "matrix" ? matrixPromptLayout(prompt, source) : null;
             const words = requestWords(full);
             let score = source.keywords.reduce((n, word) => n + (full.includes(normalizePromptText(word)) ? 5 : 0), 0);
             score += wordHits(words, new Set(hintWords(source.name))) + (preferredSources.includes(source.id) ? 10 : 0);
-            score += bindings.filter(Boolean).length * 12 + (axis ? 15 : 0);
+            score += bindings.filter(Boolean).length * 12 + (axis ? 15 : 0) + (matrixLayout?.matchedTerms ?? 0) * 14;
             if (axisTerm && !axis && !/mes|fecha|period|dia|semana|trimestre|ano/.test(axisTerm))
                 score -= 20;
             if (/combustible|galon|abastec|tanqueo/.test(full) && !/rendimiento|gps|por km|eficiencia/.test(full)) {
@@ -3619,7 +3725,11 @@ export function resolveVisualRequests(prompt: string, allowedSourceIds?: string[
         const metrics: string[] = [];
         const renders: VaiSeriesRender[] = [];
         const axes: ("left" | "right" | null)[] = [];
-        if (source && type === "combo" && hints.renders.length) {
+        const matrixLayout = source && type === "matrix" ? matrixPromptLayout(prompt, source) : null;
+        if (source && type === "matrix" && matrixLayout?.metric) {
+            metrics.push(matrixLayout.metric);
+        }
+        else if (source && type === "combo" && hints.renders.length) {
             for (const hint of hints.renders) {
                 const metric = requestMetric(hint.term, source);
                 if (!metric) {
@@ -3638,7 +3748,7 @@ export function resolveVisualRequests(prompt: string, allowedSourceIds?: string[
             if (metrics.length < 2)
                 problems.push("El combinado solicitado necesita dos métricas distintas disponibles; no se sustituirá por un anillo ni por una sola serie.");
         }
-        else if (source) {
+        else if (source && type !== "matrix") {
             const metricText = text.split(/\bordenad[oa]s?\b/)[0].split(":").pop()!;
             const cartesian = type === "bar" || type === "line" || type === "area" || type === "scatter";
             const parts = cartesian ? metricText.split(/\s+(?:y|e|vs\.?|versus|contra|frente a)\s+/) : [metricText];
@@ -3658,8 +3768,24 @@ export function resolveVisualRequests(prompt: string, allowedSourceIds?: string[
         let dimension: string | null = null;
         let dateField: string | null = null;
         let breakdown: string | null = null;
-        const bucket = hints.bucket[0]?.value ?? null;
-        if (source) {
+        let columns: string[] = [];
+        let matrixColumns: string[] = [];
+        let bucket = hints.bucket[0]?.value ?? null;
+        if (source && type === "matrix" && matrixLayout) {
+            columns = matrixLayout.columns;
+            matrixColumns = matrixLayout.matrixColumns;
+            dateField = matrixLayout.dateField;
+            bucket = matrixLayout.bucket ?? bucket;
+            for (const term of matrixLayout.unresolvedRows)
+                problems.push(`No se reconoce la fila de matriz «${term}» en ${source.name}.`);
+            for (const term of matrixLayout.unresolvedColumns)
+                problems.push(`No se reconoce la columna de matriz «${term}» en ${source.name}.`);
+            if (!metrics.length)
+                problems.push(`No se reconoce una medida sumable para la matriz en ${source.name}.`);
+            if (!columns.length)
+                problems.push(`La matriz necesita al menos una fila válida en ${source.name}.`);
+        }
+        else if (source) {
             const explicit = axisTerm ? matchingField(axisTerm, source, ["dimension", "date"]) : null;
             if (explicit?.role === "dimension")
                 dimension = explicit.id;
@@ -3727,19 +3853,21 @@ export function resolveVisualRequests(prompt: string, allowedSourceIds?: string[
         if (bin && (Number(bin[1]) < 3 || Number(bin[1]) > 40))
             problems.push("El histograma admite de 3 a 40 intervalos; no se cambió la cantidad solicitada silenciosamente.");
         requests.push({ text, type, source: source?.id ?? null, metrics, seriesTypes: renders.length ? renders : null,
-            seriesAxes: axes.some(Boolean) ? axes : null, dimension, dateField, breakdown, bucket,
+            seriesAxes: axes.some(Boolean) ? axes : null, dimension, dateField, columns, matrixColumns, breakdown, bucket,
             stack: hints.stack[0]?.value ?? null, sort, sortMetric, cumulative: hints.cumulative.length ? true : null,
             limit: top ? Number(top[1] ?? top[2]) : null, includeOthers, bins: bin ? Number(bin[1]) : null, problems });
     }
     return requests;
 }
 function requestWidgetScore(request: VaiVisualRequest, widget: VaiRawWidget | VaiWidgetSpec) {
-    if (widget.type === "kpi" || (widget.type === "table" && request.type !== "table"))
+    if (widget.type === "kpi" || (widget.type === "table" && request.type !== "table" && request.type !== "matrix"))
         return -Infinity;
     if (request.source && widget.source !== request.source)
         return -Infinity;
     const metrics = request.metrics.filter((m) => widget.metrics.includes(m)).length;
-    return metrics * 8 + (request.dimension && request.dimension === widget.dimension ? 16 : 0)
+    const matrixRows = request.columns.filter((id) => widget.columns?.includes(id)).length;
+    const matrixCols = request.matrixColumns.filter((id) => widget.matrixColumns?.includes(id)).length;
+    return metrics * 8 + matrixRows * 5 + matrixCols * 5 + (request.dimension && request.dimension === widget.dimension ? 16 : 0)
         + (request.dateField && request.dateField === widget.dateField ? 14 : 0)
         + (request.type === normalizeWidgetType(widget.type) ? 5 : 0)
         + wordHits(requestWords(request.text), new Set(hintWords(widget.title))) * 0.15;
@@ -3757,6 +3885,31 @@ function enforceVisualRequests(input: VaiRawWidget[], prompt: string, allowedSou
         const source = vaiSource(request.source)!;
         const existing = widgets[index];
         const type = request.type ?? (existing && SERIES_TYPES.has(normalizeWidgetType(existing.type) ?? "bar") ? normalizeWidgetType(existing.type)! : "bar");
+        if (type === "matrix") {
+            const explicitLayout = request.columns.length > 0 || request.matrixColumns.length > 0 || Boolean(request.dateField);
+            const metricId = request.metrics[0] ?? existing?.metrics.find((id) => vaiMetric(source, id)?.agg === "sum") ?? null;
+            const hierarchy = request.columns.length ? [...request.columns] : [...(existing?.columns ?? [])];
+            const matrixColumns = explicitLayout ? [...request.matrixColumns] : [...(existing?.matrixColumns ?? [])];
+            const dateField = explicitLayout ? request.dateField : existing?.dateField ?? null;
+            if (!metricId || vaiMetric(source, metricId)?.agg !== "sum" || !hierarchy.length)
+                continue;
+            const title = existing && normalizeWidgetType(existing.type) === "matrix"
+                ? existing.title
+                : `Matriz: ${vaiMetric(source, metricId)?.label ?? metricId}`;
+            const replacement: VaiRawWidget = {
+                ...(existing ?? {}), type: "matrix", title: title.slice(0, 180), source: source.id, metrics: [metricId],
+                seriesTypes: null, seriesAxes: null, dimension: null, dateField,
+                bucket: dateField ? request.bucket ?? existing?.bucket ?? "month" : null,
+                limit: null, columns: hierarchy.slice(0, 5), matrixColumns: matrixColumns.slice(0, 3), summaries: [],
+                breakdown: null, stack: null, sort: "label_asc", sortMetric: null, cumulative: null, includeOthers: null, bins: null,
+            };
+            if (index === widgets.length)
+                widgets.push(replacement);
+            else
+                widgets[index] = replacement;
+            used.add(index);
+            continue;
+        }
         let metrics = request.metrics.length ? [...request.metrics] : [...(existing?.metrics ?? [])];
         if (["bar", "line", "area"].includes(type) && request.metrics.length === 1 && !request.breakdown && existing?.metrics.includes(request.metrics[0])) {
             metrics = [...existing.metrics];
@@ -3829,6 +3982,10 @@ export function visualContractIssues(spec: VaiDashboardSpec | null, prompt: stri
                 return false;
             if (request.dateField && w.dateField !== request.dateField)
                 return false;
+            if (request.columns.length && request.columns.some((id, index) => w.columns?.[index] !== id))
+                return false;
+            if (request.matrixColumns.length && request.matrixColumns.some((id, index) => w.matrixColumns?.[index] !== id))
+                return false;
             if (request.breakdown && w.breakdown !== request.breakdown)
                 return false;
             if (request.stack && w.stack !== request.stack)
@@ -3864,7 +4021,9 @@ function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"
     const text = normalizePromptText(prompt);
     const wantsPen = /\b(pen|soles)\b/.test(text) || /s\s*\//i.test(prompt);
     const wantsUsd = /\b(usd|dolares|dolar)\b/.test(text);
-    const currencies: ("usd" | "pen")[] = wantsPen ? (wantsUsd ? ["usd", "pen"] : ["pen"]) : ["usd"];
+    const defaultCurrency: "usd" | "pen" = wantsPen && !wantsUsd ? "pen" : "usd";
+    const currencies: ("usd" | "pen")[] = [defaultCurrency];
+    const explicitMatrixLayout = /\b(?:matriz|matrix)\b/.test(text) && /\b(?:filas?|rows?|lignes?|columnas?|columns?|colonnes?|valores?|values?|valeurs?)\b/.test(text);
     const aliases: Record<string, string> = { lima_area: "gerencia_lima", account_code: "account_label", account_desc: "account_label", annex_code: "supplier_label", supplier_name: "supplier_label", cost_center_code: "cost_center_label", cost_center_desc: "cost_center_label" };
     const field = (id: string | null | undefined) => id ? aliases[id] ?? id : null;
     const incoming = dashboard.filters.map((filter) => filter.source === "finance_costs" && filter.kind === "select" && (!filter.values?.length || filter.field === "lima_area") ? { ...filter, field: field(filter.field)! } : filter);
@@ -3888,7 +4047,7 @@ function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"
         summaries: [], breakdown: null, stack: null, sort: null, sortMetric: null, cumulative: null, ...extra,
     });
     const remapMetric = (id: string) => {
-        const currencyId = !wantsPen ? id.replace(/_pen(?=_|$)/g, "_usd") : wantsPen && !wantsUsd ? id.replace(/_usd(?=_|$)/g, "_pen") : id;
+        const currencyId = wantsPen && !wantsUsd ? id.replace(/_usd(?=_|$)/g, "_pen") : id.replace(/_pen(?=_|$)/g, "_usd");
         const aliases: Record<string, string> = {
             real_cost_usd: explicitPeriods.includes("REAL 2025") && !explicitPeriods.includes("REAL 2026") ? "cost_real_2025_usd" : "cost_real_2026_usd",
             real_cost_pen: explicitPeriods.includes("REAL 2025") && !explicitPeriods.includes("REAL 2026") ? "cost_real_2025_pen" : "cost_real_2026_pen",
@@ -3897,10 +4056,10 @@ function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"
         return aliases[currencyId] ?? currencyId;
     };
     const costWidgets = dashboard.widgets.filter((widget) => widget.source === "finance_costs").map((widget) => {
-        const currency = wantsPen && (!wantsUsd || widget.metrics.some((id) => id.endsWith("_pen"))) ? "pen" : "usd";
+        const currency: "usd" | "pen" = wantsPen && !wantsUsd ? "pen" : "usd";
         const next: VaiRawWidget = { ...widget, dimension: field(widget.dimension), breakdown: field(widget.breakdown), columns: widget.columns?.map((id) => field(id)!) ?? null, matrixColumns: widget.matrixColumns?.map((id) => field(id)!) ?? null, metrics: widget.metrics.map(remapMetric) };
         if (next.type === "matrix") {
-            const matrixColumns = next.matrixColumns?.length ? next.matrixColumns : next.breakdown ? [next.breakdown] : ["period_label"];
+            const matrixColumns = next.matrixColumns?.length ? next.matrixColumns : next.breakdown ? [next.breakdown] : explicitMatrixLayout ? [] : ["period_label"];
             const dateField = next.dateField ?? null;
             return { ...next, metrics: [`cost_total_${currency}`], columns: next.columns?.length ? next.columns : ["account_label", "supplier_label", "gloss"], matrixColumns, dimension: null, dateField, bucket: dateField ? next.bucket ?? "month" : null, breakdown: null, limit: null };
         }

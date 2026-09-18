@@ -293,8 +293,8 @@ function ChartCard({ title, subtitle, series, kind, empty, table, panel, control
     const ui = useChartUi();
     const [dataOpen, setDataOpen] = useState(false);
     const hasLegend = Boolean(series && series.length > 1);
-    return (<section className="trjk-card trjk-chart" style={{ height: "100%", minWidth: 0 }}>
-      <div className="trjk-chart-head" style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 12 }}>
+    return (<section className="trjk-card trjk-chart" style={{ height: "100%", minWidth: 0, position: "relative" }}>
+      <div className="trjk-chart-head" style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 12, paddingRight: controls ? 76 : 0 }}>
         <div style={{ minWidth: 0, flex: "1 1 320px" }}>
           <h3 style={{ whiteSpace: "normal", overflow: "visible", textOverflow: "clip", overflowWrap: "anywhere", lineHeight: 1.4 }}>{title}</h3>
           <p className="trjk-chart-sub" style={{ whiteSpace: "normal", overflow: "visible", textOverflow: "clip", overflowWrap: "anywhere", lineHeight: 1.5 }}>{subtitle}</p>
@@ -309,12 +309,16 @@ function ChartCard({ title, subtitle, series, kind, empty, table, panel, control
           </div>) : null}
       </div>
       {controls ? (<div data-vai-export-ignore style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))",
-            gap: 8,
-            width: "100%",
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 6,
+            width: "auto",
             minWidth: 0,
-            alignItems: "end",
         }}>
           {controls}
         </div>) : null}
@@ -529,7 +533,7 @@ function stackSegments(values: (number | null)[]) {
     const lastNegative = values.reduce((last, v, j) => (v != null && v < 0 ? j : last), -1);
     return { segments, positive: Number(positive.toFixed(9)), negative: Number(negative.toFixed(9)), lastPositive, lastNegative };
 }
-export function ColumnChart({ title, subtitle, rows, series, digits = 0, unit = "", height = 220, scale: scaleMode = "linear", stacked = false, dataTable, controls, minCategoryWidth = 0, intervals = false, }: {
+export function ColumnChart({ title, subtitle, rows, series, digits = 0, unit = "", height = 220, scale: scaleMode = "linear", stacked = false, dataTable, controls, minCategoryWidth = 0, intervals = false, onSelect, }: {
     title: string;
     subtitle: string;
     rows: ChartRow[];
@@ -543,6 +547,7 @@ export function ColumnChart({ title, subtitle, rows, series, digits = 0, unit = 
     controls?: ReactNode;
     minCategoryWidth?: number;
     intervals?: boolean;
+    onSelect?: (key: string, seriesIndex?: number) => void;
 }) {
     const ui = useChartUi();
     const gradientId = useId();
@@ -593,17 +598,26 @@ export function ColumnChart({ title, subtitle, rows, series, digits = 0, unit = 
     const groupW = n * barW + 2 * (n - 1);
     const labels = visibleLabels(rows, band);
     const capLabels = rows.length <= 12 && band / n >= 44;
-    const bar = (x: number, v: number, w: number, index: number) => barPath(x, yFor(index, 0), yFor(index, v), w, true);
+    const bar = (x: number, v: number, w: number, index: number) => {
+        const baseline = log
+            ? (axes[index] === "right" ? rightScale.min : leftScale.min)
+            : 0;
+        return barPath(x, yFor(index, baseline), yFor(index, v), w, true);
+    };
     const tip = hover == null ? null : rows[hover];
-    const locate = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const pointIndex = (e: ReactPointerEvent<SVGSVGElement>) => {
         const box = e.currentTarget.getBoundingClientRect();
         const px = e.clientX - box.left - pad.l;
         const py = e.clientY - box.top;
-        if (!band || px < 0 || px > plotW || py < pad.t || py > pad.t + plotH) {
-            setHover(null);
-            return;
-        }
-        setHover(Math.max(0, Math.min(rows.length - 1, Math.floor(px / band))));
+        if (!band || px < 0 || px > plotW || py < pad.t || py > pad.t + plotH)
+            return null;
+        return Math.max(0, Math.min(rows.length - 1, Math.floor(px / band)));
+    };
+    const locate = (e: ReactPointerEvent<SVGSVGElement>) => setHover(pointIndex(e));
+    const select = (e: ReactPointerEvent<SVGSVGElement>) => {
+        const index = pointIndex(e);
+        if (index != null)
+            onSelect?.(rows[index].key);
     };
     const capLabel = (x: number, v: number, index: number, key: string) => {
         const labelY = v >= 0 ? yFor(index, v) - 4 : yFor(index, v) + 11;
@@ -623,7 +637,7 @@ export function ColumnChart({ title, subtitle, rows, series, digits = 0, unit = 
                     event.preventDefault();
                     setHover((current) => Math.max(0, Math.min(rows.length - 1, (current ?? -1) + (event.key === "ArrowRight" ? 1 : -1))));
                 }
-            }} aria-label={`${title}. Usa las flechas para consultar valores; Escape cierra el detalle.`} width={width} height={height} viewBox={`0 0 ${width} ${height}`} onPointerMove={locate} onPointerDown={locate} onPointerLeave={() => setHover(null)}>
+            }} aria-label={`${title}. Usa las flechas para consultar valores; Escape cierra el detalle.`} width={width} height={height} viewBox={`0 0 ${width} ${height}`} onPointerMove={locate} onPointerDown={locate} onClick={onSelect ? select : undefined} onPointerLeave={() => setHover(null)} style={onSelect ? { cursor: "pointer" } : undefined}>
             <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
             <BarGradients id={gradientId} series={series}/>
             {(axes.includes("left") ? leftScale.ticks : []).map((t) => (<g key={`l-${t}`}>
@@ -653,8 +667,8 @@ export function ColumnChart({ title, subtitle, rows, series, digits = 0, unit = 
                 return (<g key={row.key}>
                   <rect className="trjk-band" data-hover={hover === i} x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4"/>
                   {stackRow
-                        ? stackRow.segments.map((segment, j) => segment == null ? null : (<path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={barPath(x0, yFor(j, segment.from), yFor(j, segment.to), barW, j === stackRow.lastPositive || j === stackRow.lastNegative)} fill={`url(#${gradientId}-${j})`}/>))
-                        : row.values.map((v, j) => v == null ? null : (<path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + j * (barW + 2), v, barW, j)} fill={`url(#${gradientId}-${j})`}/>))}
+                        ? stackRow.segments.map((segment, j) => segment == null ? null : (<path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={barPath(x0, yFor(j, segment.from), yFor(j, segment.to), barW, j === stackRow.lastPositive || j === stackRow.lastNegative)} fill={`url(#${gradientId}-${j})`} onClick={onSelect ? (event) => { event.stopPropagation(); onSelect(row.key, j); } : undefined}/>))
+                        : row.values.map((v, j) => v == null ? null : (<path key={j} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + j * (barW + 2), v, barW, j)} fill={`url(#${gradientId}-${j})`} onClick={onSelect ? (event) => { event.stopPropagation(); onSelect(row.key, j); } : undefined}/>))}
                   {capLabels && stackRow
                         ? stackTotals
                             ? [stackRow.positive > 0 ? capLabel(x0 + barW / 2, stackRow.positive, 0, "lp") : null, stackRow.negative < 0 ? capLabel(x0 + barW / 2, stackRow.negative, 0, "ln") : null]
@@ -673,7 +687,7 @@ export function ColumnChart({ title, subtitle, rows, series, digits = 0, unit = 
       </div>
     </ChartCard>);
 }
-export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "", height = 220, scale: scaleMode = "linear", dataTable, controls, minCategoryWidth = 0, }: {
+export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "", height = 220, scale: scaleMode = "linear", dataTable, controls, minCategoryWidth = 0, onSelect, }: {
     title: string;
     subtitle: string;
     rows: ChartRow[];
@@ -685,6 +699,7 @@ export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "
     dataTable?: ReactNode;
     controls?: ReactNode;
     minCategoryWidth?: number;
+    onSelect?: (key: string, seriesIndex?: number) => void;
 }) {
     const ui = useChartUi();
     const gradientId = useId();
@@ -734,7 +749,12 @@ export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "
     const labels = visibleLabels(rows, band);
     const capLabels = barCount > 0 && rows.length <= 12 && band / Math.max(barCount, 1) >= 44;
     const markers = rows.length <= 40;
-    const bar = (x: number, v: number, w: number, index: number) => barPath(x, yFor(index, 0), yFor(index, v), w, true);
+    const bar = (x: number, v: number, w: number, index: number) => {
+        const baseline = log
+            ? (axes[index] === "right" ? rightScale.min : leftScale.min)
+            : 0;
+        return barPath(x, yFor(index, baseline), yFor(index, v), w, true);
+    };
     const x = (i: number) => pad.l + band * i + band / 2;
     const paths = series.map((item, j) => {
         if (item.seriesType !== "line")
@@ -780,15 +800,19 @@ export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "
         }
     });
     const tip = hover == null ? null : rows[hover];
-    const locate = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const pointIndex = (e: ReactPointerEvent<SVGSVGElement>) => {
         const box = e.currentTarget.getBoundingClientRect();
         const px = e.clientX - box.left - pad.l;
         const py = e.clientY - box.top;
-        if (!band || px < 0 || px > plotW || py < pad.t || py > pad.t + plotH) {
-            setHover(null);
-            return;
-        }
-        setHover(Math.max(0, Math.min(rows.length - 1, Math.floor(px / band))));
+        if (!band || px < 0 || px > plotW || py < pad.t || py > pad.t + plotH)
+            return null;
+        return Math.max(0, Math.min(rows.length - 1, Math.floor(px / band)));
+    };
+    const locate = (e: ReactPointerEvent<SVGSVGElement>) => setHover(pointIndex(e));
+    const select = (e: ReactPointerEvent<SVGSVGElement>) => {
+        const index = pointIndex(e);
+        if (index != null)
+            onSelect?.(rows[index].key);
     };
     return (<ChartCard title={title} subtitle={`${subtitle}${log ? ` · ${ui.logScale}` : ""}`} series={series} empty={!rows.length} controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit}/>}>
       <div style={{ overflowX: "auto", maxWidth: "100%" }}>
@@ -800,7 +824,7 @@ export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "
                     event.preventDefault();
                     setHover((current) => Math.max(0, Math.min(rows.length - 1, (current ?? -1) + (event.key === "ArrowRight" ? 1 : -1))));
                 }
-            }} aria-label={`${title}. Usa las flechas para consultar valores; Escape cierra el detalle.`} width={width} height={height} viewBox={`0 0 ${width} ${height}`} onPointerMove={locate} onPointerDown={locate} onPointerLeave={() => setHover(null)}>
+            }} aria-label={`${title}. Usa las flechas para consultar valores; Escape cierra el detalle.`} width={width} height={height} viewBox={`0 0 ${width} ${height}`} onPointerMove={locate} onPointerDown={locate} onClick={onSelect ? select : undefined} onPointerLeave={() => setHover(null)} style={onSelect ? { cursor: "pointer" } : undefined}>
             <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
             <BarGradients id={gradientId} series={series}/>
             {(axes.includes("left") ? leftScale.ticks : []).map((t) => (<g key={`l-${t}`}>
@@ -828,7 +852,7 @@ export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "
                 const dimmed = hover != null && hover !== i;
                 return (<g key={row.key}>
                   <rect className="trjk-band" data-hover={hover === i} x={pad.l + band * i} y={pad.t} width={band} height={plotH} rx="4"/>
-                  {row.values.map((v, j) => v == null || !barSlots.has(j) ? null : (<path key={j} data-series-type="bar" data-axis={axes[j]} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + (barSlots.get(j) ?? 0) * (barW + 2), v, barW, j)} fill={`url(#${gradientId}-${j})`}/>))}
+                  {row.values.map((v, j) => v == null || !barSlots.has(j) ? null : (<path key={j} data-series-type="bar" data-axis={axes[j]} className="trjk-mark" opacity={dimmed ? 0.45 : 1} d={bar(x0 + (barSlots.get(j) ?? 0) * (barW + 2), v, barW, j)} fill={`url(#${gradientId}-${j})`} onClick={onSelect ? (event) => { event.stopPropagation(); onSelect(row.key, j); } : undefined}/>))}
                   {capLabels &&
                         row.values.map((v, j) => {
                             if (v == null ||
@@ -861,7 +885,7 @@ export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "
             })}
             {hover != null && (<line className="trjk-crosshair" x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + plotH}/>)}
             {paths.map((d, j) => (<LinePath key={j} d={d} color={series[j].color} axis={axes[j]}/>))}
-            {rows.map((row, i) => row.values.map((v, j) => v == null || series[j]?.seriesType !== "line" || (!markers && hover !== i) ? null : (<circle key={`${i}-${j}`} cx={x(i)} cy={yFor(j, v)} r={hover === i ? 5 : 4} fill={series[j].color} stroke="var(--s-1)" strokeWidth="2"/>)))}
+            {rows.map((row, i) => row.values.map((v, j) => v == null || series[j]?.seriesType !== "line" || (!markers && hover !== i) ? null : (<circle key={`${i}-${j}`} cx={x(i)} cy={yFor(j, v)} r={hover === i ? 5 : 4} fill={series[j].color} stroke="var(--s-1)" strokeWidth="2" onClick={onSelect ? (event) => { event.stopPropagation(); onSelect(row.key, j); } : undefined}/>)))}
             {endLabels.map((e) => {
                 const text = formatMarkLabel(e.v, series[e.j]?.digits ?? digits, series[e.j]?.unit ?? unit);
                 const placeLeft = x(e.i) + 9 + text.length * 6 > width - pad.r;
@@ -875,7 +899,7 @@ export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "
       </div>
     </ChartCard>);
 }
-export function LineChart({ title, subtitle, rows, series, digits = 0, unit = "", height = 220, area = false, dataTable, controls, minCategoryWidth = 0, }: {
+export function LineChart({ title, subtitle, rows, series, digits = 0, unit = "", height = 220, area = false, dataTable, controls, minCategoryWidth = 0, scale: scaleMode = "linear", onSelect, }: {
     title: string;
     subtitle: string;
     rows: ChartRow[];
@@ -887,7 +911,10 @@ export function LineChart({ title, subtitle, rows, series, digits = 0, unit = ""
     dataTable?: ReactNode;
     controls?: ReactNode;
     minCategoryWidth?: number;
+    scale?: ChartScaleMode;
+    onSelect?: (key: string, seriesIndex?: number) => void;
 }) {
+    const ui = useChartUi();
     const [ref, width] = useWidth();
     const [hover, setHover] = useState<number | null>(null);
     const axes = assignSeriesAxes(rows, series);
@@ -897,11 +924,18 @@ export function LineChart({ title, subtitle, rows, series, digits = 0, unit = ""
     const plotH = height - pad.t - pad.b;
     const leftFinite = axisValues(rows, axes, "left");
     const rightFinite = axisValues(rows, axes, "right");
-    const leftScale = adaptiveScale(leftFinite, false);
-    const rightScale = adaptiveScale(rightFinite, false);
+    const log = scaleMode === "log" &&
+        canUseLogScale([...leftFinite, ...rightFinite]);
+    const leftLog = logarithmicScale(leftFinite);
+    const rightLog = logarithmicScale(rightFinite);
+    const leftScale = log ? leftLog : adaptiveScale(leftFinite, false);
+    const rightScale = log ? rightLog : adaptiveScale(rightFinite, false);
     const yFor = (index: number, v: number) => {
         const scale = axes[index] === "right" ? rightScale : leftScale;
-        return pad.t + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH;
+        const fraction = log
+            ? (axes[index] === "right" ? rightLog : leftLog).fraction(v)
+            : (v - scale.min) / (scale.max - scale.min);
+        return pad.t + plotH - fraction * plotH;
     };
     const leftAxisUnit = axisUnitLabel(series, axes, "left", unit);
     const rightAxisUnit = axisUnitLabel(series, axes, "right", unit);
@@ -963,12 +997,21 @@ export function LineChart({ title, subtitle, rows, series, digits = 0, unit = ""
             .join("L")}L${x(last).toFixed(1)},${baselineY.toFixed(1)}z`;
     });
     const tip = hover == null ? null : rows[hover];
-    const locate = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const pointIndex = (e: ReactPointerEvent<SVGSVGElement>) => {
         const box = e.currentTarget.getBoundingClientRect();
         const px = e.clientX - box.left - pad.l;
-        setHover(Math.max(0, Math.min(rows.length - 1, step ? Math.round(px / step) : 0)));
+        const py = e.clientY - box.top;
+        if (px < -Math.max(step / 2, 8) || px > plotW + Math.max(step / 2, 8) || py < pad.t || py > pad.t + plotH)
+            return null;
+        return Math.max(0, Math.min(rows.length - 1, step ? Math.round(px / step) : 0));
     };
-    return (<ChartCard title={title} subtitle={subtitle} series={series} kind="line" empty={!rows.length} controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit}/>}>
+    const locate = (e: ReactPointerEvent<SVGSVGElement>) => setHover(pointIndex(e));
+    const select = (e: ReactPointerEvent<SVGSVGElement>) => {
+        const index = pointIndex(e);
+        if (index != null)
+            onSelect?.(rows[index].key);
+    };
+    return (<ChartCard title={title} subtitle={`${subtitle}${log ? ` · ${ui.logScale}` : ""}`} series={series} kind="line" empty={!rows.length} controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit}/>}>
       <div style={{ overflowX: "auto", maxWidth: "100%" }}>
       <div className="trjk-chart-plot" ref={ref} style={{ position: "relative", minHeight: height, minWidth: minCategoryWidth > 0 ? rows.length * minCategoryWidth + 110 : undefined }}>
         {width > 0 && (<svg role="img" tabIndex={0} onKeyDown={(event) => {
@@ -978,7 +1021,7 @@ export function LineChart({ title, subtitle, rows, series, digits = 0, unit = ""
                     event.preventDefault();
                     setHover((current) => Math.max(0, Math.min(rows.length - 1, (current ?? -1) + (event.key === "ArrowRight" ? 1 : -1))));
                 }
-            }} aria-label={`${title}. Usa las flechas para consultar valores; Escape cierra el detalle.`} width={width} height={height} viewBox={`0 0 ${width} ${height}`} onPointerMove={locate} onPointerDown={locate} onPointerLeave={() => setHover(null)}>
+            }} aria-label={`${title}. Usa las flechas para consultar valores; Escape cierra el detalle.`} width={width} height={height} viewBox={`0 0 ${width} ${height}`} onPointerMove={locate} onPointerDown={locate} onClick={onSelect ? select : undefined} onPointerLeave={() => setHover(null)} style={onSelect ? { cursor: "pointer" } : undefined}>
             <desc>{`${title}. Los valores exactos están en «Ver cifras exactas».`}</desc>
             {(axes.includes("left") ? leftScale.ticks : []).map((t) => (<g key={`l-${t}`}>
                 <line className={t === 0 ? "trjk-zero-line" : "trjk-grid-line"} x1={pad.l} x2={width - pad.r} y1={yFor(Math.max(0, axes.indexOf("left")), t)} y2={yFor(Math.max(0, axes.indexOf("left")), t)}/>
@@ -1007,7 +1050,7 @@ export function LineChart({ title, subtitle, rows, series, digits = 0, unit = ""
             {areaPaths.map((d, j) => (d ? <path key={`a${j}`} d={d} fill={series[j].color} opacity={series.length > 1 ? 0.09 : 0.12}/> : null))}
             {hover != null && (<line className="trjk-crosshair" x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + plotH}/>)}
             {paths.map((d, j) => (<LinePath key={j} d={d} color={series[j].color}/>))}
-            {rows.map((row, i) => row.values.map((v, j) => v == null || (!markers && hover !== i) ? null : (<circle key={`${i}-${j}`} cx={x(i)} cy={yFor(j, v)} r={hover === i ? 5 : 4} fill={series[j].color} stroke="var(--s-1)" strokeWidth="2"/>)))}
+            {rows.map((row, i) => row.values.map((v, j) => v == null || (!markers && hover !== i) ? null : (<circle key={`${i}-${j}`} cx={x(i)} cy={yFor(j, v)} r={hover === i ? 5 : 4} fill={series[j].color} stroke="var(--s-1)" strokeWidth="2" onClick={onSelect ? (event) => { event.stopPropagation(); onSelect(row.key, j); } : undefined}/>)))}
             {endLabels.map((e) => {
                 const text = formatMarkLabel(e.v, series[e.j]?.digits ?? digits, series[e.j]?.unit ?? unit);
                 const estimatedWidth = Math.max(24, text.length * 6.2);

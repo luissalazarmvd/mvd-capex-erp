@@ -633,6 +633,12 @@ type SourceState = {
     loadedAt: number | null;
     progress?: string;
 };
+type VaiCrossFilter = {
+    source: string;
+    token: string;
+    label: string;
+    members: Set<VaiRow>;
+};
 type VaiDashboardProps = {
     spec: VaiDashboardSpec;
     refreshToken?: number;
@@ -658,6 +664,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
     );
     const [data, setData] = useState<Record<string, SourceState>>({});
     const [filters, setFilters] = useState<VaiFilterState>({});
+    const [crossFilter, setCrossFilter] = useState<VaiCrossFilter | null>(null);
     const filterDefinitionKey = useMemo(
         () => JSON.stringify(spec.filters.map((filter) => filter.kind === "date_range"
             ? [
@@ -693,7 +700,11 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
     }>());
     useEffect(() => {
         setFilters({});
+        setCrossFilter(null);
     }, [filterDefinitionKey]);
+    useEffect(() => {
+        setCrossFilter(null);
+    }, [requestKey, refreshToken]);
     useEffect(() => {
         const controller =
             new AbortController();
@@ -901,18 +912,22 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
         for (const source of sources) {
             const rows = data[source.id]?.rows ?? EMPTY_VAI_ROWS;
             const relevant = spec.filters.filter((filter) => filter.source === source.id);
-            const key = JSON.stringify(relevant.map((filter) => [filter, deferredFilters[filterKey(filter)]]));
+            const crossToken = crossFilter?.source === source.id ? crossFilter.token : "";
+            const key = `${JSON.stringify(relevant.map((filter) => [filter, deferredFilters[filterKey(filter)]]))}|cross:${crossToken}`;
             const previous = filteredCache.current.get(source.id);
             if (previous?.rows === rows && previous.key === key)
                 out[source.id] = previous.result;
             else {
-                const result = applyFilters(source, rows, relevant, deferredFilters);
+                const base = applyFilters(source, rows, relevant, deferredFilters);
+                const result = crossFilter?.source === source.id
+                    ? base.filter((row) => crossFilter.members.has(row))
+                    : base;
                 filteredCache.current.set(source.id, { rows, key, result });
                 out[source.id] = result;
             }
         }
         return out;
-    }, [sources, data, spec.filters, deferredFilters]);
+    }, [sources, data, spec.filters, deferredFilters, crossFilter]);
     const filterOptionRows = useCallback((filter: VaiFilterSpec) => {
         const source = VAI_SOURCE_MAP.get(filter.source);
         if (!source)
@@ -921,6 +936,11 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
             return data[source.id]?.rows ?? EMPTY_VAI_ROWS;
         return applyFilters(source, data[filter.source]?.rows ?? [], spec.filters.filter((item) => filterKey(item) !== filterKey(filter)), deferredFilters);
     }, [data, spec.filters, deferredFilters]);
+    const applyCrossFilter = useCallback((source: string, token: string, label: string, members: VaiRow[]) => {
+        setCrossFilter((previous) => previous?.source === source && previous.token === token
+            ? null
+            : { source, token, label, members: new Set(members) });
+    }, []);
     const loading = sources.some((source) => data[source.id]?.loading ?? true);
     const loadingSources = sources.filter((source) => data[source.id]?.loading ?? true);
     const loadingText = loadingSources.map((source) => `${ui.loadingQuery} ${source.name}…`).join(" · ");
@@ -964,7 +984,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
         const runLength = runEnd - runStart + 1;
         return index === runEnd && runLength % 2 === 1 ? "2" : "1";
     };
-    const hasFilters = spec.filters.some((filter) => {
+    const hasFilters = Boolean(crossFilter) || spec.filters.some((filter) => {
         const key = filterKey(filter);
         const value = filters[key];
         if (!value)
@@ -995,7 +1015,11 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
           <div className="trjk-toolbar">
             <h3>{ui.filters}</h3>
             <div className="trjk-actions">
-              {hasFilters ? (<Button size="sm" variant="ghost" onClick={() => setFilters({})}>
+              {crossFilter ? <Button size="sm" variant="ghost" title={ui.clearFilters} onClick={() => setCrossFilter(null)}>✕ {crossFilter.label}</Button> : null}
+              {hasFilters ? (<Button size="sm" variant="ghost" onClick={() => {
+                    setFilters({});
+                    setCrossFilter(null);
+                }}>
                   {ui.clearFilters}
                 </Button>) : null}
             </div>
@@ -1024,7 +1048,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
             const widgetIndex = spec.widgets.indexOf(widget);
             return <ScopedWidget key={`${widget.source}-${widget.metrics[0]}-${i}`} id={`kpi-${i}`} order={i} widget={widget} source={sourceMap.get(widget.source)} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS} loading={data[widget.source]?.loading ?? true} trendDateField={spec.filters.find((filter): filter is Extract<VaiFilterSpec, {
                 kind: "date_range";
-            }> => filter.kind === "date_range" && filter.source === widget.source)?.field ?? null} editor={<WidgetPromptEditor widget={widget} busy={editingWidget === widgetIndex} onSubmit={(instruction) => onEditWidget(widgetIndex, instruction)}/>}/>;
+            }> => filter.kind === "date_range" && filter.source === widget.source)?.field ?? null} editor={<WidgetPromptEditor widget={widget} busy={editingWidget === widgetIndex} onSubmit={(instruction) => onEditWidget(widgetIndex, instruction)}/>} crossFilterToken={crossFilter?.source === widget.source ? crossFilter.token : null} onCrossFilter={applyCrossFilter}/>;
         })}
         </div>) : null}
 
@@ -1032,7 +1056,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
           {others.map((widget, i) => {
             const widgetIndex = spec.widgets.indexOf(widget);
             return <div key={`${widget.type}-${widget.source}-${i}`} data-span={widgetSpan(i)} style={{ minWidth: 0, height: "100%", gridColumn: widgetSpan(i) === "2" ? "1 / -1" : undefined }}>
-              {data[widget.source]?.loading ? <section className="trjk-card" role="status">{ui.updating} {widget.title}…</section> : data[widget.source]?.error ? null : <ScopedWidget id={`widget-${i}`} order={kpis.length + i} widget={widget} source={sourceMap.get(widget.source)} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS} editor={<WidgetPromptEditor widget={widget} busy={editingWidget === widgetIndex} onSubmit={(instruction) => onEditWidget(widgetIndex, instruction)}/>}/>}
+              {data[widget.source]?.loading ? <section className="trjk-card" role="status">{ui.updating} {widget.title}…</section> : data[widget.source]?.error ? null : <ScopedWidget id={`widget-${i}`} order={kpis.length + i} widget={widget} source={sourceMap.get(widget.source)} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS} editor={<WidgetPromptEditor widget={widget} busy={editingWidget === widgetIndex} onSubmit={(instruction) => onEditWidget(widgetIndex, instruction)}/>} crossFilterToken={crossFilter?.source === widget.source ? crossFilter.token : null} onCrossFilter={applyCrossFilter}/>}
             </div>;
         })}
         </div>) : null}
@@ -1229,6 +1253,12 @@ function FilterControl({ filter, rows, value, onChange, }: {
             .replace(/[\u0300-\u036f]/g, "")
             .includes(normalizedSearch));
     }, [options, normalizedSearch]);
+    useEffect(() => {
+        if (!normalizedSearch)
+            return;
+        const next = [...matchedOptions];
+        setDraftSelected(options.length > 0 && next.length === options.length ? undefined : next);
+    }, [normalizedSearch, matchedOptions, options.length]);
     const visibleOptions = matchedOptions.slice(0, 250);
     const sourceName = VAI_SOURCE_MAP.get(filter.source)
         ?.name ??
@@ -1354,7 +1384,12 @@ function FilterControl({ filter, rows, value, onChange, }: {
             </> : null}
           </div>
 
-          <input className="input" type="search" value={search} placeholder={ui.searchValues} autoComplete="off" onChange={(event) => setSearch(event.target.value)} style={{
+          <input className="input" type="search" value={search} placeholder={ui.searchValues} autoComplete="off" onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                applyDraft();
+            }
+        }} style={{
             width: "100%",
             minWidth: 0,
         }}/>
@@ -1473,7 +1508,48 @@ function WidgetPromptEditor({ widget, busy, onSubmit }: {
     </div>;
 }
 
-function ScopedWidget({ id, order, widget, source, rows, loading = false, trendDateField = null, editor }: {
+function WidgetSettingsPopover({ children }: {
+    children?: ReactNode;
+}) {
+    const ui = useVaiUi();
+    if (!children)
+        return null;
+    return <details data-vai-export-ignore style={{ position: "relative" }}>
+      <summary title={`${ui.edit} · ${ui.filters}`} aria-label={`${ui.edit} · ${ui.filters}`} style={{
+            listStyle: "none",
+            width: 30,
+            minWidth: 30,
+            height: 30,
+            padding: 0,
+            display: "grid",
+            placeItems: "center",
+            borderRadius: 8,
+            border: "1px solid var(--line)",
+            background: "var(--s-1)",
+            color: "var(--ink)",
+            cursor: "pointer",
+            userSelect: "none",
+        }}>⚙</summary>
+      <div className="trjk-card" style={{
+            position: "absolute",
+            zIndex: 85,
+            right: 0,
+            top: "calc(100% + 6px)",
+            width: "min(720px, 86vw)",
+            maxHeight: "min(70vh, 620px)",
+            overflow: "auto",
+            padding: 10,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))",
+            gap: 8,
+            boxShadow: "0 18px 45px rgba(0,0,0,.38)",
+        }}>
+        {children}
+      </div>
+    </details>;
+}
+
+function ScopedWidget({ id, order, widget, source, rows, loading = false, trendDateField = null, editor, crossFilterToken = null, onCrossFilter }: {
     id: string;
     order: number;
     widget: VaiWidgetSpec;
@@ -1482,31 +1558,66 @@ function ScopedWidget({ id, order, widget, source, rows, loading = false, trendD
     loading?: boolean;
     trendDateField?: string | null;
     editor?: ReactNode;
+    crossFilterToken?: string | null;
+    onCrossFilter?: (source: string, token: string, label: string, members: VaiRow[]) => void;
 }) {
     const ui = useVaiUi();
-    const definitions = useMemo(() => widgetLocalFilters(widget.source).map((filter) => ({
+    const metricKey = widget.metrics.join("|");
+    const initialCurrency: "usd" | "pen" = widget.metrics.some((id) => /_pen(?=_|$)/.test(id)) ? "pen" : "usd";
+    const [costCurrency, setCostCurrency] = useState<"usd" | "pen">(initialCurrency);
+    useEffect(() => {
+        setCostCurrency(initialCurrency);
+    }, [widget.source, metricKey, initialCurrency]);
+    const pairedCostMetrics = useMemo<Record<"usd" | "pen", string[]> | null>(() => {
+        if (source?.id !== "finance_costs" || !widget.metrics.length)
+            return null;
+        const mapTo = (id: string, target: "usd" | "pen") => {
+            const candidate = id.replace(/_(?:usd|pen)(?=_|$)/g, `_${target}`);
+            return source.metrics.some((metric) => metric.id === candidate) ? candidate : null;
+        };
+        const usd = widget.metrics.map((id) => mapTo(id, "usd"));
+        const pen = widget.metrics.map((id) => mapTo(id, "pen"));
+        if (usd.some((id) => !id) || pen.some((id) => !id))
+            return null;
+        return { usd: usd as string[], pen: pen as string[] };
+    }, [source, widget.metrics]);
+    const scopedWidget = useMemo<VaiWidgetSpec>(() => pairedCostMetrics
+        ? {
+            ...widget,
+            title: widget.title.replace(/\b(?:USD|PEN)\b/gi, costCurrency.toUpperCase()),
+            metrics: pairedCostMetrics[costCurrency],
+        }
+        : widget, [widget, pairedCostMetrics, costCurrency]);
+    const definitions = useMemo(() => widgetLocalFilters(scopedWidget.source).map((filter) => ({
         ...filter,
         label: source
             ? vaiField(source, filter.field)?.label ?? filter.label
             : filter.label,
-    })), [widget.source, source]);
+    })), [scopedWidget.source, source]);
     const [state, setState] = useState<VaiFilterState>({});
     const localFilterKey = definitions.map((filter) => filterKey(filter)).join("|");
-    useEffect(() => { setState({}); }, [widget.source, localFilterKey]);
+    useEffect(() => { setState({}); }, [scopedWidget.source, localFilterKey]);
     const filtered = useMemo(() => source && definitions.length ? applyFilters(source, rows, definitions, state) : rows, [source, rows, definitions, state]);
     const summary = definitions.map((filter) => {
         const values = state[filterKey(filter)]?.values;
         return `${filter.label}: ${values === undefined ? ui.all : values.length ? values.join(", ") : ui.none}`;
     }).join(" · ");
-    const localControls = definitions.length || editor ? (<div className="vai-filters" data-vai-export-ignore aria-label={`Filtros de ${widget.title}`} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))", gap: 8, width: "100%", minWidth: 0, gridColumn: "1 / -1" }}>
-      {editor}
+    const currencyControl = pairedCostMetrics ? (<label className="vai-scale-control" style={{ display: "grid", gap: 4, minWidth: 0, width: "100%" }}>
+      <span>USD / PEN</span>
+      <select className="select" value={costCurrency} onChange={(event) => setCostCurrency(event.target.value as "usd" | "pen")} style={{ width: "100%", minWidth: 0, height: 32 }}>
+        <option value="usd">USD</option>
+        <option value="pen">PEN</option>
+      </select>
+    </label>) : null;
+    const localControls = definitions.length || currencyControl ? (<div className="vai-filters" data-vai-export-ignore aria-label={`Filtros de ${scopedWidget.title}`} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))", gap: 8, width: "100%", minWidth: 0, gridColumn: "1 / -1" }}>
+      {currencyControl}
       {definitions.map((filter) => <FilterControl key={filterKey(filter)} filter={filter} rows={rows} value={state[filterKey(filter)] ?? {}} onChange={(value) => setState((previous) => ({ ...previous, [filterKey(filter)]: value }))}/>)}
     </div>) : undefined;
-    return widget.type === "kpi"
-        ? <MemoKpiCard id={id} order={order} widget={widget} source={source} rows={filtered} loading={loading} trendDateField={trendDateField} localControls={localControls} filterLabel={summary}/>
-        : <MemoWidget id={id} order={order} widget={widget} source={source} rows={filtered} localControls={localControls} filterLabel={summary}/>;
+    return scopedWidget.type === "kpi"
+        ? <MemoKpiCard id={id} order={order} widget={scopedWidget} source={source} rows={filtered} loading={loading} trendDateField={trendDateField} localControls={localControls} filterLabel={summary} editor={editor}/>
+        : <MemoWidget id={id} order={order} widget={scopedWidget} source={source} rows={filtered} localControls={localControls} filterLabel={summary} editor={editor} crossFilterToken={crossFilterToken} onCrossFilter={onCrossFilter}/>;
 }
-function KpiCard({ id, order, widget, source, rows, loading, trendDateField, localControls, filterLabel }: {
+function KpiCard({ id, order, widget, source, rows, loading, trendDateField, localControls, filterLabel, editor }: {
     id: string;
     order: number;
     widget: VaiWidgetSpec;
@@ -1516,6 +1627,7 @@ function KpiCard({ id, order, widget, source, rows, loading, trendDateField, loc
     trendDateField: string | null;
     localControls?: ReactNode;
     filterLabel?: string;
+    editor?: ReactNode;
 }) {
     const ui = useVaiUi();
     const result = useMemo(() => (source ? computeWidget(widget, source, rows, { trendDateField }) : null), [widget, source, rows, trendDateField]);
@@ -1523,9 +1635,12 @@ function KpiCard({ id, order, widget, source, rows, loading, trendDateField, loc
         return null;
     const waiting = loading;
     return (<VaiExportSection id={id} order={order} title={widget.title} kind="kpi">
-    {localControls ? <div className="trjk-card" data-vai-export-ignore>{localControls}</div> : null}
-    <div className="vai-kpi" data-tip="true">
-      <span>{widget.title}</span>
+    <div className="vai-kpi" data-tip="true" style={{ position: "relative" }}>
+      {editor || localControls ? <div data-vai-export-ignore style={{ position: "absolute", top: 8, right: 8, zIndex: 40, display: "flex", alignItems: "center", gap: 6 }}>
+        {editor}
+        {localControls ? <WidgetSettingsPopover>{localControls}</WidgetSettingsPopover> : null}
+      </div> : null}
+      <span style={{ paddingRight: editor || localControls ? 74 : 0 }}>{widget.title}</span>
       <strong>{waiting ? "…" : formatValue(result.value, result.metric.format)}</strong>
       <small>
         {result.metric.label} · {rows.length.toLocaleString("es-PE")} {source?.id === "finance_mineral_purchases" ? "lotes" : ui.rows} · {source?.name}{filterLabel ? ` · ${filterLabel}` : ""}
@@ -1535,7 +1650,7 @@ function KpiCard({ id, order, widget, source, rows, loading, trendDateField, loc
     </div>
     </VaiExportSection>);
 }
-function Widget({ id, order, widget, source, rows, localControls, filterLabel }: {
+function Widget({ id, order, widget, source, rows, localControls, filterLabel, editor, crossFilterToken = null, onCrossFilter }: {
     id: string;
     order: number;
     widget: VaiWidgetSpec;
@@ -1543,6 +1658,9 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel }:
     rows: VaiRow[];
     localControls?: ReactNode;
     filterLabel?: string;
+    editor?: ReactNode;
+    crossFilterToken?: string | null;
+    onCrossFilter?: (source: string, token: string, label: string, members: VaiRow[]) => void;
 }) {
     const [scaleChoice, setScaleChoice] = useState<"auto" | ChartScaleMode>("auto");
     const [sortChoice, setSortChoice] = useState<VaiSortMode>(widget.sort ?? "value_desc");
@@ -1575,7 +1693,7 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel }:
     const result = useMemo(() => source && widget.type !== "matrix" ? computeWidget(effectiveWidget, source, rows) : null, [effectiveWidget, source, rows, widget.type]);
     const costSummary = useMemo(() => source?.id === "finance_costs" ? costSummaryText(rows, widget.metrics.some((id) => source.metrics.find((metric) => metric.id === id)?.format === "pen") ? "pen" : "usd") : "", [widget, source, rows]);
     if (source && widget.type === "matrix")
-        return <MatrixWidget id={id} order={order} widget={widget} rows={rows} source={source} controls={localControls}/>;
+        return <MatrixWidget id={id} order={order} widget={widget} rows={rows} source={source} controls={localControls} editor={editor}/>;
     if (!source || !result)
         return <section className="trjk-card" role="alert">{ui.noSource}</section>;
     if (result.kind === "unavailable")
@@ -1593,8 +1711,10 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel }:
         result.kind === "series" && result.cumulative ? "acumulado" : "",
     ].filter(Boolean);
     const subtitle = [source.name, axisLabel, ...extras, filterLabel, costSummary ? `Resumen del filtro completo: ${costSummary}` : ""].filter(Boolean).join(" · ");
-    if (result.kind === "table")
-        return <TableWidget id={id} order={order} title={widget.title} subtitle={subtitle} data={result} source={source} controls={localControls}/>;
+    if (result.kind === "table") {
+        const tableControls = editor || localControls ? <>{editor}{localControls ? <WidgetSettingsPopover>{localControls}</WidgetSettingsPopover> : null}</> : undefined;
+        return <TableWidget id={id} order={order} title={widget.title} subtitle={subtitle} data={result} source={source} controls={tableControls}/>;
+    }
     if (result.kind !== "series")
         return null;
     const first = result.series[0];
@@ -1634,16 +1754,50 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel }:
         values: row.values.map((v, j) => (v == null ? null : v * formats[j].scale)),
         notes: row.notes,
     }));
+    const crossPrefix = `${id}:`;
+    const selectedRow = crossFilterToken?.startsWith(crossPrefix)
+        ? result.rows.find((row) => crossFilterToken === `${crossPrefix}${row.key}` || crossFilterToken.startsWith(`${crossPrefix}${row.key}|series:`)) ?? null
+        : null;
+    const selectedKey = selectedRow?.key ?? null;
+    const selectedLabel = selectedRow?.label ?? null;
+    const selectSeriesRow = (key: string, seriesIndex?: number) => {
+        const index = result.rows.findIndex((row) => row.key === key);
+        if (index < 0)
+            return;
+        let members = result.table.rowMembers[index] ?? [];
+        let label = result.rows[index].label;
+        let token = `${crossPrefix}${key}`;
+        if (seriesIndex != null && effectiveWidget.breakdown) {
+            const seriesId = result.series[seriesIndex]?.id ?? "";
+            const metricId = effectiveWidget.metrics.find((id) => seriesId.startsWith(`${id}:`));
+            const category = metricId ? seriesId.slice(metricId.length + 1) : null;
+            if (category && category !== "__others") {
+                members = members.filter((row) => (toText(row[effectiveWidget.breakdown!]) || "Sin dato") === category);
+                label = `${label} · ${result.series[seriesIndex]?.label ?? category}`;
+                token = `${crossPrefix}${key}|series:${seriesId}`;
+            }
+        }
+        onCrossFilter?.(source.id, token, label, members);
+    };
+    const selectSeriesLabel = (label: string | null) => {
+        if (label === null && selectedKey) {
+            selectSeriesRow(selectedKey);
+            return;
+        }
+        const row = result.rows.find((item) => item.label === label);
+        if (row)
+            selectSeriesRow(row.key);
+    };
     const values = chartRows.flatMap((row) => widget.type === "rank" ? [row.values[0]] : row.values);
     const logAllowed = canUseLogScale(values) && !result.stack && unitGroups.length === 1 && widget.type !== "pareto";
     const scale: ChartScaleMode = logAllowed && (scaleChoice === "log" || (scaleChoice === "auto" && prefersLogScale(values))) ? "log" : "linear";
     const hasBarSeries = series.some((item) => item.seriesType !== "line");
     const hasLineSeries = series.some((item) => item.seriesType === "line");
     const isCombo = widget.type === "pareto" || (["bar", "combo", "line", "area"].includes(widget.type) && hasBarSeries && hasLineSeries);
-    const comboScale: ChartScaleMode = logAllowed && scaleChoice === "log" ? "log" : "linear";
+    const comboScale: ChartScaleMode = scale;
     const chartControlStyle: CSSProperties = { display: "grid", gap: 4, minWidth: 0, width: "100%", alignContent: "end" };
     const chartControlSelectStyle: CSSProperties = { width: "100%", minWidth: 0, maxWidth: "none", height: 32 };
-    const scaleControls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "combo" || lineLike) && hasBarSeries && !result.stack) ? (<label className="vai-scale-control" style={chartControlStyle} title={!logAllowed ? "La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal." : undefined}>
+    const scaleControls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "combo" || lineLike) && !result.stack) ? (<label className="vai-scale-control" style={chartControlStyle} title={!logAllowed ? "La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal." : undefined}>
       <span>{ui.scale}</span>
       <select className="select" aria-label={`Escala de ${widget.title}`} value={scaleChoice} onChange={(event) => setScaleChoice(event.target.value as "auto" | ChartScaleMode)} style={chartControlSelectStyle}>
         <option value="auto">{ui.automatic}</option>
@@ -1678,7 +1832,8 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel }:
         <option value="label_desc">Z → A</option>
       </select>
     </label>) : null;
-    const controls = localControls || axisControls || breakdownControls || scaleControls || sortControls ? <>{localControls}{axisControls}{breakdownControls}{sortControls}{scaleControls}</> : undefined;
+    const settings = localControls || axisControls || breakdownControls || scaleControls || sortControls ? <WidgetSettingsPopover><>{localControls}{axisControls}{breakdownControls}{sortControls}{scaleControls}</></WidgetSettingsPopover> : null;
+    const controls = editor || settings ? <>{editor}{settings}</> : undefined;
     const dataTable = <WidgetDataTables widget={effectiveWidget} source={source} table={result.table} subtitle={subtitle}/>;
     const wrap = (chart: ReactNode) => <VaiExportSection id={id} order={order} title={widget.title} kind="chart" table={{ data: result.table, rows: result.table.rows }}>
     {chart}
@@ -1691,21 +1846,21 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel }:
     if (widget.type === "waterfall")
         return wrap(<WaterfallChart title={widget.title} subtitle={subtitle} rows={chartRows} digits={primaryFormat.digits} unit={primaryFormat.unit} dataTable={dataTable} controls={controls}/>);
     if (widget.type === "histogram")
-        return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series.map((s) => ({ ...s, unit: ` ${ui.exactRows}` }))} digits={0} unit={` ${ui.exactRows}`} intervals minCategoryWidth={65} height={chartHeight} dataTable={dataTable} controls={controls}/>);
+        return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series.map((s) => ({ ...s, unit: ` ${ui.exactRows}` }))} digits={0} unit={` ${ui.exactRows}`} intervals minCategoryWidth={65} height={chartHeight} dataTable={dataTable} controls={controls} onSelect={onCrossFilter ? selectSeriesRow : undefined}/>);
     if (widget.type === "scatter" && result.series.length >= 2) {
         const [xSeries, ySeries] = result.series;
         return wrap(<ScatterChart title={widget.title} subtitle={subtitle} points={chartRows.flatMap((row) => (row.values[0] == null || row.values[1] == null ? [] : [{ label: row.label, x: row.values[0], y: row.values[1], notes: row.notes }]))} xLabel={xSeries.label} yLabel={ySeries.label} xDigits={formats[0].digits} xUnit={formats[0].unit} yDigits={formats[1].digits} yUnit={formats[1].unit} controls={controls} dataTable={dataTable}/>);
     }
     if (isCombo)
-        return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={widget.type === "pareto" ? "linear" : comboScale} minCategoryWidth={minCategoryWidth} height={chartHeight} controls={controls} dataTable={dataTable}/>);
+        return wrap(<ComboChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={widget.type === "pareto" ? "linear" : comboScale} minCategoryWidth={minCategoryWidth} height={chartHeight} controls={controls} dataTable={dataTable} onSelect={onCrossFilter ? selectSeriesRow : undefined}/>);
     if (lineLike || (widget.type === "combo" && !hasBarSeries)) {
-        return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={widget.type === "area" ? "all" : false} minCategoryWidth={minCategoryWidth} height={chartHeight} dataTable={dataTable} controls={controls}/>);
+        return wrap(<LineChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} area={widget.type === "area" ? "all" : false} scale={scale} minCategoryWidth={minCategoryWidth} height={chartHeight} dataTable={dataTable} controls={controls} onSelect={onCrossFilter ? selectSeriesRow : undefined}/>);
     }
     if (widget.type === "bar" || widget.type === "combo") {
-        return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} minCategoryWidth={minCategoryWidth} height={chartHeight} stacked={result.stack === "percent" ? "percent" : result.stack === "stack" ? "stack" : false} controls={controls} dataTable={dataTable}/>);
+        return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} minCategoryWidth={minCategoryWidth} height={chartHeight} stacked={result.stack === "percent" ? "percent" : result.stack === "stack" ? "stack" : false} controls={controls} dataTable={dataTable} onSelect={onCrossFilter ? selectSeriesRow : undefined}/>);
     }
     if (widget.type === "rank") {
-        return wrap(<RankChart title={widget.title} subtitle={subtitle} rows={result.rows.filter((row) => row.values[0] != null).map((row) => ({ label: row.label, value: row.values[0]! * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined, notes: row.notes }))} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} controls={controls} dataTable={dataTable}/>);
+        return wrap(<RankChart title={widget.title} subtitle={subtitle} rows={result.rows.filter((row) => row.values[0] != null).map((row) => ({ label: row.label, value: row.values[0]! * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined, notes: row.notes }))} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} selected={selectedLabel} onSelect={onCrossFilter ? (label) => selectSeriesLabel(label) : undefined} controls={controls} dataTable={dataTable}/>);
     }
     if (widget.type === "donut")
         return wrap(<DonutChart title={widget.title} subtitle={subtitle} centerLabel={first?.label ?? ""} items={result.rows.filter((row) => row.values[0] != null).map((row, i) => ({
@@ -1713,7 +1868,7 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel }:
                 value: row.values[0]! * primaryFormat.scale,
                 color: row.key === "__vai_other__" ? CHART_OTHER : CHART_COLORS[i % CHART_COLORS.length],
                 notes: row.notes,
-            }))} digits={primaryFormat.digits} unit={primaryFormat.unit} dataTable={dataTable} controls={controls}/>);
+            }))} digits={primaryFormat.digits} unit={primaryFormat.unit} selected={selectedLabel} onSelect={onCrossFilter ? selectSeriesLabel : undefined} dataTable={dataTable} controls={controls}/>);
     return <section className="trjk-card" role="alert"><h3>{widget.title}</h3><p>No hay un renderer válido para «{widget.type}». No se reemplazó por otro tipo de gráfico.</p></section>;
 }
 const MemoWidget = memo(Widget);
@@ -1893,13 +2048,14 @@ function CostDetailPanel({ title, rows, source, currency, onClose }: {
       {detail?.kind === "table" ? <TableWidget title="Glosas y respaldo contable" subtitle="Registros originales del grupo seleccionado" data={detail} source={source} compact/> : null}
     </section>;
 }
-function MatrixWidget({ id, order, widget, rows, source, controls }: {
+function MatrixWidget({ id, order, widget, rows, source, controls, editor }: {
     id: string;
     order: number;
     widget: VaiWidgetSpec;
     rows: VaiRow[];
     source: VaiSource;
     controls?: ReactNode;
+    editor?: ReactNode;
 }) {
     const ui = useVaiUi();
     const matrix = useMemo(() => computeMatrix(widget, source, rows), [widget, source, rows]);
@@ -1911,7 +2067,7 @@ function MatrixWidget({ id, order, widget, rows, source, controls }: {
     const summary = useMemo(() => source.id === "finance_costs" ? costSummaryText(matrix.records, currency) : "", [source.id, matrix.records, currency]);
     return <>
       <VaiExportSection id={id} order={order} title={widget.title} kind="table" getTable={getTable}>
-        <MatrixChart title={widget.title} subtitle={[`${ui.matrixRows}: ${matrix.hierarchy.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}`, widget.matrixColumns?.length ? `${ui.matrixColumns}: ${widget.matrixColumns.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}${widget.dateField ? ` → ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : ""}` : widget.dateField ? `${ui.matrixColumns}: ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : "", summary, ui.matrixExcelHint].filter(Boolean).join(" · ")} columns={matrix.columns} roots={matrix.roots} totals={matrix.totals} format={format} controls={<>{controls}<SourceHint source={source} columnId={widget.metrics[0]} columnLabel={ui.matrixSource}/></>} onDetail={source.id === "finance_costs" ? (node) => setSelected({ matrix, node }) : undefined}/>
+        <MatrixChart title={widget.title} subtitle={[`${ui.matrixRows}: ${matrix.hierarchy.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}`, widget.matrixColumns?.length ? `${ui.matrixColumns}: ${widget.matrixColumns.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}${widget.dateField ? ` → ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : ""}` : widget.dateField ? `${ui.matrixColumns}: ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : "", summary, ui.matrixExcelHint].filter(Boolean).join(" · ")} columns={matrix.columns} roots={matrix.roots} totals={matrix.totals} format={format} controls={<>{editor}{controls ? <WidgetSettingsPopover>{controls}</WidgetSettingsPopover> : null}<SourceHint source={source} columnId={widget.metrics[0]} columnLabel={ui.matrixSource}/></>} onDetail={source.id === "finance_costs" ? (node) => setSelected({ matrix, node }) : undefined}/>
       </VaiExportSection>
       {selected?.matrix === matrix && source.id === "finance_costs" ? <CostDetailPanel title={selected.node.path.join(" → ")} rows={detailRows} source={source} currency={currency} onClose={() => setSelected(null)}/> : null}
     </>;
