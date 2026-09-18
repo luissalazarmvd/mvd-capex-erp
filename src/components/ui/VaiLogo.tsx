@@ -18,9 +18,11 @@ const GOLD_DUST = [
 ];
 // Marca interna VAi. La secuencia vive en globals.css (.vai-logo-*): la V se
 // dibuja como un check, el domo amanece sobre su horizonte, la estrella vuela
-// y dibuja la A, y la escarcha cae formando la i.
+// y dibuja la A, y la escarcha cae formando la i. En reposo el sol conserva un
+// resplandor que respira y la estrella emite anillos y se sacude a ratos.
 export function VaiLogo({ size = 40, title = "VAi" }: VaiLogoProps) {
     const goldId = useId();
+    const glowId = useId();
     const stemClipId = useId();
     const dawnClipId = useId();
     return (<svg className="vai-logo" width={size * (132 / 92)} height={size} viewBox="0 0 132 92" role="img" aria-label={title} focusable="false">
@@ -31,6 +33,11 @@ export function VaiLogo({ size = 40, title = "VAi" }: VaiLogoProps) {
           <stop offset="0" stopColor="var(--brand-gold)"/>
           <stop offset="1" stopColor="var(--brand-gold-light)"/>
         </linearGradient>
+        <radialGradient id={glowId}>
+          <stop offset="0" stopColor="var(--brand-gold-light)" stopOpacity=".6"/>
+          <stop offset=".45" stopColor="var(--brand-gold)" stopOpacity=".22"/>
+          <stop offset="1" stopColor="var(--brand-gold)" stopOpacity="0"/>
+        </radialGradient>
         <clipPath id={stemClipId} clipPathUnits="userSpaceOnUse">
           <rect className="vai-logo-stem-reveal" x="113" y="-12" width="8" height="60"/>
         </clipPath>
@@ -43,6 +50,9 @@ export function VaiLogo({ size = 40, title = "VAi" }: VaiLogoProps) {
       <path className="vai-logo-v" d="M14 39 L43 80 L72 39" pathLength="100" fill="none" stroke="var(--ink)" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round"/>
 
       <g clipPath={`url(#${dawnClipId})`}>
+        <g className="vai-logo-sun-glow-rise">
+          <circle className="vai-logo-sun-glow" cx="43" cy="29" r="24" fill={`url(#${glowId})`}/>
+        </g>
         <circle className="vai-logo-dawn" cx="43" cy="29" r="20"/>
         <path className="vai-logo-sun" d="M29 29 A14 14 0 0 1 57 29 Z" fill={`url(#${goldId})`}/>
       </g>
@@ -67,7 +77,10 @@ export function VaiLogo({ size = 40, title = "VAi" }: VaiLogoProps) {
         <path className="vai-logo-trail vai-logo-trail-glow" d={STAR_FLIGHT} pathLength="100"/>
         <path className="vai-logo-trail" d={STAR_FLIGHT} pathLength="100"/>
         <g className="vai-logo-star" style={{ offsetPath: `path('${STAR_FLIGHT}')` }}>
-          <path className="vai-logo-spark" d="M0 -7 C1.2 -2.4 2.4 -1.2 7 0 C2.4 1.2 1.2 2.4 0 7 C-1.2 2.4 -2.4 1.2 -7 0 C-2.4 -1.2 -1.2 -2.4 0 -7 Z" fill={`url(#${goldId})`}/>
+          <circle className="vai-logo-pulse" r="7"/>
+          <g className="vai-logo-drift">
+            <path className="vai-logo-spark" d="M0 -7 C1.2 -2.4 2.4 -1.2 7 0 C2.4 1.2 1.2 2.4 0 7 C-1.2 2.4 -2.4 1.2 -7 0 C-2.4 -1.2 -1.2 -2.4 0 -7 Z" fill={`url(#${goldId})`}/>
+          </g>
         </g>
       </g>
     </svg>);
