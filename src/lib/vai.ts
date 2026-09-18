@@ -4561,30 +4561,11 @@ export async function loadVaiSourceRows(
         }
     }
 
-    // Las demás fuentes conservan su contrato actual.
-    if (source.id !== "finance_costs") {
-        const result = await apiGet(path);
+    const format =
+        source.id === "finance_costs"
+            ? "costs-rows-v1"
+            : "vai-rows-v1";
 
-        check();
-
-        if (result?.ok === false) {
-            throw new Error(
-                result.error ||
-                "Error al consultar la fuente"
-            );
-        }
-
-        if (!Array.isArray(result?.rows)) {
-            throw new Error(
-                "La fuente no devolvió un dataset válido"
-            );
-        }
-
-        return validateSourceRows(
-            source,
-            result.rows as VaiRow[]
-        );
-    }
 
     const join = (
         base: string,
@@ -4611,7 +4592,9 @@ export async function loadVaiSourceRows(
 
     const started = Date.now();
 
-    onProgress?.("Preparando costos…");
+    onProgress?.(
+        `Preparando ${source.name}…`
+    );
 
     const initialPath = join(path, {
         transport: "pages-v1",
@@ -4630,15 +4613,15 @@ export async function loadVaiSourceRows(
             210_000
         ) {
             throw new Error(
-                "El servicio de costos está ocupado. Reintenta la carga."
+                `El servicio de ${source.name} está ocupado. Reintenta la carga.`
             );
         }
 
         onProgress?.(
-            "Esperando un turno de consulta de costos…"
+            `Esperando un turno de consulta: ${source.name}…`
         );
 
-        await pause(3000);
+        await pause(2500);
 
         manifest = await get(
             initialPath
@@ -4648,11 +4631,11 @@ export async function loadVaiSourceRows(
     const snapshot = manifest?.snapshot;
 
     if (
-        manifest?.format !== "costs-rows-v1" ||
+        manifest?.format !== format ||
         typeof snapshot !== "string"
     ) {
         throw new Error(
-            "Actualiza el endpoint de costos en server.js y reinicia la API."
+            `El endpoint de ${source.name} no tiene habilitado el transporte paginado de V-Ai.`
         );
     }
 
@@ -4667,12 +4650,12 @@ export async function loadVaiSourceRows(
             210_000
         ) {
             throw new Error(
-                "Costos sigue en preparación. Revisa tiempos y bloqueos en SQL Server."
+                `${source.name} sigue en preparación. Revisa tiempos y bloqueos en SQL Server.`
             );
         }
 
         onProgress?.(
-            `Preparando costos: ${
+            `Preparando ${source.name}: ${
                 Number(
                     manifest.rows_read || 0
                 ).toLocaleString("es-PE")
@@ -4685,7 +4668,7 @@ export async function loadVaiSourceRows(
 
         if (
             manifest.snapshot !== snapshot ||
-            manifest.format !== "costs-rows-v1"
+            manifest.format !== format
         ) {
             throw new Error(
                 "Cambió la consulta durante la carga. Actualiza los datos."
@@ -4704,6 +4687,20 @@ export async function loadVaiSourceRows(
         )
     );
 
+    const validColumns =
+        Array.isArray(columns) &&
+        new Set(columns).size ===
+            columns.length &&
+        columns.every(
+            (field) =>
+                typeof field === "string" &&
+                known.has(field)
+        ) &&
+        (
+            total === 0 ||
+            columns.length > 0
+        );
+
     if (
         manifest.status !== "ready" ||
         !Number.isSafeInteger(total) ||
@@ -4716,19 +4713,10 @@ export async function loadVaiSourceRows(
                 : pages < 1 ||
                   pages > total
         ) ||
-        !Array.isArray(columns) ||
-        columns.length !== known.size ||
-        !columns.length ||
-        columns.some(
-            (field) =>
-                typeof field !== "string" ||
-                !known.has(field)
-        ) ||
-        new Set(columns).size !==
-            columns.length
+        !validColumns
     ) {
         throw new Error(
-            "El manifiesto de costos no es válido; no se calcularon totales."
+            `El manifiesto de ${source.name} no es válido; no se calcularon totales.`
         );
     }
 
@@ -4736,7 +4724,6 @@ export async function loadVaiSourceRows(
     const rows: VaiRow[] = [];
     const downloadStarted = Date.now();
 
-    // Máximo dos páginas simultáneas.
     for (
         let first = 0;
         first < pages;
@@ -4767,8 +4754,7 @@ export async function loadVaiSourceRows(
             const part = batch[index];
 
             if (
-                part.format !==
-                    "costs-rows-v1" ||
+                part.format !== format ||
                 part.snapshot !==
                     snapshot ||
                 part.page !==
@@ -4778,7 +4764,7 @@ export async function loadVaiSourceRows(
                     part.data.length
             ) {
                 throw new Error(
-                    "Página de costos incompleta o de otra consulta. Actualiza los datos."
+                    `Página incompleta o de otra consulta: ${source.name}.`
                 );
             }
 
@@ -4789,7 +4775,7 @@ export async function loadVaiSourceRows(
                         fields.length
                 ) {
                     throw new Error(
-                        "Una fila de costos no cumple el contrato."
+                        `Una fila de ${source.name} no cumple el contrato.`
                     );
                 }
 
@@ -4815,15 +4801,13 @@ export async function loadVaiSourceRows(
         }
 
         onProgress?.(
-            `Descargando costos: ${
+            `Descargando ${source.name}: ${
                 rows.length.toLocaleString("es-PE")
             } de ${
                 total.toLocaleString("es-PE")
             } filas…`
         );
 
-        // Ceder el hilo entre lotes.
-        // No publicar totales parciales.
         await pause(0);
     }
 
@@ -4831,11 +4815,12 @@ export async function loadVaiSourceRows(
 
     if (rows.length !== total) {
         throw new Error(
-            "Faltan filas de costos. No se mostraron totales parciales."
+            `Faltan filas de ${source.name}. No se mostraron totales parciales.`
         );
     }
 
-    console.info("[V-Ai costos]", {
+    console.info("[V-Ai dataset]", {
+        source: source.id,
         snapshot,
         rows: total,
         pages,
