@@ -171,13 +171,16 @@ export default function TRJKardexQuoteEditor({
 
   let validation = "";
 
-  if (!arrival.trim()) {
+  if (!departureKey) {
+    validation =
+      "La guía necesita fecha de salida antes de registrar la llegada";
+  } else if (!arrival.trim()) {
     validation = "La fecha de llegada es obligatoria";
   } else if (!arrivalKey) {
     validation = "La fecha de llegada no es válida";
   } else if (arrivalKey > maxDateTimeKeyPe) {
     validation = "La llegada no puede ser futura (hora Perú)";
-  } else if (departureKey && arrivalKey < departureKey) {
+  } else if (arrivalKey < departureKey) {
     validation = "La llegada no puede ser anterior a la salida";
   }
 
@@ -313,6 +316,7 @@ export default function TRJKardexQuoteEditor({
                 step="60"
                 min={text(guide.departure_date).slice(0, 16) || undefined}
                 max={maxDateTimePe}
+                disabled={!text(guide.departure_date).trim()}
                 value={arrival}
                 onChange={(e) => setArrival(e.target.value)}
               />

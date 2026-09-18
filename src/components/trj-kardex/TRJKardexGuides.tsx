@@ -1929,6 +1929,15 @@ export default function TRJKardexGuides() {
     guideError = "La guía ya existe; ábrela desde el histórico";
   }
 
+  if (
+    !guideError &&
+    creating &&
+    !draft.departure_date.trim()
+  ) {
+    guideError =
+      "La fecha de salida es obligatoria para crear la guía";
+  }
+
   const missingRequired = REQUIRED_GUIDE_FIELDS.find(
     ([key]) => !draft[key].trim()
   );

@@ -309,6 +309,16 @@ function InvoiceDetail({
 
     if (
       action === "close" &&
+      guides.some((guide) => !String(guide.departure_date ?? "").trim())
+    ) {
+      window.alert(
+        "No se puede cerrar la factura: todas las guías deben tener fecha de salida.",
+      );
+      return;
+    }
+
+    if (
+      action === "close" &&
       guides.some((guide) => !String(guide.arrival_date ?? "").trim())
     ) {
       window.alert(
