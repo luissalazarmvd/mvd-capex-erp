@@ -1016,8 +1016,14 @@ export default function TraceabilityEntryForm() {
   }, []);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    if (!dateFrom || !dateTo || dateFrom > dateTo) return;
+
+    const timer = window.setTimeout(() => {
+      void loadData(dateFrom, dateTo);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [loadData, dateFrom, dateTo]);
 
   useEffect(() => {
     setPage(1);

@@ -434,8 +434,14 @@ export default function TraceabilityCmInputsForm() {
   }, []);
 
   useEffect(() => {
-    void loadEntries();
-  }, [loadEntries]);
+    if (!dateFrom || !dateTo || dateFrom > dateTo) return;
+
+    const timer = window.setTimeout(() => {
+      void loadEntries(dateFrom, dateTo);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [loadEntries, dateFrom, dateTo]);
 
   useEffect(() => {
     if (!mappingOpen) return;

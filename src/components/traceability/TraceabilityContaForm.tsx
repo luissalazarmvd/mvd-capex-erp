@@ -406,8 +406,14 @@ export default function TraceabilityContaForm() {
   }, []);
 
   useEffect(() => {
-    void loadData("lot");
-  }, [loadData]);
+    if (!dateFrom || !dateTo || dateFrom > dateTo) return;
+
+    const timer = window.setTimeout(() => {
+      void loadData(view, dateFrom, dateTo);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [loadData, view, dateFrom, dateTo]);
 
   useEffect(() => {
     setPage(1);
@@ -747,12 +753,6 @@ export default function TraceabilityContaForm() {
     setSortKey("payment_date");
     setSortDir("desc");
     setMessage(null);
-
-    void loadData(
-      nextView,
-      TRACEABILITY_DEFAULT_RANGE.from,
-      TRACEABILITY_DEFAULT_RANGE.to
-    );
   }
 
   const inputStyle: React.CSSProperties = {
