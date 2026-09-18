@@ -819,29 +819,55 @@ html, body {
   box-shadow: inset 0 3px 0 var(--brand-gold);
 }
 
-/* Al entrar a V-Ai la cabecera deja el degradado y toma el formato de la
-   portada de /vai (.vai-brand): superficie --s-2 con el anillo neón girando
-   y su resplandor. */
-.vd-portal-head[data-area="vai"] {
+/* Al pedir la clave de un módulo la cabecera deja el degradado y toma la
+   superficie de la portada de /vai (.vai-brand-body): --s-2 con borde
+   neutro. */
+.vd-portal-head[data-area] {
   position: relative;
-  border-color: transparent;
+  isolation: isolate;
+  border-color: var(--line);
   background: var(--s-2);
-  box-shadow: 0 0 30px rgba(27, 147, 227, 0.24), 0 0 44px rgba(255, 216, 130, 0.12), inset 0 1px 0 rgba(232, 241, 247, 0.05);
+  box-shadow: inset 0 1px 0 rgba(232, 241, 247, 0.05);
 }
 
-.vd-portal-head[data-area="vai"]::before {
+.vd-portal-head[data-area] > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Solo V-Ai añade el anillo neón completo de .vai-brand: ::before dibuja
+   el anillo (conic-gradient en border-box) y la superficie opaca
+   (padding-box) en una sola capa para no recortar el giro, y ::after es la
+   copia difuminada que gira detrás como resplandor. */
+.vd-portal-head[data-area="vai"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.vd-portal-head[data-area="vai"]::before,
+.vd-portal-head[data-area="vai"]::after {
   content: "";
   position: absolute;
-  inset: -2px;
-  padding: 2px;
   border-radius: inherit;
   pointer-events: none;
   background: conic-gradient(from var(--vai-angle), var(--brand-blue-light), var(--brand-gold-light) 26%, var(--brand-info) 50%, var(--brand-gold) 74%, var(--brand-blue-light));
   animation: vai-spin 7s linear infinite;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
+}
+
+.vd-portal-head[data-area="vai"]::before {
+  inset: -2px;
+  z-index: 0;
+  border: 2px solid transparent;
+  background: linear-gradient(var(--s-2), var(--s-2)) padding-box, conic-gradient(from var(--vai-angle), var(--brand-blue-light), var(--brand-gold-light) 26%, var(--brand-info) 50%, var(--brand-gold) 74%, var(--brand-blue-light)) border-box;
+  box-shadow: inset 0 1px 0 rgba(232, 241, 247, 0.05);
+}
+
+.vd-portal-head[data-area="vai"]::after {
+  inset: -6px;
+  z-index: -1;
+  filter: blur(22px);
+  opacity: 0.55;
 }
 
 /* Marca interna VAi: logo animado con su lema debajo. */
@@ -932,38 +958,58 @@ html, body {
 }
 
 /* Tarjeta V-Ai: mismo anillo neón y superficie que la portada de /vai
-   (.vai-brand). El anillo va dentro del borde (inset 0) porque el tile
-   recorta con overflow: hidden; el resplandor exterior lo pone box-shadow. */
+   (.vai-brand), con la misma técnica que .vd-portal-head[data-area="vai"].
+   Sin rail ni overflow: hidden para que anillo y resplandor giren enteros. */
 .vd-portal-tile[data-area="vai"] {
+  isolation: isolate;
+  overflow: visible;
   padding-left: 16px;
   border-color: transparent;
-  background: var(--s-2);
-  box-shadow: 0 0 22px rgba(27, 147, 227, 0.22), 0 0 30px rgba(255, 216, 130, 0.12), inset 0 1px 0 rgba(232, 241, 247, 0.05);
+  background: transparent;
 }
 
 .vd-portal-tile[data-area="vai"] .vd-portal-rail {
   display: none;
 }
 
-.vd-portal-tile[data-area="vai"]::before {
+.vd-portal-tile[data-area="vai"] .vd-portal-label {
+  position: relative;
+  z-index: 1;
+}
+
+.vd-portal-tile[data-area="vai"]::before,
+.vd-portal-tile[data-area="vai"]::after {
   content: "";
   position: absolute;
-  inset: 0;
-  padding: 2px;
   border-radius: inherit;
   pointer-events: none;
   background: conic-gradient(from var(--vai-angle), var(--brand-blue-light), var(--brand-gold-light) 26%, var(--brand-info) 50%, var(--brand-gold) 74%, var(--brand-blue-light));
   animation: vai-spin 7s linear infinite;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
+}
+
+.vd-portal-tile[data-area="vai"]::before {
+  inset: -2px;
+  z-index: 0;
+  border: 2px solid transparent;
+  background: linear-gradient(var(--s-2), var(--s-2)) padding-box, conic-gradient(from var(--vai-angle), var(--brand-blue-light), var(--brand-gold-light) 26%, var(--brand-info) 50%, var(--brand-gold) 74%, var(--brand-blue-light)) border-box;
+  box-shadow: inset 0 1px 0 rgba(232, 241, 247, 0.05);
+}
+
+.vd-portal-tile[data-area="vai"]::after {
+  inset: -6px;
+  z-index: -1;
+  filter: blur(22px);
+  opacity: 0.4;
+  transition: opacity 0.16s ease;
 }
 
 .vd-portal-tile[data-area="vai"]:hover:not(:disabled) {
   border-color: transparent;
-  background: var(--s-2);
-  box-shadow: 0 0 30px rgba(27, 147, 227, 0.32), 0 0 40px rgba(255, 216, 130, 0.18), inset 0 1px 0 rgba(232, 241, 247, 0.05);
+  background: transparent;
+}
+
+.vd-portal-tile[data-area="vai"]:hover:not(:disabled)::after {
+  opacity: 0.6;
 }
 
 .vd-portal-auth {
