@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { DataLoading } from "../components/ui/DataLoading";
 
 const exo = localFont({
   variable: "--font-exo",
@@ -34,7 +35,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className={exo.variable}>{children}</body>
+      <body className={exo.variable}>
+        {children}
+        <DataLoading />
+      </body>
     </html>
   );
 }

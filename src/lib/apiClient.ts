@@ -1,6 +1,43 @@
 // src/lib/apiClient.ts
 type Json = Record<string, any>;
 
+// Lecturas en curso. Alimentan el overlay global `DataLoading`
+// (src/components/ui/DataLoading.tsx): solo cuentan los apiGet; las
+// escrituras y descargas conservan el estado propio de cada módulo.
+// `silent` excluye consultas ligadas al tecleo (lookups) para no cubrir
+// la pantalla mientras el usuario escribe.
+type ApiGetOptions = { silent?: boolean };
+
+const inflight = new Map<number, string>();
+const listeners = new Set<() => void>();
+let inflightSnapshot: string[] = [];
+let inflightSeq = 0;
+
+function trackStart(path: string) {
+  const ticket = ++inflightSeq;
+  inflight.set(ticket, path);
+  inflightSnapshot = Array.from(inflight.values());
+  listeners.forEach((listener) => listener());
+  return ticket;
+}
+
+function trackEnd(ticket: number) {
+  if (!inflight.delete(ticket)) return;
+  inflightSnapshot = Array.from(inflight.values());
+  listeners.forEach((listener) => listener());
+}
+
+export function subscribeInflight(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function getInflightPaths() {
+  return inflightSnapshot;
+}
+
 function normBase(url: string) {
   return url.replace(/\/+$/, "");
 }
@@ -25,17 +62,22 @@ async function parseOrThrow(r: Response) {
   return out;
 }
 
-export async function apiGet(path: string) {
+export async function apiGet(path: string, options?: ApiGetOptions) {
   const base = getBaseUrl();
   const key = getApiKey();
+  const ticket = options?.silent ? null : trackStart(path);
 
-  const r = await fetch(`${base}${path}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json", "x-api-key": key },
-    cache: "no-store",
-  });
+  try {
+    const r = await fetch(`${base}${path}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json", "x-api-key": key },
+      cache: "no-store",
+    });
 
-  return parseOrThrow(r);
+    return await parseOrThrow(r);
+  } finally {
+    if (ticket !== null) trackEnd(ticket);
+  }
 }
 
 export async function apiPost(path: string, body: Json) {

@@ -2608,7 +2608,8 @@ export default function TRJKardexGuides() {
 
     try {
       const response = await apiGet(
-        `/api/trjkar/lookups?role=${role}&ruc=${encodeURIComponent(ruc)}`
+        `/api/trjkar/lookups?role=${role}&ruc=${encodeURIComponent(ruc)}`,
+        { silent: true }
       );
 
       if (
@@ -2675,7 +2676,8 @@ export default function TRJKardexGuides() {
 
     try {
       const response = await apiGet(
-        `/api/trjkar/driver-lookup?drive_license=${encodeURIComponent(driveLicense)}`
+        `/api/trjkar/driver-lookup?drive_license=${encodeURIComponent(driveLicense)}`,
+        { silent: true }
       );
 
       if (
