@@ -167,7 +167,7 @@ export default function PortalClient({ nextPath }: PortalClientProps) {
   return (
     <main className="vd-portal">
       <div className="vd-portal-shell">
-        <header className="vd-portal-head">
+        <header className="vd-portal-head" data-area={selected?.key}>
           <div className="vd-portal-brand">
             <VaiLogo size={64} />
             <span>Veta Analytics &amp; Intelligence</span>
