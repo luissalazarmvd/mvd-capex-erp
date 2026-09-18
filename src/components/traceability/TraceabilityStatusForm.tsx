@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { DateInput } from "../ui/DateInput";
 import { Pager } from "../ui/Pager";
 import { Table } from "../ui/Table";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
@@ -1295,23 +1296,21 @@ export default function TraceabilityStatusForm() {
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Entry Date desde</div>
-            <input
-              type="date"
+            <DateInput
               value={dateFrom}
               max={dateTo || TRACEABILITY_DEFAULT_RANGE.to}
-              onChange={(e) => setDateFrom(e.target.value)}
+              onCommit={setDateFrom}
               style={{ ...inputBase, minWidth: 150 }}
             />
           </div>
 
           <div style={{ display: "grid", gap: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Entry Date hasta</div>
-            <input
-              type="date"
+            <DateInput
               value={dateTo}
               min={dateFrom || undefined}
               max={TRACEABILITY_DEFAULT_RANGE.to}
-              onChange={(e) => setDateTo(e.target.value)}
+              onCommit={setDateTo}
               style={{ ...inputBase, minWidth: 150 }}
             />
           </div>

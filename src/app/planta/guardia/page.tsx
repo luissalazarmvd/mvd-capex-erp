@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
+import { DateInput } from "../../../components/ui/DateInput";
 
 type LookupsResp = { ok: boolean; supervisors: string[] };
 
@@ -232,12 +233,11 @@ function DatePicker({
   return (
     <div style={{ display: "grid", gap: 6 }}>
       <div style={{ fontWeight: 700, fontSize: 13 }}>Fecha</div>
-      <input
-        type="date"
+      <DateInput
         value={valueIso}
         max={max}
         disabled={disabled}
-        onChange={(e) => onChangeIso(e.target.value)}
+        onCommit={onChangeIso}
         style={{
           width: "100%",
           background: "rgba(0,0,0,.10)",

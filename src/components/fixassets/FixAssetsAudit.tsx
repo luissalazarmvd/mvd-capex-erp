@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiGet } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { DateInput } from "../ui/DateInput";
 import { Table } from "../ui/Table";
 import { FastCellInput } from "../ui/FastCellInput";
 
@@ -529,12 +530,11 @@ export default function FixAssetsAudit({
 
               <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                 Desde
-                <input
+                <DateInput
                   className="input"
-                  type="date"
                   value={dateFrom}
-                  onChange={(event) => {
-                    setDateFrom(event.target.value);
+                  onCommit={(next) => {
+                    setDateFrom(next);
                     setPage(1);
                   }}
                   style={{ width: 145, height: 34, padding: "5px 8px" }}
@@ -543,12 +543,11 @@ export default function FixAssetsAudit({
 
               <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600 }}>
                 Hasta
-                <input
+                <DateInput
                   className="input"
-                  type="date"
                   value={dateTo}
-                  onChange={(event) => {
-                    setDateTo(event.target.value);
+                  onCommit={(next) => {
+                    setDateTo(next);
                     setPage(1);
                   }}
                   style={{ width: 145, height: 34, padding: "5px 8px" }}

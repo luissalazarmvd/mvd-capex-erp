@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { apiGet, apiPost } from "../../lib/apiClient";
 import { Button } from "../ui/Button";
+import { DateInput } from "../ui/DateInput";
 import { Pager } from "../ui/Pager";
 import { Select } from "../ui/Select";
 import { Table } from "../ui/Table";
@@ -821,23 +822,21 @@ export default function TraceabilityContaForm() {
         >
           <label style={{ display: "grid", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Fecha de pago desde</span>
-            <input
-              type="date"
+            <DateInput
               value={dateFrom}
               max={dateTo || filterMaxDate}
-              onChange={(event) => setDateFrom(event.target.value)}
+              onCommit={setDateFrom}
               style={inputStyle}
             />
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.9 }}>Fecha de pago hasta</span>
-            <input
-              type="date"
+            <DateInput
               value={dateTo}
               min={dateFrom || undefined}
               max={filterMaxDate}
-              onChange={(event) => setDateTo(event.target.value)}
+              onCommit={setDateTo}
               style={inputStyle}
             />
           </label>

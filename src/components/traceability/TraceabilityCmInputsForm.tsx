@@ -10,6 +10,7 @@ import {
   todayInLima,
 } from "../../lib/traceability/cmEntryDate";
 import { Button } from "../ui/Button";
+import { DateInput } from "../ui/DateInput";
 import { Pager } from "../ui/Pager";
 import ExcelHeaderFilter, {
   excelFilterIsActive,
@@ -1733,23 +1734,21 @@ export default function TraceabilityCmInputsForm() {
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
           <label style={{ display: "grid", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600 }}>F. ingreso desde</span>
-            <input
-              type="date"
+            <DateInput
               value={dateFrom}
               max={dateTo || filterMaxDate}
-              onChange={(event) => setDateFrom(event.target.value)}
+              onCommit={setDateFrom}
               style={{ ...inputStyle, colorScheme: "dark" }}
             />
           </label>
 
           <label style={{ display: "grid", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600 }}>F. ingreso hasta</span>
-            <input
-              type="date"
+            <DateInput
               value={dateTo}
               min={dateFrom || undefined}
               max={filterMaxDate}
-              onChange={(event) => setDateTo(event.target.value)}
+              onCommit={setDateTo}
               style={{ ...inputStyle, colorScheme: "dark" }}
             />
           </label>

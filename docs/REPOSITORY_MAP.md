@@ -18,7 +18,7 @@ Este archivo es el índice operativo que debe leerse inmediatamente después de 
 | Login/logout general | `src/app/api/auth/*`, `src/lib/logout.ts` | Sesión del portal y cierre de sesión |
 | Portal corporativo | `src/app/(portal)/page.tsx`, `src/app/(portal)/PortalClient.tsx` | Acceso inicial y `/api/access-check`; la página lee `next` en el servidor y muestra la marca VAi (`VaiLogo` + «Veta Analytics & Intelligence») |
 | Cliente backend externo | `src/lib/apiClient.ts` | Base URL, `x-api-key`, GET/POST/download; registro de lecturas en curso (`subscribeInflight`, opción `silent`) que alimenta el overlay global `DataLoading` |
-| UI compartida | `src/components/ui/*` | `Button`, `Input`, `Select`, `Dropdown`, `Table`, `Pager`, `TopNav`, `FastCellInput`, `ExcelHeaderFilter`, `ExcelFilters`, gráficos SVG en `Charts.tsx`, logo animado VAi en `VaiLogo.tsx`, overlay global de carga `DataLoading.tsx` (montado en `src/app/layout.tsx`, excluye `/vai` y `/ti`) |
+| UI compartida | `src/components/ui/*` | `Button`, `Input`, `Select`, `Dropdown`, `Table`, `Pager`, `TopNav`, `FastCellInput`, `DateInput` (fecha que confirma al cerrar la selección, para filtros que consultan endpoints), `ExcelHeaderFilter`, `ExcelFilters`, gráficos SVG en `Charts.tsx`, logo animado VAi en `VaiLogo.tsx`, overlay global de carga `DataLoading.tsx` (montado en `src/app/layout.tsx`, excluye `/vai` y `/ti`) |
 | Filtros tipo Excel | `src/components/ui/ExcelFilters.tsx`, `src/components/ui/ExcelHeaderFilter.tsx` | Hook `useExcelColumnFilters` + popup de columna |
 | Estilos globales | `src/app/globals.css` | Tokens del sistema visual y clases compartidas |
 | Shell global | `src/app/layout.tsx` | Fuentes, metadata y layout raíz |
