@@ -3,7 +3,7 @@ import { createContext, memo, useCallback, useContext, useDeferredValue, useEffe
 import { createPortal } from "react-dom";
 import { loadVaiSourceRows } from "../../lib/vai";
 import { canUseLogScale, prefersLogScale, type ChartScaleMode } from "../../lib/chartScale";
-import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, localizeVaiSource, monthBounds, monthsInRange, validIsoDate, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, undoDashboard, widgetDetailTable, vaiAreaLabel, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiLanguage, type VaiRow, type VaiSortMode, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
+import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, localizeVaiSource, monthBounds, monthsInRange, validIsoDate, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, undoDashboard, widgetDetailTable, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiLanguage, type VaiRow, type VaiSortMode, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
 import { ChartLanguageProvider, MatrixChart, CHART_COLORS, CHART_OTHER, ColumnChart, ComboChart, DonutChart, HeatmapChart, WaterfallChart, KpiTooltip, LineChart, RankChart, ScatterChart, type ChartRow, type ChartSeries, } from "../ui/Charts";
 import { Button } from "../ui/Button";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
@@ -20,9 +20,243 @@ const VAI_UI_TEXT = {
         filters: "Filtres", clearFilters: "Effacer les filtres", all: "Tous", none: "Aucun", scale: "Échelle", automatic: "Automatique", linear: "Linéaire", logarithmic: "Logarithmique", xAxis: "Axe X", split: "Ventiler", noBreakdown: "Sans ventilation", orderX: "Ordre X", highLow: "Du plus grand au plus petit", lowHigh: "Du plus petit au plus grand", exactSummary: "Résumé exact de", exactSubtitle: "valeurs agrégées alimentant le graphique", backup: "Détail justificatif", backupSubtitle: "enregistrements justifiant les groupes visibles", rows: "lignes", edit: "Modifier le graphique", editPlaceholder: "Ex. transforme-le en anneau par site avec le coût PEN", apply: "Appliquer", cancel: "Annuler", editing: "Application…", language: "Langue", undo: "Annuler le changement", undoing: "Annulation…", translating: "Traduction…", saved: "Enregistré", unsaved: "Non enregistré", prompt: "Prompt", retry: "Réessayer l’enregistrement", refresh: "Actualiser les données", newDashboard: "Nouveau dashboard", notes: "Observations de la définition", exactRows: "enregistrements", loadingData: "Chargement des données des sources", preparing: "Préparation des requêtes…", source: "Source", noSource: "La source de ce graphique n’a pas pu être résolue.", day: "jour", week: "semaine", month: "mois", quarter: "trimestre", year: "année"
     },
 } as const;
+
+const VAI_UI_EXTRA = {
+    es: {
+        exportPreparing: "Preparando archivo…",
+        exportHint: "Exporta el contenido del dashboard sin controles de configuración.",
+        exportPdf: "Exportar dashboard a PDF",
+        noData: "Sin datos para los filtros seleccionados.",
+        lots: "lotes",
+        loadingQuery: "Consultando",
+        loadedRows: "filas cargadas",
+        sourceError: "No se pudo consultar",
+        updating: "Actualizando",
+        dates: "Fechas",
+        periods: "Períodos",
+        noPeriodFilter: "Sin filtro de período",
+        periodsSelected: "períodos seleccionados",
+        noPeriod: "Ningún período",
+        year: "Año",
+        allYear: "Todo el año",
+        clearSelection: "Quitar selección",
+        applyPeriods: "Aplicar períodos",
+        noFilter: "Sin filtro",
+        invalidDateRange: "Revisa el rango de fechas.",
+        comparableMonths: "Meses comparables",
+        allMonths: "Todos los meses",
+        monthsSelected: "meses seleccionados",
+        noMonth: "Ningún mes",
+        comparableMonthsHint: "El mismo recorte de meses para REAL 2025, REAL 2026 y PPTO 2026.",
+        fromMonth: "Desde el mes",
+        toMonth: "Hasta el mes",
+        useRange: "Usar rango",
+        addRange: "Agregar rango",
+        removeRange: "Quitar rango",
+        deselectAll: "Deseleccionar todo",
+        selectAll: "Seleccionar todo",
+        selected: "seleccionados",
+        addToSelection: "Agregar a selección",
+        removeFromSelection: "Quitar de selección",
+        searchValues: "Buscar valores...",
+        showingMatches: "Mostrando 250 de",
+        matches: "coincidencias. Usa la búsqueda para acotar.",
+        clear: "Limpiar",
+        matrixRows: "Filas",
+        matrixColumns: "Columnas",
+        matrixExcelHint: "Excel exporta el último nivel, sin duplicar subtotales",
+        matrixSource: "Fuente de la matriz",
+        clearColumns: "Limpiar columnas",
+        tableRows: "Filas",
+        allRows: "Todas",
+        previous: "Anterior",
+        next: "Siguiente",
+        summary: "Resumen",
+        filteredSummary: "Resumen de las filas filtradas, por período",
+        selectedDetail: "Detalle de la fila seleccionada",
+        closeDetail: "Cerrar detalle",
+        accountingBackup: "Glosas y respaldo contable",
+        originalRecords: "Registros originales del grupo seleccionado",
+        savedDashboards: "Mis dashboards",
+        updateInventory: "Actualizar inventario",
+        newShort: "Nuevo",
+        loadingInventory: "Cargando…",
+        emptyInventory: "Aún no hay dashboards guardados. El primero que generes aparecerá aquí.",
+        deleteDashboard: "Eliminar dashboard",
+        howWorks: "Cómo funciona",
+        howWorksAi: "La IA solo recibe el catálogo de fuentes (nombres de campos, métricas y reglas), nunca registros, montos ni nombres reales.",
+        howWorksData: "Los datos se consultan desde los endpoints existentes al abrir cada dashboard; los filtros no usan IA.",
+        areas: {
+            kardex: "Kardex TRJ",
+            traceability: "Trazabilidad",
+            finance: "Finanzas",
+            fixassets: "Activos Fijos",
+            planta: "Planta",
+            refinery: "Refinería",
+            logistics: "Logística",
+            fleet: "Flota",
+        },
+    },
+    en: {
+        exportPreparing: "Preparing file…",
+        exportHint: "Exports dashboard content without configuration controls.",
+        exportPdf: "Export dashboard to PDF",
+        noData: "No data for the selected filters.",
+        lots: "lots",
+        loadingQuery: "Querying",
+        loadedRows: "rows loaded",
+        sourceError: "Could not query",
+        updating: "Updating",
+        dates: "Dates",
+        periods: "Periods",
+        noPeriodFilter: "No period filter",
+        periodsSelected: "periods selected",
+        noPeriod: "No period",
+        year: "Year",
+        allYear: "Full year",
+        clearSelection: "Clear selection",
+        applyPeriods: "Apply periods",
+        noFilter: "No filter",
+        invalidDateRange: "Check the date range.",
+        comparableMonths: "Comparable months",
+        allMonths: "All months",
+        monthsSelected: "months selected",
+        noMonth: "No month",
+        comparableMonthsHint: "The same month slice applies to REAL 2025, REAL 2026 and PPTO 2026.",
+        fromMonth: "From month",
+        toMonth: "To month",
+        useRange: "Use range",
+        addRange: "Add range",
+        removeRange: "Remove range",
+        deselectAll: "Deselect all",
+        selectAll: "Select all",
+        selected: "selected",
+        addToSelection: "Add to selection",
+        removeFromSelection: "Remove from selection",
+        searchValues: "Search values...",
+        showingMatches: "Showing 250 of",
+        matches: "matches. Use search to narrow them down.",
+        clear: "Clear",
+        matrixRows: "Rows",
+        matrixColumns: "Columns",
+        matrixExcelHint: "Excel exports the last level without duplicating subtotals",
+        matrixSource: "Matrix source",
+        clearColumns: "Clear columns",
+        tableRows: "Rows",
+        allRows: "All",
+        previous: "Previous",
+        next: "Next",
+        summary: "Summary",
+        filteredSummary: "Summary of filtered rows by period",
+        selectedDetail: "Selected-row detail",
+        closeDetail: "Close detail",
+        accountingBackup: "Descriptions and accounting support",
+        originalRecords: "Original records supporting the selected group",
+        savedDashboards: "My dashboards",
+        updateInventory: "Refresh inventory",
+        newShort: "New",
+        loadingInventory: "Loading…",
+        emptyInventory: "No saved dashboards yet. The first one you generate will appear here.",
+        deleteDashboard: "Delete dashboard",
+        howWorks: "How it works",
+        howWorksAi: "AI receives only the source catalog (field names, metrics and rules), never records, amounts or real names.",
+        howWorksData: "Data is queried from existing endpoints when each dashboard opens; filters do not use AI.",
+        areas: {
+            kardex: "TRJ Kardex",
+            traceability: "Traceability",
+            finance: "Finance",
+            fixassets: "Fixed Assets",
+            planta: "Plant",
+            refinery: "Refinery",
+            logistics: "Logistics",
+            fleet: "Fleet",
+        },
+    },
+    fr: {
+        exportPreparing: "Préparation du fichier…",
+        exportHint: "Exporte le contenu du dashboard sans les contrôles de configuration.",
+        exportPdf: "Exporter le dashboard en PDF",
+        noData: "Aucune donnée pour les filtres sélectionnés.",
+        lots: "lots",
+        loadingQuery: "Interrogation",
+        loadedRows: "lignes chargées",
+        sourceError: "Impossible d’interroger",
+        updating: "Actualisation",
+        dates: "Dates",
+        periods: "Périodes",
+        noPeriodFilter: "Sans filtre de période",
+        periodsSelected: "périodes sélectionnées",
+        noPeriod: "Aucune période",
+        year: "Année",
+        allYear: "Toute l’année",
+        clearSelection: "Effacer la sélection",
+        applyPeriods: "Appliquer les périodes",
+        noFilter: "Sans filtre",
+        invalidDateRange: "Vérifie la plage de dates.",
+        comparableMonths: "Mois comparables",
+        allMonths: "Tous les mois",
+        monthsSelected: "mois sélectionnés",
+        noMonth: "Aucun mois",
+        comparableMonthsHint: "La même sélection de mois s’applique à REAL 2025, REAL 2026 et PPTO 2026.",
+        fromMonth: "Du mois",
+        toMonth: "Au mois",
+        useRange: "Utiliser la plage",
+        addRange: "Ajouter la plage",
+        removeRange: "Retirer la plage",
+        deselectAll: "Tout désélectionner",
+        selectAll: "Tout sélectionner",
+        selected: "sélectionnés",
+        addToSelection: "Ajouter à la sélection",
+        removeFromSelection: "Retirer de la sélection",
+        searchValues: "Rechercher des valeurs...",
+        showingMatches: "Affichage de 250 sur",
+        matches: "correspondances. Utilise la recherche pour affiner.",
+        clear: "Effacer",
+        matrixRows: "Lignes",
+        matrixColumns: "Colonnes",
+        matrixExcelHint: "Excel exporte le dernier niveau sans dupliquer les sous-totaux",
+        matrixSource: "Source de la matrice",
+        clearColumns: "Effacer les colonnes",
+        tableRows: "Lignes",
+        allRows: "Toutes",
+        previous: "Précédent",
+        next: "Suivant",
+        summary: "Résumé",
+        filteredSummary: "Résumé des lignes filtrées par période",
+        selectedDetail: "Détail de la ligne sélectionnée",
+        closeDetail: "Fermer le détail",
+        accountingBackup: "Libellés et justificatifs comptables",
+        originalRecords: "Enregistrements d’origine justifiant le groupe sélectionné",
+        savedDashboards: "Mes dashboards",
+        updateInventory: "Actualiser l’inventaire",
+        newShort: "Nouveau",
+        loadingInventory: "Chargement…",
+        emptyInventory: "Aucun dashboard enregistré. Le premier que tu génères apparaîtra ici.",
+        deleteDashboard: "Supprimer le dashboard",
+        howWorks: "Fonctionnement",
+        howWorksAi: "L’IA reçoit uniquement le catalogue des sources (noms de champs, métriques et règles), jamais les enregistrements, montants ou noms réels.",
+        howWorksData: "Les données sont interrogées via les endpoints existants à l’ouverture de chaque dashboard ; les filtres n’utilisent pas l’IA.",
+        areas: {
+            kardex: "Kardex TRJ",
+            traceability: "Traçabilité",
+            finance: "Finance",
+            fixassets: "Immobilisations",
+            planta: "Usine",
+            refinery: "Raffinerie",
+            logistics: "Logistique",
+            fleet: "Flotte",
+        },
+    },
+} as const;
+
 const VaiLanguageContext = createContext<VaiLanguage>("es");
+
 function useVaiUi() {
-    return VAI_UI_TEXT[useContext(VaiLanguageContext)];
+    const language = useContext(VaiLanguageContext);
+    return {
+        ...VAI_UI_TEXT[language],
+        ...VAI_UI_EXTRA[language],
+    };
 }
 
 type ExportContextValue = {
@@ -39,6 +273,7 @@ export function VaiExportProvider({ title, context, disabled, children }: {
     disabled: boolean;
     children: ReactNode;
 }) {
+    const ui = useVaiUi();
     const blocks = useRef(new Map<string, {
         order: number;
         get: () => VaiExportBlock;
@@ -56,15 +291,24 @@ export function VaiExportProvider({ title, context, disabled, children }: {
         lock.current = true;
         setBusy(true);
         setError("");
-        void action().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "No se pudo exportar. Inténtalo de nuevo.")).finally(() => { lock.current = false; setBusy(false); });
+        void action().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "No se pudo exportar. Inténtalo de nuevo.")).finally(() => {
+            lock.current = false;
+            setBusy(false);
+        });
     }, []);
     return (<ExportContext.Provider value={{ busy, disabled, context, run, register }}>
       <div className="vai-export-toolbar" data-vai-export-ignore>
-        <span className="muted" aria-live="polite">{busy ? "Preparando archivo…" : "Exporta con los filtros actuales y todas las páginas de las tablas."}</span>
+        <span className="muted" aria-live="polite">{busy ? ui.exportPreparing : ui.exportHint}</span>
         <Button size="sm" disabled={disabled || busy} onClick={() => run(async () => {
             const { downloadDashboardPdf } = await import("../../lib/vai");
-            await downloadDashboardPdf(title, [...blocks.current.values()].sort((a, b) => a.order - b.order).map((item) => item.get()), context);
-        })}>Exportar dashboard a PDF</Button>
+            await downloadDashboardPdf(
+                title,
+                [...blocks.current.values()]
+                    .sort((a, b) => a.order - b.order)
+                    .map((item) => item.get()),
+                []
+            );
+        })}>{ui.exportPdf}</Button>
       </div>
       {error ? <div className="vai-message" data-error="true" role="alert">{error}</div> : null}
       {children}
@@ -125,31 +369,44 @@ type VaiInventoryProps = {
     onNew: () => void;
     onReload: () => void;
 };
-export function formatStamp(value: string | null | undefined) {
+export function formatStamp(value: string | null | undefined, language: VaiLanguage = "es") {
     if (!value)
         return "";
     const parsed = Date.parse(value);
     if (!Number.isFinite(parsed))
         return String(value).slice(0, 16).replace("T", " ");
-    return new Date(parsed).toLocaleString("es-PE", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const locale = language === "en"
+        ? "en-US"
+        : language === "fr"
+            ? "fr-FR"
+            : "es-PE";
+    return new Date(parsed).toLocaleString(locale, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
 }
 function VaiInventory({ items, loading, error, currentId, onOpen, onDelete, onNew, onReload }: VaiInventoryProps) {
+    const ui = useVaiUi();
+    const language = useContext(VaiLanguageContext);
     return (<section className="trjk-card">
       <div className="trjk-toolbar">
-        <h3>Mis dashboards</h3>
+        <h3>{ui.savedDashboards}</h3>
         <div className="trjk-actions">
-          <Button size="sm" variant="ghost" onClick={onReload} disabled={loading} title="Actualizar inventario">
+          <Button size="sm" variant="ghost" onClick={onReload} disabled={loading} title={ui.updateInventory}>
             ↻
           </Button>
           <Button size="sm" variant="default" onClick={onNew}>
-            + Nuevo
+            + {ui.newShort}
           </Button>
         </div>
       </div>
       <div className="vai-inventory" style={{ marginTop: 10 }}>
         {error ? (<div className="vai-message" data-error="true">
             {error}
-          </div>) : loading && !items.length ? (<div className="vai-empty">Cargando…</div>) : !items.length ? (<div className="vai-empty">Aún no hay dashboards guardados. El primero que generes aparecerá aquí.</div>) : (items.map((item) => (<div key={item.dashboard_id} className="vai-inventory-item" role="button" tabIndex={0} aria-current={item.dashboard_id === currentId} onClick={() => onOpen(item)} onKeyDown={(e) => {
+          </div>) : loading && !items.length ? (<div className="vai-empty">{ui.loadingInventory}</div>) : !items.length ? (<div className="vai-empty">{ui.emptyInventory}</div>) : (items.map((item) => (<div key={item.dashboard_id} className="vai-inventory-item" role="button" tabIndex={0} aria-current={item.dashboard_id === currentId} onClick={() => onOpen(item)} onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
                     onOpen(item);
@@ -158,9 +415,9 @@ function VaiInventory({ items, loading, error, currentId, onOpen, onDelete, onNe
               <div style={{ minWidth: 0 }}>
                 <strong>{concarLabel(item.dashboard_name)}</strong>
                 {item.dashboard_desc ? <span>{concarLabel(item.dashboard_desc)}</span> : null}
-                <small>{formatStamp(item.updated_at || item.created_at)}</small>
+                <small>{formatStamp(item.updated_at || item.created_at, language)}</small>
               </div>
-              <button type="button" className="vai-icon-btn" title="Eliminar dashboard" aria-label={`Eliminar ${concarLabel(item.dashboard_name)}`} onClick={(e) => {
+              <button type="button" className="vai-icon-btn" title={ui.deleteDashboard} aria-label={`${ui.deleteDashboard}: ${concarLabel(item.dashboard_name)}`} onClick={(e) => {
                 e.stopPropagation();
                 onDelete(item);
             }}>
@@ -384,11 +641,51 @@ type VaiDashboardProps = {
 };
 function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidget }: VaiDashboardProps) {
     const ui = useVaiUi();
-    const sources = useMemo(() => spec.sources.map((id) => VAI_SOURCE_MAP.get(id)).filter((source): source is VaiSource => Boolean(source)).map((source) => localizeVaiSource(source, spec)), [spec]);
-    const sourceMap = useMemo(() => new Map(sources.map((source) => [source.id, source])), [sources]);
+    const sourceIdsKey = spec.sources.join("|");
+    const rawSources = useMemo(
+        () => spec.sources
+            .map((id) => VAI_SOURCE_MAP.get(id))
+            .filter((source): source is VaiSource => Boolean(source)),
+        [sourceIdsKey]
+    );
+    const sources = useMemo(
+        () => rawSources.map((source) => localizeVaiSource(source, spec)),
+        [rawSources, spec.language, spec.locale]
+    );
+    const sourceMap = useMemo(
+        () => new Map(sources.map((source) => [source.id, source])),
+        [sources]
+    );
     const [data, setData] = useState<Record<string, SourceState>>({});
     const [filters, setFilters] = useState<VaiFilterState>({});
-    const requestKey = useMemo(() => JSON.stringify(Object.fromEntries(sources.map((source) => [source.id, sourceRequestPath(source, spec.filters, filters)]))), [sources, spec.filters, filters]);
+    const filterDefinitionKey = useMemo(
+        () => JSON.stringify(spec.filters.map((filter) => filter.kind === "date_range"
+            ? [
+                filter.kind,
+                filter.source,
+                filter.field,
+                filter.preset ?? null,
+                filter.from ?? null,
+                filter.to ?? null,
+                filter.mode ?? null,
+            ]
+            : [
+                filter.kind,
+                filter.source,
+                filter.field,
+                filter.values ?? null,
+            ])),
+        [spec.filters]
+    );
+    const requestKey = useMemo(
+        () => JSON.stringify(Object.fromEntries(
+            rawSources.map((source) => [
+                source.id,
+                sourceRequestPath(source, spec.filters, filters),
+            ])
+        )),
+        [rawSources, spec.filters, filters]
+    );
     const cache = useRef(new Map<string, {
         path: string;
         refresh: number;
@@ -396,7 +693,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
     }>());
     useEffect(() => {
         setFilters({});
-    }, [spec.filters]);
+    }, [filterDefinitionKey]);
     useEffect(() => {
         const controller =
             new AbortController();
@@ -405,7 +702,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
             requestKey
         ) as Record<string, string>;
 
-        const changed = sources.filter(
+        const changed = rawSources.filter(
             (source) => {
                 const entry =
                     cache.current.get(
@@ -427,7 +724,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
                 ...previous,
             };
 
-            for (const source of sources) {
+            for (const source of rawSources) {
                 const entry =
                     cache.current.get(
                         source.id
@@ -451,7 +748,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
                         };
             }
 
-            return sources.every(
+            return rawSources.every(
                 (source) =>
                     next[source.id] ===
                     previous[source.id]
@@ -581,7 +878,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
             controller.abort();
         };
     }, [
-        sources,
+        rawSources,
         requestKey,
         refreshToken,
     ]);
@@ -626,7 +923,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
     }, [data, spec.filters, deferredFilters]);
     const loading = sources.some((source) => data[source.id]?.loading ?? true);
     const loadingSources = sources.filter((source) => data[source.id]?.loading ?? true);
-    const loadingText = loadingSources.map((source) => `Consultando ${source.name}…`).join(" · ");
+    const loadingText = loadingSources.map((source) => `${ui.loadingQuery} ${source.name}…`).join(" · ");
     const loadingRowsHelper = sources.map((source) => {
         const state = data[source.id];
         if (!state)
@@ -634,7 +931,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
         if (state.loading && state.progress && /filas/i.test(state.progress))
             return `${source.name}: ${state.progress.replace(/…$/, "")}`;
         if (!state.loading && !state.error && state.loadedAt != null)
-            return `${source.name}: ${state.rows.length.toLocaleString("es-PE")} filas cargadas`;
+            return `${source.name}: ${state.rows.length.toLocaleString("es-PE")} ${ui.loadedRows}`;
         return null;
     }).filter(Boolean).join(" · ");
     const exportContext = spec.filters.map((filter) => {
@@ -694,7 +991,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
       <VaiExportProvider title={spec.title} context={exportContext} disabled={loading || sources.some((source) => Boolean(data[source.id]?.error))}>
       {spec.description ? <p className="muted" style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip", maxHeight: "none" }}>{spec.description}</p> : null}
 
-      {spec.filters.length ? (<section className="trjk-card">
+      {spec.filters.length ? (<section className="trjk-card" data-vai-export-ignore>
           <div className="trjk-toolbar">
             <h3>{ui.filters}</h3>
             <div className="trjk-actions">
@@ -712,14 +1009,14 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
         {sources.map((source) => {
             const state = data[source.id];
             return (<span key={source.id} title={`${source.endpoint} · ${source.grain}`}>
-              {vaiAreaLabel(source.area)} · {source.name}:{" "}
+              {ui.areas[source.area]} · {source.name}:{" "}
               {state?.loading ? (state.progress || "cargando…") : state?.error ? <span style={{ color: "var(--bad)" }}>error</span> : `${(filtered[source.id] ?? []).length.toLocaleString("es-PE")} / ${(state?.rows ?? []).length.toLocaleString("es-PE")} ${ui.rows}`}
             </span>);
         })}
       </div>
 
       {sources.map((source) => data[source.id]?.error ? (<div key={source.id} className="vai-message" data-error="true">
-            No se pudo consultar «{source.name}»: {data[source.id].error}
+            {ui.sourceError} «{source.name}»: {data[source.id].error}
           </div>) : null)}
 
       {kpis.length ? (<div className="vai-kpi-grid">
@@ -735,7 +1032,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
           {others.map((widget, i) => {
             const widgetIndex = spec.widgets.indexOf(widget);
             return <div key={`${widget.type}-${widget.source}-${i}`} data-span={widgetSpan(i)} style={{ minWidth: 0, height: "100%", gridColumn: widgetSpan(i) === "2" ? "1 / -1" : undefined }}>
-              {data[widget.source]?.loading ? <section className="trjk-card" role="status">Actualizando {widget.title}…</section> : data[widget.source]?.error ? null : <ScopedWidget id={`widget-${i}`} order={kpis.length + i} widget={widget} source={sourceMap.get(widget.source)} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS} editor={<WidgetPromptEditor widget={widget} busy={editingWidget === widgetIndex} onSubmit={(instruction) => onEditWidget(widgetIndex, instruction)}/>}/>}
+              {data[widget.source]?.loading ? <section className="trjk-card" role="status">{ui.updating} {widget.title}…</section> : data[widget.source]?.error ? null : <ScopedWidget id={`widget-${i}`} order={kpis.length + i} widget={widget} source={sourceMap.get(widget.source)} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS} editor={<WidgetPromptEditor widget={widget} busy={editingWidget === widgetIndex} onSubmit={(instruction) => onEditWidget(widgetIndex, instruction)}/>}/>}
             </div>;
         })}
         </div>) : null}
@@ -749,6 +1046,7 @@ function DateFilterControl({ filter, value, onChange }: {
     value: VaiFilterValue;
     onChange: (value: VaiFilterValue) => void;
 }) {
+    const ui = useVaiUi();
     const [from, setFrom] = useState(value.from ?? "");
     const [to, setTo] = useState(value.to ?? "");
     const [mode, setMode] = useState<"range" | "period">(value.mode ?? filter.mode ?? "range");
@@ -797,7 +1095,7 @@ function DateFilterControl({ filter, value, onChange }: {
                 setPeriods(monthsInRange(from, to));
             setMode(next);
         }} style={{ width: 120 }}>
-          <option value="range">Fechas</option><option value="period">Períodos</option>
+          <option value="range">{ui.dates}</option><option value="period">{ui.periods}</option>
         </select>
       </div>
       {mode === "range" ? (<div className="vai-range">
@@ -805,16 +1103,16 @@ function DateFilterControl({ filter, value, onChange }: {
           <input className="input" aria-label={`${filter.label}: hasta`} type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)}/>
         </div>) : (<details ref={root} style={{ position: "relative" }}>
           <summary className="input" style={{ cursor: "pointer", minHeight: 36 }}>
-            {periods === undefined ? "Sin filtro de período" : periods.length ? periods.length === 1 ? formatDateLabel(periods[0], "month") : `${periods.length} períodos seleccionados` : "Ningún período"}
+            {periods === undefined ? ui.noPeriodFilter : periods.length ? periods.length === 1 ? formatDateLabel(periods[0], "month") : `${periods.length} ${ui.periodsSelected}` : ui.noPeriod}
           </summary>
           <div className="trjk-card" style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, padding: 12, boxShadow: "0 8px 24px #0003", background: "var(--panel, #fff)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <span>Año</span>
-              <input className="input" type="number" aria-label={`Año de ${filter.label}`} min={1900} max={2199} value={year} onChange={(event) => {
+              <span>{ui.year}</span>
+              <input className="input" type="number" aria-label={`${ui.year}: ${filter.label}`} min={1900} max={2199} value={year} onChange={(event) => {
                 const next = Number(event.target.value);
                 setYear(next);
             }} style={{ width: 95 }}/>
-              <button type="button" onClick={() => setPeriods((previous) => [...new Set([...(previous ?? []), ...options])])}>Todo el año</button>
+              <button type="button" onClick={() => setPeriods((previous) => [...new Set([...(previous ?? []), ...options])])}>{ui.allYear}</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
               {options.map((period) => <label key={period} style={{ display: "flex", gap: 5, alignItems: "center" }}>
@@ -823,13 +1121,13 @@ function DateFilterControl({ filter, value, onChange }: {
               </label>)}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button type="button" onClick={() => setPeriods([])}>Quitar selección</button>
-              <button type="button" onClick={apply}>Aplicar períodos</button>
+              <button type="button" onClick={() => setPeriods([])}>{ui.clearSelection}</button>
+              <button type="button" onClick={apply}>{ui.applyPeriods}</button>
             </div>
           </div>
         </details>)}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <Button size="sm" variant="ghost" disabled={!valid} onClick={apply}>Aplicar</Button>
+        <Button size="sm" variant="ghost" disabled={!valid} onClick={apply}>{ui.apply}</Button>
         <Button size="sm" variant="ghost" onClick={() => {
             setFrom("");
             setTo("");
@@ -837,12 +1135,13 @@ function DateFilterControl({ filter, value, onChange }: {
             if (root.current)
                 root.current.open = false;
             onChange({ mode, from: "", to: "" });
-        }}>Sin filtro</Button>
-        {!valid ? <small role="alert">Revisa el rango de fechas.</small> : null}
+        }}>{ui.noFilter}</Button>
+        {!valid ? <small role="alert">{ui.invalidDateRange}</small> : null}
       </div>
     </div>);
 }
 function CostMonthControl({ value, onChange }: { value: VaiFilterValue; onChange: (value: VaiFilterValue) => void }) {
+    const ui = useVaiUi();
     const [selected, setSelected] = useState<string[] | undefined>(value.values);
     const [from, setFrom] = useState(1);
     const [to, setTo] = useState(12);
@@ -864,20 +1163,20 @@ function CostMonthControl({ value, onChange }: { value: VaiFilterValue; onChange
         if (root.current) root.current.open = false;
     };
     return <div style={{ display: "grid", gap: 7, minWidth: 0, width: "100%", maxWidth: "100%" }}>
-      <span className="vd-label">Meses comparables</span>
+      <span className="vd-label">{ui.comparableMonths}</span>
       <details ref={root} style={{ position: "relative", minWidth: 0, maxWidth: "100%" }}>
-        <summary className="select" style={{ cursor: "pointer", minWidth: 0, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value.values === undefined ? "Todos los meses" : value.values.length ? `${value.values.length} meses seleccionados` : "Ningún mes"}</summary>
+        <summary className="select" style={{ cursor: "pointer", minWidth: 0, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value.values === undefined ? ui.allMonths : value.values.length ? `${value.values.length} ${ui.monthsSelected}` : ui.noMonth}</summary>
         <div className="trjk-card" style={{ position: "absolute", top: "calc(100% + 5px)", left: 0, width: "min(320px, calc(100vw - 32px))", maxWidth: "calc(100vw - 32px)", boxSizing: "border-box", zIndex: 500, background: "var(--s-1)", padding: 14, boxShadow: "0 14px 34px #0005", overflow: "hidden" }}>
-          <small className="muted" style={{ whiteSpace: "normal" }}>El mismo recorte de meses para REAL 2025, REAL 2026 y PPTO 2026.</small>
+          <small className="muted" style={{ whiteSpace: "normal" }}>{ui.comparableMonthsHint}</small>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "12px 0" }}>
-            <select className="select" aria-label="Desde el mes" value={from} onChange={(event) => setFrom(Number(event.target.value))} style={{ flex: "1 1 110px", minWidth: 0 }}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
-            <select className="select" aria-label="Hasta el mes" value={to} onChange={(event) => setTo(Number(event.target.value))} style={{ flex: "1 1 110px", minWidth: 0 }}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
-            <button type="button" disabled={from > to} onClick={() => setSelected(COST_MONTH_OPTIONS.slice(from - 1, to))} style={{ flex: "1 1 110px" }}>Usar rango</button>
-            <button type="button" disabled={from > to} onClick={() => setSelected((previous) => previous === undefined ? undefined : [...new Set([...previous, ...COST_MONTH_OPTIONS.slice(from - 1, to)])])} style={{ flex: "1 1 120px" }}>Agregar rango</button>
+            <select className="select" aria-label={ui.fromMonth} value={from} onChange={(event) => setFrom(Number(event.target.value))} style={{ flex: "1 1 110px", minWidth: 0 }}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
+            <select className="select" aria-label={ui.toMonth} value={to} onChange={(event) => setTo(Number(event.target.value))} style={{ flex: "1 1 110px", minWidth: 0 }}>{COST_MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
+            <button type="button" disabled={from > to} onClick={() => setSelected(COST_MONTH_OPTIONS.slice(from - 1, to))} style={{ flex: "1 1 110px" }}>{ui.useRange}</button>
+            <button type="button" disabled={from > to} onClick={() => setSelected((previous) => previous === undefined ? undefined : [...new Set([...previous, ...COST_MONTH_OPTIONS.slice(from - 1, to)])])} style={{ flex: "1 1 120px" }}>{ui.addRange}</button>
             <button type="button" disabled={from > to} onClick={() => {
                 const remove = new Set(COST_MONTH_OPTIONS.slice(from - 1, to));
                 setSelected((previous) => (previous ?? COST_MONTH_OPTIONS).filter((month) => !remove.has(month)));
-            }} style={{ flex: "1 1 120px" }}>Quitar rango</button>
+            }} style={{ flex: "1 1 120px" }}>{ui.removeRange}</button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 9 }}>
             {COST_MONTH_OPTIONS.map((month) => <label key={month} style={{ display: "flex", gap: 5, minWidth: 0 }}>
@@ -888,8 +1187,8 @@ function CostMonthControl({ value, onChange }: { value: VaiFilterValue; onChange
             </label>)}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
-            <button type="button" onClick={() => setSelected(allMonthsSelected ? [] : undefined)}>{allMonthsSelected ? "Deseleccionar todo" : "Seleccionar todo"}</button>
-            <Button size="sm" onClick={apply}>Aplicar</Button>
+            <button type="button" onClick={() => setSelected(allMonthsSelected ? [] : undefined)}>{allMonthsSelected ? ui.deselectAll : ui.selectAll}</button>
+            <Button size="sm" onClick={apply}>{ui.apply}</Button>
           </div>
         </div>
       </details>
@@ -901,6 +1200,7 @@ function FilterControl({ filter, rows, value, onChange, }: {
     value: VaiFilterValue;
     onChange: (value: VaiFilterValue) => void;
 }) {
+    const ui = useVaiUi();
     const options = useMemo(() => filter.kind === "select"
         ? distinctValues(rows, filter.field, filter.source === "finance_costs" ? Infinity : 200)
         : [], [filter, rows]);
@@ -969,12 +1269,12 @@ function FilterControl({ filter, rows, value, onChange, }: {
     const selectedSet = new Set(draftSelected ?? []);
     const appliedSet = new Set(appliedSelected ?? []);
     const selectedLabel = appliedSelected === undefined
-        ? "Todos"
+        ? ui.all
         : appliedSet.size === 0
-            ? "Ninguno"
+            ? ui.none
             : appliedSet.size === 1
                 ? [...appliedSet][0]
-                : `${appliedSet.size} seleccionados`;
+                : `${appliedSet.size} ${ui.selected}`;
     const normalizeDraft = (next: string[]) => {
         const unique = [...new Set(next)];
         setDraftSelected(options.length > 0 && unique.length === options.length ? undefined : unique);
@@ -1045,21 +1345,21 @@ function FilterControl({ filter, rows, value, onChange, }: {
         }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             <Button size="sm" variant="ghost" onClick={() => setDraftSelected(allSelected ? [] : undefined)}>
-              {allSelected ? "Deseleccionar todo" : "Seleccionar todo"}
+              {allSelected ? ui.deselectAll : ui.selectAll}
             </Button>
 
             {normalizedSearch ? <>
-              <Button size="sm" variant="ghost" onClick={addMatched} disabled={!matchedOptions.length || allSelected}>Agregar a selección</Button>
-              <Button size="sm" variant="ghost" onClick={removeMatched} disabled={!matchedOptions.length}>Quitar de selección</Button>
+              <Button size="sm" variant="ghost" onClick={addMatched} disabled={!matchedOptions.length || allSelected}>{ui.addToSelection}</Button>
+              <Button size="sm" variant="ghost" onClick={removeMatched} disabled={!matchedOptions.length}>{ui.removeFromSelection}</Button>
             </> : null}
           </div>
 
-          <input className="input" type="search" value={search} placeholder="Buscar valores..." autoComplete="off" onChange={(event) => setSearch(event.target.value)} style={{
+          <input className="input" type="search" value={search} placeholder={ui.searchValues} autoComplete="off" onChange={(event) => setSearch(event.target.value)} style={{
             width: "100%",
             minWidth: 0,
         }}/>
 
-          {matchedOptions.length > visibleOptions.length ? <small className="muted">Mostrando 250 de {matchedOptions.length.toLocaleString("es-PE")} coincidencias. Usa la búsqueda para acotar.</small> : null}
+          {matchedOptions.length > visibleOptions.length ? <small className="muted">{ui.showingMatches} {matchedOptions.length.toLocaleString("es-PE")} {ui.matches}</small> : null}
 
           <div style={{ display: "grid", gap: 2 }}>
             {visibleOptions.map((option) => (<label key={option} style={{
@@ -1089,9 +1389,9 @@ function FilterControl({ filter, rows, value, onChange, }: {
                 onChange({});
                 if (selectRootRef.current)
                     selectRootRef.current.open = false;
-            }}>Limpiar</Button>
+            }}>{ui.clear}</Button>
 
-            <Button size="sm" onClick={applyDraft}>Aplicar</Button>
+            <Button size="sm" onClick={applyDraft}>{ui.apply}</Button>
           </div>
         </div>
       </details>
@@ -1116,9 +1416,26 @@ function WidgetPromptEditor({ widget, busy, onSubmit }: {
         setInstruction("");
     }
 
-    return <div data-vai-export-ignore style={{ position: "relative", minWidth: 0, alignSelf: "end" }}>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen((value) => !value)} disabled={busy} title={ui.edit}>
-        {busy ? ui.editing : `✦ ${ui.edit}`}
+    return <div data-vai-export-ignore style={{ position: "relative", minWidth: 0, alignSelf: "end", justifySelf: "end" }}>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => setOpen((value) => !value)}
+        disabled={busy}
+        title={ui.edit}
+        aria-label={ui.edit}
+        style={{
+            width: 30,
+            minWidth: 30,
+            height: 30,
+            padding: 0,
+            display: "inline-grid",
+            placeItems: "center",
+            borderRadius: 8,
+        }}
+      >
+        {busy ? "…" : "✦"}
       </Button>
 
       {open ? <div className="trjk-card" style={{ position: "absolute", zIndex: 80, right: 0, top: "calc(100% + 6px)", width: "min(430px, 82vw)", padding: 10, display: "grid", gap: 8, boxShadow: "0 18px 45px rgba(0,0,0,.38)" }}>
@@ -1174,7 +1491,8 @@ function ScopedWidget({ id, order, widget, source, rows, loading = false, trendD
             : filter.label,
     })), [widget.source, source]);
     const [state, setState] = useState<VaiFilterState>({});
-    useEffect(() => { setState({}); }, [widget]);
+    const localFilterKey = definitions.map((filter) => filterKey(filter)).join("|");
+    useEffect(() => { setState({}); }, [widget.source, localFilterKey]);
     const filtered = useMemo(() => source && definitions.length ? applyFilters(source, rows, definitions, state) : rows, [source, rows, definitions, state]);
     const summary = definitions.map((filter) => {
         const values = state[filterKey(filter)]?.values;
@@ -1583,6 +1901,7 @@ function MatrixWidget({ id, order, widget, rows, source, controls }: {
     source: VaiSource;
     controls?: ReactNode;
 }) {
+    const ui = useVaiUi();
     const matrix = useMemo(() => computeMatrix(widget, source, rows), [widget, source, rows]);
     const [selected, setSelected] = useState<{ matrix: typeof matrix; node: VaiMatrixNode } | null>(null);
     const detailRows = useMemo(() => selected?.matrix === matrix ? matrix.records.filter((row) => selected.node.path.every((value, index) => toText(row[matrix.hierarchy[index]]) === value)) : [], [matrix, selected]);
@@ -1592,7 +1911,7 @@ function MatrixWidget({ id, order, widget, rows, source, controls }: {
     const summary = useMemo(() => source.id === "finance_costs" ? costSummaryText(matrix.records, currency) : "", [source.id, matrix.records, currency]);
     return <>
       <VaiExportSection id={id} order={order} title={widget.title} kind="table" getTable={getTable}>
-        <MatrixChart title={widget.title} subtitle={[`Filas: ${matrix.hierarchy.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}`, widget.matrixColumns?.length ? `Columnas: ${widget.matrixColumns.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}${widget.dateField ? ` → ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : ""}` : widget.dateField ? `Columnas: ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : "", summary, "Excel exporta el último nivel, sin duplicar subtotales"].filter(Boolean).join(" · ")} columns={matrix.columns} roots={matrix.roots} totals={matrix.totals} format={format} controls={<>{controls}<SourceHint source={source} columnId={widget.metrics[0]} columnLabel="Fuente de la matriz"/></>} onDetail={source.id === "finance_costs" ? (node) => setSelected({ matrix, node }) : undefined}/>
+        <MatrixChart title={widget.title} subtitle={[`${ui.matrixRows}: ${matrix.hierarchy.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}`, widget.matrixColumns?.length ? `${ui.matrixColumns}: ${widget.matrixColumns.map((field) => vaiField(source, field)?.label ?? field).join(" → ")}${widget.dateField ? ` → ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : ""}` : widget.dateField ? `${ui.matrixColumns}: ${vaiField(source, widget.dateField)?.label ?? widget.dateField}` : "", summary, ui.matrixExcelHint].filter(Boolean).join(" · ")} columns={matrix.columns} roots={matrix.roots} totals={matrix.totals} format={format} controls={<>{controls}<SourceHint source={source} columnId={widget.metrics[0]} columnLabel={ui.matrixSource}/></>} onDetail={source.id === "finance_costs" ? (node) => setSelected({ matrix, node }) : undefined}/>
       </VaiExportSection>
       {selected?.matrix === matrix && source.id === "finance_costs" ? <CostDetailPanel title={selected.node.path.join(" → ")} rows={detailRows} source={source} currency={currency} onClose={() => setSelected(null)}/> : null}
     </>;
@@ -1609,6 +1928,7 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
     compact?: boolean;
     controls?: ReactNode;
 }) {
+    const ui = useVaiUi();
     const excelColumns = useMemo<Array<ExcelColumnDef<(string | number | null)[]>>>(() => data.columns.map((column, index) => ({
         key: column.id,
         label: column.label,
@@ -1652,30 +1972,30 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
             {subtitle} · {excel.rows.length.toLocaleString("es-PE")} de {data.total.toLocaleString("es-PE")} filas
           </p>
         </div>
-        <div className="trjk-actions" style={{ alignItems: "center", flexWrap: "wrap" }}>
+        <div className="trjk-actions" data-vai-export-ignore style={{ alignItems: "center", flexWrap: "wrap" }}>
           {excel.activeCount || excel.hasSort ? (<Button size="sm" variant="ghost" onClick={excel.clear}>
-              Limpiar columnas
+              {ui.clearColumns}
             </Button>) : null}
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="muted">Filas</span>
+            <span className="muted">{ui.tableRows}</span>
             <select className="select" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} style={{ width: 92 }}>
               <option value={50}>50</option>
               <option value={100}>100</option>
               <option value={250}>250</option>
               <option value={500}>500</option>
               <option value={1000}>1000</option>
-              <option value={0}>Todas</option>
+              <option value={0}>{ui.allRows}</option>
             </select>
           </label>
           {pageSize > 0 && pageCount > 1 ? (<>
               <Button size="sm" variant="ghost" disabled={safePage <= 1} onClick={() => setPage(Math.max(1, safePage - 1))}>
-                Anterior
+                {ui.previous}
               </Button>
               <span className="muted">
                 {safePage.toLocaleString("es-PE")} / {pageCount.toLocaleString("es-PE")}
               </span>
               <Button size="sm" variant="ghost" disabled={safePage >= pageCount} onClick={() => setPage(Math.min(pageCount, safePage + 1))}>
-                Siguiente
+                {ui.next}
               </Button>
             </>) : null}
         </div>
@@ -1826,8 +2146,14 @@ export default function VaiWorkspace() {
     const [undoDepth, setUndoDepth] = useState(0);
     const stepTimers = useRef<number[]>([]);
     const undoStack = useRef<Board[]>([]);
+    const translationCache = useRef(new Map<VaiLanguage, VaiDashboardSpec>());
+    const translationPending = useRef(new Map<VaiLanguage, Promise<{ spec: VaiDashboardSpec; notes: string[] }>>());
+    const translationEpoch = useRef(0);
     const language = board?.spec.language ?? "es";
-    const ui = VAI_UI_TEXT[language];
+    const ui = {
+        ...VAI_UI_TEXT[language],
+        ...VAI_UI_EXTRA[language],
+    };
     const reloadInventory = useCallback(async () => {
         setInventoryLoading(true);
         setInventoryError(null);
@@ -1905,6 +2231,72 @@ export default function VaiWorkspace() {
             spec: checked.spec,
             notes: checked.notes,
         };
+    }
+
+    function resetTranslationCache(spec: VaiDashboardSpec) {
+        translationEpoch.current += 1;
+        translationCache.current = new Map([
+            [spec.language, spec],
+        ]);
+        translationPending.current = new Map();
+    }
+
+    async function cachedTranslation(spec: VaiDashboardSpec, target: VaiLanguage, prompt: string) {
+        const cached = translationCache.current.get(target);
+
+        if (cached)
+            return {
+                spec: cached,
+                notes: [] as string[],
+            };
+
+        const pending = translationPending.current.get(target);
+
+        if (pending)
+            return pending;
+
+        const epoch = translationEpoch.current;
+        let task!: Promise<{
+            spec: VaiDashboardSpec;
+            notes: string[];
+        }>;
+
+        task = translateSpec(spec, target, prompt)
+            .then((result) => {
+                if (epoch === translationEpoch.current)
+                    translationCache.current.set(target, result.spec);
+
+                return result;
+            })
+            .finally(() => {
+                if (translationPending.current.get(target) === task)
+                    translationPending.current.delete(target);
+            });
+
+        translationPending.current.set(target, task);
+
+        return task;
+    }
+
+    function prefetchTranslations(current: Board) {
+        translationCache.current.set(
+            current.spec.language,
+            current.spec
+        );
+
+        for (const target of ["es", "en", "fr"] as VaiLanguage[]) {
+            if (
+                target === current.spec.language ||
+                translationCache.current.has(target)
+            )
+                continue;
+
+            void cachedTranslation(
+                current.spec,
+                target,
+                current.prompt
+            ).catch(() => undefined);
+        }
     }
 
     async function generate(request: VaiPromptRequest) {
@@ -1998,8 +2390,10 @@ export default function VaiWorkspace() {
         }
         setGenerating(null);
         setTitleDraft(next.name);
+        resetTranslationCache(next.spec);
         setBoard(next);
         setRefreshToken((token) => token + 1);
+        prefetchTranslations(next);
         void reloadInventory();
     }
     async function open(item: VaiDashboardRecord) {
@@ -2024,9 +2418,11 @@ export default function VaiWorkspace() {
                 setBoard(null);
                 return;
             }
-            setTitleDraft(detail.dashboard_name);
-            setBoard({
-                spec: { ...spec, title: detail.dashboard_name },
+            const opened: Board = {
+                spec: {
+                    ...spec,
+                    title: detail.dashboard_name,
+                },
                 prompt: detail.prompt_text,
                 id: detail.dashboard_id,
                 name: detail.dashboard_name,
@@ -2035,8 +2431,13 @@ export default function VaiWorkspace() {
                 notes,
                 saveError: null,
                 model: detail.model_name ?? null,
-            });
+            };
+
+            setTitleDraft(opened.name);
+            resetTranslationCache(opened.spec);
+            setBoard(opened);
             setRefreshToken((token) => token + 1);
+            prefetchTranslations(opened);
         }
         catch (error) {
             setFailure({ message: error instanceof Error ? error.message : "No se pudo abrir el dashboard", unavailable: [] });
@@ -2109,30 +2510,16 @@ export default function VaiWorkspace() {
                 language: current.spec.language,
             });
 
-            let checked = parseStoredSpec(response.spec, current.prompt);
+            const checked = parseStoredSpec(response.spec, current.prompt);
 
             if (!checked.spec)
                 throw new Error("El cambio del gráfico devolvió una configuración inválida.");
 
-            let nextSpec = checked.spec;
-            let notes = [
+            const nextSpec = checked.spec;
+            const notes = [
                 ...(response.notes ?? []),
                 ...checked.notes,
             ];
-
-            if (current.spec.language !== "es") {
-                const translated = await translateSpec(
-                    nextSpec,
-                    current.spec.language,
-                    current.prompt
-                );
-
-                nextSpec = translated.spec;
-                notes = [
-                    ...notes,
-                    ...translated.notes,
-                ];
-            }
 
             const next: Board = {
                 ...current,
@@ -2147,10 +2534,12 @@ export default function VaiWorkspace() {
             };
 
             pushUndo(current);
+            resetTranslationCache(next.spec);
             setBoard(next);
             setTitleDraft(next.name);
+            prefetchTranslations(next);
 
-            await persist(
+            void persist(
                 next,
                 next.name,
                 "widget_edit"
@@ -2174,12 +2563,36 @@ export default function VaiWorkspace() {
             return;
 
         const current = board;
+        const cached = translationCache.current.get(target);
 
-        setTranslating(true);
         setFailure(null);
 
+        if (cached) {
+            const next: Board = {
+                ...current,
+                spec: cached,
+                name: cached.title,
+                saveError: null,
+            };
+
+            pushUndo(current);
+            setBoard(next);
+            setTitleDraft(next.name);
+
+            void persist(
+                next,
+                next.name,
+                "language"
+            );
+
+            prefetchTranslations(next);
+            return;
+        }
+
+        setTranslating(true);
+
         try {
-            const translated = await translateSpec(
+            const translated = await cachedTranslation(
                 current.spec,
                 target,
                 current.prompt
@@ -2200,11 +2613,13 @@ export default function VaiWorkspace() {
             setBoard(next);
             setTitleDraft(next.name);
 
-            await persist(
+            void persist(
                 next,
                 next.name,
                 "language"
             );
+
+            prefetchTranslations(next);
         }
         catch (error) {
             setFailure({
@@ -2269,9 +2684,10 @@ export default function VaiWorkspace() {
                     model: detail.model_name ?? null,
                 };
 
+                resetTranslationCache(restored.spec);
                 setBoard(restored);
                 setTitleDraft(restored.name);
-                setRefreshToken((token) => token + 1);
+                prefetchTranslations(restored);
                 void reloadInventory();
                 return;
             }
@@ -2281,9 +2697,10 @@ export default function VaiWorkspace() {
             if (!local)
                 throw new Error("No hay cambios anteriores para deshacer.");
 
+            resetTranslationCache(local.spec);
             setBoard(local);
             setTitleDraft(local.name);
-            setRefreshToken((token) => token + 1);
+            prefetchTranslations(local);
         }
         catch (error) {
             setFailure({
@@ -2399,7 +2816,7 @@ export default function VaiWorkspace() {
                     setTitleDraft(board.name);
             }} aria-label="Nombre del dashboard" title="Editar nombre; se guarda al salir del campo"/>
                 <div className="vai-board-meta" style={{ whiteSpace: "normal", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip" }}>
-                  {board.id ? `${ui.saved} · ${formatStamp(board.savedAt)}` : ui.unsaved}
+                  {board.id ? `${ui.saved} · ${formatStamp(board.savedAt, language)}` : ui.unsaved}
                   {translating ? <span> · {ui.translating}</span> : null}
                   {editingWidget !== null ? <span> · {ui.editing}</span> : null}
                   {board.saveError ? <span style={{ color: "var(--bad)" }}> · {board.saveError}</span> : null}
@@ -2482,9 +2899,9 @@ export default function VaiWorkspace() {
             setFailure(null);
         }} onReload={() => void reloadInventory()}/>
         <section className="trjk-card" style={{ fontSize: 11, color: "var(--ink-2)", display: "grid", gap: 6 }}>
-          <h3 style={{ color: "var(--ink)" }}>Cómo funciona</h3>
-          <p style={{ margin: 0 }}>La IA solo recibe el catálogo de fuentes (nombres de campos, métricas y reglas), nunca registros, montos ni nombres reales.</p>
-          <p style={{ margin: 0 }}>Los datos se consultan desde los endpoints existentes al abrir cada dashboard; los filtros no usan IA.</p>
+          <h3 style={{ color: "var(--ink)" }}>{ui.howWorks}</h3>
+          <p style={{ margin: 0 }}>{ui.howWorksAi}</p>
+          <p style={{ margin: 0 }}>{ui.howWorksData}</p>
         </section>
       </aside>
 

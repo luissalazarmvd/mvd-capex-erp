@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sessionWithScope } from "@/src/lib/auth/session";
-import { VAI_AREAS, VAI_BREAKDOWN_CHART_LIMIT, VAI_BREAKDOWN_TABLE_LIMIT, VAI_BUCKETS, VAI_DATE_PRESETS, VAI_MAX_FILTERS, VAI_MAX_SOURCES, VAI_MAX_WIDGETS, VAI_PROMPT_MAX, VAI_SORT_MODES, VAI_SOURCES, VAI_STACK_MODES, VAI_SUMMARY_OPERATIONS, VAI_WIDGET_TYPES, VAI_VISUAL_CATALOG, detectVaiLanguage, filterKey, normalizeVaiPrompt, parseStoredSpec, resolveVisualRequests, coerceModelOutput, limaToday, promptRenderHints, validateModelOutput, validateWidgetEdit, type VaiArea, type VaiChartPreference, type VaiDashboardSpec, type VaiFocus, type VaiLanguage, type VaiModelOutput, type VaiRawWidget, type VaiSource, type VaiValidation, } from "@/src/lib/vai";
+import { VAI_AREAS, VAI_BREAKDOWN_CHART_LIMIT, VAI_BREAKDOWN_TABLE_LIMIT, VAI_BUCKETS, VAI_DATE_PRESETS, VAI_MAX_FILTERS, VAI_MAX_SOURCES, VAI_MAX_WIDGETS, VAI_PROMPT_MAX, VAI_SORT_MODES, VAI_SOURCES, VAI_STACK_MODES, VAI_SUMMARY_OPERATIONS, VAI_WIDGET_TYPES, VAI_VISUAL_CATALOG, detectVaiLanguage, filterKey, normalizeVaiPrompt, parseStoredSpec, resolveVisualRequests, coerceModelOutput, limaToday, promptRenderHints, validateModelOutput, validateWidgetEdit, widgetLocalFilters, type VaiArea, type VaiChartPreference, type VaiDashboardSpec, type VaiFocus, type VaiLanguage, type VaiModelOutput, type VaiRawWidget, type VaiSource, type VaiValidation, } from "@/src/lib/vai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -699,6 +699,64 @@ const TRANSLATION_SCHEMA = {
     required: ["title", "description", "filters", "widgets", "sources", "fields", "metrics"],
 };
 
+const WIDGET_EDIT_SCHEMA = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+        widget: ((OUTPUT_SCHEMA.properties.dashboard as unknown as { anyOf: Array<{ properties?: { widgets?: { items?: unknown } } }> }).anyOf[0].properties?.widgets?.items) ?? {},
+        locale: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                sources: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                            id: { type: "string" },
+                            label: { type: "string" },
+                            description: { type: "string" },
+                            grain: { type: "string" },
+                        },
+                        required: ["id", "label", "description", "grain"],
+                    },
+                },
+                fields: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                            source: { type: "string" },
+                            id: { type: "string" },
+                            label: { type: "string" },
+                            description: { type: "string" },
+                        },
+                        required: ["source", "id", "label", "description"],
+                    },
+                },
+                metrics: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                            source: { type: "string" },
+                            id: { type: "string" },
+                            label: { type: "string" },
+                            description: { type: "string" },
+                        },
+                        required: ["source", "id", "label", "description"],
+                    },
+                },
+            },
+            required: ["sources", "fields", "metrics"],
+        },
+    },
+    required: ["widget", "locale"],
+};
+
 const FOCUS_TEXT: Record<VaiFocus, string> = {
     auto: "Automático: elige la mezcla de widgets más útil.",
     kpis: "Prioriza KPIs y un resumen compacto (varios kpi y pocos gráficos).",
@@ -1051,7 +1109,7 @@ function modeText(value: unknown, max: number) {
         .slice(0, max);
 }
 
-async function callStructuredJson(name: string, schema: unknown, systemPrompt: string, input: unknown, maxOutputTokens = 12000) {
+async function callStructuredJson(name: string, schema: unknown, systemPrompt: string, input: unknown, maxOutputTokens = 12000, reasoningEffort = VAI_REASONING) {
     const apiKey = process.env.API_OPEN_AI?.trim();
     if (!apiKey)
         throw new VaiGenerationError("V-Ai no está configurado en este entorno.", "missing API_OPEN_AI");
@@ -1072,7 +1130,7 @@ async function callStructuredJson(name: string, schema: unknown, systemPrompt: s
                 model: VAI_OPENAI_MODEL,
                 store: false,
                 max_output_tokens: maxOutputTokens,
-                ...(/^(?:gpt-[56]|o[134])/.test(VAI_OPENAI_MODEL) ? { reasoning: { effort: VAI_REASONING } } : {}),
+                ...(/^(?:gpt-[56]|o[134])/.test(VAI_OPENAI_MODEL) ? { reasoning: { effort: reasoningEffort } } : {}),
                 input: [
                     { role: "system", content: [{ type: "input_text", text: systemPrompt }] },
                     { role: "user", content: [{ type: "input_text", text: JSON.stringify(input) }] },
@@ -1139,7 +1197,53 @@ async function translateDashboardSpec(spec: VaiDashboardSpec, targetLanguage: Va
     const sourceSet = new Set(spec.sources);
     const sources = VAI_SOURCES.filter((source) => sourceSet.has(source.id));
     const languageName = targetLanguage === "en" ? "English" : targetLanguage === "fr" ? "French" : "Spanish";
-    const systemPrompt = `Translate V-Ai dashboard presentation text to ${languageName}. Keep every technical id exactly unchanged. Never translate ids, SQL names, codes, acronyms, currencies, chemical symbols, asset codes, lot codes, guide numbers or proper brand names. Translate only human-readable labels, titles, descriptions and grain text. Preserve mining, accounting and BI meaning. Return every filter, widget, source, field and metric supplied exactly once; do not omit or add catalog items. Return only JSON matching the schema.`;
+    const usedFields = new Map<string, Set<string>>();
+    const usedMetrics = new Map<string, Set<string>>();
+
+    const addField = (source: string, field: string | null | undefined) => {
+        if (!field)
+            return;
+        const bucket = usedFields.get(source) ?? new Set<string>();
+        bucket.add(field);
+        usedFields.set(source, bucket);
+    };
+
+    const addMetric = (source: string, metric: string | null | undefined) => {
+        if (!metric)
+            return;
+        const bucket = usedMetrics.get(source) ?? new Set<string>();
+        bucket.add(metric);
+        usedMetrics.set(source, bucket);
+    };
+
+    for (const filter of spec.filters)
+        addField(filter.source, filter.field);
+
+    for (const widget of spec.widgets) {
+        addField(widget.source, widget.dimension);
+        addField(widget.source, widget.dateField);
+        addField(widget.source, widget.breakdown);
+
+        for (const field of widget.columns ?? [])
+            addField(widget.source, field);
+
+        for (const field of widget.matrixColumns ?? [])
+            addField(widget.source, field);
+
+        for (const filter of widgetLocalFilters(widget.source))
+            addField(widget.source, filter.field);
+
+        for (const metric of widget.metrics)
+            addMetric(widget.source, metric);
+
+        for (const summary of widget.summaries ?? []) {
+            addField(widget.source, summary.column);
+            addMetric(widget.source, summary.column);
+        }
+    }
+
+    const systemPrompt = `Translate every human-readable V-Ai presentation string to ${languageName}. Technical ids, SQL names, codes, acronyms, currencies, chemical symbols, asset codes, lot codes, guide numbers and proper brand names must remain unchanged. Human labels are NOT technical ids: words such as Período, Escenario, Meses comparables, Gerencia, Cuenta, Descripción, Proveedor, Glosa, Subdiario, Macroproceso, Naturaleza, Sede, Zona, Filtros and their equivalents must be translated. Do not leave Spanish presentation text when the target is English or French, and do not leave English/French presentation text when the target is Spanish. Preserve mining, accounting and BI meaning. Return every supplied filter, widget, source, field and metric exactly once; do not add or omit catalog items. Return only JSON matching the schema.`;
+
     const payload = await callStructuredJson("vai_translation", TRANSLATION_SCHEMA, systemPrompt, {
         target_language: targetLanguage,
         dashboard: {
@@ -1153,10 +1257,14 @@ async function translateDashboardSpec(spec: VaiDashboardSpec, targetLanguage: Va
             label: source.name,
             description: source.description,
             grain: source.grain,
-            fields: source.fields.map((field) => ({ id: field.id, label: field.label, description: field.description })),
-            metrics: source.metrics.map((metric) => ({ id: metric.id, label: metric.label, description: metric.description })),
+            fields: source.fields
+                .filter((field) => usedFields.get(source.id)?.has(field.id))
+                .map((field) => ({ id: field.id, label: field.label, description: field.description })),
+            metrics: source.metrics
+                .filter((metric) => usedMetrics.get(source.id)?.has(metric.id))
+                .map((metric) => ({ id: metric.id, label: metric.label, description: metric.description })),
         })),
-    }, 16000) as VaiTranslationOutput;
+    }, 6500, "low") as VaiTranslationOutput;
 
     const filterLabels = new Map((payload.filters ?? []).map((item) => [modeText(item.key, 160), modeText(item.label, 160)]));
     const widgetTitles = new Map((payload.widgets ?? []).map((item) => [Number(item.index), modeText(item.title, 160)]));
@@ -1222,15 +1330,31 @@ async function editDashboardWidget(spec: VaiDashboardSpec, widgetIndex: number, 
     if (!current)
         throw new VaiGenerationError("El gráfico que intentas editar ya no existe.");
 
-    const currentSources = spec.sources
-        .map((id) => VAI_SOURCES.find((source) => source.id === id))
-        .filter((source): source is VaiSource => Boolean(source));
-    const inferred = selectCandidateSources(`${instruction} ${current.title}`, "auto");
-    const candidates = [...new Map([...currentSources, ...inferred].map((source) => [source.id, source])).values()].slice(0, MAX_CANDIDATES);
+    const currentSource = VAI_SOURCES.find((source) => source.id === current.source);
+    const inferred = selectCandidateSources(instruction, "auto");
+    const candidates = [...new Map([
+        ...(currentSource ? [currentSource] : []),
+        ...inferred,
+    ].map((source) => [source.id, source])).values()].slice(0, 3);
+
     const ids = candidates.map((source) => source.id);
     const languageName = language === "en" ? "English" : language === "fr" ? "French" : "Spanish";
-    const systemPrompt = `${SYSTEM_PROMPT}\n\nEDIT MODE: modify exactly one visual. Return dashboard.filters as an empty array and dashboard.widgets with exactly one widget: the replacement for current_widget. Follow the user's edit_instruction even when it changes chart type, metrics, dimension, breakdown or source, but use only the supplied catalog. Do not modify any other dashboard element. Keep the widget title in ${languageName}.`;
-    const payload = await callStructuredJson("vai_widget_edit", OUTPUT_SCHEMA, systemPrompt, {
+
+    const systemPrompt = `Eres V-Ai, editor de un único widget de un dashboard minero/financiero. Recibes current_widget, edit_instruction, visual_catalog y un catálogo reducido de fuentes con reglas de negocio, dimensiones, fechas y métricas válidas.
+
+Reglas obligatorias:
+- Devuelve exactamente un widget reemplazo y su locale; no rediseñes el dashboard completo.
+- Usa exclusivamente ids exactos presentes en el catálogo enviado. No inventes fuentes, campos ni métricas y no cruces fuentes dentro del widget.
+- Las reglas de negocio de cada fuente son obligatorias, pero cualquier regla descrita como default, estándar, tarjeta estándar, moneda preferida, moneda por defecto o layout recomendado es solo un fallback. La edit_instruction explícita tiene prioridad para este widget.
+- Si el usuario pide otra métrica, moneda, escenario, año, dimensión, fuente, tipo de gráfico, desglose, eje, agregación o período y el catálogo lo soporta, haz ese cambio aunque contradiga la plantilla que creó el dashboard. Ejemplo: REAL 2025 USD → REAL 2025 PEN debe usar la métrica PEN válida de REAL 2025 y no volver a USD.
+- Conserva las propiedades que el usuario no pidió cambiar siempre que sigan siendo válidas.
+- Respeta la semántica del visual_catalog: combo para mezcla explícita de barras/líneas; breakdown para series por categoría; dimension para eje categórico; dateField+bucket para eje temporal; KPI con una métrica; donut con una métrica aditiva no negativa; scatter con dos métricas; matrix con su jerarquía.
+- seriesTypes, seriesAxes, stack, sort, cumulative, columns, matrixColumns, summaries y bins deben mantenerse o ajustarse de forma coherente con el tipo resultante.
+- No alteres otros widgets ni filtros globales. current_dashboard.other_widgets es contexto, no salida.
+- El título y los labels del locale deben quedar en ${languageName}. Nunca traduzcas ids técnicos, códigos, monedas, acrónimos ni nombres SQL.
+- Devuelve solo JSON válido según el schema.`;
+
+    const payload = await callStructuredJson("vai_widget_edit", WIDGET_EDIT_SCHEMA, systemPrompt, {
         edit_instruction: instruction,
         language,
         current_widget: current,
@@ -1238,14 +1362,47 @@ async function editDashboardWidget(spec: VaiDashboardSpec, widgetIndex: number, 
             title: spec.title,
             description: spec.description,
             sources: spec.sources,
+            other_widgets: spec.widgets
+                .filter((_, index) => index !== widgetIndex)
+                .map((widget) => ({
+                    type: widget.type,
+                    title: widget.title,
+                    source: widget.source,
+                    metrics: widget.metrics,
+                    dimension: widget.dimension,
+                    dateField: widget.dateField,
+                    breakdown: widget.breakdown,
+                })),
         },
         visual_catalog: VAI_VISUAL_CATALOG,
         catalog: candidates.map(sourceContext),
-    }, 9000);
-    const output = coerceModelOutput(payload);
-    const raw = output?.dashboard?.widgets?.[0] as VaiRawWidget | undefined;
+    }, 4200, "low") as {
+        widget?: VaiRawWidget;
+        locale?: {
+            sources?: Array<{
+                id: string;
+                label: string;
+                description: string;
+                grain: string;
+            }>;
+            fields?: Array<{
+                source: string;
+                id: string;
+                label: string;
+                description: string;
+            }>;
+            metrics?: Array<{
+                source: string;
+                id: string;
+                label: string;
+                description: string;
+            }>;
+        };
+    };
+
+    const raw = payload?.widget;
     if (!raw)
-        throw new VaiGenerationError(output?.message || "No se pudo interpretar el cambio solicitado para ese gráfico.");
+        throw new VaiGenerationError("No se pudo interpretar el cambio solicitado para ese gráfico.");
 
     const validation = validateWidgetEdit(raw, instruction, ids);
     if (!validation.widget || validation.issues.length)
@@ -1256,13 +1413,62 @@ async function editDashboardWidget(spec: VaiDashboardSpec, widgetIndex: number, 
 
     const widgets = spec.widgets.map((widget, index) => index === widgetIndex ? validation.widget! : widget);
     const sources = [...new Set(widgets.map((widget) => widget.source))];
+
     if (sources.length > VAI_MAX_SOURCES)
         throw new VaiGenerationError(`Ese cambio llevaría el dashboard a más de ${VAI_MAX_SOURCES} fuentes. Cambia primero otro gráfico o usa una fuente ya presente.`);
+
+    const locale = language === "es" ? null : {
+        sourceLabels: { ...(spec.locale?.sourceLabels ?? {}) },
+        sourceDescriptions: { ...(spec.locale?.sourceDescriptions ?? {}) },
+        sourceGrains: { ...(spec.locale?.sourceGrains ?? {}) },
+        fieldLabels: { ...(spec.locale?.fieldLabels ?? {}) },
+        fieldDescriptions: { ...(spec.locale?.fieldDescriptions ?? {}) },
+        metricLabels: { ...(spec.locale?.metricLabels ?? {}) },
+        metricDescriptions: { ...(spec.locale?.metricDescriptions ?? {}) },
+    };
+
+    if (locale) {
+        for (const item of payload.locale?.sources ?? []) {
+            const id = modeText(item.id, 80);
+
+            if (!ids.includes(id))
+                continue;
+
+            locale.sourceLabels[id] = modeText(item.label, 160);
+            locale.sourceDescriptions[id] = modeText(item.description, 1200);
+            locale.sourceGrains[id] = modeText(item.grain, 300);
+        }
+
+        for (const item of payload.locale?.fields ?? []) {
+            const source = candidates.find((candidate) => candidate.id === modeText(item.source, 80));
+            const id = modeText(item.id, 80);
+
+            if (!source?.fields.some((field) => field.id === id))
+                continue;
+
+            const key = `${source.id}:${id}`;
+            locale.fieldLabels[key] = modeText(item.label, 160);
+            locale.fieldDescriptions[key] = modeText(item.description, 1200);
+        }
+
+        for (const item of payload.locale?.metrics ?? []) {
+            const source = candidates.find((candidate) => candidate.id === modeText(item.source, 80));
+            const id = modeText(item.id, 80);
+
+            if (!source?.metrics.some((metric) => metric.id === id))
+                continue;
+
+            const key = `${source.id}:${id}`;
+            locale.metricLabels[key] = modeText(item.label, 160);
+            locale.metricDescriptions[key] = modeText(item.description, 1200);
+        }
+    }
 
     return {
         spec: {
             ...spec,
             language,
+            locale,
             widgets,
             sources,
             filters: spec.filters.filter((filter) => sources.includes(filter.source)),

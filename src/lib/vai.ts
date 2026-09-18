@@ -3951,10 +3951,11 @@ function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"
 }
 export function validateWidgetEdit(raw: VaiRawWidget, userPrompt: string, allowedSourceIds?: string[]) {
     const notes: string[] = [];
-    const prepared = enforceVisualRequests([raw], userPrompt, allowedSourceIds)[0] ?? raw;
-    const widget = validateWidget(prepared, notes);
+    const widget = validateWidget(raw, notes);
     if (!widget)
         return { widget: null as VaiWidgetSpec | null, notes, issues: ["No se pudo construir un widget válido con esa instrucción."] };
+    if (allowedSourceIds?.length && !allowedSourceIds.includes(widget.source))
+        return { widget: null as VaiWidgetSpec | null, notes, issues: ["El gráfico editado intentó usar una fuente fuera del catálogo autorizado para esta edición."] };
     const spec: VaiDashboardSpec = {
         version: VAI_SPEC_VERSION,
         language: "es",
@@ -4128,25 +4129,38 @@ function coerceVaiLocale(value: unknown): VaiLocalePack | null {
 export function parseStoredSpec(raw: unknown, userPrompt = ""): VaiValidation {
     if (!isRecord(raw))
         return { spec: null, notes: ["La configuración guardada no es válida."] };
-    const output: VaiModelOutput = {
-        status: "ok",
-        message: "",
-        unavailable: [],
-        dashboard: coerceModelOutput({ dashboard: raw })?.dashboard ?? null,
-    };
-    const result = validateModelOutput(output, userPrompt);
-    if (result.issues?.length)
-        return { spec: null, notes: [...result.notes, ...result.issues], issues: result.issues };
-    if (!result.spec)
-        return result;
+    const dashboard = coerceModelOutput({ dashboard: raw })?.dashboard ?? null;
+    if (!dashboard)
+        return { spec: null, notes: ["La configuración guardada no contiene un dashboard válido."] };
+    const notes: string[] = [];
+    const widgets = dashboard.widgets
+        .slice(0, VAI_MAX_WIDGETS)
+        .map((widget) => validateWidget(widget, notes))
+        .filter((widget): widget is VaiWidgetSpec => Boolean(widget));
+    if (!widgets.length)
+        return { spec: null, notes: [...new Set([...notes, "La configuración guardada no contiene widgets válidos."])] };
+    const sources = [...new Set(widgets.map((widget) => widget.source))].slice(0, VAI_MAX_SOURCES);
+    const sourceSet = new Set(sources);
+    const filters: VaiFilterSpec[] = [];
+    for (const rawFilter of dashboard.filters.slice(0, VAI_MAX_FILTERS)) {
+        const filter = validateFilter(rawFilter, sourceSet, notes, "");
+        if (filter && !filters.some((item) => item.kind === filter.kind && item.source === filter.source && item.field === filter.field))
+            filters.push(filter);
+    }
     const language = VAI_LANGUAGES.includes(raw.language as VaiLanguage) ? raw.language as VaiLanguage : detectVaiLanguage(userPrompt);
     return {
-        ...result,
         spec: {
-            ...result.spec,
+            version: VAI_SPEC_VERSION,
             language,
             locale: language === "es" ? null : coerceVaiLocale(raw.locale),
+            title: concarLabel(dashboard.title || "Dashboard V-Ai"),
+            description: concarLabel(dashboard.description),
+            sources,
+            filters,
+            widgets: widgets.filter((widget) => sourceSet.has(widget.source)),
         },
+        notes: [...new Set(notes)],
+        issues: [],
     };
 }
 export function localizeVaiSource(source: VaiSource, spec: Pick<VaiDashboardSpec, "language" | "locale">): VaiSource {

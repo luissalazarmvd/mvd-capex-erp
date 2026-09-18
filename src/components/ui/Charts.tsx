@@ -3,9 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import { canUseLogScale, logarithmicScale, type ChartScaleMode } from "../../lib/chartScale";
 import type { VaiLanguage } from "../../lib/vai";
 const CHART_UI = {
-    es: { empty: "Sin datos para los filtros seleccionados.", exact: "Ver cifras exactas y detalle", period: "Período", category: "Categoría", value: "Valor", detail: "Detalle", total: "total", group: "Grupo", exactHint: "Los valores exactos están en «Ver cifras exactas».", linearTrend: "tendencia lineal", logScale: "Escala logarítmica (base 10)", heatmapDesc: "Valores por grupo y categoría; intensidad proporcional a la magnitud absoluta. El detalle conserva las filas originales.", filterTotal: "Total del filtro", net: "Neto", positive: "Aporte positivo", negative: "Aporte negativo", contribution: "Aporte", cumulative: "Acumulado desde cero" },
-    en: { empty: "No data for the selected filters.", exact: "View exact figures and detail", period: "Period", category: "Category", value: "Value", detail: "Detail", total: "total", group: "Group", exactHint: "Exact values are available under “View exact figures”.", linearTrend: "linear trend", logScale: "Logarithmic scale (base 10)", heatmapDesc: "Values by group and category; intensity is proportional to absolute magnitude. Detail preserves the original rows.", filterTotal: "Filtered total", net: "Net", positive: "Positive contribution", negative: "Negative contribution", contribution: "Contribution", cumulative: "Cumulative from zero" },
-    fr: { empty: "Aucune donnée pour les filtres sélectionnés.", exact: "Voir les chiffres exacts et le détail", period: "Période", category: "Catégorie", value: "Valeur", detail: "Détail", total: "total", group: "Groupe", exactHint: "Les valeurs exactes sont disponibles dans « Voir les chiffres exacts ».", linearTrend: "tendance linéaire", logScale: "Échelle logarithmique (base 10)", heatmapDesc: "Valeurs par groupe et catégorie ; l’intensité est proportionnelle à la magnitude absolue. Le détail conserve les lignes d’origine.", filterTotal: "Total filtré", net: "Net", positive: "Contribution positive", negative: "Contribution négative", contribution: "Contribution", cumulative: "Cumul depuis zéro" },
+    es: { empty: "Sin datos para los filtros seleccionados.", exact: "Ver cifras exactas y detalle", period: "Período", category: "Categoría", value: "Valor", detail: "Detalle", total: "total", group: "Grupo", exactHint: "Los valores exactos están en «Ver cifras exactas».", linearTrend: "tendencia lineal", logScale: "Escala logarítmica (base 10)", heatmapDesc: "Valores por grupo y categoría; intensidad proporcional a la magnitud absoluta. El detalle conserva las filas originales.", filterTotal: "Total del filtro", net: "Neto", positive: "Aporte positivo", negative: "Aporte negativo", contribution: "Aporte", cumulative: "Acumulado desde cero", collapse: "Contraer", expand: "Expandir", secondLevel: "Segundo nivel", expandAll: "Expandir todo", matrixHint: "50 filas por página · subtotales por período, sin mezclar escenarios", hierarchy: "Jerarquía", expandedRows: "filas desplegadas", previous: "Anterior", next: "Siguiente", points: "puntos" },
+    en: { empty: "No data for the selected filters.", exact: "View exact figures and detail", period: "Period", category: "Category", value: "Value", detail: "Detail", total: "total", group: "Group", exactHint: "Exact values are available under “View exact figures”.", linearTrend: "linear trend", logScale: "Logarithmic scale (base 10)", heatmapDesc: "Values by group and category; intensity is proportional to absolute magnitude. Detail preserves the original rows.", filterTotal: "Filtered total", net: "Net", positive: "Positive contribution", negative: "Negative contribution", contribution: "Contribution", cumulative: "Cumulative from zero", collapse: "Collapse", expand: "Expand", secondLevel: "Second level", expandAll: "Expand all", matrixHint: "50 rows per page · subtotals by period without mixing scenarios", hierarchy: "Hierarchy", expandedRows: "expanded rows", previous: "Previous", next: "Next", points: "points" },
+    fr: { empty: "Aucune donnée pour les filtres sélectionnés.", exact: "Voir les chiffres exacts et le détail", period: "Période", category: "Catégorie", value: "Valeur", detail: "Détail", total: "total", group: "Groupe", exactHint: "Les valeurs exactes sont disponibles dans « Voir les chiffres exacts ».", linearTrend: "tendance linéaire", logScale: "Échelle logarithmique (base 10)", heatmapDesc: "Valeurs par groupe et catégorie ; l’intensité est proportionnelle à la magnitude absolue. Le détail conserve les lignes d’origine.", filterTotal: "Total filtré", net: "Net", positive: "Contribution positive", negative: "Contribution négative", contribution: "Contribution", cumulative: "Cumul depuis zéro", collapse: "Réduire", expand: "Développer", secondLevel: "Deuxième niveau", expandAll: "Tout développer", matrixHint: "50 lignes par page · sous-totaux par période sans mélanger les scénarios", hierarchy: "Hiérarchie", expandedRows: "lignes déployées", previous: "Précédent", next: "Suivant", points: "points" },
 } as const;
 const ChartLanguageContext = createContext<VaiLanguage>("es");
 export function ChartLanguageProvider({ language, children }: { language: VaiLanguage; children: ReactNode }) {
@@ -220,6 +220,7 @@ export function KpiTooltip({ label, notes, trend, loading = false, footer, }: {
     loading?: boolean;
     footer?: string;
 }) {
+    const ui = useChartUi();
     const ref = useRef<HTMLDivElement>(null);
     const [align, setAlign] = useState<"start" | "end">("start");
     useEffect(() => {
@@ -259,7 +260,7 @@ export function KpiTooltip({ label, notes, trend, loading = false, footer, }: {
       {spark.length > 1 && (<div className="trjk-kpi-trend">
           <div className="trjk-kpi-trend-head">
             <span>{trend?.label}</span>
-            <small>{trendValues.length} puntos</small>
+            <small>{trendValues.length} {ui.points}</small>
           </div>
           <svg viewBox={`0 0 ${sparkWidth} ${sparkHeight}`} preserveAspectRatio="none" aria-hidden="true">
             <polygon className="trjk-kpi-spark-area" points={areaPoints}/>
@@ -1465,16 +1466,16 @@ export function MatrixChart({ title, subtitle, columns, roots, totals, format, c
     };
     return <ChartCard title={title} subtitle={subtitle} empty={!roots.length} controls={controls}>
       <div data-vai-export-ignore style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <button type="button" style={matrixButtonStyle} onClick={() => expandLevel(1)}>Contraer</button>
-        <button type="button" style={matrixButtonStyle} onClick={() => expandLevel(2)}>Segundo nivel</button>
-        <button type="button" style={matrixButtonStyle} onClick={() => expandLevel(6)}>Expandir todo</button>
-        <span className="muted">50 filas por página · subtotales por período, sin mezclar escenarios</span>
+        <button type="button" style={matrixButtonStyle} onClick={() => expandLevel(1)}>{ui.collapse}</button>
+        <button type="button" style={matrixButtonStyle} onClick={() => expandLevel(2)}>{ui.secondLevel}</button>
+        <button type="button" style={matrixButtonStyle} onClick={() => expandLevel(6)}>{ui.expandAll}</button>
+        <span className="muted">{ui.matrixHint}</span>
       </div>
       <div className="vai-table-scroll" style={{ maxHeight: 560, overflow: "auto" }}>
         <table style={{ width: "max-content", minWidth: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead style={{ position: "sticky", top: 0, zIndex: 4, background: "var(--s-1)" }}>
             <tr>
-              <th style={{ position: "sticky", left: 0, zIndex: 5, background: "var(--s-1)", minWidth: 360 }}>Jerarquía</th>
+              <th style={{ position: "sticky", left: 0, zIndex: 5, background: "var(--s-1)", minWidth: 360 }}>{ui.hierarchy}</th>
               {columns.map((column) => <th key={column.id} data-num style={{ minWidth: 130, maxWidth: 170, whiteSpace: "normal" }}>{column.label}</th>)}
             </tr>
           </thead>
@@ -1486,7 +1487,7 @@ export function MatrixChart({ title, subtitle, columns, roots, totals, format, c
                 }
             } : undefined} role={onDetail ? "button" : undefined} tabIndex={onDetail ? 0 : undefined} style={onDetail ? { cursor: "pointer" } : undefined}>
               <td title={node.path.join(" → ")} style={{ position: "sticky", left: 0, zIndex: 2, background: "var(--s-1)", maxWidth: 480, paddingLeft: 10 + (node.path.length - 1) * 18, fontWeight: node.children.length ? 700 : 400, whiteSpace: "normal", overflowWrap: "anywhere" }}>
-                {node.children.length ? <button type="button" aria-expanded={expanded.has(node.key)} aria-label={`${expanded.has(node.key) ? "Contraer" : "Expandir"} ${node.label}`} onClick={(event) => {
+                {node.children.length ? <button type="button" aria-expanded={expanded.has(node.key)} aria-label={`${expanded.has(node.key) ? ui.collapse : ui.expand} ${node.label}`} onClick={(event) => {
                     event.stopPropagation();
                     setExpanded((previous) => {
                         const next = new Set(previous);
@@ -1508,10 +1509,10 @@ export function MatrixChart({ title, subtitle, columns, roots, totals, format, c
         </table>
       </div>
       <div data-vai-export-ignore style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "flex-end", marginTop: 12 }}>
-        <span className="muted">{visible.length.toLocaleString("es-PE")} filas desplegadas</span>
-        <button type="button" style={matrixButtonStyle} disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Anterior</button>
+        <span className="muted">{visible.length.toLocaleString("es-PE")} {ui.expandedRows}</span>
+        <button type="button" style={matrixButtonStyle} disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>{ui.previous}</button>
         <span>{currentPage} / {pageCount}</span>
-        <button type="button" style={matrixButtonStyle} disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Siguiente</button>
+        <button type="button" style={matrixButtonStyle} disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>{ui.next}</button>
       </div>
     </ChartCard>;
 }
