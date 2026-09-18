@@ -16,6 +16,18 @@ const GOLD_DUST = [
     { x: -1.5, to: -.9, size: .85, delay: .23 },
     { x: 2.1, to: .3, size: .6, delay: .28 },
 ];
+// Llamaradas del sol: lenguas de luz que nacen del centro del disco, cada una
+// con su ángulo, largo y ritmo propios para que ondulen como fuego y no como
+// un sunburst geométrico. El horizonte las recorta igual que al resplandor.
+const SUN_FLARES = [
+    { angle: -68, length: .7, duration: 3.1, delay: -1.2 },
+    { angle: -44, length: 1, duration: 4.3, delay: -.4 },
+    { angle: -20, length: .8, duration: 3.6, delay: -2.1 },
+    { angle: 4, length: 1.15, duration: 4.9, delay: -3.3 },
+    { angle: 27, length: .75, duration: 3.4, delay: -.9 },
+    { angle: 50, length: .95, duration: 4.1, delay: -2.6 },
+    { angle: 71, length: .65, duration: 3.3, delay: -1.7 },
+];
 // Marca interna VAi. La secuencia vive en globals.css (.vai-logo-*): la V se
 // dibuja como un check, el domo amanece sobre su horizonte, la estrella vuela
 // y dibuja la A, y la escarcha cae formando la i. En reposo el sol conserva un
@@ -23,6 +35,7 @@ const GOLD_DUST = [
 export function VaiLogo({ size = 40, title = "VAi" }: VaiLogoProps) {
     const goldId = useId();
     const glowId = useId();
+    const flareId = useId();
     const stemClipId = useId();
     const dawnClipId = useId();
     return (<svg className="vai-logo" width={size * (132 / 92)} height={size} viewBox="0 0 132 92" role="img" aria-label={title} focusable="false">
@@ -38,6 +51,11 @@ export function VaiLogo({ size = 40, title = "VAi" }: VaiLogoProps) {
           <stop offset=".45" stopColor="var(--brand-gold)" stopOpacity=".22"/>
           <stop offset="1" stopColor="var(--brand-gold)" stopOpacity="0"/>
         </radialGradient>
+        <linearGradient id={flareId} x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stopColor="var(--brand-gold-light)" stopOpacity=".8"/>
+          <stop offset=".35" stopColor="var(--brand-gold)" stopOpacity=".4"/>
+          <stop offset="1" stopColor="var(--brand-gold)" stopOpacity="0"/>
+        </linearGradient>
         <clipPath id={stemClipId} clipPathUnits="userSpaceOnUse">
           <rect className="vai-logo-stem-reveal" x="113" y="-12" width="8" height="60"/>
         </clipPath>
@@ -52,6 +70,15 @@ export function VaiLogo({ size = 40, title = "VAi" }: VaiLogoProps) {
       <g clipPath={`url(#${dawnClipId})`}>
         <g className="vai-logo-sun-glow-rise">
           <circle className="vai-logo-sun-glow" cx="43" cy="29" r="24" fill={`url(#${glowId})`}/>
+          <g className="vai-logo-sun-flares" aria-hidden="true">
+            {SUN_FLARES.map((flare, index) => (<g key={index} transform={`rotate(${flare.angle} 43 29)`}>
+                <path className="vai-logo-sun-flare" d="M43 29 C39.5 23 39.8 14 43 5 C46.2 14 46.5 23 43 29 Z" fill={`url(#${flareId})`} style={{
+                "--vai-flare-length": flare.length,
+                "--vai-flare-duration": `${flare.duration}s`,
+                "--vai-flare-delay": `${flare.delay}s`,
+            } as CSSProperties}/>
+              </g>))}
+          </g>
         </g>
         <circle className="vai-logo-dawn" cx="43" cy="29" r="20"/>
         <path className="vai-logo-sun" d="M29 29 A14 14 0 0 1 57 29 Z" fill={`url(#${goldId})`}/>

@@ -300,6 +300,10 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-logo-dawn { fill: var(--brand-gold-light); opacity: 0; filter: blur(4px); animation: vai-logo-dawn var(--vai-logo-duration) ease-in-out var(--vai-logo-delay) both; }
 .vai-logo-sun-glow-rise { animation: vai-logo-sun-glow-rise var(--vai-logo-duration) cubic-bezier(.2, .6, .3, 1) var(--vai-logo-delay) both; }
 .vai-logo-sun-glow { opacity: .85; transform-box: fill-box; transform-origin: center; animation: vai-logo-sun-glow 4.6s ease-in-out infinite alternate; }
+/* Llamaradas: cada lengua se estira, se encoge y cabecea a su propio ritmo
+   desde el centro del disco; el desenfoque las funde con el resplandor. */
+.vai-logo-sun-flares { filter: blur(.9px); }
+.vai-logo-sun-flare { transform-box: view-box; transform-origin: 43px 29px; transform: scaleY(calc(var(--vai-flare-length) * .6)); opacity: .3; animation: vai-logo-sun-flare var(--vai-flare-duration) ease-in-out var(--vai-flare-delay) infinite alternate; }
 .vai-logo-a-leg, .vai-logo-a-bar { stroke-dasharray: 100 100; stroke-dashoffset: 0; animation: vai-logo-a-leg var(--vai-logo-duration) cubic-bezier(.4, 0, .2, 1) var(--vai-logo-delay) both; }
 .vai-logo-a-bar { animation-name: vai-logo-a-bar; }
 .vai-logo-star { offset-distance: 100%; offset-position: 0 0; offset-anchor: 0 0; offset-rotate: 0deg; animation: vai-logo-flight var(--vai-logo-duration) cubic-bezier(.4, 0, .2, 1) var(--vai-logo-delay) both; }
@@ -351,6 +355,12 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 @keyframes vai-logo-sun-glow {
   from { transform: scale(1); opacity: .7; }
   to { transform: scale(1.12); opacity: 1; }
+}
+@keyframes vai-logo-sun-flare {
+  0% { transform: rotate(-3deg) scaleY(calc(var(--vai-flare-length) * .55)) scaleX(.85); opacity: .25; }
+  38% { transform: rotate(2deg) scaleY(calc(var(--vai-flare-length) * 1.05)) scaleX(1.05); opacity: .75; }
+  62% { transform: rotate(-1deg) scaleY(calc(var(--vai-flare-length) * .8)) scaleX(.95); opacity: .45; }
+  100% { transform: rotate(3deg) scaleY(calc(var(--vai-flare-length) * 1.18)) scaleX(1); opacity: .65; }
 }
 @keyframes vai-logo-a-leg {
   0%, 28% { stroke-dashoffset: 100; opacity: 0; }
@@ -410,7 +420,7 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
   93%, 100% { transform: translate(var(--vai-dust-to-x), 35px); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .vai-logo-v, .vai-logo-sun, .vai-logo-dawn, .vai-logo-sun-glow-rise, .vai-logo-sun-glow, .vai-logo-a-leg, .vai-logo-a-bar, .vai-logo-star, .vai-logo-spark, .vai-logo-pulse, .vai-logo-drift, .vai-logo-trail, .vai-logo-launch, .vai-logo-stem-reveal, .vai-logo-dust { animation: none; }
+  .vai-logo-v, .vai-logo-sun, .vai-logo-dawn, .vai-logo-sun-glow-rise, .vai-logo-sun-glow, .vai-logo-sun-flare, .vai-logo-a-leg, .vai-logo-a-bar, .vai-logo-star, .vai-logo-spark, .vai-logo-pulse, .vai-logo-drift, .vai-logo-trail, .vai-logo-launch, .vai-logo-stem-reveal, .vai-logo-dust { animation: none; }
 }
 /* Portada tipo chat. El anillo neón es un conic-gradient con los dos gradientes
    oficiales del manual (azul→celeste, dorado→dorado claro) girando sobre un
