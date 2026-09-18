@@ -189,6 +189,7 @@ export default function PortalClient({ nextPath }: PortalClientProps) {
                 key={item.key}
                 type="button"
                 className="vd-portal-tile"
+                data-area={item.key}
                 style={{ ["--tile" as string]: item.accent }}
                 onClick={() => start(item.key)}
                 disabled={checkingAccess || !hasInternalAccess}

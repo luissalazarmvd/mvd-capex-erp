@@ -906,6 +906,41 @@ html, body {
   opacity: 0.42;
 }
 
+/* Tarjeta V-Ai: mismo anillo neón y superficie que la portada de /vai
+   (.vai-brand). El anillo va dentro del borde (inset 0) porque el tile
+   recorta con overflow: hidden; el resplandor exterior lo pone box-shadow. */
+.vd-portal-tile[data-area="vai"] {
+  padding-left: 16px;
+  border-color: transparent;
+  background: var(--s-2);
+  box-shadow: 0 0 22px rgba(27, 147, 227, 0.22), 0 0 30px rgba(255, 216, 130, 0.12), inset 0 1px 0 rgba(232, 241, 247, 0.05);
+}
+
+.vd-portal-tile[data-area="vai"] .vd-portal-rail {
+  display: none;
+}
+
+.vd-portal-tile[data-area="vai"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(from var(--vai-angle), var(--brand-blue-light), var(--brand-gold-light) 26%, var(--brand-info) 50%, var(--brand-gold) 74%, var(--brand-blue-light));
+  animation: vai-spin 7s linear infinite;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+.vd-portal-tile[data-area="vai"]:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--s-2);
+  box-shadow: 0 0 30px rgba(27, 147, 227, 0.32), 0 0 40px rgba(255, 216, 130, 0.18), inset 0 1px 0 rgba(232, 241, 247, 0.05);
+}
+
 .vd-portal-auth {
   display: grid;
   gap: 14px;
