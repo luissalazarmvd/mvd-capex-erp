@@ -2281,22 +2281,86 @@ export const VAI_MAX_LIMIT = 50;
 export const VAI_MAX_TABLE_LIMIT = 50000;
 export const VAI_WIDGET_TYPES = ["kpi", "line", "area", "bar", "combo", "rank", "lollipop", "donut", "scatter", "radar", "pareto", "heatmap", "histogram", "waterfall", "table", "matrix"] as const;
 export const VAI_VISUAL_CATALOG = [
-    { type: "kpi", label: "Indicador", use: "Una métrica; total, razón ponderada o conteo según catálogo." },
-    { type: "bar", label: "Barras", use: "Comparación categórica/temporal, agrupada, apilada o 100 %." },
-    { type: "combo", label: "Barras + líneas", use: "2–3 métricas, seriesTypes por métrica y hasta dos unidades/ejes Y; con breakdown cada métrica se repite por categoría conservando su tipo de serie y eje." },
-    { type: "line", label: "Líneas", use: "Tendencia temporal o eje X categórico; múltiples series y acumulado válido." },
-    { type: "area", label: "Área", use: "Tendencia con relleno, sin inventar pronósticos." },
-    { type: "rank", label: "Ranking", use: "Top N horizontal; no añade Otros salvo petición expresa." },
-    { type: "lollipop", label: "Lollipop", use: "Una métrica por dimensión o período; ranking compacto con línea y punto, hasta 15 categorías por defecto." },
-    { type: "donut", label: "Anillo", use: "Composición de una métrica sumable y no negativa." },
-    { type: "scatter", label: "Dispersión", use: "Dos métricas: primera en X, segunda en Y; punto por dimensión." },
-    { type: "radar", label: "Radar", use: "Una a tres métricas por dimensión o período; compara perfiles de hasta 12 categorías y normaliza cada serie solo para la geometría, conservando valores exactos en tooltip y tabla." },
-    { type: "pareto", label: "Pareto", use: "Una métrica aditiva no negativa por dimensión: barras y % acumulado." },
-    { type: "heatmap", label: "Mapa de calor", use: "Una métrica por dimension/dateField (filas) y breakdown (columnas)." },
-    { type: "histogram", label: "Histograma", use: "Frecuencia por intervalos de un campo numérico directo, a nivel de registro; bins 3–40." },
-    { type: "waterfall", label: "Cascada", use: "Una métrica aditiva de variaciones por categoría/fecha; parte de cero y añade el total neto. No concilia saldos inicial/final por sí sola." },
-    { type: "table", label: "Tabla", use: "Detalle, resumen agrupado o tabla dinámica con breakdown." },
-    { type: "matrix", label: "Matriz desplegable", use: "Una métrica sumable; columns define la jerarquía de filas, matrixColumns define hasta tres dimensiones categóricas de columnas y dateField/bucket puede agregar una dimensión temporal. En costos: cuenta completa → proveedor completo → glosa en filas y escenario/mes en columnas." },
+    {
+        type: "kpi",
+        label: "Indicador",
+        use: "Mejor para una cifra principal que se entiende sola: total, conteo, promedio, ratio o valor actual. Evitar cuando la pregunta necesita comparación, distribución o tendencia.",
+    },
+    {
+        type: "bar",
+        label: "Barras",
+        use: "Visual preferido para comparar magnitudes entre categorías o períodos discretos. Soporta agrupación, apilado y 100 %. Preferir frente a donut cuando hay muchas categorías o diferencias pequeñas.",
+    },
+    {
+        type: "combo",
+        label: "Barras + líneas",
+        use: "Para 2–3 métricas relacionadas sobre el mismo eje X cuando barras y líneas expresan roles diferentes y la lectura conjunta aporta contexto, por ejemplo volumen frente a costo, precio, tasa o porcentaje. No usar solo por variedad visual.",
+    },
+    {
+        type: "line",
+        label: "Líneas",
+        use: "Visual preferido para evolución y tendencia temporal. Ideal para comparar pocas series a lo largo del tiempo. En eje categórico solo cuando una línea tiene sentido semántico o el usuario la solicita.",
+    },
+    {
+        type: "area",
+        label: "Área",
+        use: "Tendencia temporal con énfasis adicional en magnitud o acumulación. Evitar con demasiadas series o cuando el relleno dificulta comparar valores.",
+    },
+    {
+        type: "rank",
+        label: "Ranking",
+        use: "Top N horizontal para identificar mayores o menores categorías. Muy útil con nombres largos y varias categorías. Preferir frente a donut cuando importa el orden o la comparación precisa.",
+    },
+    {
+        type: "lollipop",
+        label: "Lollipop",
+        use: "Comparación o ranking compacto de una métrica por dimensión o período, especialmente con varias categorías y cuando barras completas generarían demasiado peso visual. No representa composición.",
+    },
+    {
+        type: "donut",
+        label: "Anillo",
+        use: "Participación de un total usando exactamente una métrica aditiva y no negativa. Mejor con pocas categorías, normalmente hasta 6. Evitar para muchas categorías, diferencias pequeñas, negativos o métricas que no forman un total significativo.",
+    },
+    {
+        type: "scatter",
+        label: "Dispersión",
+        use: "Relación, correlación o dispersión entre exactamente dos métricas numéricas; primera en X y segunda en Y, con un punto por categoría. Requiere suficientes puntos útiles. No sustituye una tendencia temporal.",
+    },
+    {
+        type: "radar",
+        label: "Radar",
+        use: "Comparación de perfiles multivariables de pocas categorías con 1–3 métricas conceptualmente relacionadas. La geometría se normaliza pero los valores exactos se conservan. Usar con moderación; barras son mejores para comparación precisa.",
+    },
+    {
+        type: "pareto",
+        label: "Pareto",
+        use: "Para encontrar qué categorías explican la mayor parte de una métrica aditiva no negativa: barras descendentes más porcentaje acumulado. Usarlo para concentración/principio 80-20, no como ranking genérico.",
+    },
+    {
+        type: "heatmap",
+        label: "Mapa de calor",
+        use: "Para descubrir patrones o concentraciones al cruzar dos dimensiones o tiempo × categoría con una métrica. Preferible a una tabla cuando interesa reconocer visualmente zonas altas/bajas entre muchas combinaciones.",
+    },
+    {
+        type: "histogram",
+        label: "Histograma",
+        use: "Distribución estadística de observaciones individuales de una variable numérica continua. Usa el campo numérico directo y bins 3–40. No usar para totales agrupados por sede, período u otra categoría.",
+    },
+    {
+        type: "waterfall",
+        label: "Cascada",
+        use: "Aportes positivos y negativos que explican un cambio o total neto de una métrica aditiva. Parte de cero y añade total neto. No usar para participaciones, rankings ni tendencias normales.",
+    },
+    {
+        type: "table",
+        label: "Tabla",
+        use: "Detalle transaccional, valores exactos, muchas columnas o resumen agrupado. Con breakdown puede funcionar como pivot. Preferir cuando inspeccionar valores concretos importa más que reconocer un patrón visual.",
+    },
+    {
+        type: "matrix",
+        label: "Matriz desplegable",
+        use: "Análisis jerárquico y tipo pivot con una métrica sumable. columns define de 1 a 5 niveles de filas; matrixColumns hasta 3 dimensiones categóricas de columnas; dateField/bucket puede añadir tiempo. En costos: cuenta completa → proveedor completo → glosa en filas y escenario/mes en columnas.",
+    },
 ] as const;
 export type VaiWidgetType = (typeof VAI_WIDGET_TYPES)[number];
 export type VaiSeriesRender = "line" | "bar";
