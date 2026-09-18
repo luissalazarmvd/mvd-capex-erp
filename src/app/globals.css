@@ -288,9 +288,13 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-shell p { margin: 6px 0; }
 .vai-main { display: grid; gap: 12px; min-width: 0; }
 .vai-side { display: grid; gap: 12px; min-width: 0; position: sticky; top: 12px; }
-/* Una sola secuencia: V y domo → vuelo y dibujo de A → escarcha que forma la i. */
-.vai-logo { --vai-logo-duration: 3.6s; --vai-logo-delay: .15s; --vai-logo-fall-ease: cubic-bezier(.4, 0, .7, 1); display: block; flex: none; overflow: visible; }
-.vai-logo-foundation { animation: vai-logo-foundation var(--vai-logo-duration) ease-out var(--vai-logo-delay) both; }
+/* Una sola secuencia (4.2 s): la V se dibuja como un check → el domo amanece
+   sobre su horizonte → vuelo de la estrella y dibujo de la A → escarcha que
+   forma la i. Los porcentajes son fracciones de --vai-logo-duration. */
+.vai-logo { --vai-logo-duration: 4.2s; --vai-logo-delay: .15s; --vai-logo-fall-ease: cubic-bezier(.4, 0, .7, 1); display: block; flex: none; overflow: visible; }
+.vai-logo-v { stroke-dasharray: 100 100; stroke-dashoffset: 0; animation: vai-logo-v var(--vai-logo-duration) cubic-bezier(.4, 0, .2, 1) var(--vai-logo-delay) both; }
+.vai-logo-sun { animation: vai-logo-sun var(--vai-logo-duration) cubic-bezier(.2, .6, .3, 1) var(--vai-logo-delay) both; }
+.vai-logo-dawn { fill: var(--brand-gold-light); opacity: 0; filter: blur(4px); animation: vai-logo-dawn var(--vai-logo-duration) ease-in-out var(--vai-logo-delay) both; }
 .vai-logo-a-leg, .vai-logo-a-bar { stroke-dasharray: 100 100; stroke-dashoffset: 0; animation: vai-logo-a-leg var(--vai-logo-duration) cubic-bezier(.4, 0, .2, 1) var(--vai-logo-delay) both; }
 .vai-logo-a-bar { animation-name: vai-logo-a-bar; }
 .vai-logo-star { offset-distance: 100%; offset-position: 0 0; offset-anchor: 0 0; offset-rotate: 0deg; animation: vai-logo-flight var(--vai-logo-duration) cubic-bezier(.4, 0, .2, 1) var(--vai-logo-delay) both; }
@@ -305,7 +309,9 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-data-loading-card { width: min(520px, 94vw); display: grid; justify-items: center; gap: 14px; padding: 30px 26px 26px; text-align: center; border: 1px solid rgba(255, 216, 130, .24); border-radius: var(--r-3); background: radial-gradient(circle at 50% 28%, rgba(27, 147, 227, .12), transparent 45%), var(--s-1); box-shadow: 0 28px 80px rgba(0, 0, 0, .5); }
 .vai-data-loading-logo { min-height: 118px; display: grid; place-items: center; }
 .vai-data-loading-logo .vai-logo { --vai-logo-delay: 0s; }
-.vai-data-loading-logo .vai-logo-foundation,
+.vai-data-loading-logo .vai-logo-v,
+.vai-data-loading-logo .vai-logo-sun,
+.vai-data-loading-logo .vai-logo-dawn,
 .vai-data-loading-logo .vai-logo-a-leg,
 .vai-data-loading-logo .vai-logo-a-bar,
 .vai-data-loading-logo .vai-logo-star,
@@ -316,54 +322,62 @@ button.trjk-rank-row:focus-visible { outline: 2px solid var(--mod); outline-offs
 .vai-data-loading-logo .vai-logo-dust { animation-iteration-count: infinite; }
 .vai-data-loading-card > strong { font-size: 18px; letter-spacing: .02em; }
 .vai-data-loading-card > span { max-width: 460px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
-@keyframes vai-logo-foundation {
-  0% { opacity: 0; transform: translateY(3px); }
-  12%, 100% { opacity: 1; transform: translateY(0); }
+@keyframes vai-logo-v {
+  0% { stroke-dashoffset: 100; }
+  14%, 100% { stroke-dashoffset: 0; }
+}
+@keyframes vai-logo-sun {
+  0%, 14% { transform: translateY(15px); }
+  26%, 100% { transform: translateY(0); }
+}
+@keyframes vai-logo-dawn {
+  0%, 14%, 34%, 100% { opacity: 0; }
+  22% { opacity: .55; }
 }
 @keyframes vai-logo-a-leg {
-  0%, 18% { stroke-dashoffset: 100; opacity: 0; }
-  20% { opacity: 1; }
-  58%, 100% { stroke-dashoffset: 0; opacity: 1; }
+  0%, 28% { stroke-dashoffset: 100; opacity: 0; }
+  30% { opacity: 1; }
+  64%, 100% { stroke-dashoffset: 0; opacity: 1; }
 }
 @keyframes vai-logo-a-bar {
-  0%, 34% { stroke-dashoffset: 100; opacity: 0; }
-  36% { opacity: 1; }
-  58%, 100% { stroke-dashoffset: 0; opacity: 1; }
+  0%, 43% { stroke-dashoffset: 100; opacity: 0; }
+  45% { opacity: 1; }
+  64%, 100% { stroke-dashoffset: 0; opacity: 1; }
 }
 @keyframes vai-logo-flight {
-  0%, 18% { offset-distance: 0%; opacity: 0; }
-  20% { opacity: 1; }
-  58%, 100% { offset-distance: 100%; opacity: 1; }
+  0%, 28% { offset-distance: 0%; opacity: 0; }
+  30% { opacity: 1; }
+  64%, 100% { offset-distance: 100%; opacity: 1; }
 }
 @keyframes vai-logo-trail {
-  0%, 18% { stroke-dashoffset: 100; opacity: 0; }
-  20% { opacity: .85; }
-  58% { stroke-dashoffset: 0; opacity: .65; }
-  72%, 100% { stroke-dashoffset: 0; opacity: 0; }
+  0%, 28% { stroke-dashoffset: 100; opacity: 0; }
+  30% { opacity: .85; }
+  64% { stroke-dashoffset: 0; opacity: .65; }
+  76%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
 @keyframes vai-logo-arrive {
-  0%, 18% { transform: scale(.35) rotate(-35deg); }
-  58% { transform: scale(1) rotate(0deg); }
-  62% { transform: scale(1.16); }
-  68%, 100% { transform: scale(1); }
+  0%, 28% { transform: scale(.35) rotate(-35deg); }
+  64% { transform: scale(1) rotate(0deg); }
+  68% { transform: scale(1.16); }
+  73%, 100% { transform: scale(1); }
 }
 @keyframes vai-logo-launch {
-  0%, 16%, 30%, 100% { opacity: 0; }
-  20% { opacity: .6; }
+  0%, 27%, 41%, 100% { opacity: 0; }
+  30% { opacity: .6; }
 }
 @keyframes vai-logo-stem {
-  0%, 62% { transform: translateY(0); }
-  88%, 100% { transform: translateY(35px); }
+  0%, 67% { transform: translateY(0); }
+  90%, 100% { transform: translateY(35px); }
 }
 @keyframes vai-logo-dust {
-  0%, 62% { transform: translate(var(--vai-dust-x), 0); opacity: 0; }
-  65% { opacity: 1; }
-  84% { opacity: .9; }
-  88% { transform: translate(var(--vai-dust-to-x), 35px); }
-  92%, 100% { transform: translate(var(--vai-dust-to-x), 35px); opacity: 0; }
+  0%, 67% { transform: translate(var(--vai-dust-x), 0); opacity: 0; }
+  70% { opacity: 1; }
+  86% { opacity: .9; }
+  90% { transform: translate(var(--vai-dust-to-x), 35px); }
+  93%, 100% { transform: translate(var(--vai-dust-to-x), 35px); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .vai-logo-foundation, .vai-logo-a-leg, .vai-logo-a-bar, .vai-logo-star, .vai-logo-spark, .vai-logo-trail, .vai-logo-launch, .vai-logo-stem-reveal, .vai-logo-dust { animation: none; }
+  .vai-logo-v, .vai-logo-sun, .vai-logo-dawn, .vai-logo-a-leg, .vai-logo-a-bar, .vai-logo-star, .vai-logo-spark, .vai-logo-trail, .vai-logo-launch, .vai-logo-stem-reveal, .vai-logo-dust { animation: none; }
 }
 /* Portada tipo chat. El anillo neón es un conic-gradient con los dos gradientes
    oficiales del manual (azul→celeste, dorado→dorado claro) girando sobre un
@@ -760,6 +774,21 @@ html, body {
   border: 1px solid var(--line);
   background: linear-gradient(135deg, #0067ac 0%, #1b93e3 100%);
   box-shadow: inset 0 3px 0 var(--brand-gold);
+}
+
+/* Marca interna VAi: logo animado con su lema debajo. */
+.vd-portal-brand {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.vd-portal-brand > span {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .vd-portal-head h1 {

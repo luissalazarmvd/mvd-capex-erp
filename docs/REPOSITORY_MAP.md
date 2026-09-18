@@ -16,9 +16,9 @@ Este archivo es el índice operativo que debe leerse inmediatamente después de 
 | --- | --- | --- |
 | Acceso y scopes | `middleware.ts`, `src/lib/auth/session.ts` | Cookie `mvd_auth`, HMAC y guards por módulo; `sessionWithScope` protege route handlers locales |
 | Login/logout general | `src/app/api/auth/*`, `src/lib/logout.ts` | Sesión del portal y cierre de sesión |
-| Portal corporativo | `src/app/(portal)/page.tsx`, `src/app/(portal)/PortalClient.tsx` | Acceso inicial y `/api/access-check` |
+| Portal corporativo | `src/app/(portal)/page.tsx`, `src/app/(portal)/PortalClient.tsx` | Acceso inicial y `/api/access-check`; la página lee `next` en el servidor y muestra la marca VAi (`VaiLogo` + «Veta Analytics & Intelligence») |
 | Cliente backend externo | `src/lib/apiClient.ts` | Base URL, `x-api-key`, GET/POST/download |
-| UI compartida | `src/components/ui/*` | `Button`, `Input`, `Select`, `Dropdown`, `Table`, `Pager`, `TopNav`, `FastCellInput`, `ExcelHeaderFilter`, `ExcelFilters`, gráficos SVG en `Charts.tsx` |
+| UI compartida | `src/components/ui/*` | `Button`, `Input`, `Select`, `Dropdown`, `Table`, `Pager`, `TopNav`, `FastCellInput`, `ExcelHeaderFilter`, `ExcelFilters`, gráficos SVG en `Charts.tsx`, logo animado VAi en `VaiLogo.tsx` |
 | Filtros tipo Excel | `src/components/ui/ExcelFilters.tsx`, `src/components/ui/ExcelHeaderFilter.tsx` | Hook `useExcelColumnFilters` + popup de columna |
 | Estilos globales | `src/app/globals.css` | Tokens del sistema visual y clases compartidas |
 | Shell global | `src/app/layout.tsx` | Fuentes, metadata y layout raíz |
@@ -62,7 +62,7 @@ rg -n "<nombre_de_campo_o_endpoint>" src/app/<ruta> src/components/<modulo> src/
 
 ## Verificación y entrega
 
-- Backend/SQL V-Ai externo: misma carpeta `02_SQL`; un solo bloque `(DESDE ACA V-AI)…(HASTA ACA V-AI)` al final de `server.js` (persistencia de dashboards + datasets GET `/api/vai/*`); tabla en `01_Tables/stg_vai_all.sql`; vistas analíticas propias de V-Ai (Flota y Finanzas) en `MVD-BOF-DTI-010 - VAi/01_SQL/02_Views/dw_v_dti_vai_*.sql`.
+- Backend/SQL V-Ai externo: copia de trabajo de `server.js` en `MVD-BOF-DTI-010 - VAi/01_SQL/server.js` (el usuario la traslada al backend real); un solo bloque `(DESDE ACA V-AI)…(HASTA ACA V-AI)` al final de `server.js` (persistencia de dashboards + datasets GET `/api/vai/*`); tabla en `01_Tables/stg_vai_all.sql`; vistas analíticas propias de V-Ai (Flota, Finanzas, Planta y Refinería) en `MVD-BOF-DTI-010 - VAi/01_SQL/02_Views/dw_v_dti_vai_*.sql`.
 - Backend/SQL Kardex externo: carpeta `MVD-BOF-FIN-010 - Trazabilidad TRJ/02_SQL`. `server.js` contiene los bloques `FINANZAS KARDEX TRJ - HELPERS` y `FINANZAS KARDEX TRJ - ENDPOINTS`; tablas en `01_Tables/stg_all.sql` y una vista por archivo en `02_Views`. Orden de aplicación en `02_SQL/README_KARDEX_TRJ.md`.
 - Lint acotado: `npx eslint <archivos TypeScript/TSX modificados>`.
 - Validación integral: `npm run build`.

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import LogoutLink from "../../components/auth/LogoutLink";
-import { VaiLogo } from "../../components/vai/Vai";
+import { VaiLogo } from "../../components/ui/VaiLogo";
 
 export default function VaiLayout({ children }: { children: React.ReactNode }) {
   return (

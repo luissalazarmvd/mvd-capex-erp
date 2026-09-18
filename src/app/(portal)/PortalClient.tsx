@@ -2,9 +2,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "../../components/ui/Button";
+import { VaiLogo } from "../../components/ui/VaiLogo";
 
 type Area =
   | "capex"
@@ -38,14 +38,12 @@ const AREAS: Array<{ key: Area; label: string; passwordLabel: string; accent: st
   { key: "vai", label: "V-Ai", passwordLabel: "Clave V-Ai", accent: "#ffd882" },
 ];
 
-export default function PortalClient() {
-  const router = useRouter();
-  const sp = useSearchParams();
+type PortalClientProps = {
+  nextPath: string | null;
+};
 
-  const nextPath = useMemo(() => {
-    const n = sp.get("next");
-    return n && n.startsWith("/") ? n : null;
-  }, [sp]);
+export default function PortalClient({ nextPath }: PortalClientProps) {
+  const router = useRouter();
 
   const [area, setArea] = useState<Area | null>(null);
   const [pw, setPw] = useState("");
@@ -170,14 +168,10 @@ export default function PortalClient() {
     <main className="vd-portal">
       <div className="vd-portal-shell">
         <header className="vd-portal-head">
-          <Image
-            src="/logo_mvd.png"
-            alt="Veta Dorada"
-            width={171}
-            height={58}
-            priority
-            style={{ width: "auto", height: 52 }}
-          />
+          <div className="vd-portal-brand">
+            <VaiLogo size={64} />
+            <span>Veta Analytics &amp; Intelligence</span>
+          </div>
 
           <div>
             <h1>Acceso MVD</h1>

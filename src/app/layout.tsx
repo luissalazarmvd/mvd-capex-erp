@@ -21,10 +21,10 @@ const exo = localFont({
 
 export const metadata: Metadata = {
   title: {
-    default: "MVD – ERP",
+    default: "VAi · Veta Analytics & Intelligence",
     template: "%s · MVD",
   },
-  description: "CAPEX · Planta · Reportes",
+  description: "Veta Analytics & Intelligence",
   metadataBase: new URL("https://mvd-capex-erp.vercel.app"),
   icons: {
     icon: "/favicon.ico",
