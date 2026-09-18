@@ -323,6 +323,25 @@ function compareRowsByColumn(
   return direction === "asc" ? result : -result;
 }
 
+function traceabilityDefaultDateRange() {
+  const today = new Date();
+  const fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+
+  const format = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  return {
+    from: format(fromDate),
+    to: format(today),
+  };
+}
+
+const TRACEABILITY_DEFAULT_RANGE = traceabilityDefaultDateRange();
+
 export default function TraceabilityContaForm() {
   const initialTargetPeriod = currentTargetPeriod();
   const [rows, setRows] = useState<TraceabilityContaRow[]>([]);
@@ -330,8 +349,8 @@ export default function TraceabilityContaForm() {
   const [view, setView] = useState<ContaView>("lot");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(TRACEABILITY_DEFAULT_RANGE.from);
+  const [dateTo, setDateTo] = useState(TRACEABILITY_DEFAULT_RANGE.to);
   const [globalSearch, setGlobalSearch] = useState("");
   const [sortKey, setSortKey] = useState("payment_date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -347,22 +366,40 @@ export default function TraceabilityContaForm() {
   const [targetYear, setTargetYear] = useState(initialTargetPeriod.year);
   const [targetMonth, setTargetMonth] = useState(initialTargetPeriod.month);
 
-  const loadData = useCallback(async (nextView: ContaView) => {
+  const loadData = useCallback(async (
+    nextView: ContaView,
+    from = TRACEABILITY_DEFAULT_RANGE.from,
+    to = TRACEABILITY_DEFAULT_RANGE.to
+  ) => {
     setLoading(true);
     setMessage(null);
 
     try {
+      const params = new URLSearchParams();
+
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+
       if (nextView === "lot") {
-        const response = (await apiGet("/api/traceability/conta")) as GetResp<TraceabilityContaRow>;
+        const response = (await apiGet(
+          `/api/traceability/conta?${params.toString()}`
+        )) as GetResp<TraceabilityContaRow>;
+
         setRows(Array.isArray(response.rows) ? response.rows : []);
       } else {
-        const response = (await apiGet("/api/traceability/conta/payments")) as GetResp<TraceabilityPaymentRow>;
+        const response = (await apiGet(
+          `/api/traceability/conta/payments?${params.toString()}`
+        )) as GetResp<TraceabilityPaymentRow>;
+
         setPaymentRows(Array.isArray(response.rows) ? response.rows : []);
       }
     } catch (error: unknown) {
       if (nextView === "lot") setRows([]);
       else setPaymentRows([]);
-      setMessage(`ERROR: ${error instanceof Error ? error.message : String(error)}`);
+
+      setMessage(
+        `ERROR: ${error instanceof Error ? error.message : String(error)}`
+      );
     } finally {
       setLoading(false);
     }
@@ -609,19 +646,7 @@ export default function TraceabilityContaForm() {
   const activeColumns = view === "lot" ? COLUMNS : PAYMENT_COLUMNS;
   const activeLabel = view === "lot" ? "Por lote" : "Pagos";
 
-  const paymentDateBounds = useMemo(() => {
-    const dates = activeRows.map((row) => normalizeDate(row.payment_date)).filter(Boolean).sort();
-    return {
-      min: dates[0] ?? "",
-      max: dates[dates.length - 1] ?? "",
-    };
-  }, [activeRows]);
-
-  useEffect(() => {
-    if (!activeRows.length) return;
-    setDateFrom((current) => current || paymentDateBounds.min);
-    setDateTo((current) => current || paymentDateBounds.max);
-  }, [view, activeRows, paymentDateBounds.min, paymentDateBounds.max]);
+  const filterMaxDate = TRACEABILITY_DEFAULT_RANGE.to;
 
   const filteredRows = useMemo(() => {
     const column = activeColumns.find((item) => item.key === sortKey) ?? activeColumns[0];
@@ -714,14 +739,20 @@ export default function TraceabilityContaForm() {
 
   function changeView(nextView: ContaView) {
     if (nextView === view) return;
+
     setView(nextView);
-    setDateFrom("");
-    setDateTo("");
+    setDateFrom(TRACEABILITY_DEFAULT_RANGE.from);
+    setDateTo(TRACEABILITY_DEFAULT_RANGE.to);
     setGlobalSearch("");
     setSortKey("payment_date");
     setSortDir("desc");
     setMessage(null);
-    if (nextView === "payments" && !paymentRows.length) void loadData(nextView);
+
+    void loadData(
+      nextView,
+      TRACEABILITY_DEFAULT_RANGE.from,
+      TRACEABILITY_DEFAULT_RANGE.to
+    );
   }
 
   const inputStyle: React.CSSProperties = {
@@ -793,8 +824,7 @@ export default function TraceabilityContaForm() {
             <input
               type="date"
               value={dateFrom}
-              min={paymentDateBounds.min || undefined}
-              max={dateTo || paymentDateBounds.max || undefined}
+              max={dateTo || filterMaxDate}
               onChange={(event) => setDateFrom(event.target.value)}
               style={inputStyle}
             />
@@ -805,8 +835,8 @@ export default function TraceabilityContaForm() {
             <input
               type="date"
               value={dateTo}
-              min={dateFrom || paymentDateBounds.min || undefined}
-              max={paymentDateBounds.max || undefined}
+              min={dateFrom || undefined}
+              max={filterMaxDate}
               onChange={(event) => setDateTo(event.target.value)}
               style={inputStyle}
             />
@@ -823,7 +853,12 @@ export default function TraceabilityContaForm() {
             />
           </label>
 
-          <Button type="button" size="sm" onClick={() => void loadData(view)} disabled={loading}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void loadData(view, dateFrom, dateTo)}
+            disabled={loading}
+          >
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
 

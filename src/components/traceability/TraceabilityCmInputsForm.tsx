@@ -293,6 +293,25 @@ async function settleInChunks<T>(
   return { fulfilled, rejected };
 }
 
+function traceabilityDefaultDateRange() {
+  const today = new Date();
+  const fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+
+  const format = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  return {
+    from: format(fromDate),
+    to: format(today),
+  };
+}
+
+const TRACEABILITY_DEFAULT_RANGE = traceabilityDefaultDateRange();
+
 export default function TraceabilityCmInputsForm() {
   const [rows, setRows] = useState<CmEntryDateRow[]>([]);
   const [draftDates, setDraftDates] = useState<Record<string, string>>({});
@@ -302,8 +321,8 @@ export default function TraceabilityCmInputsForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [entrySaveErrors, setEntrySaveErrors] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(TRACEABILITY_DEFAULT_RANGE.from);
+  const [dateTo, setDateTo] = useState(TRACEABILITY_DEFAULT_RANGE.to);
   const [showEditedOnly, setShowEditedOnly] = useState(false);
   const [sortKey, setSortKey] = useState<keyof CmEntryDateRow>("lot");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -331,13 +350,21 @@ export default function TraceabilityCmInputsForm() {
   const [mappingPage, setMappingPage] = useState(1);
   const mappingImportInputRef = useRef<HTMLInputElement | null>(null);
 
-  const loadEntries = useCallback(async () => {
+  const loadEntries = useCallback(async (
+    from = TRACEABILITY_DEFAULT_RANGE.from,
+    to = TRACEABILITY_DEFAULT_RANGE.to
+  ) => {
     setLoading(true);
     setMessage(null);
 
     try {
+      const params = new URLSearchParams();
+
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+
       const response = (await apiGet(
-        "/api/traceability/cm/entrydate"
+        `/api/traceability/cm/entrydate?${params.toString()}`
       )) as GetResponse<CmEntryDateRow>;
       const nextRows = Array.isArray(response.rows) ? response.rows : [];
       const nextOriginals: Record<string, string> = {};
@@ -474,16 +501,7 @@ export default function TraceabilityCmInputsForm() {
     [editedLots, entryDate2Errors]
   );
 
-  const entryDateBounds = useMemo(() => {
-    const dates = rows.map((row) => dateText(row.entry_date)).filter(Boolean).sort();
-    return { min: dates[0] ?? "", max: dates[dates.length - 1] ?? "" };
-  }, [rows]);
-
-  useEffect(() => {
-    if (!rows.length) return;
-    setDateFrom((current) => current || entryDateBounds.min);
-    setDateTo((current) => current || entryDateBounds.max);
-  }, [rows, entryDateBounds.min, entryDateBounds.max]);
+  const filterMaxDate = TRACEABILITY_DEFAULT_RANGE.to;
 
   const entryExcelColumnValues = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("es");
@@ -1516,7 +1534,7 @@ export default function TraceabilityCmInputsForm() {
 
       await Promise.all([
         loadMapping(),
-        loadEntries(),
+        loadEntries(dateFrom, dateTo),
       ]);
 
       setMappingMessage(
@@ -1712,8 +1730,7 @@ export default function TraceabilityCmInputsForm() {
             <input
               type="date"
               value={dateFrom}
-              min={entryDateBounds.min || undefined}
-              max={dateTo || entryDateBounds.max || undefined}
+              max={dateTo || filterMaxDate}
               onChange={(event) => setDateFrom(event.target.value)}
               style={{ ...inputStyle, colorScheme: "dark" }}
             />
@@ -1724,8 +1741,8 @@ export default function TraceabilityCmInputsForm() {
             <input
               type="date"
               value={dateTo}
-              min={dateFrom || entryDateBounds.min || undefined}
-              max={entryDateBounds.max || undefined}
+              min={dateFrom || undefined}
+              max={filterMaxDate}
               onChange={(event) => setDateTo(event.target.value)}
               style={{ ...inputStyle, colorScheme: "dark" }}
             />
@@ -1754,7 +1771,12 @@ export default function TraceabilityCmInputsForm() {
           >
             Limpiar filtros
           </Button>
-          <Button type="button" size="sm" onClick={() => void loadEntries()} disabled={loading || saving}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void loadEntries(dateFrom, dateTo)}
+            disabled={loading || saving}
+          >
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
           <Button

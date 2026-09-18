@@ -924,13 +924,32 @@ function RowItem({
   );
 }
 
+function traceabilityDefaultDateRange() {
+  const today = new Date();
+  const fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+
+  const format = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  return {
+    from: format(fromDate),
+    to: format(today),
+  };
+}
+
+const TRACEABILITY_DEFAULT_RANGE = traceabilityDefaultDateRange();
+
 export default function TraceabilityEntryForm() {
   const [rows, setRows] = useState<TraceabilityRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(TRACEABILITY_DEFAULT_RANGE.from);
+  const [dateTo, setDateTo] = useState(TRACEABILITY_DEFAULT_RANGE.to);
   const [lotFilter, setLotFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("entry_date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -949,11 +968,23 @@ export default function TraceabilityEntryForm() {
     Record<string, Partial<Record<keyof TraceabilityRow, HTMLInputElement | HTMLSelectElement | null>>>
   >({});
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (
+    from = TRACEABILITY_DEFAULT_RANGE.from,
+    to = TRACEABILITY_DEFAULT_RANGE.to
+  ) => {
     setLoading(true);
     setMsg(null);
+
     try {
-      const r = (await apiGet("/api/traceability")) as GetResp;
+      const params = new URLSearchParams();
+
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+
+      const r = (await apiGet(
+        `/api/traceability?${params.toString()}`
+      )) as GetResp;
+
       const data = (Array.isArray(r?.rows) ? r.rows : []).map((row: any) => ({
         ...row,
         pip: row.pip ?? row.PIP ?? row.Pip ?? null,
@@ -985,31 +1016,8 @@ export default function TraceabilityEntryForm() {
   }, []);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
-
-  const entryDateBounds = useMemo(() => {
-  const dates = rows
-    .map((row) => String(row.entry_date || "").trim())
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort();
-
-  if (!dates.length) {
-    return { min: "", max: "" };
-  }
-
-  return {
-    min: dates[0],
-    max: dates[dates.length - 1],
-  };
-}, [rows]);
-
-useEffect(() => {
-  if (!rows.length) return;
-
-  setDateFrom((prev) => prev || entryDateBounds.min);
-  setDateTo((prev) => prev || entryDateBounds.max);
-}, [rows, entryDateBounds.min, entryDateBounds.max]);
 
   useEffect(() => {
     setPage(1);
@@ -1491,7 +1499,7 @@ useEffect(() => {
         setMsg(`ERROR: no se pudo guardar ninguna fila. ${failedMessages.join(" | ")}`);
       }
 
-      await loadData();
+      await loadData(dateFrom, dateTo);
     } catch (e: any) {
       setMsg(`ERROR: ${String(e?.message || e || "No se pudo guardar")}`);
     } finally {
@@ -1880,8 +1888,7 @@ useEffect(() => {
             <input
               type="date"
               value={dateFrom}
-              min={entryDateBounds.min || undefined}
-              max={entryDateBounds.max || undefined}
+              max={dateTo || TRACEABILITY_DEFAULT_RANGE.to}
               onChange={(e) => setDateFrom(e.target.value)}
               style={{ ...inputBase, minWidth: 150 }}
             />
@@ -1892,8 +1899,8 @@ useEffect(() => {
             <input
               type="date"
               value={dateTo}
-              min={entryDateBounds.min || undefined}
-              max={entryDateBounds.max || undefined}
+              min={dateFrom || undefined}
+              max={TRACEABILITY_DEFAULT_RANGE.to}
               onChange={(e) => setDateTo(e.target.value)}
               style={{ ...inputBase, minWidth: 150 }}
             />
@@ -1926,7 +1933,13 @@ useEffect(() => {
             Limpiar filtros
           </Button>
 
-          <Button type="button" size="sm" variant="default" onClick={loadData} disabled={loading || saving}>
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            onClick={() => void loadData(dateFrom, dateTo)}
+            disabled={loading || saving}
+          >
             {loading ? "Cargando…" : "Refrescar"}
           </Button>
 
