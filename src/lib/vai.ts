@@ -4054,7 +4054,8 @@ function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"
             budget_cost_usd: "cost_ppto_2026_usd",
         };
         return aliases[currencyId] ?? currencyId;
-    };    
+    };
+    
     const costWidgets = dashboard.widgets.filter((widget) => widget.source === "finance_costs").map((widget) => {
         const currency: "usd" | "pen" = wantsPen && !wantsUsd ? "pen" : "usd";
         const next: VaiRawWidget = { ...widget, dimension: field(widget.dimension), breakdown: field(widget.breakdown), columns: widget.columns?.map((id) => field(id)!) ?? null, matrixColumns: widget.matrixColumns?.map((id) => field(id)!) ?? null, metrics: widget.metrics.map(remapMetric) };
