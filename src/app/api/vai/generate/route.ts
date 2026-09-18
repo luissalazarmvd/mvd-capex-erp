@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sessionWithScope } from "@/src/lib/auth/session";
-import { VAI_AREAS, VAI_BREAKDOWN_CHART_LIMIT, VAI_BREAKDOWN_TABLE_LIMIT, VAI_BUCKETS, VAI_DATE_PRESETS, VAI_MAX_FILTERS, VAI_MAX_SOURCES, VAI_MAX_WIDGETS, VAI_PROMPT_MAX, VAI_SORT_MODES, VAI_SOURCES, VAI_STACK_MODES, VAI_SUMMARY_OPERATIONS, VAI_WIDGET_TYPES, VAI_VISUAL_CATALOG, resolveVisualRequests, coerceModelOutput, limaToday, promptRenderHints, validateModelOutput, type VaiArea, type VaiChartPreference, type VaiFocus, type VaiModelOutput, type VaiSource, type VaiValidation, } from "@/src/lib/vai";
+import { VAI_AREAS, VAI_BREAKDOWN_CHART_LIMIT, VAI_BREAKDOWN_TABLE_LIMIT, VAI_BUCKETS, VAI_DATE_PRESETS, VAI_MAX_FILTERS, VAI_MAX_SOURCES, VAI_MAX_WIDGETS, VAI_PROMPT_MAX, VAI_SORT_MODES, VAI_SOURCES, VAI_STACK_MODES, VAI_SUMMARY_OPERATIONS, VAI_WIDGET_TYPES, VAI_VISUAL_CATALOG, detectVaiLanguage, filterKey, normalizeVaiPrompt, parseStoredSpec, resolveVisualRequests, coerceModelOutput, limaToday, promptRenderHints, validateModelOutput, validateWidgetEdit, type VaiArea, type VaiChartPreference, type VaiDashboardSpec, type VaiFocus, type VaiLanguage, type VaiModelOutput, type VaiRawWidget, type VaiSource, type VaiValidation, } from "@/src/lib/vai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,10 +60,7 @@ const STOP = new Set([
 ]);
 
 function tokens(text: string) {
-    return text
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
+    return normalizeVaiPrompt(text)
         .split(/[^a-z0-9]+/)
         .filter((token) => token.length > 2 &&
         !STOP.has(token));
@@ -83,6 +80,8 @@ function sourceScore(source: VaiSource, promptTokens: string[]) {
         }
     };
 
+    add(source.id.replace(/_/g, " "), 4);
+    add(source.area, 3);
     add(source.name, 3);
     add(source.description, 2);
     add(source.keywords.join(" "), 3);
@@ -333,7 +332,8 @@ Reglas obligatorias:
 - Para cada widget, usa únicamente métricas y campos pertenecientes a la misma fuente del widget. Antes de devolver el JSON, verifica que todos los ids existan exactamente en esa fuente y que la combinación type/metrics/dimension/dateField/columns cumpla las reglas anteriores.
 - Antes de agregar algo a "unavailable", comprueba todas las métricas, campos, reglas y businessTerms de las fuentes candidatas. Si puede resolverse mediante una métrica declarada o una tabla de detalle, constrúyelo.
 - Si algo pedido puede construirse razonablemente con los campos o métricas existentes, constrúyelo y no lo pongas en "unavailable". Solo marca "partial" cuando realmente falta información en el catálogo. Si nada es posible, status "unavailable", dashboard null y explica en "message".
-- "message" se muestra al usuario: breve, en español, sin jerga técnica. Títulos en español, claros y cortos. Sin datos inventados.
+- Detecta si la petición del usuario está en español, inglés o francés. "message", dashboard.title, dashboard.description, filter.label y widget.title deben quedar en ese mismo idioma. Nunca traduzcas ids técnicos. Si la petición mezcla idiomas, usa el idioma dominante.
+- "message" se muestra al usuario: breve, claro y sin jerga técnica. Sin datos inventados.
 - Devuelve solo JSON válido según el esquema.`;
 
 const OUTPUT_SCHEMA = {
@@ -642,6 +642,61 @@ const OUTPUT_SCHEMA = {
         "unavailable",
         "dashboard",
     ],
+};
+
+const TRANSLATION_SCHEMA = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+        title: { type: "string" },
+        description: { type: "string" },
+        filters: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: false,
+                properties: { key: { type: "string" }, label: { type: "string" } },
+                required: ["key", "label"],
+            },
+        },
+        widgets: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: false,
+                properties: { index: { type: "integer" }, title: { type: "string" } },
+                required: ["index", "title"],
+            },
+        },
+        sources: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: false,
+                properties: { id: { type: "string" }, label: { type: "string" }, description: { type: "string" }, grain: { type: "string" } },
+                required: ["id", "label", "description", "grain"],
+            },
+        },
+        fields: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: false,
+                properties: { source: { type: "string" }, id: { type: "string" }, label: { type: "string" }, description: { type: "string" } },
+                required: ["source", "id", "label", "description"],
+            },
+        },
+        metrics: {
+            type: "array",
+            items: {
+                type: "object",
+                additionalProperties: false,
+                properties: { source: { type: "string" }, id: { type: "string" }, label: { type: "string" }, description: { type: "string" } },
+                required: ["source", "id", "label", "description"],
+            },
+        },
+    },
+    required: ["title", "description", "filters", "widgets", "sources", "fields", "metrics"],
 };
 
 const FOCUS_TEXT: Record<VaiFocus, string> = {
@@ -978,6 +1033,244 @@ function extractOutputText(payload: unknown) {
     return "";
 }
 
+type VaiTranslationOutput = {
+    title: string;
+    description: string;
+    filters: Array<{ key: string; label: string }>;
+    widgets: Array<{ index: number; title: string }>;
+    sources: Array<{ id: string; label: string; description: string; grain: string }>;
+    fields: Array<{ source: string; id: string; label: string; description: string }>;
+    metrics: Array<{ source: string; id: string; label: string; description: string }>;
+};
+
+function modeText(value: unknown, max: number) {
+    return String(value ?? "")
+        .replace(/[\u0000-\u001f\u007f]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, max);
+}
+
+async function callStructuredJson(name: string, schema: unknown, systemPrompt: string, input: unknown, maxOutputTokens = 12000) {
+    const apiKey = process.env.API_OPEN_AI?.trim();
+    if (!apiKey)
+        throw new VaiGenerationError("V-Ai no está configurado en este entorno.", "missing API_OPEN_AI");
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(OPENAI_URL, {
+            method: "POST",
+            cache: "no-store",
+            signal: controller.signal,
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model: VAI_OPENAI_MODEL,
+                store: false,
+                max_output_tokens: maxOutputTokens,
+                ...(/^(?:gpt-[56]|o[134])/.test(VAI_OPENAI_MODEL) ? { reasoning: { effort: VAI_REASONING } } : {}),
+                input: [
+                    { role: "system", content: [{ type: "input_text", text: systemPrompt }] },
+                    { role: "user", content: [{ type: "input_text", text: JSON.stringify(input) }] },
+                ],
+                text: {
+                    format: {
+                        type: "json_schema",
+                        name,
+                        strict: true,
+                        schema,
+                    },
+                },
+            }),
+        });
+
+        const bodyText = await response.text();
+        if (!response.ok) {
+            const message = response.status === 401 || response.status === 403
+                ? "La API de IA rechazó las credenciales o el acceso al modelo. Revisa la configuración de V-Ai."
+                : response.status === 429
+                    ? "La API de IA alcanzó su límite de uso. Inténtalo nuevamente en unos minutos."
+                    : response.status === 404
+                        ? "El modelo configurado no está disponible para esta API. Revisa VAI_OPENAI_MODEL."
+                        : "El servicio de IA devolvió un error. Inténtalo nuevamente.";
+            throw new VaiGenerationError(message, `openai status=${response.status} model=${VAI_OPENAI_MODEL}`);
+        }
+
+        let payload: unknown;
+        try {
+            payload = JSON.parse(bodyText);
+        }
+        catch {
+            throw new VaiGenerationError("La API de IA devolvió una respuesta que no es JSON.");
+        }
+
+        const text = extractOutputText(payload);
+        try {
+            return JSON.parse(text) as unknown;
+        }
+        catch {
+            throw new VaiGenerationError("La API de IA devolvió una especificación incompleta.");
+        }
+    }
+    catch (error) {
+        if (error instanceof VaiGenerationError)
+            throw error;
+        throw new VaiGenerationError(controller.signal.aborted
+            ? "La operación de V-Ai agotó su tiempo. Inténtalo nuevamente."
+            : "No se pudo contactar al servicio de IA.");
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+
+function modeSpec(raw: unknown): VaiDashboardSpec {
+    const parsed = parseStoredSpec(raw, "");
+    if (!parsed.spec)
+        throw new VaiGenerationError("La configuración actual del dashboard no es válida.", parsed.notes.join(" "));
+    return parsed.spec;
+}
+
+async function translateDashboardSpec(spec: VaiDashboardSpec, targetLanguage: VaiLanguage) {
+    const sourceSet = new Set(spec.sources);
+    const sources = VAI_SOURCES.filter((source) => sourceSet.has(source.id));
+    const languageName = targetLanguage === "en" ? "English" : targetLanguage === "fr" ? "French" : "Spanish";
+    const systemPrompt = `Translate V-Ai dashboard presentation text to ${languageName}. Keep every technical id exactly unchanged. Never translate ids, SQL names, codes, acronyms, currencies, chemical symbols, asset codes, lot codes, guide numbers or proper brand names. Translate only human-readable labels, titles, descriptions and grain text. Preserve mining, accounting and BI meaning. Return every filter, widget, source, field and metric supplied exactly once; do not omit or add catalog items. Return only JSON matching the schema.`;
+    const payload = await callStructuredJson("vai_translation", TRANSLATION_SCHEMA, systemPrompt, {
+        target_language: targetLanguage,
+        dashboard: {
+            title: spec.title,
+            description: spec.description,
+            filters: spec.filters.map((filter) => ({ key: filterKey(filter), label: filter.label })),
+            widgets: spec.widgets.map((widget, index) => ({ index, title: widget.title })),
+        },
+        catalog: sources.map((source) => ({
+            id: source.id,
+            label: source.name,
+            description: source.description,
+            grain: source.grain,
+            fields: source.fields.map((field) => ({ id: field.id, label: field.label, description: field.description })),
+            metrics: source.metrics.map((metric) => ({ id: metric.id, label: metric.label, description: metric.description })),
+        })),
+    }, 16000) as VaiTranslationOutput;
+
+    const filterLabels = new Map((payload.filters ?? []).map((item) => [modeText(item.key, 160), modeText(item.label, 160)]));
+    const widgetTitles = new Map((payload.widgets ?? []).map((item) => [Number(item.index), modeText(item.title, 160)]));
+    const allowedSources = new Set(sources.map((source) => source.id));
+    const sourceLabels: Record<string, string> = {};
+    const sourceDescriptions: Record<string, string> = {};
+    const sourceGrains: Record<string, string> = {};
+    const fieldLabels: Record<string, string> = {};
+    const fieldDescriptions: Record<string, string> = {};
+    const metricLabels: Record<string, string> = {};
+    const metricDescriptions: Record<string, string> = {};
+
+    for (const item of payload.sources ?? []) {
+        const id = modeText(item.id, 80);
+        if (!allowedSources.has(id))
+            continue;
+        sourceLabels[id] = modeText(item.label, 160);
+        sourceDescriptions[id] = modeText(item.description, 1200);
+        sourceGrains[id] = modeText(item.grain, 300);
+    }
+
+    for (const item of payload.fields ?? []) {
+        const source = sources.find((candidate) => candidate.id === modeText(item.source, 80));
+        const id = modeText(item.id, 80);
+        if (!source?.fields.some((field) => field.id === id))
+            continue;
+        const key = `${source.id}:${id}`;
+        fieldLabels[key] = modeText(item.label, 160);
+        fieldDescriptions[key] = modeText(item.description, 1200);
+    }
+
+    for (const item of payload.metrics ?? []) {
+        const source = sources.find((candidate) => candidate.id === modeText(item.source, 80));
+        const id = modeText(item.id, 80);
+        if (!source?.metrics.some((metric) => metric.id === id))
+            continue;
+        const key = `${source.id}:${id}`;
+        metricLabels[key] = modeText(item.label, 160);
+        metricDescriptions[key] = modeText(item.description, 1200);
+    }
+
+    return {
+        ...spec,
+        language: targetLanguage,
+        locale: targetLanguage === "es" ? null : {
+            sourceLabels,
+            sourceDescriptions,
+            sourceGrains,
+            fieldLabels,
+            fieldDescriptions,
+            metricLabels,
+            metricDescriptions,
+        },
+        title: modeText(payload.title, 120) || spec.title,
+        description: modeText(payload.description, 1200) || spec.description,
+        filters: spec.filters.map((filter) => ({ ...filter, label: filterLabels.get(filterKey(filter)) || filter.label })),
+        widgets: spec.widgets.map((widget, index) => ({ ...widget, title: widgetTitles.get(index) || widget.title })),
+    } satisfies VaiDashboardSpec;
+}
+
+async function editDashboardWidget(spec: VaiDashboardSpec, widgetIndex: number, instruction: string, language: VaiLanguage) {
+    const current = spec.widgets[widgetIndex];
+    if (!current)
+        throw new VaiGenerationError("El gráfico que intentas editar ya no existe.");
+
+    const currentSources = spec.sources
+        .map((id) => VAI_SOURCES.find((source) => source.id === id))
+        .filter((source): source is VaiSource => Boolean(source));
+    const inferred = selectCandidateSources(`${instruction} ${current.title}`, "auto");
+    const candidates = [...new Map([...currentSources, ...inferred].map((source) => [source.id, source])).values()].slice(0, MAX_CANDIDATES);
+    const ids = candidates.map((source) => source.id);
+    const languageName = language === "en" ? "English" : language === "fr" ? "French" : "Spanish";
+    const systemPrompt = `${SYSTEM_PROMPT}\n\nEDIT MODE: modify exactly one visual. Return dashboard.filters as an empty array and dashboard.widgets with exactly one widget: the replacement for current_widget. Follow the user's edit_instruction even when it changes chart type, metrics, dimension, breakdown or source, but use only the supplied catalog. Do not modify any other dashboard element. Keep the widget title in ${languageName}.`;
+    const payload = await callStructuredJson("vai_widget_edit", OUTPUT_SCHEMA, systemPrompt, {
+        edit_instruction: instruction,
+        language,
+        current_widget: current,
+        current_dashboard: {
+            title: spec.title,
+            description: spec.description,
+            sources: spec.sources,
+        },
+        visual_catalog: VAI_VISUAL_CATALOG,
+        catalog: candidates.map(sourceContext),
+    }, 9000);
+    const output = coerceModelOutput(payload);
+    const raw = output?.dashboard?.widgets?.[0] as VaiRawWidget | undefined;
+    if (!raw)
+        throw new VaiGenerationError(output?.message || "No se pudo interpretar el cambio solicitado para ese gráfico.");
+
+    const validation = validateWidgetEdit(raw, instruction, ids);
+    if (!validation.widget || validation.issues.length)
+        throw new VaiGenerationError(
+            `No se pudo aplicar el cambio sin romper el contrato del gráfico. ${validation.issues.slice(0, 2).join(" ")}`,
+            validation.notes.join(" "),
+        );
+
+    const widgets = spec.widgets.map((widget, index) => index === widgetIndex ? validation.widget! : widget);
+    const sources = [...new Set(widgets.map((widget) => widget.source))];
+    if (sources.length > VAI_MAX_SOURCES)
+        throw new VaiGenerationError(`Ese cambio llevaría el dashboard a más de ${VAI_MAX_SOURCES} fuentes. Cambia primero otro gráfico o usa una fuente ya presente.`);
+
+    return {
+        spec: {
+            ...spec,
+            language,
+            widgets,
+            sources,
+            filters: spec.filters.filter((filter) => sources.includes(filter.source)),
+        } satisfies VaiDashboardSpec,
+        notes: validation.notes,
+    };
+}
+
 const FOCUS: VaiFocus[] = [
     "auto",
     "kpis",
@@ -1003,11 +1296,88 @@ export async function POST(req: Request) {
     const body = (await req
         .json()
         .catch(() => ({}))) as {
+        mode?: unknown;
         prompt?: unknown;
         area?: unknown;
         focus?: unknown;
         charts?: unknown;
+        spec?: unknown;
+        widget_index?: unknown;
+        instruction?: unknown;
+        target_language?: unknown;
+        language?: unknown;
     };
+
+    const mode = String(body.mode ?? "generate").trim().toLowerCase();
+
+    if (mode === "translate" || mode === "edit_widget") {
+        try {
+            const currentSpec = modeSpec(body.spec);
+
+            if (mode === "translate") {
+                const target = String(body.target_language ?? "").trim().toLowerCase() as VaiLanguage;
+                if (!["es", "en", "fr"].includes(target)) {
+                    return NextResponse.json({ ok: false, error: "target_language debe ser es, en o fr." }, { status: 400 });
+                }
+                const spec = await translateDashboardSpec(currentSpec, target);
+                return NextResponse.json({ ok: true, mode, spec, language: target, model: VAI_OPENAI_MODEL });
+            }
+
+            const widgetIndex = Number(body.widget_index);
+            const instruction = String(body.instruction ?? "").replace(/[ \t]+/g, " ").trim();
+            const language = ["es", "en", "fr"].includes(String(body.language ?? "").trim().toLowerCase())
+                ? String(body.language).trim().toLowerCase() as VaiLanguage
+                : currentSpec.language;
+
+            if (!Number.isInteger(widgetIndex) || widgetIndex < 0 || widgetIndex >= currentSpec.widgets.length) {
+                return NextResponse.json({ ok: false, error: "widget_index inválido." }, { status: 400 });
+            }
+
+            if (instruction.length < 3 || instruction.length > VAI_PROMPT_MAX) {
+                return NextResponse.json({ ok: false, error: `La instrucción del gráfico debe tener entre 3 y ${VAI_PROMPT_MAX} caracteres.` }, { status: 400 });
+            }
+
+            const edited = await editDashboardWidget(currentSpec, widgetIndex, instruction, language);
+
+            return NextResponse.json({
+                ok: true,
+                mode,
+                spec: edited.spec,
+                notes: edited.notes,
+                language,
+                model: VAI_OPENAI_MODEL,
+            });
+        }
+        catch (error) {
+            if (error instanceof VaiGenerationError) {
+                console.error(`V-Ai ${mode}:`, error.detail ?? error.message);
+                return NextResponse.json({
+                    ok: false,
+                    error: error.message,
+                }, {
+                    status: 502,
+                });
+            }
+
+            console.error(`V-Ai ${mode}:`, error);
+
+            return NextResponse.json({
+                ok: false,
+                error: "No se pudo completar el cambio solicitado.",
+            }, {
+                status: 500,
+            });
+        }
+    }
+
+    if (mode !== "generate") {
+        return NextResponse.json({
+            ok: false,
+            error: "mode inválido.",
+        }, {
+            status: 400,
+        });
+    }
 
     const prompt = String(body.prompt ?? "")
         .replace(/[ \t]+/g, " ")
@@ -1022,8 +1392,7 @@ export async function POST(req: Request) {
         });
     }
 
-    if (prompt.length >
-        VAI_PROMPT_MAX) {
+    if (prompt.length > VAI_PROMPT_MAX) {
         return NextResponse.json({
             ok: false,
             error: `El prompt supera los ${VAI_PROMPT_MAX} caracteres.`,
@@ -1032,15 +1401,13 @@ export async function POST(req: Request) {
         });
     }
 
-    const areaRaw = String(body.area ??
-        "auto");
+    const areaRaw = String(body.area ?? "auto");
 
     const area: VaiArea | "auto" = VAI_AREAS.some((item) => item.id === areaRaw)
-        ? (areaRaw as VaiArea)
+        ? areaRaw as VaiArea
         : "auto";
 
-    const focusRaw = String(body.focus ??
-        "auto") as VaiFocus;
+    const focusRaw = String(body.focus ?? "auto") as VaiFocus;
 
     const focus = FOCUS.includes(focusRaw)
         ? focusRaw
@@ -1052,45 +1419,49 @@ export async function POST(req: Request) {
             .filter((c): c is VaiChartPreference => CHARTS.includes(c as VaiChartPreference))
         : [];
 
-    const promptIntent = prompt
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, " ")
-        .trim();
+    const promptIntent = normalizeVaiPrompt(prompt);
 
-    const mineralContext = /\b(?:mineral|minero|mineros|lote|lotes|acopio)\b/.test(promptIntent);
+    const mineralContext =
+        /\b(?:mineral|minero|mineros|lote|lotes|acopio)\b/.test(promptIntent);
 
-    const pendingMineralFlow = mineralContext &&
+    const pendingMineralFlow =
+        mineralContext &&
         /\b(?:sin|pendiente|pendientes|falta|faltan|no)\s+(?:de\s+)?(?:pago|pagos|pagar|pagado|pagados|factura|facturas|facturado|facturados|valorizacion|valorizar|valorizado|valorizados)\b/.test(promptIntent);
 
-    const mineralFinanceIntent = mineralContext &&
+    const mineralFinanceIntent =
+        mineralContext &&
         /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos|factura|facturas|facturado|facturados|compra|compras|comprado|comprados|contable|contabilidad|contabilizado|contabilizados|provision|provisiones|proveedor|proveedores|usd|tms)\b/.test(promptIntent);
 
-    const domainSpecificCostIntent = /\b(?:combustible|combustibles|galon|galones|flota|vehiculo|vehiculos|refineria|reactivo|reactivos|planta|kardex|trjkar|logistica|almacen|stock|activo|activos|depreciacion)\b/.test(promptIntent);
+    const domainSpecificCostIntent =
+        /\b(?:combustible|combustibles|galon|galones|flota|vehiculo|vehiculos|refineria|reactivo|reactivos|planta|kardex|trjkar|logistica|almacen|stock|activo|activos|depreciacion)\b/.test(promptIntent);
 
-    const corporateFinanceIntent = !domainSpecificCostIntent &&
-        (/\b(?:costo|costos|gasto|gastos|presupuesto|ppto|opex|macroproceso|macroprocesos|ceco|cecos|dynacor|contabilidad|contable|finanzas)\b/.test(promptIntent) ||
+    const corporateFinanceIntent =
+        !domainSpecificCostIntent &&
+        (
+            /\b(?:costo|costos|gasto|gastos|presupuesto|ppto|opex|macroproceso|macroprocesos|ceco|cecos|dynacor|contabilidad|contable|finanzas)\b/.test(promptIntent) ||
             /\bcentros? de costo\b/.test(promptIntent) ||
-            /\b(?:real|reales)\b.*\b(?:presupuesto|ppto)\b|\b(?:presupuesto|ppto)\b.*\b(?:real|reales)\b/.test(promptIntent));
+            /\b(?:real|reales)\b.*\b(?:presupuesto|ppto)\b|\b(?:presupuesto|ppto)\b.*\b(?:real|reales)\b/.test(promptIntent)
+        );
 
-    const generationArea: VaiArea | "auto" = area !== "auto"
-        ? area
-        : pendingMineralFlow
-            ? "traceability"
-            : mineralFinanceIntent ||
-                corporateFinanceIntent
-                ? "finance"
-                : "auto";
+    const generationArea: VaiArea | "auto" =
+        area !== "auto"
+            ? area
+            : pendingMineralFlow
+                ? "traceability"
+                : mineralFinanceIntent || corporateFinanceIntent
+                    ? "finance"
+                    : "auto";
 
-    const comparisonIntent = /\b(?:vs|versus|contra|comparar|compara|comparacion|diferencia|diferencias)\b/.test(promptIntent);
+    const comparisonIntent =
+        /\b(?:vs|versus|contra|comparar|compara|comparacion|diferencia|diferencias)\b/.test(promptIntent);
 
-    const generationFocus: VaiFocus = focus === "auto" &&
-        comparisonIntent
-        ? "comparisons"
-        : focus;
+    const generationFocus: VaiFocus =
+        focus === "auto" && comparisonIntent
+            ? "comparisons"
+            : focus;
 
-    const mineralPaymentByLotComparison = mineralContext &&
+    const mineralPaymentByLotComparison =
+        mineralContext &&
         /\b(?:pago|pagos|pagado|pagados|desembolso|desembolsos)\b/.test(promptIntent) &&
         /\b(?:lote|lotes)\b/.test(promptIntent);
 
@@ -1126,7 +1497,8 @@ export async function POST(req: Request) {
             return NextResponse.json({
                 ok: true,
                 status: "unavailable",
-                message: output.message ||
+                message:
+                    output.message ||
                     "Actualmente no existe información disponible en V-Ai para construir ese dashboard.",
                 unavailable,
                 spec: null,
@@ -1134,9 +1506,7 @@ export async function POST(req: Request) {
             });
         }
 
-        const unavailable = [
-            ...new Set(notes),
-        ];
+        const unavailable = [...new Set(notes)];
 
         const status = unavailable.length
             ? "partial"
@@ -1149,16 +1519,22 @@ export async function POST(req: Request) {
                 ? output.message
                 : "",
             unavailable,
-            spec,
+            spec: {
+                ...spec,
+                language: detectVaiLanguage(prompt),
+                locale: null,
+            },
+            language: detectVaiLanguage(prompt),
             candidates,
             model,
         });
     }
     catch (error) {
-        if (error instanceof
-            VaiGenerationError) {
-            console.error("V-Ai generate:", error.detail ??
-                error.message);
+        if (error instanceof VaiGenerationError) {
+            console.error(
+                "V-Ai generate:",
+                error.detail ?? error.message
+            );
 
             return NextResponse.json({
                 ok: false,

@@ -1,6 +1,19 @@
 "use client";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, } from "react";
 import { canUseLogScale, logarithmicScale, type ChartScaleMode } from "../../lib/chartScale";
+import type { VaiLanguage } from "../../lib/vai";
+const CHART_UI = {
+    es: { empty: "Sin datos para los filtros seleccionados.", exact: "Ver cifras exactas y detalle", period: "Período", category: "Categoría", value: "Valor", detail: "Detalle", total: "total", group: "Grupo", exactHint: "Los valores exactos están en «Ver cifras exactas».", linearTrend: "tendencia lineal", logScale: "Escala logarítmica (base 10)", heatmapDesc: "Valores por grupo y categoría; intensidad proporcional a la magnitud absoluta. El detalle conserva las filas originales.", filterTotal: "Total del filtro", net: "Neto", positive: "Aporte positivo", negative: "Aporte negativo", contribution: "Aporte", cumulative: "Acumulado desde cero" },
+    en: { empty: "No data for the selected filters.", exact: "View exact figures and detail", period: "Period", category: "Category", value: "Value", detail: "Detail", total: "total", group: "Group", exactHint: "Exact values are available under “View exact figures”.", linearTrend: "linear trend", logScale: "Logarithmic scale (base 10)", heatmapDesc: "Values by group and category; intensity is proportional to absolute magnitude. Detail preserves the original rows.", filterTotal: "Filtered total", net: "Net", positive: "Positive contribution", negative: "Negative contribution", contribution: "Contribution", cumulative: "Cumulative from zero" },
+    fr: { empty: "Aucune donnée pour les filtres sélectionnés.", exact: "Voir les chiffres exacts et le détail", period: "Période", category: "Catégorie", value: "Valeur", detail: "Détail", total: "total", group: "Groupe", exactHint: "Les valeurs exactes sont disponibles dans « Voir les chiffres exacts ».", linearTrend: "tendance linéaire", logScale: "Échelle logarithmique (base 10)", heatmapDesc: "Valeurs par groupe et catégorie ; l’intensité est proportionnelle à la magnitude absolue. Le détail conserve les lignes d’origine.", filterTotal: "Total filtré", net: "Net", positive: "Contribution positive", negative: "Contribution négative", contribution: "Contribution", cumulative: "Cumul depuis zéro" },
+} as const;
+const ChartLanguageContext = createContext<VaiLanguage>("es");
+export function ChartLanguageProvider({ language, children }: { language: VaiLanguage; children: ReactNode }) {
+    return <ChartLanguageContext.Provider value={language}>{children}</ChartLanguageContext.Provider>;
+}
+function useChartUi() {
+    return CHART_UI[useContext(ChartLanguageContext)];
+}
 export type ChartSeries = {
     label: string;
     color: string;
@@ -276,6 +289,7 @@ function ChartCard({ title, subtitle, series, kind, empty, table, panel, control
     controls?: ReactNode;
     children: ReactNode;
 }) {
+    const ui = useChartUi();
     const [dataOpen, setDataOpen] = useState(false);
     const hasLegend = Boolean(series && series.length > 1);
     return (<section className="trjk-card trjk-chart" style={{ height: "100%", minWidth: 0 }}>
@@ -303,24 +317,25 @@ function ChartCard({ title, subtitle, series, kind, empty, table, panel, control
         }}>
           {controls}
         </div>) : null}
-      {empty ? (<div className="trjk-empty">Sin datos para los filtros seleccionados.</div>) : (children)}
+      {empty ? (<div className="trjk-empty">{ui.empty}</div>) : (children)}
       {!empty && panel ? (<div className="trjk-chart-data">{panel}</div>) : !empty && table ? (<details className="trjk-chart-data" onToggle={(event) => setDataOpen(event.currentTarget.open)}>
-          <summary>Ver cifras exactas y detalle</summary>
+          <summary>{ui.exact}</summary>
           {dataOpen ? <div className="trjk-table-scroll">{table}</div> : null}
         </details>) : null}
     </section>);
 }
-function SeriesTable({ rows, series, digits, unit, head = "Período", }: {
+function SeriesTable({ rows, series, digits, unit, head, }: {
     rows: ChartRow[];
     series: ChartSeries[];
     digits: number;
     unit: string;
     head?: string;
 }) {
+    const ui = useChartUi();
     return (<table>
       <thead>
         <tr>
-          <th>{head}</th>
+          <th>{head ?? ui.period}</th>
           {series.map((s) => (<th key={s.label}>{s.label}</th>))}
         </tr>
       </thead>
@@ -528,6 +543,7 @@ export function ColumnChart({ title, subtitle, rows, series, digits = 0, unit = 
     minCategoryWidth?: number;
     intervals?: boolean;
 }) {
+    const ui = useChartUi();
     const gradientId = useId();
     const [ref, width] = useWidth();
     const [hover, setHover] = useState<number | null>(null);
@@ -596,7 +612,7 @@ export function ColumnChart({ title, subtitle, rows, series, digits = 0, unit = 
         {formatMarkLabel(v, series[index]?.digits ?? digits)}
       </text>);
     };
-    return (<ChartCard title={title} subtitle={`${subtitle}${log ? " · Escala logarítmica (base 10)" : ""}`} series={series} kind="bar" empty={!rows.length} controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit}/>}>
+    return (<ChartCard title={title} subtitle={`${subtitle}${log ? ` · ${ui.logScale}` : ""}`} series={series} kind="bar" empty={!rows.length} controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit}/>}>
       <div style={{ overflowX: "auto", maxWidth: "100%" }}>
       <div className="trjk-chart-plot" ref={ref} style={{ position: "relative", minHeight: height, minWidth: minCategoryWidth > 0 ? rows.length * minCategoryWidth + 110 : undefined }}>
         {width > 0 && (<svg role="img" tabIndex={0} onKeyDown={(event) => {
@@ -669,6 +685,7 @@ export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "
     controls?: ReactNode;
     minCategoryWidth?: number;
 }) {
+    const ui = useChartUi();
     const gradientId = useId();
     const [ref, width] = useWidth();
     const [hover, setHover] = useState<number | null>(null);
@@ -772,7 +789,7 @@ export function ComboChart({ title, subtitle, rows, series, digits = 0, unit = "
         }
         setHover(Math.max(0, Math.min(rows.length - 1, Math.floor(px / band))));
     };
-    return (<ChartCard title={title} subtitle={`${subtitle}${log ? " · Escala logarítmica (base 10)" : ""}`} series={series} empty={!rows.length} controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit}/>}>
+    return (<ChartCard title={title} subtitle={`${subtitle}${log ? ` · ${ui.logScale}` : ""}`} series={series} empty={!rows.length} controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={series} digits={digits} unit={unit}/>}>
       <div style={{ overflowX: "auto", maxWidth: "100%" }}>
       <div className="trjk-chart-plot" ref={ref} style={{ position: "relative", minHeight: height, minWidth: minCategoryWidth > 0 ? rows.length * minCategoryWidth + 110 : undefined }}>
         {width > 0 && (<svg role="img" tabIndex={0} onKeyDown={(event) => {
@@ -1032,6 +1049,7 @@ export function DonutChart({ title, subtitle, items, digits = 0, unit = "", cent
     dataTable?: ReactNode;
     controls?: ReactNode;
 }) {
+    const ui = useChartUi();
     const [active, setActive] = useState<number | null>(null);
     const [pointer, onPointerMove, clearPointer] = usePointer();
     const shown = items.filter((i) => i.value > 0);
@@ -1063,8 +1081,8 @@ export function DonutChart({ title, subtitle, items, digits = 0, unit = "", cent
     return (<ChartCard title={title} subtitle={subtitle} empty={!shown.length} panel={panel} controls={controls} table={dataTable ?? (showTable ? (<table>
             <thead>
               <tr>
-                <th>Categoría</th>
-                <th>Valor</th>
+                <th>{ui.category}</th>
+                <th>{ui.value}</th>
                 <th>%</th>
               </tr>
             </thead>
@@ -1083,7 +1101,7 @@ export function DonutChart({ title, subtitle, items, digits = 0, unit = "", cent
         <svg role="img" aria-label={title} width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <desc>
             {showTable
-            ? `${title}. Los valores exactos están en «Ver cifras exactas».`
+            ? `${title}. ${ui.exactHint}`
             : title}
           </desc>
           {segments.map((s, i) => (<path key={s.item.label} d={s.d} fill={s.item.color} opacity={focusIndex == null || focusIndex === i ? 1 : 0.35} onPointerEnter={() => setActive(i)} onClick={onSelect
@@ -1106,7 +1124,7 @@ export function DonutChart({ title, subtitle, items, digits = 0, unit = "", cent
               <em>{formatNumber(s.pct, 1)} %</em>
             </button>))}
         </div>
-        {tip && pointer && (<ChartTip title={tip.item.label} lines={[{ color: tip.item.color, value: value(tip.item.value, digits, unit), label: `${formatNumber(tip.pct, 1)} % de ${centerLabel || "total"}` }]} notes={[...(tip.item.note ? ([["Detalle", tip.item.note]] as ChartNote[]) : []), ...(tip.item.notes ?? [])]} style={tipStyle(pointer.x, pointer.w, { pointerY: pointer.y, height: pointer.h })}/>)}
+        {tip && pointer && (<ChartTip title={tip.item.label} lines={[{ color: tip.item.color, value: value(tip.item.value, digits, unit), label: `${formatNumber(tip.pct, 1)} % ${centerLabel || ui.total}` }]} notes={[...(tip.item.note ? ([[ui.detail, tip.item.note]] as ChartNote[]) : []), ...(tip.item.notes ?? [])]} style={tipStyle(pointer.x, pointer.w, { pointerY: pointer.y, height: pointer.h })}/>)}
       </div>
     </ChartCard>);
 }
@@ -1130,6 +1148,7 @@ export function RankChart({ title, subtitle, rows, digits = 0, unit = "", color 
     dataTable?: ReactNode;
     controls?: ReactNode;
 }) {
+    const ui = useChartUi();
     const [active, setActive] = useState<number | null>(null);
     const [pointer, onPointerMove, clearPointer] = usePointer();
     const max = rows.reduce((n, row) => Math.max(n, row.value), 1);
@@ -1139,13 +1158,13 @@ export function RankChart({ title, subtitle, rows, digits = 0, unit = "", color 
     const log = scaleMode === "log" && canUseLogScale(rows.map((row) => row.value));
     const logScale = logarithmicScale(rows.map((row) => row.value));
     const tip = active != null && pointer ? rows[active] : null;
-    return (<ChartCard title={title} subtitle={`${subtitle}${log ? " · Escala logarítmica (base 10)" : ""}`} empty={!rows.length} panel={panel} controls={controls} table={dataTable ?? (<table>
+    return (<ChartCard title={title} subtitle={`${subtitle}${log ? ` · ${ui.logScale}` : ""}`} empty={!rows.length} panel={panel} controls={controls} table={dataTable ?? (<table>
           <thead>
             <tr>
               <th>#</th>
-              <th>Categoría</th>
-              <th>Valor</th>
-              <th>Detalle</th>
+              <th>{ui.category}</th>
+              <th>{ui.value}</th>
+              <th>{ui.detail}</th>
             </tr>
           </thead>
           <tbody>
@@ -1230,6 +1249,7 @@ export function ScatterChart({ title, subtitle, points, xLabel, yLabel, xDigits 
     dataTable?: ReactNode;
     controls?: ReactNode;
 }) {
+    const ui = useChartUi();
     const [ref, width] = useWidth();
     const [hover, setHover] = useState<number | null>(null);
     const pad = { l: 52, r: 18, t: 18, b: 34 };
@@ -1281,10 +1301,10 @@ export function ScatterChart({ title, subtitle, points, xLabel, yLabel, xDigits 
         });
         setHover(best >= 0 ? best : null);
     };
-    return (<ChartCard title={title} subtitle={`${subtitle}${fit ? ` · tendencia lineal, r = ${formatNumber(fit.r, 2)}` : ""}`} empty={!shown.length} controls={controls} table={dataTable ?? (<table>
+    return (<ChartCard title={title} subtitle={`${subtitle}${fit ? ` · ${ui.linearTrend}, r = ${formatNumber(fit.r, 2)}` : ""}`} empty={!shown.length} controls={controls} table={dataTable ?? (<table>
             <thead>
               <tr>
-                <th>Categoría</th>
+                <th>{ui.category}</th>
                 <th>{xLabel}</th>
                 <th>{yLabel}</th>
               </tr>
@@ -1345,6 +1365,7 @@ export function HeatmapChart({ title, subtitle, rows, series, dataTable, control
     dataTable?: ReactNode;
     controls?: ReactNode;
 }) {
+    const ui = useChartUi();
     const [ref, measured] = useWidth();
     const [hover, setHover] = useState<{
         row: number;
@@ -1359,14 +1380,14 @@ export function HeatmapChart({ title, subtitle, rows, series, dataTable, control
     const selected = hover ? rows[hover.row] : null;
     const metric = hover ? series[hover.column] : null;
     const selectedValue = hover ? selected?.values[hover.column] : null;
-    return <ChartCard title={title} subtitle={subtitle} empty={!rows.length || !series.length} controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={series} digits={2} unit="" head="Grupo"/>}>
+    return <ChartCard title={title} subtitle={subtitle} empty={!rows.length || !series.length} controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={series} digits={2} unit="" head={ui.group}/>}>
     <div className="muted" style={{ fontSize: 11, marginBottom: 10, whiteSpace: "normal" }}>
       Intensidad: menor a mayor magnitud · — sin dato{finite.some((v) => v < 0) ? " · tono secundario: valores negativos" : ""}.
     </div>
     <div style={{ overflowX: "auto", maxWidth: "100%" }}>
       <div ref={ref} className="trjk-chart-plot" style={{ minWidth: rows.length * 76 + 170, position: "relative" }}>
         <svg width={width} height={height} role="img" aria-label={`${title}. Cada celda es consultable con Tab.`}>
-          <desc>Valores por grupo y categoría; intensidad proporcional a la magnitud absoluta. El detalle conserva las filas originales.</desc>
+          <desc>{ui.heatmapDesc}</desc>
           {rows.map((row, i) => <text key={row.key} className="trjk-axis" x={left + (i + .5) * cellW} y={25} textAnchor="middle">
             <title>{row.label}</title>{axisLabelText(row.label, 11)}
           </text>)}
@@ -1404,6 +1425,7 @@ export function MatrixChart({ title, subtitle, columns, roots, totals, format, c
     controls?: ReactNode;
     onDetail?: (node: import("../../lib/vai").VaiMatrixNode) => void;
 }) {
+    const ui = useChartUi();
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
     const [page, setPage] = useState(1);
     useEffect(() => { setExpanded(new Set()); setPage(1); }, [roots]);
@@ -1479,7 +1501,7 @@ export function MatrixChart({ title, subtitle, columns, roots, totals, format, c
           </tbody>
           <tfoot style={{ position: "sticky", bottom: 0, zIndex: 3, background: "var(--s-1)", fontWeight: 700 }}>
             <tr>
-              <td style={{ position: "sticky", left: 0, background: "var(--s-1)" }}>Total del filtro</td>
+              <td style={{ position: "sticky", left: 0, background: "var(--s-1)" }}>{ui.filterTotal}</td>
               {columns.map((column) => <td key={column.id} data-num>{format(totals[column.id] ?? null)}</td>)}
             </tr>
           </tfoot>
@@ -1503,6 +1525,7 @@ export function WaterfallChart({ title, subtitle, rows, digits = 2, unit = "", d
     height?: number;
     controls?: ReactNode;
 }) {
+    const ui = useChartUi();
     const [ref, width] = useWidth();
     const [hover, setHover] = useState<number | null>(null);
     let balance = 0;
@@ -1514,7 +1537,7 @@ export function WaterfallChart({ title, subtitle, rows, digits = 2, unit = "", d
         return { row, from, to: balance, delta };
     });
     const final = balance;
-    const entries = [...steps, { row: { key: "__net__", label: "Neto", values: [final] } as ChartRow, from: 0, to: final, delta: final }];
+    const entries = [...steps, { row: { key: "__net__", label: ui.net, values: [final] } as ChartRow, from: 0, to: final, delta: final }];
     const pad = { l: 70, r: 18, t: 30, b: 44 };
     const plotH = height - pad.t - pad.b;
     const band = Math.max(1, (width - pad.l - pad.r) / entries.length);
@@ -1522,7 +1545,7 @@ export function WaterfallChart({ title, subtitle, rows, digits = 2, unit = "", d
     const scale = adaptiveScale(entries.flatMap((e) => [e.from, e.to]), true);
     const yFor = (v: number) => pad.t + plotH - (v - scale.min) / (scale.max - scale.min || 1) * plotH;
     const tip = hover == null ? null : entries[hover];
-    return <ChartCard title={title} subtitle={subtitle} empty={!rows.length} series={[{ label: "Aporte positivo", color: CHART_COLORS[0] }, { label: "Aporte negativo", color: CHART_COLORS[1] }, { label: "Neto", color: CHART_OTHER }]} kind="bar" controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={[{ label: "Aporte", color: CHART_COLORS[0] }]} digits={digits} unit={unit} head="Categoría"/>}>
+    return <ChartCard title={title} subtitle={subtitle} empty={!rows.length} series={[{ label: ui.positive, color: CHART_COLORS[0] }, { label: ui.negative, color: CHART_COLORS[1] }, { label: ui.net, color: CHART_OTHER }]} kind="bar" controls={controls} table={dataTable ?? <SeriesTable rows={rows} series={[{ label: ui.contribution, color: CHART_COLORS[0] }]} digits={digits} unit={unit} head={ui.category}/>}>
     <div style={{ overflowX: "auto", maxWidth: "100%" }}>
       <div ref={ref} className="trjk-chart-plot" style={{ position: "relative", minWidth: entries.length * 80 + 90, minHeight: height }}>
         {width > 0 ? <svg width={width} height={height} role="img" aria-label={`${title}. Contribuciones desde cero y neto final.`}>
@@ -1544,8 +1567,8 @@ export function WaterfallChart({ title, subtitle, rows, digits = 2, unit = "", d
             })}
         </svg> : null}
         {tip && hover != null ? <ChartTip title={tip.row.label} lines={[
-                { label: hover === entries.length - 1 ? "Neto" : "Aporte", value: value(tip.delta, digits, unit) },
-                { label: "Acumulado desde cero", value: value(tip.to, digits, unit) },
+                { label: hover === entries.length - 1 ? ui.net : ui.contribution, value: value(tip.delta, digits, unit) },
+                { label: ui.cumulative, value: value(tip.to, digits, unit) },
             ]} notes={tip.row.notes} style={tipStyle(pad.l + (hover + .5) * band, width, { top: pad.t })}/> : null}
       </div>
     </div>

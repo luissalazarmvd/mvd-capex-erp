@@ -2261,7 +2261,18 @@ function requestedCostMonths(prompt: string, filters: VaiRawFilter[]): string[] 
         return [...new Set(monthsInRange(range.from, range.to).map((month) => COST_MONTH_OPTIONS[Number(month.slice(5, 7)) - 1]))].sort();
     return null;
 }
-export const VAI_SPEC_VERSION = 1;
+export const VAI_SPEC_VERSION = 2;
+export const VAI_LANGUAGES = ["es", "en", "fr"] as const;
+export type VaiLanguage = (typeof VAI_LANGUAGES)[number];
+export type VaiLocalePack = {
+    sourceLabels: Record<string, string>;
+    sourceDescriptions: Record<string, string>;
+    sourceGrains: Record<string, string>;
+    fieldLabels: Record<string, string>;
+    fieldDescriptions: Record<string, string>;
+    metricLabels: Record<string, string>;
+    metricDescriptions: Record<string, string>;
+};
 export const VAI_PROMPT_MAX = 1200;
 export const VAI_MAX_SOURCES = 3;
 export const VAI_MAX_WIDGETS = 10;
@@ -2386,6 +2397,8 @@ export type VaiSummarySpec = {
 };
 export type VaiDashboardSpec = {
     version: typeof VAI_SPEC_VERSION;
+    language: VaiLanguage;
+    locale: VaiLocalePack | null;
     title: string;
     description: string;
     sources: string[];
@@ -2449,7 +2462,7 @@ const clean = (value: unknown, max: number) => String(value ?? "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max);
-function normalizePromptText(value: string) {
+function basePromptText(value: string) {
     return String(value ?? "")
         .toLowerCase()
         .normalize("NFD")
@@ -2457,6 +2470,79 @@ function normalizePromptText(value: string) {
         .replace(/[^a-z0-9]+/g, " ")
         .replace(/\s+/g, " ")
         .trim();
+}
+const VAI_SEMANTIC_ALIASES: Array<[RegExp, string]> = [
+    [/\b(?:fuel|fuels|carburant|carburants|essence|diesel)\b/, "combustible"],
+    [/\b(?:refuel|refuels|refueling|ravitaillement|ravitaillements)\b/, "abastecimiento combustible"],
+    [/\b(?:fleet|flotte)\b/, "flota"],
+    [/\b(?:vehicle|vehicles|vehicule|vehicules)\b/, "vehiculo"],
+    [/\b(?:driver|drivers|conducteur|conducteurs)\b/, "conductor"],
+    [/\b(?:site|sites|location|locations|sede|sedes)\b/, "sede"],
+    [/\b(?:cost|costs|expense|expenses|cout|couts|depense|depenses)\b/, "costos gastos"],
+    [/\b(?:budget|budgets|budgeted|budgetaire|budgetaires)\b/, "presupuesto ppto"],
+    [/\b(?:payment|payments|paid|paiement|paiements|paye|payes)\b/, "pago pagos"],
+    [/\b(?:purchase|purchases|buying|achat|achats)\b/, "compra compras"],
+    [/\b(?:supplier|suppliers|vendor|vendors|fournisseur|fournisseurs)\b/, "proveedor proveedores"],
+    [/\b(?:invoice|invoices|facture|factures)\b/, "factura facturas"],
+    [/\b(?:mineral|minerals|ore|minerai|minerais)\b/, "mineral"],
+    [/\b(?:lot|lots)\b/, "lote lotes"],
+    [/\b(?:traceability|tracabilite)\b/, "trazabilidad"],
+    [/\b(?:plant|processing plant|usine)\b/, "planta"],
+    [/\b(?:refinery|raffinerie)\b/, "refineria"],
+    [/\b(?:reagent|reagents|reactif|reactifs)\b/, "reactivo reactivos"],
+    [/\b(?:consumption|consommation)\b/, "consumo"],
+    [/\b(?:production|production)\b/, "produccion"],
+    [/\b(?:stock|inventory|inventaire)\b/, "stock inventario"],
+    [/\b(?:logistics|logistique)\b/, "logistica"],
+    [/\b(?:fixed asset|fixed assets|asset|assets|immobilisation|immobilisations)\b/, "activo activos fijo"],
+    [/\b(?:depreciation|amortization|depreciation|amortissement)\b/, "depreciacion"],
+    [/\b(?:gold)\b/, "oro au"],
+    [/\b(?:silver)\b/, "plata ag"],
+    [/\b(?:bar chart|bar charts|bars|barres|histogramme en barres)\b/, "grafico barras"],
+    [/\b(?:line chart|line charts|lines|courbe|courbes|graphique en ligne|graphique lineaire)\b/, "grafico lineas"],
+    [/\b(?:pie chart|pie charts|pie|camembert|diagramme circulaire)\b/, "grafico torta anillo"],
+    [/\b(?:donut chart|donut charts|donut|doughnut|anneau)\b/, "grafico anillo"],
+    [/\b(?:scatter plot|scatter chart|scatter|nuage de points)\b/, "grafico dispersion"],
+    [/\b(?:heatmap|heat map|carte de chaleur)\b/, "mapa de calor"],
+    [/\b(?:waterfall|waterfall chart|cascade)\b/, "grafico cascada"],
+    [/\b(?:histogram|histograms|histogramme|histogrammes)\b/, "histograma"],
+    [/\b(?:ranking|rankings|top|classement)\b/, "ranking top"],
+    [/\b(?:matrix|matrice|pivot table|tableau croise dynamique)\b/, "matriz tabla dinamica"],
+    [/\b(?:table|tables|tableau|tableaux)\b/, "tabla"],
+    [/\b(?:x axis|x-axis|axe x|horizontal axis|axe horizontal)\b/, "eje x"],
+    [/\b(?:y axis|y-axis|axe y|vertical axis|axe vertical)\b/, "eje y"],
+    [/\b(?:trend|trends|tendance|tendances)\b/, "tendencia"],
+    [/\b(?:last 7 days|past 7 days|derniers 7 jours)\b/, "ultimos 7 dias"],
+    [/\b(?:last 30 days|past 30 days|derniers 30 jours)\b/, "ultimos 30 dias"],
+    [/\b(?:this week|current week|cette semaine|semaine actuelle)\b/, "esta semana"],
+    [/\b(?:last week|previous week|semaine derniere|semaine precedente)\b/, "semana pasada"],
+    [/\b(?:this month|current month|ce mois|mois actuel)\b/, "este mes"],
+    [/\b(?:last month|previous month|mois dernier|mois precedent)\b/, "mes pasado"],
+    [/\b(?:this year|current year|year to date|annee en cours|cette annee)\b/, "este ano ytd"],
+    [/\b(?:compare|comparison|comparisons|versus|vs|comparer|comparaison|comparaisons)\b/, "comparar comparacion versus"],
+];
+export function normalizeVaiPrompt(value: string) {
+    const base = basePromptText(value);
+    const aliases = VAI_SEMANTIC_ALIASES
+        .filter(([pattern]) => pattern.test(base))
+        .map(([, replacement]) => replacement);
+    return [base, ...aliases].join(" ").replace(/\s+/g, " ").trim();
+}
+export function detectVaiLanguage(value: string): VaiLanguage {
+    const text = basePromptText(value);
+    const words = new Set(text.split(" ").filter(Boolean));
+    const score = (items: string[]) => items.reduce((total, item) => total + (item.includes(" ") ? (text.includes(item) ? 2 : 0) : (words.has(item) ? 1 : 0)), 0);
+    const es = score(["quiero", "muestra", "mostrar", "grafico", "costos", "combustible", "consumo", "pago", "lote", "proveedor", "por", "con", "del", "para"]);
+    const en = score(["show", "display", "chart", "dashboard", "costs", "fuel", "consumption", "payment", "supplier", "lot", "by", "with", "from", "for", "the"]);
+    const fr = score(["montre", "affiche", "graphique", "tableau", "couts", "carburant", "consommation", "paiement", "fournisseur", "lot", "par", "avec", "pour", "les", "des"]);
+    if (fr > en && fr > es)
+        return "fr";
+    if (en > fr && en > es)
+        return "en";
+    return "es";
+}
+function normalizePromptText(value: string) {
+    return normalizeVaiPrompt(value);
 }
 function requestedPresetFromPrompt(userPrompt: string): VaiDatePreset | null {
     const prompt = normalizePromptText(userPrompt);
@@ -3374,12 +3460,18 @@ export function promptRenderHints(userPrompt: string): VaiPromptHints {
 }
 const dimensionTerms = (field: VaiField) => new Set([...hintWords(field.label), ...field.id.split("_").map(stemWord)]);
 function positiveVisualText(value: string) {
-    return String(value ?? "")
-        .toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/s\s*\//g, " PEN ").replace(/\bus\s*\$/g, " USD ")
-        .replace(/%/g, " porcentaje ")
-        .replace(/eje\s+horizontal/g, "eje x").replace(/eje\s+vertical/g, "eje y")
-        .replace(/\b(?:no\s+(?:(?:quiero|uses|usar|pongas|incluir|incluyas|muestres|mostrar|necesito)\s+)?|sin\s+)(?:(?:un|una|el|la|los|las|graficos?\s+de)\s+)*(?:tortas?|pastel(?:es)?|anillos?|donuts?|barras?|columnas?|lineas?|curvas?|rankings?|areas?|pareto|histogramas?|mapas?\s+de\s+calor|cascadas?)\b/g, " ");
+    const raw = String(value ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\b(?:no|without|sans)\s+(?:(?:a|an|the|un|une|de|des|du)\s+)*(?:pie\s+charts?|donuts?|bars?|barres?|lines?|courbes?|rankings?|areas?|pareto|histograms?|histogrammes?|heatmaps?|waterfalls?|scatter(?:\s+plots?)?)\b/g, " ")
+        .replace(/\b(?:no\s+(?:(?:quiero|uses|usar|pongas|incluir|incluyas|muestres|mostrar|necesito)\s+)?|sin\s+)(?:(?:un|una|el|la|los|las|graficos?\s+de)\s+)*(?:tortas?|pastel(?:es)?|anillos?|donuts?|barras?|columnas?|lineas?|curvas?|rankings?|areas?|pareto|histogramas?|mapas?\s+de\s+calor|cascadas?)\b/g, " ")
+        .replace(/s\s*\//g, " PEN ")
+        .replace(/\bus\s*\$/g, " USD ")
+        .replace(/%/g, " porcentaje ");
+    return normalizeVaiPrompt(raw)
+        .replace(/eje\s+horizontal/g, "eje x")
+        .replace(/eje\s+vertical/g, "eje y");
 }
 function visualRequestSegments(prompt: string) {
     const parts = positiveVisualText(prompt).split(/[;\n]+|\.(?!\d)|\b(?:ademas|tambien|luego|y)\s+(?:(?:quiero|muestra|agrega|incluye)\s+)?(?:otro|otra|un|una)\s+(?=grafico|grafica|anillo|torta|ranking|pareto|histograma|mapa|cascada|tabla|dispersion)/g).map((part) => part.trim()).filter(Boolean);
@@ -3857,6 +3949,25 @@ function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"
     const otherSources = dashboard.widgets.filter((widget) => widget.source !== "finance_costs");
     return { ...dashboard, filters: filters.slice(0, VAI_MAX_FILTERS), widgets: [...fixed, ...otherSources, ...extras].slice(0, VAI_MAX_WIDGETS) };
 }
+export function validateWidgetEdit(raw: VaiRawWidget, userPrompt: string, allowedSourceIds?: string[]) {
+    const notes: string[] = [];
+    const prepared = enforceVisualRequests([raw], userPrompt, allowedSourceIds)[0] ?? raw;
+    const widget = validateWidget(prepared, notes);
+    if (!widget)
+        return { widget: null as VaiWidgetSpec | null, notes, issues: ["No se pudo construir un widget válido con esa instrucción."] };
+    const spec: VaiDashboardSpec = {
+        version: VAI_SPEC_VERSION,
+        language: "es",
+        locale: null,
+        title: widget.title,
+        description: "",
+        sources: [widget.source],
+        filters: [],
+        widgets: [widget],
+    };
+    return { widget, notes, issues: visualContractIssues(spec, userPrompt, allowedSourceIds) };
+}
+
 export function validateModelOutput(output: VaiModelOutput, userPrompt = "", allowedSourceIds?: string[]): VaiValidation {
     const notes: string[] = output.unavailable.map(concarLabel);
     if (!output.dashboard)
@@ -3985,12 +4096,34 @@ export function validateModelOutput(output: VaiModelOutput, userPrompt = "", all
     }
     const spec: VaiDashboardSpec = {
         version: VAI_SPEC_VERSION,
+        language: "es",
+        locale: null,
         title: concarLabel(output.dashboard.title || "Dashboard V-Ai"),
         description: concarLabel(output.dashboard.description),
         sources, filters, widgets: kept,
     };
     const issues = visualContractIssues(spec, userPrompt, allowedSourceIds);
     return { spec, notes: [...new Set(notes)], issues };
+}
+function localeRecord(value: unknown, max: number) {
+    if (!isRecord(value))
+        return {};
+    return Object.fromEntries(Object.entries(value)
+        .map(([key, item]) => [clean(key, 160), clean(item, max)] as const)
+        .filter(([key, item]) => key && item));
+}
+function coerceVaiLocale(value: unknown): VaiLocalePack | null {
+    if (!isRecord(value))
+        return null;
+    return {
+        sourceLabels: localeRecord(value.sourceLabels, 160),
+        sourceDescriptions: localeRecord(value.sourceDescriptions, 1200),
+        sourceGrains: localeRecord(value.sourceGrains, 300),
+        fieldLabels: localeRecord(value.fieldLabels, 160),
+        fieldDescriptions: localeRecord(value.fieldDescriptions, 1200),
+        metricLabels: localeRecord(value.metricLabels, 160),
+        metricDescriptions: localeRecord(value.metricDescriptions, 1200),
+    };
 }
 export function parseStoredSpec(raw: unknown, userPrompt = ""): VaiValidation {
     if (!isRecord(raw))
@@ -4002,7 +4135,40 @@ export function parseStoredSpec(raw: unknown, userPrompt = ""): VaiValidation {
         dashboard: coerceModelOutput({ dashboard: raw })?.dashboard ?? null,
     };
     const result = validateModelOutput(output, userPrompt);
-    return result.issues?.length ? { spec: null, notes: [...result.notes, ...result.issues], issues: result.issues } : result;
+    if (result.issues?.length)
+        return { spec: null, notes: [...result.notes, ...result.issues], issues: result.issues };
+    if (!result.spec)
+        return result;
+    const language = VAI_LANGUAGES.includes(raw.language as VaiLanguage) ? raw.language as VaiLanguage : detectVaiLanguage(userPrompt);
+    return {
+        ...result,
+        spec: {
+            ...result.spec,
+            language,
+            locale: language === "es" ? null : coerceVaiLocale(raw.locale),
+        },
+    };
+}
+export function localizeVaiSource(source: VaiSource, spec: Pick<VaiDashboardSpec, "language" | "locale">): VaiSource {
+    const locale = spec.locale;
+    if (!locale)
+        return source;
+    return {
+        ...source,
+        name: locale.sourceLabels[source.id] ?? source.name,
+        description: locale.sourceDescriptions[source.id] ?? source.description,
+        grain: locale.sourceGrains[source.id] ?? source.grain,
+        fields: source.fields.map((field) => ({
+            ...field,
+            label: locale.fieldLabels[`${source.id}:${field.id}`] ?? field.label,
+            description: locale.fieldDescriptions[`${source.id}:${field.id}`] ?? field.description,
+        })),
+        metrics: source.metrics.map((metric) => ({
+            ...metric,
+            label: locale.metricLabels[`${source.id}:${metric.id}`] ?? metric.label,
+            description: locale.metricDescriptions[`${source.id}:${metric.id}`] ?? metric.description,
+        })),
+    };
 }
 export function specSources(spec: VaiDashboardSpec): VaiSource[] {
     return spec.sources.map((id) => VAI_SOURCE_MAP.get(id)).filter((source): source is VaiSource => Boolean(source));
@@ -5836,6 +6002,7 @@ export type VaiDashboardRecord = {
     source_ids: string | null;
     owner_key: string | null;
     visibility: string;
+    language_code: VaiLanguage;
     created_at: string;
     updated_at: string;
 };
@@ -5857,6 +6024,7 @@ export async function saveDashboard(input: {
     prompt: string;
     spec: VaiDashboardSpec;
     model: string | null;
+    changeType?: "save" | "widget_edit" | "language" | "title";
 }): Promise<number> {
     const out = await apiPost("/api/vai/dashboards/insert", {
         dashboard_id: input.dashboard_id ?? null,
@@ -5867,8 +6035,14 @@ export async function saveDashboard(input: {
         schema_version: VAI_SPEC_VERSION,
         model_name: input.model,
         source_ids: input.spec.sources.join(","),
+        language_code: input.spec.language,
+        change_type: input.changeType ?? "save",
     });
     return Number(out?.dashboard_id);
+}
+export async function undoDashboard(id: number): Promise<VaiDashboardDetail | null> {
+    const out = await apiPost("/api/vai/dashboards/undo", { dashboard_id: id });
+    return (out?.row as VaiDashboardDetail | undefined) ?? null;
 }
 export async function deleteDashboard(id: number) {
     await apiPost("/api/vai/dashboards/delete", { dashboard_id: id });

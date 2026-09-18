@@ -3,12 +3,28 @@ import { createContext, memo, useCallback, useContext, useDeferredValue, useEffe
 import { createPortal } from "react-dom";
 import { loadVaiSourceRows } from "../../lib/vai";
 import { canUseLogScale, prefersLogScale, type ChartScaleMode } from "../../lib/chartScale";
-import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, monthBounds, monthsInRange, validIsoDate, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, widgetDetailTable, vaiAreaLabel, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiRow, type VaiSortMode, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
-import { MatrixChart, CHART_COLORS, CHART_OTHER, ColumnChart, ComboChart, DonutChart, HeatmapChart, WaterfallChart, KpiTooltip, LineChart, RankChart, ScatterChart, type ChartRow, type ChartSeries, } from "../ui/Charts";
+import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, localizeVaiSource, monthBounds, monthsInRange, validIsoDate, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, undoDashboard, widgetDetailTable, vaiAreaLabel, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiLanguage, type VaiRow, type VaiSortMode, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
+import { ChartLanguageProvider, MatrixChart, CHART_COLORS, CHART_OTHER, ColumnChart, ComboChart, DonutChart, HeatmapChart, WaterfallChart, KpiTooltip, LineChart, RankChart, ScatterChart, type ChartRow, type ChartSeries, } from "../ui/Charts";
 import { Button } from "../ui/Button";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 import { Select } from "../ui/Select";
 import { VaiLogo } from "../ui/VaiLogo";
+const VAI_UI_TEXT = {
+    es: {
+        filters: "Filtros", clearFilters: "Limpiar filtros", all: "Todos", none: "Ninguno", scale: "Escala", automatic: "Automática", linear: "Lineal", logarithmic: "Logarítmica", xAxis: "Eje X", split: "Segregar", noBreakdown: "Sin desglose", orderX: "Orden X", highLow: "Mayor a menor", lowHigh: "Menor a mayor", exactSummary: "Resumen exacto de", exactSubtitle: "valores agregados que alimentan el gráfico", backup: "Detalle de respaldo", backupSubtitle: "registros que justifican los grupos visibles", rows: "filas", edit: "Editar gráfico", editPlaceholder: "Ej.: conviértelo en un anillo por sede usando costo PEN", apply: "Aplicar", cancel: "Cancelar", editing: "Aplicando…", language: "Idioma", undo: "Deshacer", undoing: "Deshaciendo…", translating: "Traduciendo…", saved: "Guardado", unsaved: "Sin guardar", prompt: "Prompt", retry: "Reintentar guardado", refresh: "Actualizar datos", newDashboard: "Nuevo dashboard", notes: "Observaciones de la definición", exactRows: "registros", loadingData: "Obteniendo datos de las fuentes", preparing: "Preparando consultas…", source: "Fuente", noSource: "No se pudo resolver la fuente de este gráfico.", day: "día", week: "semana", month: "mes", quarter: "trimestre", year: "año"
+    },
+    en: {
+        filters: "Filters", clearFilters: "Clear filters", all: "All", none: "None", scale: "Scale", automatic: "Automatic", linear: "Linear", logarithmic: "Logarithmic", xAxis: "X axis", split: "Break down", noBreakdown: "No breakdown", orderX: "X order", highLow: "High to low", lowHigh: "Low to high", exactSummary: "Exact summary of", exactSubtitle: "aggregated values feeding the chart", backup: "Supporting detail", backupSubtitle: "records supporting the visible groups", rows: "rows", edit: "Edit chart", editPlaceholder: "E.g. turn it into a donut by site using PEN cost", apply: "Apply", cancel: "Cancel", editing: "Applying…", language: "Language", undo: "Undo", undoing: "Undoing…", translating: "Translating…", saved: "Saved", unsaved: "Not saved", prompt: "Prompt", retry: "Retry save", refresh: "Refresh data", newDashboard: "New dashboard", notes: "Definition notes", exactRows: "records", loadingData: "Fetching data from sources", preparing: "Preparing queries…", source: "Source", noSource: "The source for this chart could not be resolved.", day: "day", week: "week", month: "month", quarter: "quarter", year: "year"
+    },
+    fr: {
+        filters: "Filtres", clearFilters: "Effacer les filtres", all: "Tous", none: "Aucun", scale: "Échelle", automatic: "Automatique", linear: "Linéaire", logarithmic: "Logarithmique", xAxis: "Axe X", split: "Ventiler", noBreakdown: "Sans ventilation", orderX: "Ordre X", highLow: "Du plus grand au plus petit", lowHigh: "Du plus petit au plus grand", exactSummary: "Résumé exact de", exactSubtitle: "valeurs agrégées alimentant le graphique", backup: "Détail justificatif", backupSubtitle: "enregistrements justifiant les groupes visibles", rows: "lignes", edit: "Modifier le graphique", editPlaceholder: "Ex. transforme-le en anneau par site avec le coût PEN", apply: "Appliquer", cancel: "Annuler", editing: "Application…", language: "Langue", undo: "Annuler le changement", undoing: "Annulation…", translating: "Traduction…", saved: "Enregistré", unsaved: "Non enregistré", prompt: "Prompt", retry: "Réessayer l’enregistrement", refresh: "Actualiser les données", newDashboard: "Nouveau dashboard", notes: "Observations de la définition", exactRows: "enregistrements", loadingData: "Chargement des données des sources", preparing: "Préparation des requêtes…", source: "Source", noSource: "La source de ce graphique n’a pas pu être résolue.", day: "jour", week: "semaine", month: "mois", quarter: "trimestre", year: "année"
+    },
+} as const;
+const VaiLanguageContext = createContext<VaiLanguage>("es");
+function useVaiUi() {
+    return VAI_UI_TEXT[useContext(VaiLanguageContext)];
+}
+
 type ExportContextValue = {
     busy: boolean;
     disabled: boolean;
@@ -363,9 +379,13 @@ type SourceState = {
 type VaiDashboardProps = {
     spec: VaiDashboardSpec;
     refreshToken?: number;
+    editingWidget?: number | null;
+    onEditWidget: (index: number, instruction: string) => void;
 };
-function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
-    const sources = useMemo(() => spec.sources.map((id) => VAI_SOURCE_MAP.get(id)).filter((source): source is VaiSource => Boolean(source)), [spec.sources]);
+function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidget }: VaiDashboardProps) {
+    const ui = useVaiUi();
+    const sources = useMemo(() => spec.sources.map((id) => VAI_SOURCE_MAP.get(id)).filter((source): source is VaiSource => Boolean(source)).map((source) => localizeVaiSource(source, spec)), [spec]);
+    const sourceMap = useMemo(() => new Map(sources.map((source) => [source.id, source])), [sources]);
     const [data, setData] = useState<Record<string, SourceState>>({});
     const [filters, setFilters] = useState<VaiFilterState>({});
     const requestKey = useMemo(() => JSON.stringify(Object.fromEntries(sources.map((source) => [source.id, sourceRequestPath(source, spec.filters, filters)]))), [sources, spec.filters, filters]);
@@ -666,8 +686,8 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
       {loading ? (<div className="vai-data-loading" role="status" aria-live="polite" aria-busy="true">
           <div className="vai-data-loading-card">
             <div className="vai-data-loading-logo"><VaiLogo size={118} title="V-Ai cargando datos"/></div>
-            <strong>Obteniendo datos de las fuentes</strong>
-            <span className="muted">{loadingText || "Preparando consultas…"}</span>
+            <strong>{ui.loadingData}</strong>
+            <span className="muted">{loadingText || ui.preparing}</span>
             {loadingRowsHelper ? <small className="muted" style={{ fontSize: 11, lineHeight: 1.5, textAlign: "center", maxWidth: 460, whiteSpace: "normal", overflowWrap: "anywhere" }}>{loadingRowsHelper}</small> : null}
           </div>
         </div>) : null}
@@ -676,10 +696,10 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
 
       {spec.filters.length ? (<section className="trjk-card">
           <div className="trjk-toolbar">
-            <h3>Filtros</h3>
+            <h3>{ui.filters}</h3>
             <div className="trjk-actions">
               {hasFilters ? (<Button size="sm" variant="ghost" onClick={() => setFilters({})}>
-                  Limpiar filtros
+                  {ui.clearFilters}
                 </Button>) : null}
             </div>
           </div>
@@ -693,7 +713,7 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
             const state = data[source.id];
             return (<span key={source.id} title={`${source.endpoint} · ${source.grain}`}>
               {vaiAreaLabel(source.area)} · {source.name}:{" "}
-              {state?.loading ? (state.progress || "cargando…") : state?.error ? <span style={{ color: "var(--bad)" }}>error</span> : `${(filtered[source.id] ?? []).length.toLocaleString("es-PE")} de ${(state?.rows ?? []).length.toLocaleString("es-PE")} filas`}
+              {state?.loading ? (state.progress || "cargando…") : state?.error ? <span style={{ color: "var(--bad)" }}>error</span> : `${(filtered[source.id] ?? []).length.toLocaleString("es-PE")} / ${(state?.rows ?? []).length.toLocaleString("es-PE")} ${ui.rows}`}
             </span>);
         })}
       </div>
@@ -703,15 +723,21 @@ function VaiDashboard({ spec, refreshToken = 0 }: VaiDashboardProps) {
           </div>) : null)}
 
       {kpis.length ? (<div className="vai-kpi-grid">
-          {kpis.filter((widget) => !data[widget.source]?.error).map((widget, i) => (<ScopedWidget key={`${widget.source}-${widget.metrics[0]}-${i}`} id={`kpi-${i}`} order={i} widget={widget} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS} loading={data[widget.source]?.loading ?? true} trendDateField={spec.filters.find((filter): filter is Extract<VaiFilterSpec, {
+          {kpis.filter((widget) => !data[widget.source]?.error).map((widget, i) => {
+            const widgetIndex = spec.widgets.indexOf(widget);
+            return <ScopedWidget key={`${widget.source}-${widget.metrics[0]}-${i}`} id={`kpi-${i}`} order={i} widget={widget} source={sourceMap.get(widget.source)} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS} loading={data[widget.source]?.loading ?? true} trendDateField={spec.filters.find((filter): filter is Extract<VaiFilterSpec, {
                 kind: "date_range";
-            }> => filter.kind === "date_range" && filter.source === widget.source)?.field ?? null}/>))}
+            }> => filter.kind === "date_range" && filter.source === widget.source)?.field ?? null} editor={<WidgetPromptEditor widget={widget} busy={editingWidget === widgetIndex} onSubmit={(instruction) => onEditWidget(widgetIndex, instruction)}/>}/>;
+        })}
         </div>) : null}
 
       {others.length ? (<div className="vai-widget-grid" style={{ alignItems: "stretch" }}>
-          {others.map((widget, i) => (<div key={`${widget.type}-${widget.source}-${i}`} data-span={widgetSpan(i)} style={{ minWidth: 0, height: "100%", gridColumn: widgetSpan(i) === "2" ? "1 / -1" : undefined }}>
-              {data[widget.source]?.loading ? <section className="trjk-card" role="status">Actualizando {widget.title}…</section> : data[widget.source]?.error ? null : <ScopedWidget id={`widget-${i}`} order={kpis.length + i} widget={widget} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS}/>}
-            </div>))}
+          {others.map((widget, i) => {
+            const widgetIndex = spec.widgets.indexOf(widget);
+            return <div key={`${widget.type}-${widget.source}-${i}`} data-span={widgetSpan(i)} style={{ minWidth: 0, height: "100%", gridColumn: widgetSpan(i) === "2" ? "1 / -1" : undefined }}>
+              {data[widget.source]?.loading ? <section className="trjk-card" role="status">Actualizando {widget.title}…</section> : data[widget.source]?.error ? null : <ScopedWidget id={`widget-${i}`} order={kpis.length + i} widget={widget} source={sourceMap.get(widget.source)} rows={filtered[widget.source] ?? EMPTY_VAI_ROWS} editor={<WidgetPromptEditor widget={widget} busy={editingWidget === widgetIndex} onSubmit={(instruction) => onEditWidget(widgetIndex, instruction)}/>}/>}
+            </div>;
+        })}
         </div>) : null}
       </VaiExportProvider>
     </div>);
@@ -1071,41 +1097,109 @@ function FilterControl({ filter, rows, value, onChange, }: {
       </details>
     </div>);
 }
-function ScopedWidget({ id, order, widget, rows, loading = false, trendDateField = null }: {
+function WidgetPromptEditor({ widget, busy, onSubmit }: {
+    widget: VaiWidgetSpec;
+    busy: boolean;
+    onSubmit: (instruction: string) => void;
+}) {
+    const ui = useVaiUi();
+    const [open, setOpen] = useState(false);
+    const [instruction, setInstruction] = useState("");
+    const ready = instruction.trim().length >= 3 && !busy;
+
+    function submit() {
+        if (!ready)
+            return;
+
+        onSubmit(instruction.trim());
+        setOpen(false);
+        setInstruction("");
+    }
+
+    return <div data-vai-export-ignore style={{ position: "relative", minWidth: 0, alignSelf: "end" }}>
+      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen((value) => !value)} disabled={busy} title={ui.edit}>
+        {busy ? ui.editing : `✦ ${ui.edit}`}
+      </Button>
+
+      {open ? <div className="trjk-card" style={{ position: "absolute", zIndex: 80, right: 0, top: "calc(100% + 6px)", width: "min(430px, 82vw)", padding: 10, display: "grid", gap: 8, boxShadow: "0 18px 45px rgba(0,0,0,.38)" }}>
+          <strong style={{ fontSize: 12 }}>{widget.title}</strong>
+
+          <textarea
+            className="input"
+            value={instruction}
+            maxLength={VAI_PROMPT_MAX}
+            rows={4}
+            placeholder={ui.editPlaceholder}
+            onChange={(event) => setInstruction(event.target.value.slice(0, VAI_PROMPT_MAX))}
+            onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                    event.preventDefault();
+                    submit();
+                }
+            }}
+            autoFocus
+          />
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+            <Button type="button" size="sm" variant="ghost" onClick={() => {
+                setOpen(false);
+                setInstruction("");
+            }} disabled={busy}>
+              {ui.cancel}
+            </Button>
+
+            <Button type="button" size="sm" variant="primary" onClick={submit} disabled={!ready}>
+              {busy ? ui.editing : ui.apply}
+            </Button>
+          </div>
+        </div> : null}
+    </div>;
+}
+
+function ScopedWidget({ id, order, widget, source, rows, loading = false, trendDateField = null, editor }: {
     id: string;
     order: number;
     widget: VaiWidgetSpec;
+    source?: VaiSource;
     rows: VaiRow[];
     loading?: boolean;
     trendDateField?: string | null;
+    editor?: ReactNode;
 }) {
-    const source = VAI_SOURCE_MAP.get(widget.source);
-    const definitions = useMemo(() => widgetLocalFilters(widget.source), [widget.source]);
+    const ui = useVaiUi();
+    const definitions = useMemo(() => widgetLocalFilters(widget.source).map((filter) => ({
+        ...filter,
+        label: source
+            ? vaiField(source, filter.field)?.label ?? filter.label
+            : filter.label,
+    })), [widget.source, source]);
     const [state, setState] = useState<VaiFilterState>({});
     useEffect(() => { setState({}); }, [widget]);
     const filtered = useMemo(() => source && definitions.length ? applyFilters(source, rows, definitions, state) : rows, [source, rows, definitions, state]);
     const summary = definitions.map((filter) => {
         const values = state[filterKey(filter)]?.values;
-        return `${filter.label}: ${values === undefined ? "Todos" : values.length ? values.join(", ") : "Ninguno"}`;
+        return `${filter.label}: ${values === undefined ? ui.all : values.length ? values.join(", ") : ui.none}`;
     }).join(" · ");
-    const localControls = definitions.length ? (<div className="vai-filters" data-vai-export-ignore aria-label={`Filtros de ${widget.title}`} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))", gap: 8, width: "100%", minWidth: 0, gridColumn: "1 / -1" }}>
+    const localControls = definitions.length || editor ? (<div className="vai-filters" data-vai-export-ignore aria-label={`Filtros de ${widget.title}`} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))", gap: 8, width: "100%", minWidth: 0, gridColumn: "1 / -1" }}>
+      {editor}
       {definitions.map((filter) => <FilterControl key={filterKey(filter)} filter={filter} rows={rows} value={state[filterKey(filter)] ?? {}} onChange={(value) => setState((previous) => ({ ...previous, [filterKey(filter)]: value }))}/>)}
     </div>) : undefined;
     return widget.type === "kpi"
-        ? <MemoKpiCard id={id} order={order} widget={widget} rows={filtered} loading={loading} trendDateField={trendDateField} localControls={localControls} filterLabel={summary}/>
-        : <MemoWidget id={id} order={order} widget={widget} rows={filtered} localControls={localControls} filterLabel={summary}/>;
+        ? <MemoKpiCard id={id} order={order} widget={widget} source={source} rows={filtered} loading={loading} trendDateField={trendDateField} localControls={localControls} filterLabel={summary}/>
+        : <MemoWidget id={id} order={order} widget={widget} source={source} rows={filtered} localControls={localControls} filterLabel={summary}/>;
 }
-function KpiCard({ id, order, widget, rows, loading, trendDateField, localControls, filterLabel }: {
+function KpiCard({ id, order, widget, source, rows, loading, trendDateField, localControls, filterLabel }: {
     id: string;
     order: number;
     widget: VaiWidgetSpec;
+    source?: VaiSource;
     rows: VaiRow[];
     loading: boolean;
     trendDateField: string | null;
     localControls?: ReactNode;
     filterLabel?: string;
 }) {
-    const source = VAI_SOURCE_MAP.get(widget.source);
+    const ui = useVaiUi();
     const result = useMemo(() => (source ? computeWidget(widget, source, rows, { trendDateField }) : null), [widget, source, rows, trendDateField]);
     if (!result || result.kind !== "kpi")
         return null;
@@ -1116,18 +1210,18 @@ function KpiCard({ id, order, widget, rows, loading, trendDateField, localContro
       <span>{widget.title}</span>
       <strong>{waiting ? "…" : formatValue(result.value, result.metric.format)}</strong>
       <small>
-        {result.metric.label} · {rows.length.toLocaleString("es-PE")} {source?.id === "finance_mineral_purchases" ? "lotes" : "filas"} · {source?.name}{filterLabel ? ` · ${filterLabel}` : ""}
+        {result.metric.label} · {rows.length.toLocaleString("es-PE")} {source?.id === "finance_mineral_purchases" ? "lotes" : ui.rows} · {source?.name}{filterLabel ? ` · ${filterLabel}` : ""}
       </small>
       <p className="muted" style={{ margin: "8px 0 0", fontSize: 11, lineHeight: 1.45, whiteSpace: "normal" }}>{source?.metrics.find((metric) => metric.id === result.metric.id)?.description}</p>
       <KpiTooltip label={widget.title} notes={result.notes} trend={result.trend} loading={waiting} footer={source?.metrics.find((metric) => metric.id === result.metric.id)?.description}/>
     </div>
     </VaiExportSection>);
 }
-const BUCKET_LABEL: Record<NonNullable<VaiWidgetSpec["bucket"]>, string> = { day: "día", week: "semana", month: "mes", quarter: "trimestre", year: "año" };
-function Widget({ id, order, widget, rows, localControls, filterLabel }: {
+function Widget({ id, order, widget, source, rows, localControls, filterLabel }: {
     id: string;
     order: number;
     widget: VaiWidgetSpec;
+    source?: VaiSource;
     rows: VaiRow[];
     localControls?: ReactNode;
     filterLabel?: string;
@@ -1136,7 +1230,7 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
     const [sortChoice, setSortChoice] = useState<VaiSortMode>(widget.sort ?? "value_desc");
     const [dimensionChoice, setDimensionChoice] = useState<string | null>(widget.dimension);
     const [breakdownChoice, setBreakdownChoice] = useState<string | null>(widget.breakdown ?? null);
-    const source = VAI_SOURCE_MAP.get(widget.source);
+    const ui = useVaiUi();
     const dimensionOptions = useMemo(() => source
         ? source.fields
             .filter((field) => field.role === "dimension" && !/^(?:is_|has_)/.test(field.id))
@@ -1165,13 +1259,13 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
     if (source && widget.type === "matrix")
         return <MatrixWidget id={id} order={order} widget={widget} rows={rows} source={source} controls={localControls}/>;
     if (!source || !result)
-        return <section className="trjk-card" role="alert">No se pudo resolver la fuente de este gráfico.</section>;
+        return <section className="trjk-card" role="alert">{ui.noSource}</section>;
     if (result.kind === "unavailable")
         return <section className="trjk-card" role="status"><h3>{widget.title}</h3>{localControls ? <div data-vai-export-ignore style={{ marginBottom: 12 }}>{localControls}</div> : null}<p className="muted">{result.message}</p></section>;
     const lineLike = effectiveWidget.type === "line" || effectiveWidget.type === "area";
     const temporalAxis = Boolean(effectiveWidget.dateField) && (lineLike || !effectiveWidget.dimension);
     const axisLabel = temporalAxis
-        ? `por ${BUCKET_LABEL[effectiveWidget.bucket ?? "month"]} de ${vaiField(source, effectiveWidget.dateField ?? "")?.label ?? effectiveWidget.dateField}`
+        ? `por ${ui[effectiveWidget.bucket ?? "month"]} de ${vaiField(source, effectiveWidget.dateField ?? "")?.label ?? effectiveWidget.dateField}`
         : effectiveWidget.dimension
             ? `por ${vaiField(source, effectiveWidget.dimension)?.label ?? effectiveWidget.dimension}`
             : "";
@@ -1232,15 +1326,15 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
     const chartControlStyle: CSSProperties = { display: "grid", gap: 4, minWidth: 0, width: "100%", alignContent: "end" };
     const chartControlSelectStyle: CSSProperties = { width: "100%", minWidth: 0, maxWidth: "none", height: 32 };
     const scaleControls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "combo" || lineLike) && hasBarSeries && !result.stack) ? (<label className="vai-scale-control" style={chartControlStyle} title={!logAllowed ? "La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal." : undefined}>
-      <span>Escala</span>
+      <span>{ui.scale}</span>
       <select className="select" aria-label={`Escala de ${widget.title}`} value={scaleChoice} onChange={(event) => setScaleChoice(event.target.value as "auto" | ChartScaleMode)} style={chartControlSelectStyle}>
-        <option value="auto">Automática</option>
-        <option value="linear">Lineal</option>
-        <option value="log" disabled={!logAllowed}>Logarítmica</option>
+        <option value="auto">{ui.automatic}</option>
+        <option value="linear">{ui.linear}</option>
+        <option value="log" disabled={!logAllowed}>{ui.logarithmic}</option>
       </select>
     </label>) : null;
     const axisControls = hasAxisPicker ? (<label className="vai-scale-control" style={chartControlStyle}>
-      <span>Eje X</span>
+      <span>{ui.xAxis}</span>
       <select className="select" title={vaiField(source, activeDimension ?? "")?.label ?? activeDimension ?? ""} aria-label={`Campo del eje X de ${widget.title}`} value={activeDimension ?? ""} onChange={(event) => {
             const next = event.target.value || null;
             setDimensionChoice(next);
@@ -1251,17 +1345,17 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
       </select>
     </label>) : null;
     const breakdownControls = hasBreakdownPicker ? (<label className="vai-scale-control" style={chartControlStyle}>
-      <span>Segregar</span>
-      <select className="select" title={activeBreakdown ? vaiField(source, activeBreakdown)?.label ?? activeBreakdown : "Sin desglose"} aria-label={`Segregación de ${widget.title}`} value={activeBreakdown ?? ""} onChange={(event) => setBreakdownChoice(event.target.value || null)} style={chartControlSelectStyle}>
-        <option value="">Sin desglose</option>
+      <span>{ui.split}</span>
+      <select className="select" title={activeBreakdown ? vaiField(source, activeBreakdown)?.label ?? activeBreakdown : ui.noBreakdown} aria-label={`Segregación de ${widget.title}`} value={activeBreakdown ?? ""} onChange={(event) => setBreakdownChoice(event.target.value || null)} style={chartControlSelectStyle}>
+        <option value="">{ui.noBreakdown}</option>
         {dimensionOptions.filter((field) => field.id !== activeDimension).map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
       </select>
     </label>) : null;
     const sortControls = hasSortableXAxis ? (<label className="vai-scale-control" style={chartControlStyle}>
-      <span>Orden X</span>
+      <span>{ui.orderX}</span>
       <select className="select" aria-label={`Orden del eje X de ${widget.title}`} value={sortChoice} onChange={(event) => setSortChoice(event.target.value as VaiSortMode)} style={chartControlSelectStyle}>
-        <option value="value_desc">Mayor a menor</option>
-        <option value="value_asc">Menor a mayor</option>
+        <option value="value_desc">{ui.highLow}</option>
+        <option value="value_asc">{ui.lowHigh}</option>
         <option value="label_asc">A → Z</option>
         <option value="label_desc">Z → A</option>
       </select>
@@ -1279,7 +1373,7 @@ function Widget({ id, order, widget, rows, localControls, filterLabel }: {
     if (widget.type === "waterfall")
         return wrap(<WaterfallChart title={widget.title} subtitle={subtitle} rows={chartRows} digits={primaryFormat.digits} unit={primaryFormat.unit} dataTable={dataTable} controls={controls}/>);
     if (widget.type === "histogram")
-        return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series.map((s) => ({ ...s, unit: " registros" }))} digits={0} unit=" registros" intervals minCategoryWidth={65} height={chartHeight} dataTable={dataTable} controls={controls}/>);
+        return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series.map((s) => ({ ...s, unit: ` ${ui.exactRows}` }))} digits={0} unit={` ${ui.exactRows}`} intervals minCategoryWidth={65} height={chartHeight} dataTable={dataTable} controls={controls}/>);
     if (widget.type === "scatter" && result.series.length >= 2) {
         const [xSeries, ySeries] = result.series;
         return wrap(<ScatterChart title={widget.title} subtitle={subtitle} points={chartRows.flatMap((row) => (row.values[0] == null || row.values[1] == null ? [] : [{ label: row.label, x: row.values[0], y: row.values[1], notes: row.notes }]))} xLabel={xSeries.label} yLabel={ySeries.label} xDigits={formats[0].digits} xUnit={formats[0].unit} yDigits={formats[1].digits} yUnit={formats[1].unit} controls={controls} dataTable={dataTable}/>);
@@ -1314,10 +1408,11 @@ function WidgetDataTables({ widget, source, table, subtitle }: {
     }>;
     subtitle: string;
 }) {
+    const ui = useVaiUi();
     const detail = useMemo(() => widgetDetailTable(widget, source, table), [widget, source, table]);
     return <div style={{ display: "grid", gap: 18 }}>
-    <TableWidget title={`Resumen exacto de ${widget.title}`} subtitle={`${subtitle} · valores agregados que alimentan el gráfico`} data={table} source={source} compact/>
-    {detail ? <TableWidget title="Detalle de respaldo" subtitle={`${source.grain} · registros que justifican los grupos visibles`} data={detail} source={source} compact/> : null}
+    <TableWidget title={`${ui.exactSummary} ${widget.title}`} subtitle={`${subtitle} · ${ui.exactSubtitle}`} data={table} source={source} compact/>
+    {detail ? <TableWidget title={ui.backup} subtitle={`${source.grain} · ${ui.backupSubtitle}`} data={detail} source={source} compact/> : null}
   </div>;
 }
 function SourceHint({ source, columnId, columnLabel, }: {
@@ -1677,10 +1772,23 @@ type GenerateResponse = {
     unavailable: string[];
     spec: VaiDashboardSpec | null;
     model?: string;
+    language?: VaiLanguage;
 } | {
     ok: false;
     error: string;
 };
+type ChangeResponse = {
+    ok: true;
+    mode: "edit_widget" | "translate";
+    spec: VaiDashboardSpec;
+    notes?: string[];
+    model?: string;
+    language: VaiLanguage;
+} | {
+    ok: false;
+    error: string;
+};
+type ChangeSuccess = Extract<ChangeResponse, { ok: true }>;
 type Board = {
     spec: VaiDashboardSpec;
     prompt: string;
@@ -1712,7 +1820,14 @@ export default function VaiWorkspace() {
     const [refreshToken, setRefreshToken] = useState(0);
     const [titleDraft, setTitleDraft] = useState("");
     const [lastRequest, setLastRequest] = useState<VaiPromptRequest | null>(null);
+    const [editingWidget, setEditingWidget] = useState<number | null>(null);
+    const [translating, setTranslating] = useState(false);
+    const [undoing, setUndoing] = useState(false);
+    const [undoDepth, setUndoDepth] = useState(0);
     const stepTimers = useRef<number[]>([]);
+    const undoStack = useRef<Board[]>([]);
+    const language = board?.spec.language ?? "es";
+    const ui = VAI_UI_TEXT[language];
     const reloadInventory = useCallback(async () => {
         setInventoryLoading(true);
         setInventoryError(null);
@@ -1735,10 +1850,69 @@ export default function VaiWorkspace() {
         setGenerating({ step: 0, prompt });
         stepTimers.current = [900, 2200].map((delay, i) => window.setTimeout(() => setGenerating((prev) => (prev ? { ...prev, step: i + 1 } : prev)), delay));
     }
+    function pushUndo(snapshot: Board) {
+        undoStack.current = [...undoStack.current.slice(-19), snapshot];
+        setUndoDepth(undoStack.current.length);
+    }
+
+    function popUndo() {
+        const next = undoStack.current.at(-1) ?? null;
+        undoStack.current = undoStack.current.slice(0, -1);
+        setUndoDepth(undoStack.current.length);
+        return next;
+    }
+
+    async function requestChange(payload: Record<string, unknown>): Promise<ChangeSuccess> {
+        const res = await fetch("/api/vai/generate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            credentials: "same-origin",
+            cache: "no-store",
+            body: JSON.stringify(payload),
+        });
+
+        const response = (await res
+            .json()
+            .catch(() => ({
+                ok: false,
+                error: `HTTP ${res.status}`,
+            }))) as ChangeResponse;
+
+        if (res.status === 401)
+            throw new Error("Tu sesión de V-Ai expiró. Vuelve al portal e ingresa de nuevo.");
+
+        if (!res.ok || response.ok === false)
+            throw new Error(response.ok === false ? response.error : `HTTP ${res.status}`);
+
+        return response as ChangeSuccess;
+    }
+
+    async function translateSpec(spec: VaiDashboardSpec, target: VaiLanguage, prompt: string) {
+        const response = await requestChange({
+            mode: "translate",
+            spec,
+            target_language: target,
+        });
+
+        const checked = parseStoredSpec(response.spec, prompt);
+
+        if (!checked.spec)
+            throw new Error("La traducción devolvió una configuración inválida.");
+
+        return {
+            spec: checked.spec,
+            notes: checked.notes,
+        };
+    }
+
     async function generate(request: VaiPromptRequest) {
         setLastRequest(request);
         setFailure(null);
         setBoard(null);
+        undoStack.current = [];
+        setUndoDepth(0);
         scheduleSteps(request.prompt);
         let response: GenerateResponse;
         try {
@@ -1757,7 +1931,7 @@ export default function VaiWorkspace() {
             response = { ok: false, error: "No se pudo contactar al servicio de generación." };
         }
         stepTimers.current.forEach((timer) => window.clearTimeout(timer));
-        if (!response.ok) {
+        if (response.ok === false) {
             setGenerating(null);
             setFailure({ message: response.error, unavailable: [] });
             return;
@@ -1777,19 +1951,45 @@ export default function VaiWorkspace() {
             return;
         }
         setGenerating({ step: 4, prompt: request.prompt });
+        let spec = checked.spec;
+        let localizedNotes: string[] = [];
+        const detectedLanguage = response.language ?? spec.language ?? "es";
+
+        if (detectedLanguage !== "es") {
+            try {
+                const translated = await translateSpec({
+                    ...spec,
+                    language: detectedLanguage,
+                }, detectedLanguage, request.prompt);
+
+                spec = translated.spec;
+                localizedNotes = translated.notes;
+            }
+            catch (error) {
+                setGenerating(null);
+                setFailure({
+                    message: error instanceof Error
+                        ? error.message
+                        : "No se pudo localizar el dashboard generado.",
+                    unavailable: [],
+                });
+                return;
+            }
+        }
+
         const next: Board = {
-            spec: checked.spec,
+            spec,
             prompt: request.prompt,
             id: null,
-            name: response.spec.title,
+            name: spec.title,
             savedAt: null,
             message: response.status === "partial" ? response.message : "",
-            notes: [...new Set([...response.unavailable, ...checked.notes])],
+            notes: [...new Set([...response.unavailable, ...checked.notes, ...localizedNotes])],
             saveError: null,
             model: response.model ?? null,
         };
         try {
-            const id = await saveDashboard({ name: next.name, description: next.spec.description, prompt: next.prompt, spec: next.spec, model: next.model });
+            const id = await saveDashboard({ name: next.name, description: next.spec.description, prompt: next.prompt, spec: next.spec, model: next.model, changeType: "save" });
             next.id = Number.isFinite(id) ? id : null;
             next.savedAt = new Date().toISOString();
         }
@@ -1805,6 +2005,8 @@ export default function VaiWorkspace() {
     async function open(item: VaiDashboardRecord) {
         setFailure(null);
         setOpening(item.dashboard_id);
+        undoStack.current = [];
+        setUndoDepth(0);
         try {
             const detail = await getDashboard(item.dashboard_id);
             if (!detail)
@@ -1843,14 +2045,256 @@ export default function VaiWorkspace() {
             setOpening(null);
         }
     }
-    async function persist(current: Board, name: string) {
+    async function persist(current: Board, name: string, changeType: "save" | "widget_edit" | "language" | "title" = "save") {
         try {
-            const id = await saveDashboard({ dashboard_id: current.id, name, description: current.spec.description, prompt: current.prompt, spec: current.spec, model: current.model });
-            setBoard((prev) => (prev ? { ...prev, id: Number.isFinite(id) ? id : prev.id, name, spec: { ...prev.spec, title: name }, savedAt: new Date().toISOString(), saveError: null } : prev));
+            const id = await saveDashboard({
+                dashboard_id: current.id,
+                name,
+                description: current.spec.description,
+                prompt: current.prompt,
+                spec: {
+                    ...current.spec,
+                    title: name,
+                },
+                model: current.model,
+                changeType,
+            });
+
+            setBoard((prev) => (
+                prev
+                    ? {
+                        ...prev,
+                        id: Number.isFinite(id) ? id : prev.id,
+                        name,
+                        spec: {
+                            ...prev.spec,
+                            title: name,
+                        },
+                        savedAt: new Date().toISOString(),
+                        saveError: null,
+                    }
+                    : prev
+            ));
+
             void reloadInventory();
+            return true;
         }
         catch (error) {
-            setBoard((prev) => (prev ? { ...prev, saveError: error instanceof Error ? error.message : "No se pudo guardar" } : prev));
+            setBoard((prev) => (prev ? {
+                ...prev,
+                saveError: error instanceof Error
+                    ? error.message
+                    : "No se pudo guardar",
+            } : prev));
+
+            return false;
+        }
+    }
+
+    async function editWidget(index: number, instruction: string) {
+        if (!board || editingWidget !== null || translating || undoing)
+            return;
+
+        const current = board;
+
+        setEditingWidget(index);
+        setFailure(null);
+
+        try {
+            const response = await requestChange({
+                mode: "edit_widget",
+                spec: current.spec,
+                widget_index: index,
+                instruction,
+                language: current.spec.language,
+            });
+
+            let checked = parseStoredSpec(response.spec, current.prompt);
+
+            if (!checked.spec)
+                throw new Error("El cambio del gráfico devolvió una configuración inválida.");
+
+            let nextSpec = checked.spec;
+            let notes = [
+                ...(response.notes ?? []),
+                ...checked.notes,
+            ];
+
+            if (current.spec.language !== "es") {
+                const translated = await translateSpec(
+                    nextSpec,
+                    current.spec.language,
+                    current.prompt
+                );
+
+                nextSpec = translated.spec;
+                notes = [
+                    ...notes,
+                    ...translated.notes,
+                ];
+            }
+
+            const next: Board = {
+                ...current,
+                spec: nextSpec,
+                name: nextSpec.title,
+                notes: [...new Set([
+                    ...current.notes,
+                    ...notes,
+                ])],
+                saveError: null,
+                model: response.model ?? current.model,
+            };
+
+            pushUndo(current);
+            setBoard(next);
+            setTitleDraft(next.name);
+
+            await persist(
+                next,
+                next.name,
+                "widget_edit"
+            );
+        }
+        catch (error) {
+            setFailure({
+                message: error instanceof Error
+                    ? error.message
+                    : "No se pudo editar el gráfico.",
+                unavailable: [],
+            });
+        }
+        finally {
+            setEditingWidget(null);
+        }
+    }
+
+    async function switchLanguage(target: VaiLanguage) {
+        if (!board || target === board.spec.language || translating || editingWidget !== null || undoing)
+            return;
+
+        const current = board;
+
+        setTranslating(true);
+        setFailure(null);
+
+        try {
+            const translated = await translateSpec(
+                current.spec,
+                target,
+                current.prompt
+            );
+
+            const next: Board = {
+                ...current,
+                spec: translated.spec,
+                name: translated.spec.title,
+                notes: [...new Set([
+                    ...current.notes,
+                    ...translated.notes,
+                ])],
+                saveError: null,
+            };
+
+            pushUndo(current);
+            setBoard(next);
+            setTitleDraft(next.name);
+
+            await persist(
+                next,
+                next.name,
+                "language"
+            );
+        }
+        catch (error) {
+            setFailure({
+                message: error instanceof Error
+                    ? error.message
+                    : "No se pudo cambiar el idioma.",
+                unavailable: [],
+            });
+        }
+        finally {
+            setTranslating(false);
+        }
+    }
+
+    async function undoLastChange() {
+        if (!board || undoing || editingWidget !== null || translating)
+            return;
+
+        const current = board;
+
+        setUndoing(true);
+        setFailure(null);
+
+        try {
+            if (current.id && !current.saveError) {
+                const detail = await undoDashboard(current.id);
+
+                if (!detail)
+                    throw new Error("No hay cambios anteriores para deshacer.");
+
+                let raw: unknown = null;
+
+                try {
+                    raw = JSON.parse(detail.spec_json);
+                }
+                catch {
+                    raw = null;
+                }
+
+                const checked = parseStoredSpec(
+                    raw,
+                    detail.prompt_text
+                );
+
+                if (!checked.spec)
+                    throw new Error("La revisión anterior ya no es compatible con el catálogo actual.");
+
+                popUndo();
+
+                const restored: Board = {
+                    spec: {
+                        ...checked.spec,
+                        title: detail.dashboard_name,
+                    },
+                    prompt: detail.prompt_text,
+                    id: detail.dashboard_id,
+                    name: detail.dashboard_name,
+                    savedAt: detail.updated_at || detail.created_at,
+                    message: "",
+                    notes: checked.notes,
+                    saveError: null,
+                    model: detail.model_name ?? null,
+                };
+
+                setBoard(restored);
+                setTitleDraft(restored.name);
+                setRefreshToken((token) => token + 1);
+                void reloadInventory();
+                return;
+            }
+
+            const local = popUndo();
+
+            if (!local)
+                throw new Error("No hay cambios anteriores para deshacer.");
+
+            setBoard(local);
+            setTitleDraft(local.name);
+            setRefreshToken((token) => token + 1);
+        }
+        catch (error) {
+            setFailure({
+                message: error instanceof Error
+                    ? error.message
+                    : "No se pudo deshacer el cambio.",
+                unavailable: [],
+            });
+        }
+        finally {
+            setUndoing(false);
         }
     }
     function commitTitle() {
@@ -1861,8 +2305,16 @@ export default function VaiWorkspace() {
             setTitleDraft(board.name);
             return;
         }
-        if (name !== board.name || !board.id)
-            void persist(board, name);
+        if (name !== board.name || !board.id) {
+            if (name !== board.name)
+                pushUndo(board);
+
+            void persist(
+                board,
+                name,
+                "title"
+            );
+        }
     }
     async function confirmDelete() {
         if (!pendingDelete)
@@ -1904,7 +2356,7 @@ export default function VaiWorkspace() {
             </section>
           </div>, document.body)
         : null;
-    return (<div className="vai-shell">
+    return (<VaiLanguageContext.Provider value={language}><ChartLanguageProvider language={language}><div className="vai-shell">
       <div className="vai-main">
         {failure ? (<section className="trjk-card" style={{ display: "grid", gap: 10 }}>
             <div className="vai-message" data-error="true">{failure.message}</div>
@@ -1947,37 +2399,80 @@ export default function VaiWorkspace() {
                     setTitleDraft(board.name);
             }} aria-label="Nombre del dashboard" title="Editar nombre; se guarda al salir del campo"/>
                 <div className="vai-board-meta" style={{ whiteSpace: "normal", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip" }}>
-                  {board.id ? `Guardado · ${formatStamp(board.savedAt)}` : "Sin guardar"}
+                  {board.id ? `${ui.saved} · ${formatStamp(board.savedAt)}` : ui.unsaved}
+                  {translating ? <span> · {ui.translating}</span> : null}
+                  {editingWidget !== null ? <span> · {ui.editing}</span> : null}
                   {board.saveError ? <span style={{ color: "var(--bad)" }}> · {board.saveError}</span> : null}
                 </div>
                 <p className="vai-board-prompt" style={{ display: "block", whiteSpace: "pre-wrap", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip", WebkitLineClamp: "unset", maxHeight: "none", height: "auto", margin: "4px 0 0", lineHeight: 1.6 }}>
 
-                  <span style={{ marginRight: 8 }}>Prompt:</span>
+                  <span style={{ marginRight: 8 }}>{ui.prompt}:</span>
                   {board.prompt}
                 </p>
               </div>
-              <div className="trjk-actions">
-                {board.saveError ? (<Button size="sm" variant="primary" onClick={() => void persist(board, board.name)}>
-                    Reintentar guardado
-                  </Button>) : null}
-                <Button size="sm" variant="ghost" onClick={() => setRefreshToken((token) => token + 1)}>
-                  Actualizar datos
+              <div className="trjk-actions" style={{ alignItems: "center", flexWrap: "wrap" }}>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--ink-2)" }}>
+                  {ui.language}
+                  <select
+                    className="input"
+                    value={board.spec.language}
+                    disabled={translating || editingWidget !== null || undoing}
+                    onChange={(event) => void switchLanguage(event.target.value as VaiLanguage)}
+                    style={{
+                        width: 112,
+                        minHeight: 32,
+                        padding: "4px 8px",
+                    }}
+                  >
+                    <option value="es">Español</option>
+                    <option value="en">English</option>
+                    <option value="fr">Français</option>
+                  </select>
+                </label>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={undoing || translating || editingWidget !== null || (!board.id && undoDepth === 0)}
+                  onClick={() => void undoLastChange()}
+                  title={ui.undo}
+                >
+                  {undoing ? ui.undoing : `↶ ${ui.undo}`}
                 </Button>
-                <Button size="sm" variant="default" onClick={() => setBoard(null)}>
-                  Nuevo dashboard
+
+                {board.saveError ? (<Button size="sm" variant="primary" onClick={() => void persist(board, board.name)}>
+                    {ui.retry}
+                  </Button>) : null}
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setRefreshToken((token) => token + 1)}
+                  disabled={translating || editingWidget !== null || undoing}
+                >
+                  {ui.refresh}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => setBoard(null)}
+                  disabled={translating || editingWidget !== null || undoing}
+                >
+                  {ui.newDashboard}
                 </Button>
               </div>
             </div>
 
             {board.message ? <div className="vai-message">{board.message}</div> : null}
             {board.notes.length ? (<div className="vai-notes">
-                <strong>Observaciones de la definición:</strong>
+                <strong>{ui.notes}:</strong>
                 <ul>
                   {board.notes.map((note, i) => (<li key={i}>{note}</li>))}
                 </ul>
               </div>) : null}
 
-            <VaiDashboard spec={board.spec} refreshToken={refreshToken}/>
+            <VaiDashboard spec={board.spec} refreshToken={refreshToken} editingWidget={editingWidget} onEditWidget={(index, instruction) => void editWidget(index, instruction)}/>
           </section>) : null}
       </div>
 
@@ -1994,5 +2489,5 @@ export default function VaiWorkspace() {
       </aside>
 
       {deleteModal}
-    </div>);
+    </div></ChartLanguageProvider></VaiLanguageContext.Provider>);
 }
