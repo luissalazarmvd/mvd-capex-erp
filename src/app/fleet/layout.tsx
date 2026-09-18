@@ -1,5 +1,5 @@
 // src/app/fleet/layout.tsx
-import Image from "next/image";
+import { VaiLogo } from "../../components/ui/VaiLogo";
 import Link from "next/link";
 import LogoutLink from "../../components/auth/LogoutLink";
 
@@ -48,21 +48,13 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
                 aria-label="Inicio"
                 title="Inicio"
                 style={{
-                  width: 130,
                   height: 44,
-                  position: "relative",
-                  display: "block",
+                  display: "inline-flex",
+                  alignItems: "center",
                   textDecoration: "none",
                 }}
               >
-                <Image
-                  src="/logo_mvd.png"
-                  alt="MVD"
-                  fill
-                  priority
-                  style={{ objectFit: "contain" }}
-                  sizes="130px"
-                />
+                <VaiLogo size={44} />
               </LogoutLink>
 
               <div style={{ lineHeight: 1.1 }}>

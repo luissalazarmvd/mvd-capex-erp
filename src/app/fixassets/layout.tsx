@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { VaiLogo } from "../../components/ui/VaiLogo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutLink from "../../components/auth/LogoutLink";
@@ -21,8 +21,8 @@ export default function FixAssetsLayout({ children }: { children: React.ReactNod
         <div className="container-fluid" style={{ paddingTop: 14, paddingBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <LogoutLink aria-label="Inicio" title="Inicio" style={{ width: 130, height: 44, position: "relative", display: "block", textDecoration: "none" }}>
-                <Image src="/logo_mvd.png" alt="MVD" fill priority style={{ objectFit: "contain" }} sizes="130px" />
+              <LogoutLink aria-label="Inicio" title="Inicio" style={{ height: 44, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
+                <VaiLogo size={44} />
               </LogoutLink>
               <div style={{ lineHeight: 1.1 }}>
                 <div style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-.01em" }}>MVD – ACTIVOS FIJOS</div>

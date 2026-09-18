@@ -1,4 +1,3 @@
-import Image from "next/image";
 import LogoutLink from "../../components/auth/LogoutLink";
 import { VaiLogo } from "../../components/ui/VaiLogo";
 
@@ -25,28 +24,17 @@ export default function VaiLayout({ children }: { children: React.ReactNode }) {
                 aria-label="Inicio"
                 title="Inicio"
                 style={{
-                  width: 130,
                   height: 44,
-                  position: "relative",
-                  display: "block",
+                  display: "inline-flex",
+                  alignItems: "center",
                   textDecoration: "none",
                 }}
               >
-                <Image
-                  src="/logo_mvd.png"
-                  alt="MVD"
-                  fill
-                  priority
-                  style={{ objectFit: "contain" }}
-                  sizes="130px"
-                />
+                <VaiLogo size={44} />
               </LogoutLink>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <VaiLogo size={38} />
-                <div className="muted" style={{ fontSize: 12 }}>
-                  Dashboards inteligentes con los datos de Veta · prototipo
-                </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Dashboards inteligentes con los datos de Veta · prototipo
               </div>
             </div>
 
