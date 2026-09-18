@@ -2279,7 +2279,7 @@ export const VAI_MAX_WIDGETS = 10;
 export const VAI_MAX_FILTERS = 20;
 export const VAI_MAX_LIMIT = 50;
 export const VAI_MAX_TABLE_LIMIT = 50000;
-export const VAI_WIDGET_TYPES = ["kpi", "line", "area", "bar", "combo", "rank", "donut", "scatter", "pareto", "heatmap", "histogram", "waterfall", "table", "matrix"] as const;
+export const VAI_WIDGET_TYPES = ["kpi", "line", "area", "bar", "combo", "rank", "lollipop", "donut", "scatter", "radar", "pareto", "heatmap", "histogram", "waterfall", "table", "matrix"] as const;
 export const VAI_VISUAL_CATALOG = [
     { type: "kpi", label: "Indicador", use: "Una métrica; total, razón ponderada o conteo según catálogo." },
     { type: "bar", label: "Barras", use: "Comparación categórica/temporal, agrupada, apilada o 100 %." },
@@ -2287,8 +2287,10 @@ export const VAI_VISUAL_CATALOG = [
     { type: "line", label: "Líneas", use: "Tendencia temporal o eje X categórico; múltiples series y acumulado válido." },
     { type: "area", label: "Área", use: "Tendencia con relleno, sin inventar pronósticos." },
     { type: "rank", label: "Ranking", use: "Top N horizontal; no añade Otros salvo petición expresa." },
+    { type: "lollipop", label: "Lollipop", use: "Una métrica por dimensión o período; ranking compacto con línea y punto, hasta 15 categorías por defecto." },
     { type: "donut", label: "Anillo", use: "Composición de una métrica sumable y no negativa." },
     { type: "scatter", label: "Dispersión", use: "Dos métricas: primera en X, segunda en Y; punto por dimensión." },
+    { type: "radar", label: "Radar", use: "Una a tres métricas por dimensión o período; compara perfiles de hasta 12 categorías y normaliza cada serie solo para la geometría, conservando valores exactos en tooltip y tabla." },
     { type: "pareto", label: "Pareto", use: "Una métrica aditiva no negativa por dimensión: barras y % acumulado." },
     { type: "heatmap", label: "Mapa de calor", use: "Una métrica por dimension/dateField (filas) y breakdown (columnas)." },
     { type: "histogram", label: "Histograma", use: "Frecuencia por intervalos de un campo numérico directo, a nivel de registro; bins 3–40." },
@@ -2308,6 +2310,8 @@ const WIDGET_TYPE_ALIASES: Record<string, VaiWidgetType> = {
     horizontal_bar: "rank",
     ranking: "rank",
     top: "rank",
+    lollipop_chart: "lollipop",
+    dot_stem: "lollipop",
     pie: "donut",
     ring: "donut",
     mixed: "combo",
@@ -2325,6 +2329,9 @@ const WIDGET_TYPE_ALIASES: Record<string, VaiWidgetType> = {
     cascada: "waterfall",
     waterfall_chart: "waterfall",
     xy: "scatter",
+    spider: "radar",
+    spider_chart: "radar",
+    radar_chart: "radar",
     pivot: "table",
     matriz: "matrix",
     matrix_table: "matrix",
@@ -2769,7 +2776,7 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
         else
             notes.push(`${label}: la métrica «${id}» no existe en ${source.name}.`);
     }
-    const maxMetrics = ["kpi", "donut", "pareto", "heatmap", "histogram", "waterfall"].includes(type) ? 1 : type === "table" ? 6 : type === "scatter" ? 2 : 3;
+    const maxMetrics = ["kpi", "donut", "lollipop", "pareto", "heatmap", "histogram", "waterfall"].includes(type) ? 1 : type === "table" ? 6 : type === "scatter" ? 2 : 3;
     if (metrics.length > maxMetrics)
         metrics.splice(maxMetrics);
     let dimension: string | null = null;
@@ -2865,7 +2872,7 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
         notes.push(`${label}: ${type === "combo" ? "el combinado" : "la dispersión"} necesita dos métricas válidas; no se sustituye por otro gráfico.`);
         return null;
     }
-    if (type === "scatter")
+    if (["scatter", "radar", "lollipop"].includes(type))
         breakdown = null;
     if (breakdown && !BREAKDOWN_TYPES.has(type)) {
         if (type === "combo")
@@ -2924,12 +2931,12 @@ function validateWidget(raw: VaiRawWidget, notes: string[]): VaiWidgetSpec | nul
             dateField = fallback.id;
         }
     }
-    if ((type === "bar" || type === "combo" || type === "rank" || type === "donut" || type === "scatter") && !metrics.length) {
+    if (["bar", "combo", "rank", "lollipop", "donut", "scatter", "radar"].includes(type) && !metrics.length) {
         notes.push(`${label}: necesita al menos una métrica válida.`);
         return null;
     }
-    if ((type === "bar" || type === "combo" || type === "rank" || type === "donut" || type === "scatter") && !dimension && !((type === "bar" || type === "combo") && dateField)) {
-        notes.push(`${label}: necesita una dimensión válida para comparar.`);
+    if (["bar", "combo", "rank", "lollipop", "donut", "scatter", "radar"].includes(type) && !dimension && !(["bar", "combo", "lollipop", "radar"].includes(type) && dateField)) {
+        notes.push(`${label}: necesita una dimensión o período válido para comparar.`);
         return null;
     }
     if (type !== "table" && type !== "kpi" && dimension)
@@ -3474,7 +3481,7 @@ function positiveVisualText(value: string) {
         .replace(/eje\s+vertical/g, "eje y");
 }
 function visualRequestSegments(prompt: string) {
-    const parts = positiveVisualText(prompt).split(/[;\n]+|\.(?!\d)|\b(?:ademas|tambien|luego|y)\s+(?:(?:quiero|muestra|agrega|incluye)\s+)?(?:otro|otra|un|una)\s+(?=grafico|grafica|anillo|torta|ranking|pareto|histograma|mapa|cascada|tabla|matriz|matrix|dispersion)/g).map((part) => part.trim()).filter(Boolean);
+    const parts = positiveVisualText(prompt).split(/[;\n]+|\.(?!\d)|\b(?:ademas|tambien|luego|y)\s+(?:(?:quiero|muestra|agrega|incluye)\s+)?(?:otro|otra|un|una)\s+(?=grafico|grafica|anillo|torta|ranking|lollipop|radar|pareto|histograma|mapa|cascada|tabla|matriz|matrix|dispersion)/g).map((part) => part.trim()).filter(Boolean);
     const result: string[] = [];
     for (const part of parts) {
         if (result.length && !requestedFamily(part) && /\beje\s*(?:x|y|derecho|izquierdo|primario|secundario)\b/.test(part))
@@ -3486,6 +3493,10 @@ function visualRequestSegments(prompt: string) {
 }
 const requestWords = (text: string) => hintWords(text).filter((word) => !/^(?:quier|necesit|muestr|mostr|haya|pon|ponme|agreg|incluy|ejes?|izquierd|derech|secundari|primari|principal|grafica|combinad|combo|barr|line|encima|debajo)$/.test(word));
 function requestedFamily(text: string): VaiWidgetType | null {
+    if (/\b(?:lollipop|grafico de palitos|grafica de palitos)\b/.test(text))
+        return "lollipop";
+    if (/\b(?:radar|spider chart|grafico arana|grafica arana)\b/.test(text))
+        return "radar";
     if (/\bpareto\b/.test(text))
         return "pareto";
     if (/\b(?:heatmap|mapa de calor)\b/.test(text))
@@ -3699,7 +3710,7 @@ export function resolveVisualRequests(prompt: string, allowedSourceIds?: string[
         const hints = promptRenderHints(text);
         const type = requestedFamily(text);
         const axisTerm = explicitAxisTerm(text);
-        const unsupported = text.match(/\b(?:boxplot|box plot|caja y bigotes|treemap|sankey|burbujas|bubble|radar|velocimetro|gauge|mapa geografico)\b/);
+        const unsupported = text.match(/\b(?:boxplot|box plot|caja y bigotes|treemap|sankey|burbujas|bubble|velocimetro|gauge|mapa geografico)\b/);
         if (!type && !axisTerm && !hints.stack.length && !hints.cumulative.length && !unsupported)
             continue;
         const ranked = pool.map((source) => {
@@ -3750,7 +3761,7 @@ export function resolveVisualRequests(prompt: string, allowedSourceIds?: string[
         }
         else if (source && type !== "matrix") {
             const metricText = text.split(/\bordenad[oa]s?\b/)[0].split(":").pop()!;
-            const cartesian = type === "bar" || type === "line" || type === "area" || type === "scatter";
+            const cartesian = type === "bar" || type === "line" || type === "area" || type === "scatter" || type === "radar";
             const parts = cartesian ? metricText.split(/\s+(?:y|e|vs\.?|versus|contra|frente a)\s+/) : [metricText];
             for (const part of parts) {
                 const metric = requestMetric(requestWords(part), source);
@@ -3918,6 +3929,8 @@ function enforceVisualRequests(input: VaiRawWidget[], prompt: string, allowedSou
             metrics = [...existing.metrics];
         if (type === "scatter" && metrics.length < 2 && existing?.metrics.length >= 2)
             metrics = [...existing.metrics];
+        if (type === "radar" && !metrics.length && existing?.metrics.length)
+            metrics = [...existing.metrics].slice(0, 3);
         const dimension = type === "histogram" ? null : request.dimension ?? (request.dateField ? null : existing?.dimension ?? null);
         const dateField = type === "histogram" ? null : request.dateField ?? (dimension ? null : existing?.dateField ?? null);
         if (!metrics.length || (type !== "histogram" && !dimension && !dateField))
@@ -3935,7 +3948,7 @@ function enforceVisualRequests(input: VaiRawWidget[], prompt: string, allowedSou
             seriesAxes: request.seriesAxes ?? (mixed && new Set(metrics.map((id) => chartAxisGroup(vaiMetric(source, id)?.format ?? "decimal"))).size === 2
                 ? metrics.map((id) => chartAxisGroup(vaiMetric(source, id)?.format ?? "decimal") === chartAxisGroup(vaiMetric(source, metrics[0])?.format ?? "decimal") ? "left" : "right") : null),
             dimension, dateField, bucket: dateField ? request.bucket ?? existing?.bucket ?? "month" : null,
-            breakdown: type === "scatter" ? null : request.breakdown ?? existing?.breakdown ?? null,
+            breakdown: ["scatter", "radar", "lollipop"].includes(type) ? null : request.breakdown ?? existing?.breakdown ?? null,
             stack: type === "bar" ? request.stack ?? existing?.stack ?? null : null,
             sort: request.sort ?? existing?.sort ?? null, sortMetric: request.sortMetric ?? existing?.sortMetric ?? null,
             cumulative: request.cumulative ?? existing?.cumulative ?? null,
@@ -4055,7 +4068,7 @@ function prepareCostsDashboard(dashboard: NonNullable<VaiModelOutput["dashboard"
         };
         return aliases[currencyId] ?? currencyId;
     };
-    
+
 
     const costWidgets = dashboard.widgets.filter((widget) => widget.source === "finance_costs").map((widget) => {
         const currency: "usd" | "pen" = wantsPen && !wantsUsd ? "pen" : "usd";
@@ -6020,7 +6033,7 @@ export function computeWidget(widget: VaiWidgetSpec, source: VaiSource, rows: Va
     if ((widget.type === "donut" || widget.type === "pareto") && grouped.some((row) => (row.values[0] ?? 0) < 0)) {
         return { kind: "unavailable", message: `${widget.type === "pareto" ? "El Pareto" : "El anillo"} no admite aportes negativos. No se ocultaron ni convirtieron en cero; usa barras o cascada.` };
     }
-    const limit = widget.limit ?? (widget.type === "rank" ? 10 : widget.type === "donut" ? 6 : grouped.length);
+    const limit = widget.limit ?? (widget.type === "rank" ? 10 : widget.type === "lollipop" ? 15 : widget.type === "radar" ? 12 : widget.type === "donut" ? 6 : grouped.length);
     const totalBeforeLimit = grouped.length;
     let omitted: Group[] = [];
     if (temporal && grouped.length > limit) {

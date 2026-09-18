@@ -3,9 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import { canUseLogScale, logarithmicScale, type ChartScaleMode } from "../../lib/chartScale";
 import type { VaiLanguage } from "../../lib/vai";
 const CHART_UI = {
-    es: { empty: "Sin datos para los filtros seleccionados.", exact: "Ver cifras exactas y detalle", period: "Período", category: "Categoría", value: "Valor", detail: "Detalle", total: "total", group: "Grupo", exactHint: "Los valores exactos están en «Ver cifras exactas».", linearTrend: "tendencia lineal", logScale: "Escala logarítmica (base 10)", heatmapDesc: "Valores por grupo y categoría; intensidad proporcional a la magnitud absoluta. El detalle conserva las filas originales.", filterTotal: "Total del filtro", net: "Neto", positive: "Aporte positivo", negative: "Aporte negativo", contribution: "Aporte", cumulative: "Acumulado desde cero", collapse: "Contraer", expand: "Expandir", secondLevel: "Segundo nivel", expandAll: "Expandir todo", matrixHint: "50 filas por página · subtotales por período, sin mezclar escenarios", hierarchy: "Jerarquía", expandedRows: "filas desplegadas", previous: "Anterior", next: "Siguiente", points: "puntos" },
-    en: { empty: "No data for the selected filters.", exact: "View exact figures and detail", period: "Period", category: "Category", value: "Value", detail: "Detail", total: "total", group: "Group", exactHint: "Exact values are available under “View exact figures”.", linearTrend: "linear trend", logScale: "Logarithmic scale (base 10)", heatmapDesc: "Values by group and category; intensity is proportional to absolute magnitude. Detail preserves the original rows.", filterTotal: "Filtered total", net: "Net", positive: "Positive contribution", negative: "Negative contribution", contribution: "Contribution", cumulative: "Cumulative from zero", collapse: "Collapse", expand: "Expand", secondLevel: "Second level", expandAll: "Expand all", matrixHint: "50 rows per page · subtotals by period without mixing scenarios", hierarchy: "Hierarchy", expandedRows: "expanded rows", previous: "Previous", next: "Next", points: "points" },
-    fr: { empty: "Aucune donnée pour les filtres sélectionnés.", exact: "Voir les chiffres exacts et le détail", period: "Période", category: "Catégorie", value: "Valeur", detail: "Détail", total: "total", group: "Groupe", exactHint: "Les valeurs exactes sont disponibles dans « Voir les chiffres exacts ».", linearTrend: "tendance linéaire", logScale: "Échelle logarithmique (base 10)", heatmapDesc: "Valeurs par groupe et catégorie ; l’intensité est proportionnelle à la magnitude absolue. Le détail conserve les lignes d’origine.", filterTotal: "Total filtré", net: "Net", positive: "Contribution positive", negative: "Contribution négative", contribution: "Contribution", cumulative: "Cumul depuis zéro", collapse: "Réduire", expand: "Développer", secondLevel: "Deuxième niveau", expandAll: "Tout développer", matrixHint: "50 lignes par page · sous-totaux par période sans mélanger les scénarios", hierarchy: "Hiérarchie", expandedRows: "lignes déployées", previous: "Précédent", next: "Suivant", points: "points" },
+    es: { empty: "Sin datos para los filtros seleccionados.", exact: "Ver cifras exactas y detalle", period: "Período", category: "Categoría", value: "Valor", detail: "Detalle", total: "total", group: "Grupo", exactHint: "Los valores exactos están en «Ver cifras exactas».", linearTrend: "tendencia lineal", logScale: "Escala logarítmica (base 10)", heatmapDesc: "Valores por grupo y categoría; intensidad proporcional a la magnitud absoluta. El detalle conserva las filas originales.", filterTotal: "Total del filtro", net: "Neto", positive: "Aporte positivo", negative: "Aporte negativo", contribution: "Aporte", cumulative: "Acumulado desde cero", collapse: "Contraer", expand: "Expandir", secondLevel: "Segundo nivel", expandAll: "Expandir todo", matrixHint: "50 filas por página · subtotales por período, sin mezclar escenarios", hierarchy: "Jerarquía", expandedRows: "filas desplegadas", previous: "Anterior", next: "Siguiente", points: "puntos", radarScale: "escala radial normalizada por serie" },
+    en: { empty: "No data for the selected filters.", exact: "View exact figures and detail", period: "Period", category: "Category", value: "Value", detail: "Detail", total: "total", group: "Group", exactHint: "Exact values are available under “View exact figures”.", linearTrend: "linear trend", logScale: "Logarithmic scale (base 10)", heatmapDesc: "Values by group and category; intensity is proportional to absolute magnitude. Detail preserves the original rows.", filterTotal: "Filtered total", net: "Net", positive: "Positive contribution", negative: "Negative contribution", contribution: "Contribution", cumulative: "Cumulative from zero", collapse: "Collapse", expand: "Expand", secondLevel: "Second level", expandAll: "Expand all", matrixHint: "50 rows per page · subtotals by period without mixing scenarios", hierarchy: "Hierarchy", expandedRows: "expanded rows", previous: "Previous", next: "Next", points: "points", radarScale: "radial scale normalized per series" },
+    fr: { empty: "Aucune donnée pour les filtres sélectionnés.", exact: "Voir les chiffres exacts et le détail", period: "Période", category: "Catégorie", value: "Valeur", detail: "Détail", total: "total", group: "Groupe", exactHint: "Les valeurs exactes sont disponibles dans « Voir les chiffres exacts ».", linearTrend: "tendance linéaire", logScale: "Échelle logarithmique (base 10)", heatmapDesc: "Valeurs par groupe et catégorie ; l’intensité est proportionnelle à la magnitude absolue. Le détail conserve les lignes d’origine.", filterTotal: "Total filtré", net: "Net", positive: "Contribution positive", negative: "Contribution négative", contribution: "Contribution", cumulative: "Cumul depuis zéro", collapse: "Réduire", expand: "Développer", secondLevel: "Deuxième niveau", expandAll: "Tout développer", matrixHint: "50 lignes par page · sous-totaux par période sans mélanger les scénarios", hierarchy: "Hiérarchie", expandedRows: "lignes déployées", previous: "Précédent", next: "Suivant", points: "points", radarScale: "échelle radiale normalisée par série" },
 } as const;
 const ChartLanguageContext = createContext<VaiLanguage>("es");
 export function ChartLanguageProvider({ language, children }: { language: VaiLanguage; children: ReactNode }) {
@@ -337,16 +337,17 @@ function SeriesTable({ rows, series, digits, unit, head, }: {
     head?: string;
 }) {
     const ui = useChartUi();
-    return (<table>
+    const sticky = { position: "sticky" as const, left: 0, background: "var(--s-1)", boxShadow: "1px 0 0 var(--line)", zIndex: 2 };
+    return (<table style={{ width: "max-content", minWidth: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
       <thead>
         <tr>
-          <th>{head ?? ui.period}</th>
+          <th style={{ ...sticky, zIndex: 4 }}>{head ?? ui.period}</th>
           {series.map((s) => (<th key={s.label}>{s.label}</th>))}
         </tr>
       </thead>
       <tbody>
         {rows.map((r) => (<tr key={r.key}>
-            <td>{r.key}</td>
+            <td style={sticky}>{r.key}</td>
             {r.values.map((v, j) => (<td key={j}>{value(v, series[j]?.digits ?? digits, series[j]?.unit ?? unit)}</td>))}
           </tr>))}
       </tbody>
@@ -1253,6 +1254,56 @@ export function RankChart({ title, subtitle, rows, digits = 0, unit = "", color 
       </div>
     </ChartCard>);
 }
+export function LollipopChart({ title, subtitle, rows, digits = 0, unit = "", color = CHART_COLORS[0], selected, onSelect, scale: scaleMode = "linear", dataTable, controls, }: {
+    title: string;
+    subtitle: string;
+    rows: RankRow[];
+    digits?: number;
+    unit?: string;
+    color?: string;
+    selected?: string | null;
+    onSelect?: (label: string) => void;
+    scale?: ChartScaleMode;
+    dataTable?: ReactNode;
+    controls?: ReactNode;
+}) {
+    const ui = useChartUi();
+    const [active, setActive] = useState<number | null>(null);
+    const [pointer, onPointerMove, clearPointer] = usePointer();
+    const finite = rows.map((row) => row.value).filter(Number.isFinite);
+    const log = scaleMode === "log" && canUseLogScale(finite);
+    const logScale = logarithmicScale(finite);
+    const linear = adaptiveScale(finite, true, 5);
+    const fraction = (v: number) => log ? logScale.fraction(v) : (v - linear.min) / Math.max(1e-12, linear.max - linear.min);
+    const zero = log ? 0 : fraction(0);
+    const tip = active != null && pointer ? rows[active] : null;
+    return <ChartCard title={title} subtitle={`${subtitle}${log ? ` · ${ui.logScale}` : ""}`} empty={!rows.length} controls={controls} table={dataTable ?? <table>
+      <thead><tr><th>{ui.category}</th><th>{ui.value}</th></tr></thead>
+      <tbody>{rows.map((row) => <tr key={row.label}><td>{row.label}</td><td>{value(row.value, digits, unit)}</td></tr>)}</tbody>
+    </table>}>
+      <div style={{ overflowX: "auto", maxWidth: "100%" }} onPointerMove={onPointerMove} onPointerDown={onPointerMove} onPointerLeave={() => { setActive(null); clearPointer(); }}>
+        <div style={{ minWidth: 520, display: "grid", gap: 5 }}>
+          {rows.map((row, index) => {
+            const Row = onSelect ? "button" : "div";
+            const at = Math.max(0, Math.min(1, fraction(row.value)));
+            const left = Math.min(zero, at) * 100;
+            const width = Math.max(0.7, Math.abs(at - zero) * 100);
+            return <Row key={row.label} {...(onSelect ? { type: "button" as const, "aria-pressed": selected === row.label, onClick: () => onSelect(row.label) } : {})} onPointerEnter={() => setActive(index)} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 190px) minmax(260px, 1fr) minmax(90px, auto)", alignItems: "center", gap: 10, width: "100%", minHeight: 34, padding: "4px 6px", border: 0, background: selected === row.label ? "var(--s-2)" : "transparent", color: "inherit", textAlign: "left", cursor: onSelect ? "pointer" : "default" }}>
+              <span title={row.label} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
+              <span style={{ position: "relative", height: 20 }}>
+                <span aria-hidden="true" style={{ position: "absolute", left: `${Math.max(0, Math.min(100, zero * 100))}%`, top: 2, bottom: 2, borderLeft: "1px solid var(--line)" }}/>
+                <span aria-hidden="true" style={{ position: "absolute", left: `${left}%`, width: `${width}%`, top: 9, height: 2, background: row.value < 0 ? CHART_COLORS[1] : color, opacity: .72 }}/>
+                <span aria-hidden="true" style={{ position: "absolute", left: `calc(${at * 100}% - 5px)`, top: 5, width: 10, height: 10, borderRadius: "50%", background: row.value < 0 ? CHART_COLORS[1] : color, boxShadow: "0 0 0 2px var(--s-1)" }}/>
+              </span>
+              <strong style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{value(row.value, digits, unit)}</strong>
+            </Row>;
+          })}
+        </div>
+        {tip && pointer && <ChartTip title={tip.label} lines={[{ color: tip.value < 0 ? CHART_COLORS[1] : color, value: value(tip.value, digits, unit), label: "" }]} notes={tip.notes} style={tipStyle(pointer.x, pointer.w, { pointerY: pointer.y, height: pointer.h })}/>}
+      </div>
+    </ChartCard>;
+}
+
 export type ScatterPoint = {
     label: string;
     x: number;
@@ -1401,6 +1452,82 @@ export function ScatterChart({ title, subtitle, points, xLabel, yLabel, xDigits 
       </div>
     </ChartCard>);
 }
+export function RadarChart({ title, subtitle, rows, series, height = 360, dataTable, controls, onSelect, }: {
+    title: string;
+    subtitle: string;
+    rows: ChartRow[];
+    series: ChartSeries[];
+    height?: number;
+    dataTable?: ReactNode;
+    controls?: ReactNode;
+    onSelect?: (key: string, seriesIndex?: number) => void;
+}) {
+    const ui = useChartUi();
+    const [ref, width] = useWidth();
+    const [hover, setHover] = useState<{ row: number; series: number } | null>(null);
+    const shown = rows.slice(0, 12);
+    const cx = width / 2;
+    const cy = height / 2 + 8;
+    const radius = Math.max(34, Math.min(width * .31, height * .31));
+    const ranges = series.map((_, j) => {
+        const values = shown.map((row) => row.values[j]).filter((v): v is number => v != null && Number.isFinite(v));
+        if (!values.length) return { min: 0, max: 1 };
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        if (min === max) {
+            if (max === 0) return { min: 0, max: 1 };
+            if (max > 0) return { min: 0, max };
+            return { min: min * 2, max: 0 };
+        }
+        return { min: Math.min(0, min), max };
+    });
+    const point = (rowIndex: number, seriesIndex: number, level?: number) => {
+        const angle = -Math.PI / 2 + rowIndex * (Math.PI * 2 / Math.max(1, shown.length));
+        const raw = shown[rowIndex]?.values[seriesIndex];
+        const range = ranges[seriesIndex];
+        const normalized = level ?? (raw == null ? 0 : Math.max(0, Math.min(1, (raw - range.min) / Math.max(1e-12, range.max - range.min))));
+        return { x: cx + Math.cos(angle) * radius * normalized, y: cy + Math.sin(angle) * radius * normalized };
+    };
+    const polygon = (seriesIndex: number, level?: number) => shown.map((_, rowIndex) => {
+        const p = point(rowIndex, seriesIndex, level);
+        return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    }).join(" ");
+    const tipRow = hover ? shown[hover.row] : null;
+    const tipSeries = hover ? series[hover.series] : null;
+    const tipPoint = hover ? point(hover.row, hover.series) : null;
+    return <ChartCard title={title} subtitle={`${subtitle} · ${ui.radarScale}`} series={series} empty={!shown.length || !series.length} controls={controls} table={dataTable ?? <SeriesTable rows={shown} series={series} digits={2} unit=""/>}>
+      <div ref={ref} className="trjk-chart-plot" style={{ minHeight: height, minWidth: 0, overflow: "hidden" }}>
+        {width > 0 ? <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
+          <desc>{`${title}. ${ui.radarScale}. ${ui.exactHint}`}</desc>
+          {[.25, .5, .75, 1].map((level) => <polygon key={level} points={polygon(0, level)} fill="none" stroke="var(--line)" strokeWidth="1" opacity={level === 1 ? .75 : .42}/>)}
+          {shown.map((row, i) => {
+            const outer = point(i, 0, 1);
+            const angle = -Math.PI / 2 + i * (Math.PI * 2 / Math.max(1, shown.length));
+            const labelRadius = radius + 20;
+            const lx = cx + Math.cos(angle) * labelRadius;
+            const ly = cy + Math.sin(angle) * labelRadius;
+            const anchor = Math.cos(angle) > .25 ? "start" : Math.cos(angle) < -.25 ? "end" : "middle";
+            return <g key={row.key}>
+              <line x1={cx} y1={cy} x2={outer.x} y2={outer.y} stroke="var(--line)" strokeWidth="1" opacity=".45"/>
+              <text className="trjk-axis" x={lx} y={ly + 3} textAnchor={anchor}><title>{row.label}</title>{axisLabelText(row.label, 16)}</text>
+            </g>;
+          })}
+          {series.map((item, j) => <g key={`${item.label}-${j}`}>
+            <polygon points={polygon(j)} fill={item.color} fillOpacity={series.length === 1 ? .14 : .07} stroke={item.color} strokeWidth="2"/>
+            {shown.map((row, i) => {
+                const raw = row.values[j];
+                if (raw == null) return null;
+                const p = point(i, j);
+                const active = hover?.row === i && hover.series === j;
+                return <circle key={`${row.key}-${j}`} cx={p.x} cy={p.y} r={active ? 6 : 4} fill={item.color} stroke="var(--s-1)" strokeWidth="2" tabIndex={0} role="button" aria-label={`${row.label}, ${item.label}: ${value(raw, item.digits ?? 2, item.unit ?? "")}`} onPointerEnter={() => setHover({ row: i, series: j })} onPointerLeave={() => setHover(null)} onFocus={() => setHover({ row: i, series: j })} onBlur={() => setHover(null)} onClick={onSelect ? () => onSelect(row.key, j) : undefined}/>;
+            })}
+          </g>)}
+        </svg> : null}
+        {hover && tipRow && tipSeries && tipPoint ? <ChartTip title={tipRow.label} lines={[{ label: tipSeries.label, color: tipSeries.color, value: value(tipRow.values[hover.series], tipSeries.digits ?? 2, tipSeries.unit ?? "") }]} notes={tipRow.notes} style={tipStyle(tipPoint.x, width, { pointerY: tipPoint.y, height })}/> : null}
+      </div>
+    </ChartCard>;
+}
+
 export function HeatmapChart({ title, subtitle, rows, series, dataTable, controls }: {
     title: string;
     subtitle: string;

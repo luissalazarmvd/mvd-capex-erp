@@ -4,20 +4,20 @@ import { createPortal } from "react-dom";
 import { loadVaiSourceRows } from "../../lib/vai";
 import { canUseLogScale, prefersLogScale, type ChartScaleMode } from "../../lib/chartScale";
 import { COST_MONTH_OPTIONS, COST_DETAIL_COLUMNS, computeMatrix, matrixExportTable, costSummaryText, toText, type VaiMatrixNode, VAI_AREAS, VAI_VISUAL_CATALOG, VAI_PROMPT_MAX, VAI_SOURCES, VAI_SOURCE_MAP, applyFilters, chartAxisGroup, chartFormat, computeWidget, concarLabel, defaultFilterValues, deleteDashboard, distinctValues, filterKey, formatValue, formatDateLabel, limaToday, localizeVaiSource, monthBounds, monthsInRange, validIsoDate, widgetLocalFilters, getDashboard, listDashboards, parseStoredSpec, saveDashboard, sourceRequestPath, summarizeTable, undoDashboard, widgetDetailTable, vaiField, type VaiArea, type VaiChartPreference, type VaiDashboardRecord, type VaiDashboardSpec, type VaiExportBlock, type VaiExportTable, type VaiFilterSpec, type VaiFilterState, type VaiFilterValue, type VaiFocus, type VaiLanguage, type VaiRow, type VaiSortMode, type VaiSource, type VaiWidgetData, type VaiWidgetSpec, } from "../../lib/vai";
-import { ChartLanguageProvider, MatrixChart, CHART_COLORS, CHART_OTHER, ColumnChart, ComboChart, DonutChart, HeatmapChart, WaterfallChart, KpiTooltip, LineChart, RankChart, ScatterChart, type ChartRow, type ChartSeries, } from "../ui/Charts";
+import { ChartLanguageProvider, MatrixChart, CHART_COLORS, CHART_OTHER, ColumnChart, ComboChart, DonutChart, HeatmapChart, WaterfallChart, KpiTooltip, LineChart, LollipopChart, RadarChart, RankChart, ScatterChart, type ChartRow, type ChartSeries, } from "../ui/Charts";
 import { Button } from "../ui/Button";
 import { ExcelHeaderFilter, useExcelColumnFilters, type ExcelColumnDef } from "../ui/ExcelFilters";
 import { Select } from "../ui/Select";
 import { VaiLogo } from "../ui/VaiLogo";
 const VAI_UI_TEXT = {
     es: {
-        filters: "Filtros", clearFilters: "Limpiar filtros", all: "Todos", none: "Ninguno", scale: "Escala", automatic: "Automática", linear: "Lineal", logarithmic: "Logarítmica", xAxis: "Eje X", split: "Segregar", noBreakdown: "Sin desglose", orderX: "Orden X", highLow: "Mayor a menor", lowHigh: "Menor a mayor", exactSummary: "Resumen exacto de", exactSubtitle: "valores agregados que alimentan el gráfico", backup: "Detalle de respaldo", backupSubtitle: "registros que justifican los grupos visibles", rows: "filas", edit: "Editar gráfico", editPlaceholder: "Ej.: conviértelo en un anillo por sede usando costo PEN", apply: "Aplicar", cancel: "Cancelar", editing: "Aplicando…", language: "Idioma", undo: "Deshacer", undoing: "Deshaciendo…", translating: "Traduciendo…", saved: "Guardado", unsaved: "Sin guardar", prompt: "Prompt", retry: "Reintentar guardado", refresh: "Actualizar datos", newDashboard: "Nuevo dashboard", notes: "Observaciones de la definición", exactRows: "registros", loadingData: "Obteniendo datos de las fuentes", preparing: "Preparando consultas…", source: "Fuente", noSource: "No se pudo resolver la fuente de este gráfico.", day: "día", week: "semana", month: "mes", quarter: "trimestre", year: "año"
+        filters: "Filtros", clearFilters: "Limpiar filtros", all: "Todos", none: "Ninguno", scale: "Escala", automatic: "Automática", linear: "Lineal", logarithmic: "Logarítmica", xAxis: "Eje X", split: "Segregar", noBreakdown: "Sin desglose", orderX: "Orden X", highLow: "Mayor a menor", lowHigh: "Menor a mayor", exactSummary: "Resumen exacto de", exactSubtitle: "valores agregados que alimentan el gráfico", backup: "Detalle de respaldo", backupSubtitle: "registros que justifican los grupos visibles", rows: "filas", edit: "Editar gráfico", editPlaceholder: "Ej.: conviértelo en un anillo por sede usando costo PEN", apply: "Aplicar", cancel: "Cancelar", editing: "Aplicando…", language: "Idioma", undo: "Deshacer", undoing: "Deshaciendo…", redo: "Rehacer", redoing: "Rehaciendo…", translating: "Traduciendo…", saved: "Guardado", unsaved: "Sin guardar", prompt: "Prompt", retry: "Reintentar guardado", refresh: "Actualizar datos", newDashboard: "Nuevo dashboard", notes: "Observaciones de la definición", exactRows: "registros", loadingData: "Obteniendo datos de las fuentes", preparing: "Preparando consultas…", source: "Fuente", noSource: "No se pudo resolver la fuente de este gráfico.", day: "día", week: "semana", month: "mes", quarter: "trimestre", year: "año"
     },
     en: {
-        filters: "Filters", clearFilters: "Clear filters", all: "All", none: "None", scale: "Scale", automatic: "Automatic", linear: "Linear", logarithmic: "Logarithmic", xAxis: "X axis", split: "Break down", noBreakdown: "No breakdown", orderX: "X order", highLow: "High to low", lowHigh: "Low to high", exactSummary: "Exact summary of", exactSubtitle: "aggregated values feeding the chart", backup: "Supporting detail", backupSubtitle: "records supporting the visible groups", rows: "rows", edit: "Edit chart", editPlaceholder: "E.g. turn it into a donut by site using PEN cost", apply: "Apply", cancel: "Cancel", editing: "Applying…", language: "Language", undo: "Undo", undoing: "Undoing…", translating: "Translating…", saved: "Saved", unsaved: "Not saved", prompt: "Prompt", retry: "Retry save", refresh: "Refresh data", newDashboard: "New dashboard", notes: "Definition notes", exactRows: "records", loadingData: "Fetching data from sources", preparing: "Preparing queries…", source: "Source", noSource: "The source for this chart could not be resolved.", day: "day", week: "week", month: "month", quarter: "quarter", year: "year"
+        filters: "Filters", clearFilters: "Clear filters", all: "All", none: "None", scale: "Scale", automatic: "Automatic", linear: "Linear", logarithmic: "Logarithmic", xAxis: "X axis", split: "Break down", noBreakdown: "No breakdown", orderX: "X order", highLow: "High to low", lowHigh: "Low to high", exactSummary: "Exact summary of", exactSubtitle: "aggregated values feeding the chart", backup: "Supporting detail", backupSubtitle: "records supporting the visible groups", rows: "rows", edit: "Edit chart", editPlaceholder: "E.g. turn it into a donut by site using PEN cost", apply: "Apply", cancel: "Cancel", editing: "Applying…", language: "Language", undo: "Undo", undoing: "Undoing…", redo: "Redo", redoing: "Redoing…", translating: "Translating…", saved: "Saved", unsaved: "Not saved", prompt: "Prompt", retry: "Retry save", refresh: "Refresh data", newDashboard: "New dashboard", notes: "Definition notes", exactRows: "records", loadingData: "Fetching data from sources", preparing: "Preparing queries…", source: "Source", noSource: "The source for this chart could not be resolved.", day: "day", week: "week", month: "month", quarter: "quarter", year: "year"
     },
     fr: {
-        filters: "Filtres", clearFilters: "Effacer les filtres", all: "Tous", none: "Aucun", scale: "Échelle", automatic: "Automatique", linear: "Linéaire", logarithmic: "Logarithmique", xAxis: "Axe X", split: "Ventiler", noBreakdown: "Sans ventilation", orderX: "Ordre X", highLow: "Du plus grand au plus petit", lowHigh: "Du plus petit au plus grand", exactSummary: "Résumé exact de", exactSubtitle: "valeurs agrégées alimentant le graphique", backup: "Détail justificatif", backupSubtitle: "enregistrements justifiant les groupes visibles", rows: "lignes", edit: "Modifier le graphique", editPlaceholder: "Ex. transforme-le en anneau par site avec le coût PEN", apply: "Appliquer", cancel: "Annuler", editing: "Application…", language: "Langue", undo: "Annuler le changement", undoing: "Annulation…", translating: "Traduction…", saved: "Enregistré", unsaved: "Non enregistré", prompt: "Prompt", retry: "Réessayer l’enregistrement", refresh: "Actualiser les données", newDashboard: "Nouveau dashboard", notes: "Observations de la définition", exactRows: "enregistrements", loadingData: "Chargement des données des sources", preparing: "Préparation des requêtes…", source: "Source", noSource: "La source de ce graphique n’a pas pu être résolue.", day: "jour", week: "semaine", month: "mois", quarter: "trimestre", year: "année"
+        filters: "Filtres", clearFilters: "Effacer les filtres", all: "Tous", none: "Aucun", scale: "Échelle", automatic: "Automatique", linear: "Linéaire", logarithmic: "Logarithmique", xAxis: "Axe X", split: "Ventiler", noBreakdown: "Sans ventilation", orderX: "Ordre X", highLow: "Du plus grand au plus petit", lowHigh: "Du plus petit au plus grand", exactSummary: "Résumé exact de", exactSubtitle: "valeurs agrégées alimentant le graphique", backup: "Détail justificatif", backupSubtitle: "enregistrements justifiant les groupes visibles", rows: "lignes", edit: "Modifier le graphique", editPlaceholder: "Ex. transforme-le en anneau par site avec le coût PEN", apply: "Appliquer", cancel: "Annuler", editing: "Application…", language: "Langue", undo: "Annuler le changement", undoing: "Annulation…", redo: "Rétablir", redoing: "Rétablissement…", translating: "Traduction…", saved: "Enregistré", unsaved: "Non enregistré", prompt: "Prompt", retry: "Réessayer l’enregistrement", refresh: "Actualiser les données", newDashboard: "Nouveau dashboard", notes: "Observations de la définition", exactRows: "enregistrements", loadingData: "Chargement des données des sources", preparing: "Préparation des requêtes…", source: "Source", noSource: "La source de ce graphique n’a pas pu être résolue.", day: "jour", week: "semaine", month: "mois", quarter: "trimestre", year: "année"
     },
 } as const;
 
@@ -471,6 +471,59 @@ function joinNatural(values: string[]) {
         return `${clean[0]} y ${clean[1]}`;
     return `${clean.slice(0, -1).join(", ")} y ${clean[clean.length - 1]}`;
 }
+function normalizeWidgetInstruction(value: string) {
+    return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+}
+function isDeleteWidgetInstruction(value: string) {
+    const text = normalizeWidgetInstruction(value).replace(/[.!?]+$/g, "");
+    return /^(?:borra|elimina|quita|delete|remove|supprime|efface)(?:\s+(?:esto|este|esta|this|ce|cette))?(?:\s+(?:grafico|grafica|chart|widget|visual|graphique))?$/.test(text);
+}
+function simpleWidgetTypeInstruction(value: string): VaiWidgetSpec["type"] | null {
+    const text = normalizeWidgetInstruction(value).replace(/[.!?]+$/g, "");
+    const match = text.match(/^(?:(?:quiero|i want|je veux)\s+)?(?:que\s+)?(?:(?:sea|sean|cambialo a|cambiar a|conviertelo en|convertir a|make it|turn it into|change it to|transforme le en|passe le en)\s+)?(?:(?:un|una|a|an|the|le|la)\s+)?(?:(?:grafico|grafica|chart|graphique)\s+(?:de|tipo|type)?\s*)?(barras?|bar(?:s)?|columnas?|lineas?|lines?|area|areas|ranking|rank|lollipop|radar)$/);
+    if (!match) return null;
+    const token = match[1];
+    if (/^(?:barras?|bars?|columnas?)$/.test(token)) return "bar";
+    if (/^(?:lineas?|lines?)$/.test(token)) return "line";
+    if (/^areas?$/.test(token)) return "area";
+    if (/^(?:ranking|rank)$/.test(token)) return "rank";
+    if (token === "lollipop") return "lollipop";
+    if (token === "radar") return "radar";
+    return null;
+}
+function typeOnlyWidgetPatch(widget: VaiWidgetSpec, type: VaiWidgetSpec["type"]): VaiWidgetSpec | null {
+    if (widget.type === type) return widget;
+    if (!["bar", "line", "area", "rank", "lollipop", "radar"].includes(type)) return null;
+    if (!widget.dimension && !widget.dateField) return null;
+    const metrics = type === "lollipop" ? widget.metrics.slice(0, 1) : type === "radar" ? widget.metrics.slice(0, 3) : [...widget.metrics];
+    if (!metrics.length) return null;
+    const seriesType = type === "bar" ? "bar" : type === "line" || type === "area" ? "line" : null;
+    return {
+        ...widget,
+        type,
+        metrics,
+        seriesTypes: seriesType ? metrics.map(() => seriesType) : null,
+        seriesAxes: seriesType ? widget.seriesAxes?.slice(0, metrics.length) ?? null : null,
+        breakdown: ["bar", "line", "area"].includes(type) ? widget.breakdown ?? null : null,
+        stack: type === "bar" ? widget.stack ?? null : null,
+        cumulative: type === "line" || type === "area" ? widget.cumulative ?? null : null,
+        includeOthers: type === "rank" ? widget.includeOthers ?? false : null,
+        bins: null,
+    };
+}
+function addedTableColumns(widget: VaiWidgetSpec, source: VaiSource | undefined, instruction: string) {
+    if (widget.type !== "table" || !widget.columns?.length || !source) return null;
+    const text = normalizeWidgetInstruction(instruction);
+    if (!/\b(?:agrega|anade|incluye|sumale|add|include|ajoute|ajouter)\b/.test(text) || !/\b(?:columna|columnas|column|columns|colonne|colonnes)\b/.test(text)) return null;
+    const mentioned = source.fields.filter((field) => {
+        const aliases = [field.id.replace(/_/g, " "), field.label].map(normalizeWidgetInstruction).filter((alias) => alias.length >= 3);
+        return aliases.some((alias) => text.includes(alias));
+    }).map((field) => field.id);
+    if (!mentioned.length) return null;
+    const columns = [...new Set([...widget.columns, ...mentioned])].slice(0, 12);
+    return columns.length === widget.columns.length ? null : columns;
+}
+
 function sourceSuggestions(source: VaiSource) {
     const metrics = source.metrics;
     const dimensions = source.fields.filter((field) => field.role === "dimension");
@@ -1011,10 +1064,10 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
       <VaiExportProvider title={spec.title} context={exportContext} disabled={loading || sources.some((source) => Boolean(data[source.id]?.error))}>
       {spec.description ? <p className="muted" style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip", maxHeight: "none" }}>{spec.description}</p> : null}
 
-      {spec.filters.length ? (<section className="trjk-card" data-vai-export-ignore>
-          <div className="trjk-toolbar">
-            <h3>{ui.filters}</h3>
-            <div className="trjk-actions">
+      {spec.filters.length ? (<section className="trjk-card" data-vai-export-ignore style={{ padding: 12, minWidth: 0 }}>
+          <div className="trjk-toolbar" style={{ alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h3 style={{ marginRight: "auto" }}>{ui.filters}</h3>
+            <div className="trjk-actions" style={{ flexWrap: "wrap" }}>
               {crossFilter ? <Button size="sm" variant="ghost" title={ui.clearFilters} onClick={() => setCrossFilter(null)}>✕ {crossFilter.label}</Button> : null}
               {hasFilters ? (<Button size="sm" variant="ghost" onClick={() => {
                     setFilters({});
@@ -1024,7 +1077,7 @@ function VaiDashboard({ spec, refreshToken = 0, editingWidget = null, onEditWidg
                 </Button>) : null}
             </div>
           </div>
-          <div className="vai-filters" style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 10, alignItems: "start", width: "100%", minWidth: 0 }}>
+          <div className="vai-filters" style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(180px, 100%), 1fr))", gap: 8, alignItems: "start", width: "100%", minWidth: 0 }}>
             {spec.filters.map((filter) => (<FilterControl key={filterKey(filter)} filter={filter} rows={filter.kind === "date_range" ? EMPTY_VAI_ROWS : filterOptionRows(filter)} value={effectiveFilters[filterKey(filter)] ?? {}} onChange={(value) => setFilters((prev) => ({ ...prev, [filterKey(filter)]: value }))}/>))}
           </div>
         </section>) : null}
@@ -1096,7 +1149,22 @@ function DateFilterControl({ filter, value, onChange }: {
         return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
     }, []);
     const valid = mode === "period" || ((!from || Boolean(validIsoDate(from))) && (!to || Boolean(validIsoDate(to))) && (!from || !to || from <= to));
-    const options = Number.isInteger(year) && year >= 1900 && year <= 2199 ? Array.from({ length: 12 }, (_, index) => `${String(year).padStart(4, "0")}-${String(index + 1).padStart(2, "0")}`) : [];
+    const options = Number.isInteger(year) && year >= 1900 && year <= 2199
+        ? Array.from({ length: 12 }, (_, index) => `${String(year).padStart(4, "0")}-${String(index + 1).padStart(2, "0")}`)
+        : [];
+    const appliedPeriods = value.periods;
+    const appliedMode = value.mode ?? filter.mode ?? "range";
+    const summary = appliedMode === "period"
+        ? appliedPeriods === undefined
+            ? ui.noPeriodFilter
+            : appliedPeriods.length === 0
+                ? ui.noPeriod
+                : appliedPeriods.length === 1
+                    ? formatDateLabel(appliedPeriods[0], "month")
+                    : `${appliedPeriods.length} ${ui.periodsSelected}`
+        : value.from || value.to
+            ? `${value.from || "…"} → ${value.to || "…"}`
+            : ui.noFilter;
     const apply = () => {
         if (!valid)
             return;
@@ -1110,59 +1178,59 @@ function DateFilterControl({ filter, value, onChange }: {
         else
             onChange({ mode, from, to });
     };
-    return (<div style={{ display: "grid", gap: 7, minWidth: 240, alignContent: "start" }} title={VAI_SOURCE_MAP.get(filter.source)?.name}>
-      <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-        <span className="vd-label">{filter.label}</span>
-        <select className="select" aria-label={`Modo de ${filter.label}`} value={mode} onChange={(event) => {
-            const next = event.target.value as "range" | "period";
-            if (next === "period" && from && to)
-                setPeriods(monthsInRange(from, to));
-            setMode(next);
-        }} style={{ width: 120 }}>
-          <option value="range">{ui.dates}</option><option value="period">{ui.periods}</option>
-        </select>
-      </div>
-      {mode === "range" ? (<div className="vai-range">
-          <input className="input" aria-label={`${filter.label}: desde`} type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)}/>
-          <input className="input" aria-label={`${filter.label}: hasta`} type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)}/>
-        </div>) : (<details ref={root} style={{ position: "relative" }}>
-          <summary className="input" style={{ cursor: "pointer", minHeight: 36 }}>
-            {periods === undefined ? ui.noPeriodFilter : periods.length ? periods.length === 1 ? formatDateLabel(periods[0], "month") : `${periods.length} ${ui.periodsSelected}` : ui.noPeriod}
-          </summary>
-          <div className="trjk-card" style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, padding: 12, boxShadow: "0 8px 24px #0003", background: "var(--panel, #fff)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <span>{ui.year}</span>
-              <input className="input" type="number" aria-label={`${ui.year}: ${filter.label}`} min={1900} max={2199} value={year} onChange={(event) => {
-                const next = Number(event.target.value);
-                setYear(next);
-            }} style={{ width: 95 }}/>
-              <button type="button" onClick={() => setPeriods((previous) => [...new Set([...(previous ?? []), ...options])])}>{ui.allYear}</button>
+    const clear = () => {
+        setFrom("");
+        setTo("");
+        setPeriods(undefined);
+        onChange({ mode, from: "", to: "" });
+        if (root.current) root.current.open = false;
+    };
+    return <div title={VAI_SOURCE_MAP.get(filter.source)?.name} style={{ display: "grid", gap: 5, minWidth: 0, width: "100%" }}>
+      <span className="vd-label" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{filter.label}</span>
+      <details ref={root} style={{ position: "relative", minWidth: 0, width: "100%" }}>
+        <summary className="select" title={summary} style={{ listStyle: "none", cursor: "pointer", userSelect: "none", width: "100%", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {summary}
+        </summary>
+        <div className="trjk-card" style={{ position: "absolute", zIndex: 520, top: "calc(100% + 5px)", left: 0, width: "min(520px, calc(100vw - 32px))", maxWidth: "calc(100vw - 32px)", padding: 12, display: "grid", gap: 10, boxShadow: "0 14px 34px rgba(0,0,0,.38)", background: "var(--s-1)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 128px", gap: 8, alignItems: "end" }}>
+            <strong style={{ fontSize: 12, overflowWrap: "anywhere" }}>{filter.label}</strong>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span className="muted" style={{ fontSize: 10 }}>{ui.periods}</span>
+              <select className="select" aria-label={`Modo de ${filter.label}`} value={mode} onChange={(event) => {
+                  const next = event.target.value as "range" | "period";
+                  if (next === "period" && from && to) setPeriods(monthsInRange(from, to));
+                  setMode(next);
+              }}>
+                <option value="range">{ui.dates}</option>
+                <option value="period">{ui.periods}</option>
+              </select>
+            </label>
+          </div>
+          {mode === "range" ? <div className="vai-range" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+            <input className="input" aria-label={`${filter.label}: desde`} type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)}/>
+            <input className="input" aria-label={`${filter.label}: hasta`} type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)}/>
+          </div> : <>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <span className="muted">{ui.year}</span>
+              <input className="input" type="number" aria-label={`${ui.year}: ${filter.label}`} min={1900} max={2199} value={year} onChange={(event) => setYear(Number(event.target.value))} style={{ width: 96 }}/>
+              <Button size="sm" variant="ghost" onClick={() => setPeriods((previous) => [...new Set([...(previous ?? []), ...options])])}>{ui.allYear}</Button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-              {options.map((period) => <label key={period} style={{ display: "flex", gap: 5, alignItems: "center" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 7 }}>
+              {options.map((period) => <label key={period} style={{ display: "flex", gap: 5, alignItems: "center", minWidth: 0 }}>
                 <input type="checkbox" checked={periods?.includes(period) ?? false} onChange={() => setPeriods((previous) => previous?.includes(period) ? previous.filter((item) => item !== period) : [...(previous ?? []), period])}/>
-                {formatDateLabel(period, "month")}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatDateLabel(period, "month")}</span>
               </label>)}
             </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button type="button" onClick={() => setPeriods([])}>{ui.clearSelection}</button>
-              <button type="button" onClick={apply}>{ui.applyPeriods}</button>
-            </div>
+          </>}
+          {!valid ? <small role="alert" style={{ color: "var(--bad)" }}>{ui.invalidDateRange}</small> : null}
+          <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
+            {mode === "period" ? <Button size="sm" variant="ghost" onClick={() => setPeriods([])}>{ui.clearSelection}</Button> : null}
+            <Button size="sm" variant="ghost" onClick={clear}>{ui.noFilter}</Button>
+            <Button size="sm" onClick={apply} disabled={!valid}>{ui.apply}</Button>
           </div>
-        </details>)}
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <Button size="sm" variant="ghost" disabled={!valid} onClick={apply}>{ui.apply}</Button>
-        <Button size="sm" variant="ghost" onClick={() => {
-            setFrom("");
-            setTo("");
-            setPeriods(undefined);
-            if (root.current)
-                root.current.open = false;
-            onChange({ mode, from: "", to: "" });
-        }}>{ui.noFilter}</Button>
-        {!valid ? <small role="alert">{ui.invalidDateRange}</small> : null}
-      </div>
-    </div>);
+        </div>
+      </details>
+    </div>;
 }
 function CostMonthControl({ value, onChange }: { value: VaiFilterValue; onChange: (value: VaiFilterValue) => void }) {
     const ui = useVaiUi();
@@ -1672,13 +1740,13 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel, e
             .filter((field) => field.role === "dimension" && !/^(?:is_|has_)/.test(field.id))
             .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }))
         : [], [source]);
-    const hasAxisPicker = Boolean(widget.dimension) && ["bar", "line", "area", "combo"].includes(widget.type) && dimensionOptions.length > 1;
+    const hasAxisPicker = Boolean(widget.dimension) && ["bar", "line", "area", "combo", "lollipop", "radar"].includes(widget.type) && dimensionOptions.length > 1;
     const hasBreakdownPicker = Boolean(widget.dimension) && ["bar", "line", "area", "combo"].includes(widget.type) && dimensionOptions.length > 1;
     const activeDimension = hasAxisPicker ? dimensionChoice ?? widget.dimension : widget.dimension;
     const activeBreakdown = hasBreakdownPicker
         ? breakdownChoice === activeDimension ? null : breakdownChoice
         : widget.breakdown ?? null;
-    const hasSortableXAxis = Boolean(activeDimension) && ["bar", "line", "area", "combo", "heatmap", "waterfall"].includes(widget.type);
+    const hasSortableXAxis = Boolean(activeDimension) && ["bar", "line", "area", "combo", "lollipop", "radar", "heatmap", "waterfall"].includes(widget.type);
     useEffect(() => {
         setSortChoice(widget.sort ?? "value_desc");
         setDimensionChoice(widget.dimension);
@@ -1788,7 +1856,7 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel, e
         if (row)
             selectSeriesRow(row.key);
     };
-    const values = chartRows.flatMap((row) => widget.type === "rank" ? [row.values[0]] : row.values);
+    const values = chartRows.flatMap((row) => widget.type === "rank" || widget.type === "lollipop" ? [row.values[0]] : row.values);
     const logAllowed = canUseLogScale(values) && !result.stack && unitGroups.length === 1 && widget.type !== "pareto";
     const scale: ChartScaleMode = logAllowed && (scaleChoice === "log" || (scaleChoice === "auto" && prefersLogScale(values))) ? "log" : "linear";
     const hasBarSeries = series.some((item) => item.seriesType !== "line");
@@ -1797,7 +1865,7 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel, e
     const comboScale: ChartScaleMode = scale;
     const chartControlStyle: CSSProperties = { display: "grid", gap: 4, minWidth: 0, width: "100%", alignContent: "end" };
     const chartControlSelectStyle: CSSProperties = { width: "100%", minWidth: 0, maxWidth: "none", height: 32 };
-    const scaleControls = widget.type === "rank" || ((widget.type === "bar" || widget.type === "combo" || lineLike) && !result.stack) ? (<label className="vai-scale-control" style={chartControlStyle} title={!logAllowed ? "La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal." : undefined}>
+    const scaleControls = widget.type === "rank" || widget.type === "lollipop" || ((widget.type === "bar" || widget.type === "combo" || lineLike) && !result.stack) ? (<label className="vai-scale-control" style={chartControlStyle} title={!logAllowed ? "La escala logarítmica requiere valores positivos; los ceros y negativos se muestran en escala lineal." : undefined}>
       <span>{ui.scale}</span>
       <select className="select" aria-label={`Escala de ${widget.title}`} value={scaleChoice} onChange={(event) => setScaleChoice(event.target.value as "auto" | ChartScaleMode)} style={chartControlSelectStyle}>
         <option value="auto">{ui.automatic}</option>
@@ -1858,6 +1926,12 @@ function Widget({ id, order, widget, source, rows, localControls, filterLabel, e
     }
     if (widget.type === "bar" || widget.type === "combo") {
         return wrap(<ColumnChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} minCategoryWidth={minCategoryWidth} height={chartHeight} stacked={result.stack === "percent" ? "percent" : result.stack === "stack" ? "stack" : false} controls={controls} dataTable={dataTable} onSelect={onCrossFilter ? selectSeriesRow : undefined}/>);
+    }
+    if (widget.type === "radar") {
+        return wrap(<RadarChart title={widget.title} subtitle={subtitle} rows={chartRows} series={series} controls={controls} dataTable={dataTable} onSelect={onCrossFilter ? selectSeriesRow : undefined}/>);
+    }
+    if (widget.type === "lollipop") {
+        return wrap(<LollipopChart title={widget.title} subtitle={subtitle} rows={result.rows.filter((row) => row.values[0] != null).map((row) => ({ label: row.label, value: row.values[0]! * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined, notes: row.notes }))} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} selected={selectedLabel} onSelect={onCrossFilter ? (label) => selectSeriesLabel(label) : undefined} controls={controls} dataTable={dataTable}/>);
     }
     if (widget.type === "rank") {
         return wrap(<RankChart title={widget.title} subtitle={subtitle} rows={result.rows.filter((row) => row.values[0] != null).map((row) => ({ label: row.label, value: row.values[0]! * primaryFormat.scale, note: result.series[1] ? `${result.series[1].label}: ${formatValue(row.values[1], result.series[1].format)}` : undefined, notes: row.notes }))} digits={primaryFormat.digits} unit={primaryFormat.unit} scale={scale} selected={selectedLabel} onSelect={onCrossFilter ? (label) => selectSeriesLabel(label) : undefined} controls={controls} dataTable={dataTable}/>);
@@ -2156,13 +2230,13 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
             </>) : null}
         </div>
       </div>
-      {data.rows.length ? (<div className="vai-table-scroll">
-          <table>
-            <thead>
+      {data.rows.length ? (<div className="vai-table-scroll" style={{ overflow: "auto", maxWidth: "100%" }}>
+          <table style={{ width: "max-content", minWidth: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+            <thead style={{ position: "sticky", top: 0, zIndex: 6, background: "var(--s-1)" }}>
               <tr>
-                {data.columns.map((column) => {
+                {data.columns.map((column, index) => {
                 return (<th key={column.id} data-num={column.format !== "text" &&
-                        column.format !== "date"}>
+                        column.format !== "date"} style={index === 0 ? { position: "sticky", left: 0, zIndex: 7, minWidth: 150, background: "var(--s-1)", boxShadow: "1px 0 0 var(--line)" } : undefined}>
                       <div style={{
                         display: "flex",
                         alignItems: "center",
@@ -2195,7 +2269,7 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
                       setSelectedRow(row);
                   }
               } : undefined} style={canDrill ? { cursor: "pointer" } : undefined}>
-                  {row.map((cell, j) => (<td key={j} data-num={data.columns[j].format !== "text" && data.columns[j].format !== "date"}>
+                  {row.map((cell, j) => (<td key={j} data-num={data.columns[j].format !== "text" && data.columns[j].format !== "date"} style={j === 0 ? { position: "sticky", left: 0, zIndex: 2, minWidth: 150, maxWidth: 320, background: "var(--s-1)", boxShadow: "1px 0 0 var(--line)", overflowWrap: "anywhere" } : undefined}>
                       {formatValue(cell, data.columns[j].format)}
                     </td>))}
                 </tr>))}
@@ -2210,7 +2284,8 @@ function TableWidget({ id, order, title, subtitle, data, source, compact = false
                 return (<td key={column.id} data-num={Boolean(summary)} title={hint} aria-label={summary ? `${hint} ${formatValue(summary.value, column.format)}` : undefined} style={{
                         position: "sticky",
                         bottom: 0,
-                        zIndex: 3,
+                        left: index === 0 ? 0 : undefined,
+                        zIndex: index === 0 ? 5 : 3,
                         padding: "12px 10px",
                         background: "linear-gradient(var(--s-2, transparent), var(--s-2, transparent)), var(--s-canvas, #ffffff)",
                         borderTop: "2px solid var(--brand-gold)",
@@ -2299,9 +2374,12 @@ export default function VaiWorkspace() {
     const [editingWidget, setEditingWidget] = useState<number | null>(null);
     const [translating, setTranslating] = useState(false);
     const [undoing, setUndoing] = useState(false);
+    const [redoing, setRedoing] = useState(false);
     const [undoDepth, setUndoDepth] = useState(0);
+    const [redoDepth, setRedoDepth] = useState(0);
     const stepTimers = useRef<number[]>([]);
     const undoStack = useRef<Board[]>([]);
+    const redoStack = useRef<Board[]>([]);
     const translationCache = useRef(new Map<VaiLanguage, VaiDashboardSpec>());
     const translationPending = useRef(new Map<VaiLanguage, Promise<{ spec: VaiDashboardSpec; notes: string[] }>>());
     const translationEpoch = useRef(0);
@@ -2332,9 +2410,17 @@ export default function VaiWorkspace() {
         setGenerating({ step: 0, prompt });
         stepTimers.current = [900, 2200].map((delay, i) => window.setTimeout(() => setGenerating((prev) => (prev ? { ...prev, step: i + 1 } : prev)), delay));
     }
-    function pushUndo(snapshot: Board) {
+    function clearRedo() {
+        redoStack.current = [];
+        setRedoDepth(0);
+    }
+
+    function pushUndo(snapshot: Board, clearForward = true) {
         undoStack.current = [...undoStack.current.slice(-19), snapshot];
         setUndoDepth(undoStack.current.length);
+
+        if (clearForward)
+            clearRedo();
     }
 
     function popUndo() {
@@ -2343,6 +2429,26 @@ export default function VaiWorkspace() {
         setUndoDepth(undoStack.current.length);
         return next;
     }
+
+    function pushRedo(snapshot: Board) {
+        redoStack.current = [...redoStack.current.slice(-19), snapshot];
+        setRedoDepth(redoStack.current.length);
+    }
+
+    function popRedo() {
+        const next = redoStack.current.at(-1) ?? null;
+        redoStack.current = redoStack.current.slice(0, -1);
+        setRedoDepth(redoStack.current.length);
+        return next;
+    }
+
+    function clearHistory() {
+        undoStack.current = [];
+        redoStack.current = [];
+        setUndoDepth(0);
+        setRedoDepth(0);
+    }
+
 
     async function requestChange(payload: Record<string, unknown>): Promise<ChangeSuccess> {
         const res = await fetch("/api/vai/generate", {
@@ -2459,8 +2565,7 @@ export default function VaiWorkspace() {
         setLastRequest(request);
         setFailure(null);
         setBoard(null);
-        undoStack.current = [];
-        setUndoDepth(0);
+        clearHistory();
         scheduleSteps(request.prompt);
         let response: GenerateResponse;
         try {
@@ -2555,8 +2660,7 @@ export default function VaiWorkspace() {
     async function open(item: VaiDashboardRecord) {
         setFailure(null);
         setOpening(item.dashboard_id);
-        undoStack.current = [];
-        setUndoDepth(0);
+        clearHistory();
         try {
             const detail = await getDashboard(item.dashboard_id);
             if (!detail)
@@ -2649,10 +2753,99 @@ export default function VaiWorkspace() {
     }
 
     async function editWidget(index: number, instruction: string) {
-        if (!board || editingWidget !== null || translating || undoing)
+        if (!board || editingWidget !== null || translating || undoing || redoing)
             return;
 
         const current = board;
+        const widget = current.spec.widgets[index];
+
+        if (!widget)
+            return;
+
+        setFailure(null);
+
+        if (isDeleteWidgetInstruction(instruction)) {
+            if (current.spec.widgets.length <= 1) {
+                setFailure({
+                    message: "El dashboard debe conservar al menos un gráfico.",
+                    unavailable: [],
+                });
+                return;
+            }
+
+            const widgets = current.spec.widgets.filter((_, widgetIndex) => widgetIndex !== index);
+            const sources = [...new Set(widgets.map((item) => item.source))];
+            const nextSpec: VaiDashboardSpec = {
+                ...current.spec,
+                widgets,
+                sources,
+                filters: current.spec.filters.filter((filter) => sources.includes(filter.source)),
+            };
+            const next: Board = {
+                ...current,
+                spec: nextSpec,
+                saveError: null,
+            };
+
+            pushUndo(current);
+            resetTranslationCache(next.spec);
+            setBoard(next);
+            prefetchTranslations(next);
+
+            void persist(
+                next,
+                next.name,
+                "widget_edit"
+            );
+            return;
+        }
+
+        const source = VAI_SOURCE_MAP.get(widget.source);
+        const addedColumns = addedTableColumns(
+            widget,
+            source,
+            instruction
+        );
+        const requestedType = simpleWidgetTypeInstruction(instruction);
+        const localWidget = addedColumns
+            ? {
+                ...widget,
+                columns: addedColumns,
+            }
+            : requestedType
+                ? typeOnlyWidgetPatch(
+                    widget,
+                    requestedType
+                )
+                : null;
+
+        if (localWidget) {
+            const nextSpec: VaiDashboardSpec = {
+                ...current.spec,
+                widgets: current.spec.widgets.map((item, widgetIndex) => (
+                    widgetIndex === index
+                        ? localWidget
+                        : item
+                )),
+            };
+            const next: Board = {
+                ...current,
+                spec: nextSpec,
+                saveError: null,
+            };
+
+            pushUndo(current);
+            resetTranslationCache(next.spec);
+            setBoard(next);
+            prefetchTranslations(next);
+
+            void persist(
+                next,
+                next.name,
+                "widget_edit"
+            );
+            return;
+        }
 
         setEditingWidget(index);
         setFailure(null);
@@ -2715,7 +2908,7 @@ export default function VaiWorkspace() {
     }
 
     async function switchLanguage(target: VaiLanguage) {
-        if (!board || target === board.spec.language || translating || editingWidget !== null || undoing)
+        if (!board || target === board.spec.language || translating || editingWidget !== null || undoing || redoing)
             return;
 
         const current = board;
@@ -2791,7 +2984,7 @@ export default function VaiWorkspace() {
     }
 
     async function undoLastChange() {
-        if (!board || undoing || editingWidget !== null || translating)
+        if (!board || undoing || redoing || editingWidget !== null || translating)
             return;
 
         const current = board;
@@ -2824,6 +3017,7 @@ export default function VaiWorkspace() {
                     throw new Error("La revisión anterior ya no es compatible con el catálogo actual.");
 
                 popUndo();
+                pushRedo(current);
 
                 const restored: Board = {
                     spec: {
@@ -2853,6 +3047,7 @@ export default function VaiWorkspace() {
             if (!local)
                 throw new Error("No hay cambios anteriores para deshacer.");
 
+            pushRedo(current);
             resetTranslationCache(local.spec);
             setBoard(local);
             setTitleDraft(local.name);
@@ -2868,6 +3063,58 @@ export default function VaiWorkspace() {
         }
         finally {
             setUndoing(false);
+        }
+    }
+
+    async function redoLastChange() {
+        if (!board || redoing || undoing || editingWidget !== null || translating)
+            return;
+
+        const forward = popRedo();
+
+        if (!forward) {
+            setFailure({
+                message: "No hay cambios posteriores para rehacer.",
+                unavailable: [],
+            });
+            return;
+        }
+
+        const current = board;
+
+        setRedoing(true);
+        setFailure(null);
+
+        try {
+            pushUndo(current, false);
+
+            const restored: Board = {
+                ...forward,
+                id: current.id ?? forward.id,
+                saveError: null,
+            };
+
+            resetTranslationCache(restored.spec);
+            setBoard(restored);
+            setTitleDraft(restored.name);
+            prefetchTranslations(restored);
+
+            await persist(
+                restored,
+                restored.name,
+                "save"
+            );
+        }
+        catch (error) {
+            setFailure({
+                message: error instanceof Error
+                    ? error.message
+                    : "No se pudo rehacer el cambio.",
+                unavailable: [],
+            });
+        }
+        finally {
+            setRedoing(false);
         }
     }
     function commitTitle() {
@@ -2975,6 +3222,8 @@ export default function VaiWorkspace() {
                   {board.id ? `${ui.saved} · ${formatStamp(board.savedAt, language)}` : ui.unsaved}
                   {translating ? <span> · {ui.translating}</span> : null}
                   {editingWidget !== null ? <span> · {ui.editing}</span> : null}
+                  {undoing ? <span> · {ui.undoing}</span> : null}
+                  {redoing ? <span> · {ui.redoing}</span> : null}
                   {board.saveError ? <span style={{ color: "var(--bad)" }}> · {board.saveError}</span> : null}
                 </div>
                 <p className="vai-board-prompt" style={{ display: "block", whiteSpace: "pre-wrap", overflowWrap: "anywhere", overflow: "visible", textOverflow: "clip", WebkitLineClamp: "unset", maxHeight: "none", height: "auto", margin: "4px 0 0", lineHeight: 1.6 }}>
@@ -2989,7 +3238,7 @@ export default function VaiWorkspace() {
                   <select
                     className="input"
                     value={board.spec.language}
-                    disabled={translating || editingWidget !== null || undoing}
+                    disabled={translating || editingWidget !== null || undoing || redoing}
                     onChange={(event) => void switchLanguage(event.target.value as VaiLanguage)}
                     style={{
                         width: 112,
@@ -3006,11 +3255,21 @@ export default function VaiWorkspace() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  disabled={undoing || translating || editingWidget !== null || (!board.id && undoDepth === 0)}
+                  disabled={undoing || redoing || translating || editingWidget !== null || (!board.id && undoDepth === 0)}
                   onClick={() => void undoLastChange()}
                   title={ui.undo}
                 >
                   {undoing ? ui.undoing : `↶ ${ui.undo}`}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={redoing || undoing || translating || editingWidget !== null || redoDepth === 0}
+                  onClick={() => void redoLastChange()}
+                  title={ui.redo}
+                >
+                  {redoing ? ui.redoing : `↷ ${ui.redo}`}
                 </Button>
 
                 {board.saveError ? (<Button size="sm" variant="primary" onClick={() => void persist(board, board.name)}>
@@ -3021,7 +3280,7 @@ export default function VaiWorkspace() {
                   size="sm"
                   variant="ghost"
                   onClick={() => setRefreshToken((token) => token + 1)}
-                  disabled={translating || editingWidget !== null || undoing}
+                  disabled={translating || editingWidget !== null || undoing || redoing}
                 >
                   {ui.refresh}
                 </Button>
@@ -3030,7 +3289,7 @@ export default function VaiWorkspace() {
                   size="sm"
                   variant="default"
                   onClick={() => setBoard(null)}
-                  disabled={translating || editingWidget !== null || undoing}
+                  disabled={translating || editingWidget !== null || undoing || redoing}
                 >
                   {ui.newDashboard}
                 </Button>
