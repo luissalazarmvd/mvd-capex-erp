@@ -51,6 +51,9 @@ export default function PortalClient({ nextPath }: PortalClientProps) {
   const [err, setErr] = useState("");
   const [hasInternalAccess, setHasInternalAccess] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(true);
+  // Al entrar a un módulo el logo se remonta (key) para que su animación
+  // vuelva a reproducirse desde la formación de la V.
+  const [logoRun, setLogoRun] = useState(0);
 
   const selected = useMemo(
     () => AREAS.find((item) => item.key === area) || null,
@@ -62,6 +65,7 @@ export default function PortalClient({ nextPath }: PortalClientProps) {
     setErr("");
     setPw("");
     setArea(areaPick);
+    setLogoRun((n) => n + 1);
   }
 
   useEffect(() => {
@@ -169,7 +173,7 @@ export default function PortalClient({ nextPath }: PortalClientProps) {
       <div className="vd-portal-shell">
         <header className="vd-portal-head" data-area={selected?.key}>
           <div className="vd-portal-brand">
-            <VaiLogo size={64} />
+            <VaiLogo key={logoRun} size={64} />
             <span>Veta Analytics &amp; Intelligence</span>
           </div>
 
